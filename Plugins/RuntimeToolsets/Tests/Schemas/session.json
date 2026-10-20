@@ -1,0 +1,132 @@
+{
+	"description": "Health, build info, toolset discovery and call_tool",
+	"name": "session",
+	"tools": [
+		{
+			"description": "Health check. Returns frame number.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.ping"
+		},
+		{
+			"description": "Engine version, build config, platform, project, current map.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.get_build_info"
+		},
+		{
+			"description": "Enabled toolsets, limits, policies, target syntax and units.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.get_capabilities"
+		},
+		{
+			"description": "List toolsets with tool counts. Start here.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.list_toolsets"
+		},
+		{
+			"description": "Tools of one toolset with input schemas.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"include_schemas":
+					{
+						"default": true,
+						"description": "Include input schemas",
+						"type": "boolean"
+					},
+					"name":
+					{
+						"description": "Toolset name from list_toolsets",
+						"maxLength": 64,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "session.describe_toolset"
+		},
+		{
+			"description": "Call any tool by name (toolset.tool or toolset_tool) with its arguments.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"arguments":
+					{
+						"description": "Tool arguments",
+						"type": "object"
+					},
+					"name":
+					{
+						"description": "Qualified tool name, e.g. actors.spawn_actor",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "session.call_tool"
+		},
+		{
+			"description": "Call counts and result sizes per tool (token cost).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.get_usage_report"
+		},
+		{
+			"description": "Drop this session's undo history (makes deletions permanent) and log subscriptions.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "session.end_session"
+		}
+	],
+	"version": "1.0.0"
+}

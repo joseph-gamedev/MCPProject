@@ -1,0 +1,27 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "Host project for the RuntimeToolsets plugin (runtime MCP toolsets).",
+	"Modules": [
+		{
+			"Name": "MCPProject",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "RuntimeToolsets",
+			"Enabled": true
+		},
+		{
+			"Name": "RuntimeToolsetsMCP",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true
+		}
+	]
+}

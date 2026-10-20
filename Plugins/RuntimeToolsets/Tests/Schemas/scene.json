@@ -1,0 +1,716 @@
+{
+	"description": "Scene graph of tool-created nodes: groups, hierarchy, transforms, export/import",
+	"name": "scene",
+	"tools": [
+		{
+			"description": "Create an empty group node (pivot for children). Transform is relative to parent.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Group name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 16,
+						"type": "array"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.create_group",
+			"undoable": true
+		},
+		{
+			"description": "Node hierarchy, depth-limited. Deeper levels show child_count.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"depth":
+					{
+						"default": 2,
+						"description": "Levels to expand",
+						"maximum": 32,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"fields":
+					{
+						"description": "Fields to include (default: all listed)",
+						"items":
+						{
+							"enum": [
+								"name",
+								"path",
+								"kind",
+								"parent",
+								"children",
+								"tags",
+								"class",
+								"source",
+								"location",
+								"rotation",
+								"scale",
+								"bounds"
+							],
+							"type": "string"
+						},
+						"maxItems": 12,
+						"type": "array"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"root":
+					{
+						"description": "Start node (default: all roots)",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.list_tree"
+		},
+		{
+			"description": "Find nodes by name wildcard, tag or kind.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"fields":
+					{
+						"description": "Fields to include (default: all listed)",
+						"items":
+						{
+							"enum": [
+								"name",
+								"path",
+								"kind",
+								"parent",
+								"children",
+								"tags",
+								"class",
+								"source",
+								"location",
+								"rotation",
+								"scale",
+								"bounds"
+							],
+							"type": "string"
+						},
+						"maxItems": 12,
+						"type": "array"
+					},
+					"kind":
+					{
+						"description": "Node kind",
+						"enum": [
+							"group",
+							"actor"
+						],
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"pattern":
+					{
+						"description": "Name wildcard",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"tag":
+					{
+						"description": "Tag",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"under":
+					{
+						"description": "Search only below this node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.find_nodes"
+		},
+		{
+			"description": "One node with transform, bounds, tags and color.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"fields":
+					{
+						"description": "Fields to include (default: all listed)",
+						"items":
+						{
+							"enum": [
+								"name",
+								"path",
+								"kind",
+								"parent",
+								"children",
+								"tags",
+								"class",
+								"source",
+								"location",
+								"rotation",
+								"scale",
+								"bounds"
+							],
+							"type": "string"
+						},
+						"maxItems": 12,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "scene.get_node"
+		},
+		{
+			"description": "Set location or add offset. Children follow.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "New location",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"offset":
+					{
+						"description": "Offset to add",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"space":
+					{
+						"default": "world",
+						"description": "world, or local (location relative to parent, offset along own axes)",
+						"enum": [
+							"world",
+							"local"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.move_node",
+			"undoable": true
+		},
+		{
+			"description": "Set rotation or apply a delta. Children follow.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"delta":
+					{
+						"description": "Rotation to apply",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "New rotation",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"space":
+					{
+						"default": "world",
+						"description": "world, or local (rotation relative to parent, delta about own axes)",
+						"enum": [
+							"world",
+							"local"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.rotate_node",
+			"undoable": true
+		},
+		{
+			"description": "Set scale or multiply by factor. Prefer scaling leaves.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"factor":
+					{
+						"description": "Multiply current scale",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "New world scale",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.scale_node",
+			"undoable": true
+		},
+		{
+			"description": "Move a node under another node (empty parent = root).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"keep_world":
+					{
+						"default": true,
+						"description": "Keep world transform",
+						"type": "boolean"
+					},
+					"parent":
+					{
+						"description": "New parent node; empty for root",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.reparent_node",
+			"undoable": true
+		},
+		{
+			"description": "Move a group's origin; children stay in place. Default: bounds centre.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "New pivot (world)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Group node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.set_pivot",
+			"undoable": true
+		},
+		{
+			"description": "Rename a node (unique among siblings). Id is unchanged.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "New name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.rename_node",
+			"undoable": true
+		},
+		{
+			"description": "Set, add or remove node tags.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"mode":
+					{
+						"default": "set",
+						"description": "How to apply",
+						"enum": [
+							"set",
+							"add",
+							"remove"
+						],
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 32,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"tags"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.set_node_tags",
+			"undoable": true
+		},
+		{
+			"description": "Copy a node subtree (from its spawn specs) next to it.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Name for the copy",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"offset":
+					{
+						"description": "World offset for the copy",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.duplicate_node",
+			"undoable": true
+		},
+		{
+			"description": "Delete a node and its subtree, or promote its children. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"promote_children":
+					{
+						"default": false,
+						"description": "Keep children, move them up",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.delete_node",
+			"undoable": true
+		},
+		{
+			"description": "Delete everything under a node (this session's nodes). Needs confirm; checkpoints first.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"confirm":
+					{
+						"default": false,
+						"description": "Must be true to proceed",
+						"type": "boolean"
+					},
+					"root":
+					{
+						"description": "Scope node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"root"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.clear_scope",
+			"undoable": true
+		},
+		{
+			"description": "Delete all nodes this session created. Needs confirm; checkpoints first.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"confirm":
+					{
+						"default": false,
+						"description": "Must be true to proceed",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.clear_all",
+			"undoable": true
+		},
+		{
+			"description": "Export nodes as a JSON spec (relative transforms, sources, tags, colors).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"root":
+					{
+						"description": "Export only this subtree",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.export_tree"
+		},
+		{
+			"description": "Build nodes from an export_tree spec as one undo step. Returns new ids.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"parent":
+					{
+						"description": "Attach roots under this node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"tree":
+					{
+						"description": "Spec: {nodes:[{name,source,location,rotation,scale,tags,color,children:[...]}]}",
+						"type": "object"
+					}
+				},
+				"required": [
+					"tree"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.import_tree",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

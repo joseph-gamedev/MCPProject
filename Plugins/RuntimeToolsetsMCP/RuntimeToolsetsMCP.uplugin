@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Runtime Toolsets MCP Adapter",
+	"Description": "Optional adapter that exposes RuntimeToolsets tools through Epic's ModelContextProtocol local HTTP server. For local testing; disable when a connector plugin is used.",
+	"Category": "AI",
+	"CanContainContent": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "RuntimeToolsetsMCP",
+			"Type": "Runtime",
+			"LoadingPhase": "PostEngineInit",
+			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+		}
+	],
+	"Plugins": [
+		{ "Name": "RuntimeToolsets", "Enabled": true },
+		{ "Name": "ModelContextProtocol", "Enabled": true }
+	]
+}

@@ -1,0 +1,359 @@
+{
+	"description": "Spawn, destroy, find, transform, attach and hide actors",
+	"name": "actors",
+	"tools": [
+		{
+			"description": "Spawn a basic shape or actor class; returns node id. With parent, transform is relative to it.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Actor class path, e.g. /Script/Engine.PointLight or /Game/BP_X",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"color":
+					{
+						"description": "Shape color [r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Node name (unique among siblings)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node (id or path)",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll] deg",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z] scale",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"shape":
+					{
+						"description": "Basic shape (100 cm)",
+						"enum": [
+							"cube",
+							"sphere",
+							"cylinder",
+							"cone",
+							"plane"
+						],
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 16,
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.spawn_actor",
+			"undoable": true
+		},
+		{
+			"description": "Delete an actor (and its node subtree). Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.destroy_actor",
+			"undoable": true
+		},
+		{
+			"description": "Find actors by name wildcard, class (incl. parents) and tag.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Class name wildcard, e.g. *Light*",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"fields":
+					{
+						"description": "Fields to include (default: all listed)",
+						"items":
+						{
+							"enum": [
+								"name",
+								"class",
+								"location",
+								"rotation",
+								"tags"
+							],
+							"type": "string"
+						},
+						"maxItems": 5,
+						"type": "array"
+					},
+					"include_hidden":
+					{
+						"default": false,
+						"description": "Include hidden level actors",
+						"type": "boolean"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"name":
+					{
+						"description": "Name wildcard, e.g. Light*",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"tag":
+					{
+						"description": "Actor tag",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "actors.find_actors"
+		},
+		{
+			"description": "Set location/rotation/scale (missing parts unchanged). Children follow.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll] deg",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"space":
+					{
+						"default": "world",
+						"description": "Coordinate space",
+						"enum": [
+							"world",
+							"relative"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.set_transform",
+			"undoable": true
+		},
+		{
+			"description": "Attach child actor to parent actor (empty parent = detach).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"child":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"keep_world":
+					{
+						"default": true,
+						"description": "Keep world transform",
+						"type": "boolean"
+					},
+					"parent":
+					{
+						"description": "Parent target; empty to detach",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"socket":
+					{
+						"description": "Socket name",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"required": [
+					"child"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.attach",
+			"undoable": true
+		},
+		{
+			"description": "Show or hide an actor (and attached actors).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"propagate":
+					{
+						"default": true,
+						"description": "Include attached actors",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"visible":
+					{
+						"description": "Visible",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"target",
+					"visible"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.set_visibility",
+			"undoable": true
+		},
+		{
+			"description": "Components of an actor (name, class, attach parent).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "actors.list_components"
+		}
+	],
+	"version": "1.0.0"
+}

@@ -1,0 +1,191 @@
+{
+	"description": "Screenshots, render targets and scene captures as JPEG/PNG",
+	"name": "capture",
+	"tools": [
+		{
+			"async": true,
+			"description": "Capture the game viewport as an image (async, next frame).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"format":
+					{
+						"default": "jpg",
+						"description": "Image format",
+						"enum": [
+							"jpg",
+							"png"
+						],
+						"type": "string"
+					},
+					"max_dim":
+					{
+						"default": 768,
+						"description": "Longest side in px",
+						"maximum": 4096,
+						"minimum": 64,
+						"type": "integer"
+					},
+					"quality":
+					{
+						"description": "JPEG quality",
+						"maximum": 100,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"show_ui":
+					{
+						"default": false,
+						"description": "Include UI",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "capture.screenshot"
+		},
+		{
+			"description": "Read a render target (or a scene capture's target) as an image.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"format":
+					{
+						"default": "jpg",
+						"description": "Image format",
+						"enum": [
+							"jpg",
+							"png"
+						],
+						"type": "string"
+					},
+					"max_dim":
+					{
+						"default": 768,
+						"description": "Longest side in px",
+						"maximum": 4096,
+						"minimum": 64,
+						"type": "integer"
+					},
+					"quality":
+					{
+						"description": "JPEG quality",
+						"maximum": 100,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Render target object or scene capture",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "capture.capture_render_target"
+		},
+		{
+			"description": "Render the scene from any camera pose. Defaults to the player camera.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"format":
+					{
+						"default": "jpg",
+						"description": "Image format",
+						"enum": [
+							"jpg",
+							"png"
+						],
+						"type": "string"
+					},
+					"fov":
+					{
+						"default": 90,
+						"description": "Horizontal FOV deg",
+						"maximum": 170,
+						"minimum": 5,
+						"type": "number"
+					},
+					"height":
+					{
+						"default": 432,
+						"description": "Render height",
+						"maximum": 4096,
+						"minimum": 64,
+						"type": "integer"
+					},
+					"location":
+					{
+						"description": "Camera [x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"look_at":
+					{
+						"description": "Point to look at (overrides rotation)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"max_dim":
+					{
+						"default": 768,
+						"description": "Longest side in px",
+						"maximum": 4096,
+						"minimum": 64,
+						"type": "integer"
+					},
+					"quality":
+					{
+						"description": "JPEG quality",
+						"maximum": 100,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"rotation":
+					{
+						"description": "Camera [pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"width":
+					{
+						"default": 768,
+						"description": "Render width",
+						"maximum": 4096,
+						"minimum": 64,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "capture.scene_capture"
+		}
+	],
+	"version": "1.0.0"
+}

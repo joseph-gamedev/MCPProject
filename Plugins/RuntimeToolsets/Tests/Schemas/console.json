@@ -1,0 +1,189 @@
+{
+	"description": "Console commands, cvars, scalability and user settings",
+	"name": "console",
+	"tools": [
+		{
+			"description": "Run one console command (deny-list applies). Returns captured output. Not undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"command":
+					{
+						"description": "Console command, e.g. stat fps",
+						"maxLength": 512,
+						"type": "string"
+					}
+				},
+				"required": [
+					"command"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "console.exec_command",
+			"undoable": false
+		},
+		{
+			"description": "Read a console variable by name, or list by prefix.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"name":
+					{
+						"description": "Exact cvar name",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"prefix":
+					{
+						"description": "List cvars starting with this",
+						"maxLength": 256,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "console.get_cvar"
+		},
+		{
+			"description": "Set a console variable. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Cvar name",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New value (number, bool or string)"
+					}
+				},
+				"required": [
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "console.set_cvar",
+			"undoable": true
+		},
+		{
+			"description": "Set overall or per-group quality (0 low .. 3 epic, 4 cinematic). Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"anti_aliasing":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"effects":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"foliage":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"global_illumination":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"overall":
+					{
+						"description": "All groups",
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"post_process":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"reflections":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"resolution_scale":
+					{
+						"description": "Screen percentage",
+						"maximum": 200,
+						"minimum": 10,
+						"type": "number"
+					},
+					"shading":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"shadows":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"textures":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"view_distance":
+					{
+						"maximum": 4,
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "console.set_scalability",
+			"undoable": true
+		},
+		{
+			"description": "Resolution, window mode, vsync, frame limit, scalability.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "console.get_user_settings"
+		}
+	],
+	"version": "1.0.0"
+}

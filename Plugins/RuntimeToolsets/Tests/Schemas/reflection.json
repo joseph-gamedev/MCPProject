@@ -1,0 +1,249 @@
+{
+	"description": "Read/write properties and call BlueprintCallable functions on any allowed object",
+	"name": "reflection",
+	"tools": [
+		{
+			"description": "Properties of an object (name, type, read_only, optional values).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"editable_only":
+					{
+						"default": true,
+						"description": "Only editable/blueprint-visible",
+						"type": "boolean"
+					},
+					"filter":
+					{
+						"description": "Name wildcard, e.g. *Color*",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"include_values":
+					{
+						"default": false,
+						"description": "Include current values",
+						"type": "boolean"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "reflection.list_properties"
+		},
+		{
+			"description": "Read a property by path, e.g. LightComponent.Intensity or Tags[0].",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"path":
+					{
+						"description": "Property path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"path"
+				],
+				"type": "object"
+			},
+			"name": "reflection.get_property"
+		},
+		{
+			"description": "Write a property by path. Vectors as [x,y,z], colors as [r,g,b,a]. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"path":
+					{
+						"description": "Property path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New value"
+					}
+				},
+				"required": [
+					"target",
+					"path",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "reflection.set_property",
+			"undoable": true
+		},
+		{
+			"description": "Call a BlueprintCallable function with named args. Not undoable unless pure.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"args":
+					{
+						"description": "Arguments by parameter name",
+						"type": "object"
+					},
+					"function":
+					{
+						"description": "Function name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Object, or class:/Script/Module.Class for static functions",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"function"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "reflection.call_function",
+			"undoable": false
+		},
+		{
+			"description": "Callable functions of an object with signatures.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"description": "Name wildcard, e.g. Set*",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "reflection.list_functions"
+		},
+		{
+			"description": "Find loaded classes by name wildcard, optionally derived from a base.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"base":
+					{
+						"description": "Base class name, e.g. Actor",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"pattern":
+					{
+						"description": "Name wildcard, e.g. *Light*",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "reflection.find_class"
+		},
+		{
+			"description": "Get a subsystem as a target string for other reflection tools.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Subsystem class name",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"kind":
+					{
+						"description": "Subsystem kind",
+						"enum": [
+							"engine",
+							"game_instance",
+							"world",
+							"local_player"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"kind",
+					"class"
+				],
+				"type": "object"
+			},
+			"name": "reflection.get_subsystem"
+		}
+	],
+	"version": "1.0.0"
+}

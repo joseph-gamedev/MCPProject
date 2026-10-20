@@ -1,0 +1,45 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DeveloperSettings.h"
+#include "RuntimeToolsetsMCPSettings.generated.h"
+
+UENUM()
+enum class ERuntimeToolsetsMCPExposure : uint8
+{
+	/** Only session_* tools are listed; agents discover the rest with session_describe_toolset and run them with session_call_tool. */
+	Meta,
+	/** Every enabled tool is listed. */
+	Eager,
+};
+
+/** Settings for the optional MCP adapter (local testing over Epic's ModelContextProtocol server). */
+UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "Runtime Toolsets MCP Adapter"))
+class URuntimeToolsetsMCPSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+
+public:
+	virtual FName GetCategoryName() const override { return TEXT("Plugins"); }
+
+	/** Start the MCP HTTP server on startup if nothing else started it. */
+	UPROPERTY(Config, EditAnywhere, Category = "Server")
+	bool bAutoStart = true;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Server")
+	int32 Port = 8018;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Server")
+	FString Path = TEXT("/mcp");
+
+	UPROPERTY(Config, EditAnywhere, Category = "Tools")
+	ERuntimeToolsetsMCPExposure ExposureMode = ERuntimeToolsetsMCPExposure::Meta;
+
+	/** Prepended to MCP tool names (e.g. "rt_"). Tool names use underscores: actors_spawn_actor. */
+	UPROPERTY(Config, EditAnywhere, Category = "Tools")
+	FString ToolNamePrefix;
+
+	/** Session id given to every MCP client (Epic's server does not expose client sessions to tools). */
+	UPROPERTY(Config, EditAnywhere, Category = "Tools")
+	FString SessionId = TEXT("mcp-local");
+};

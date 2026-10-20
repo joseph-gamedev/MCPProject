@@ -1,0 +1,132 @@
+{
+	"description": "Tail the log, subscribe to categories, frame and memory stats",
+	"name": "log",
+	"tools": [
+		{
+			"description": "Recent log lines (oldest first). Pass since_seq=last_seq to get only new lines.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"category":
+					{
+						"description": "Log category, e.g. LogTemp",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"contains":
+					{
+						"description": "Substring filter",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"min_verbosity":
+					{
+						"default": "Log",
+						"description": "Most verbose level to include",
+						"enum": [
+							"Fatal",
+							"Error",
+							"Warning",
+							"Display",
+							"Log",
+							"Verbose",
+							"VeryVerbose"
+						],
+						"type": "string"
+					},
+					"since_seq":
+					{
+						"description": "Only lines after this sequence number",
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "log.tail_log"
+		},
+		{
+			"description": "Push new lines of a category to this session as events.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"category":
+					{
+						"description": "Log category",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"enabled":
+					{
+						"default": true,
+						"description": "false to unsubscribe",
+						"type": "boolean"
+					},
+					"min_verbosity":
+					{
+						"default": "Log",
+						"description": "Most verbose level",
+						"enum": [
+							"Error",
+							"Warning",
+							"Display",
+							"Log",
+							"Verbose"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"category"
+				],
+				"type": "object"
+			},
+			"name": "log.subscribe_log_category"
+		},
+		{
+			"description": "Frame and memory stats: fps, frame_ms, game_ms, render_ms, rhi_ms, gpu_ms, memory_mb, actors, nodes.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Stats to read (default: common set)",
+						"items":
+						{
+							"enum": [
+								"fps",
+								"frame_ms",
+								"game_ms",
+								"render_ms",
+								"rhi_ms",
+								"gpu_ms",
+								"memory_mb",
+								"actors",
+								"nodes"
+							],
+							"type": "string"
+						},
+						"maxItems": 9,
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"name": "log.get_stat"
+		}
+	],
+	"version": "1.0.0"
+}

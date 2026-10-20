@@ -1,0 +1,178 @@
+{
+	"description": "Undo/redo, transactions, checkpoints and rollback (per session)",
+	"name": "history",
+	"tools": [
+		{
+			"description": "Undo the last N changes, or back to a checkpoint.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"count":
+					{
+						"default": 1,
+						"description": "Changes to undo",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"to_checkpoint":
+					{
+						"description": "Undo until this checkpoint",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "history.undo"
+		},
+		{
+			"description": "Redo the last N undone changes.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"count":
+					{
+						"default": 1,
+						"description": "Changes to redo",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "history.redo"
+		},
+		{
+			"description": "Undo stack (newest first), redo count, open transaction.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"include_redo":
+					{
+						"default": false,
+						"description": "Also list redo entries",
+						"type": "boolean"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "history.get_history"
+		},
+		{
+			"description": "Group following changes into one undo step. Nests.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"label":
+					{
+						"description": "Label shown in history",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "history.begin_transaction"
+		},
+		{
+			"description": "Close the transaction: commit as one step, or roll back its changes.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"commit":
+					{
+						"default": true,
+						"description": "false = undo everything in it",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "history.end_transaction"
+		},
+		{
+			"description": "Name the current state so rollback can return to it.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Checkpoint name",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "history.checkpoint"
+		},
+		{
+			"description": "Undo everything after a checkpoint.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Checkpoint name",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "history.rollback"
+		},
+		{
+			"description": "Max undo entries for this session. Oldest entries become permanent.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max entries",
+						"maximum": 10000,
+						"minimum": 1,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"limit"
+				],
+				"type": "object"
+			},
+			"name": "history.set_history_limit"
+		}
+	],
+	"version": "1.0.0"
+}
