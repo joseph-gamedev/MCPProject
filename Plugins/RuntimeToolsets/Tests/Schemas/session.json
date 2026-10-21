@@ -39,7 +39,7 @@
 			"name": "session.get_capabilities"
 		},
 		{
-			"description": "List toolsets with tool counts. Start here.",
+			"description": "List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building and game logic.",
 			"input_schema":
 			{
 				"additionalProperties": false,

@@ -224,3 +224,30 @@ FName URuntimeToolsetDefinition::GetToolsetName() const
 	N.RemoveFromStart(TEXT("Runtime"));
 	return FName(*RuntimeToolReflection::ToSnakeCase(N));
 }
+
+// ---- skills -------------------------------------------------------------------------------------------------------------
+
+#include "RuntimeAgentSkill.h"
+
+FString URuntimeAgentSkill::GetSkillName() const
+{
+	FString N = GetClass()->GetName();
+	N.RemoveFromEnd(TEXT("_C")); // Blueprint skills
+	N.RemoveFromEnd(TEXT("Skill"));
+	N.RemoveFromStart(TEXT("Runtime"));
+	return RuntimeToolReflection::ToSnakeCase(N);
+}
+
+#include "RuntimeGuideSkill.h"
+#include "RuntimeToolsetsCore.h"
+
+FString URuntimeGuideSkill::GeneratePrompt(const FString& InitialInstructions) const
+{
+	const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(GuideTool, MakeShared<FJsonObject>(), FToolCallerContext(), 1);
+	FString Guide;
+	if (R.IsOk() && R.Payload.IsValid())
+	{
+		R.Payload->TryGetStringField(TEXT("guide"), Guide);
+	}
+	return InitialInstructions.IsEmpty() ? Guide : InitialInstructions + TEXT("\n\n") + Guide;
+}

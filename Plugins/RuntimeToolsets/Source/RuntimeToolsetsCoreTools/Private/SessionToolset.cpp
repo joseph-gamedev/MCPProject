@@ -161,7 +161,7 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("get_capabilities"), TEXT("Enabled toolsets, limits, policies, target syntax and units."))
 		.Handle(&GetCapabilities);
 
-	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here."))
+	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building and game logic."))
 		.Handle(&ListToolsets);
 
 	B.Tool(TEXT("describe_toolset"), TEXT("Tools of one toolset with input schemas."))

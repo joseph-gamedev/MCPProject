@@ -1,0 +1,99 @@
+{
+	"description": "Skills: authoritative guidance for kinds of work (outdoor lighting, art styles, PCG graphs, building, game logic).\nCall list_skills when starting a task, then get_skills for the ones that apply, and follow them.\nProjects add their own as Blueprint/C++ skills (URuntimeAgentSkill) or markdown files in Config/RuntimeToolsets/Skills\n(front matter \"description: ...\" then the instructions).",
+	"name": "skills",
+	"tools": [
+		{
+			"description": "Returns the full instructions of the given skills.\nReturns: Skill name -> details.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"skill_names":
+					{
+						"description": "Names from list_skills, e.g. [\"outdoor_lighting\", \"art_style\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"skill_names"
+				],
+				"type": "object"
+			},
+			"name": "skills.get_skills",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"properties":
+							{
+								"instructions":
+								{
+									"description": "How to approach the task: rules, numbers, workflow (markdown).",
+									"type": "string"
+								},
+								"toolsets":
+								{
+									"description": "Toolsets the skill is about.",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								}
+							},
+							"title": "RuntimeSkillDetails",
+							"type": "object"
+						},
+						"description": "Skill name -> details.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists every skill with a one-line description of when to apply it.\nReturns: Skill name -> description.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "skills.list_skills",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"type": "string"
+						},
+						"description": "Skill name -> description.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}

@@ -6,11 +6,16 @@
 #include "ReflectionToolset.h"
 #include "SceneGraphToolset.h"
 #include "SessionToolset.h"
+#include "RuntimeSkillsToolset.h"
+#include "RuntimeToolReflection.h"
 #include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
 #include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY(LogRuntimeToolsetsTools);
+
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
 
 /** Registers the Phase 1 core-group toolsets with RuntimeToolsetsCore. */
 class FRuntimeToolsetsCoreToolsModule final : public IModuleInterface
@@ -19,7 +24,9 @@ public:
 	virtual void StartupModule() override
 	{
 		IRuntimeToolsetsCore& Core = IRuntimeToolsetsCore::Get();
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
 		Registered = {
+			RuntimeToolReflection::MakeToolset(URuntimeSkillsToolset::StaticClass()),
 			MakeShared<FSessionToolset>(),
 			MakeShared<FHistoryToolset>(),
 			MakeShared<FActorsToolset>(),
