@@ -315,6 +315,140 @@
 			"undoable": true
 		},
 		{
+			"description": "Name tag in the world: text drawn above a target (it follows the target) or at a location.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"background":
+					{
+						"default": true,
+						"description": "Dark backing box",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Text color [r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "World location when there is no target",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"offset":
+					{
+						"description": "World offset from the anchor, default [0,0,100]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"size":
+					{
+						"default": 28,
+						"description": "Font size",
+						"maximum": 200,
+						"minimum": 6,
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Label this node/actor (placed above its top centre)",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "Label text",
+						"maxLength": 500,
+						"type": "string"
+					}
+				},
+				"required": [
+					"text"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.create_label",
+			"undoable": true
+		},
+		{
+			"description": "Change a label's text, size, color or background.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"background":
+					{
+						"description": "Dark backing box",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"size":
+					{
+						"description": "Font size",
+						"maximum": 200,
+						"minimum": 6,
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Label node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "Text",
+						"maxLength": 500,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_label",
+			"undoable": true
+		},
+		{
 			"description": "Fire a Button's pressed/released/clicked events. Not undoable.",
 			"input_schema":
 			{
@@ -338,5 +472,5 @@
 			"undoable": false
 		}
 	],
-	"version": "1.0.0"
+	"version": "1.1.0"
 }

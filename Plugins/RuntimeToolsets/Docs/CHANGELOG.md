@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 — 2026-10-21
+
+- **New `ui.create_label` / `ui.set_label`** (ui 1.1.0): world-anchored name tags. They are child nodes of their target, so they follow it, and they undo, duplicate and export like any other node.
+- **Prompt-driven run:** `Scripts/prompt_demo.ps1` gives a plain-English request to a separate Claude Code session connected only to the game's MCP server. The Eiffel Tower + Great Pyramid example ran in 90 s.
+- **Tests:** 122 automation tests.
+
 ## 0.6.0 — 2026-10-21
 
 Phase 3, primitive builder.

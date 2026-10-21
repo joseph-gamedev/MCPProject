@@ -1,6 +1,7 @@
 #include "UiToolset.h"
 #include "RuntimeToolHelpers.h"
 #include "RuntimeToolsetsHudWidget.h"
+#include "RuntimeToolsetsLabelActor.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -525,6 +526,161 @@ static void ClickButton(FToolInvocation& Inv)
 	Inv.Succeed(Out);
 }
 
+// ---- world labels ---------------------------------------------------------------------------------------------------
+
+static bool ApplyLabelSpec(ARuntimeToolsetsLabelActor* Label, const TSharedPtr<FJsonObject>& Spec)
+{
+	FString Text;
+	Spec->TryGetStringField(TEXT("text"), Text);
+	double Size = 28.0;
+	Spec->TryGetNumberField(TEXT("size"), Size);
+	FVector C(1.0);
+	RuntimeJson::ToVector(Spec->TryGetField(TEXT("color")), C);
+	bool bBackground = true;
+	Spec->TryGetBoolField(TEXT("background"), bBackground);
+	return Label->SetLabel(Text, static_cast<float>(Size), FLinearColor(C.X, C.Y, C.Z), bBackground);
+}
+
+AActor* FUiToolset::SpawnLabelFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+{
+	const TSharedPtr<FJsonObject> Spec = RuntimeJson::Parse(Source.Mid(6));
+	if (!Spec.IsValid())
+	{
+		OutError = TEXT("bad label: spec");
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ARuntimeToolsetsLabelActor* Label = World->SpawnActor<ARuntimeToolsetsLabelActor>(ARuntimeToolsetsLabelActor::StaticClass(), Transform, Params);
+	if (!Label)
+	{
+		OutError = TEXT("could not spawn the label");
+		return nullptr;
+	}
+	ApplyLabelSpec(Label, Spec); // no widget without a game instance (isolated worlds); the node still exists
+	return Label;
+}
+
+static void CreateLabel(FToolInvocation& Inv)
+{
+	TSharedRef<FJsonObject> Spec = Obj();
+	Spec->SetStringField(TEXT("text"), Inv.GetString(TEXT("text")));
+	Spec->SetNumberField(TEXT("size"), Inv.GetNumber(TEXT("size"), 28.0));
+	if (Inv.Has(TEXT("color")))
+	{
+		Spec->SetField(TEXT("color"), Inv.GetValue(TEXT("color")));
+	}
+	Spec->SetBoolField(TEXT("background"), Inv.GetBool(TEXT("background"), true));
+
+	FVector Offset(0, 0, 100);
+	Inv.GetVector(TEXT("offset"), Offset);
+	FString ParentId;
+	FTransform Relative = FTransform::Identity;
+	if (!Inv.GetString(TEXT("target")).IsEmpty())
+	{
+		// Anchor above the target's top centre; as a child node the label follows the target.
+		FResolvedTarget Target;
+		if (!Inv.ResolveTarget(TEXT("target"), Target))
+		{
+			return;
+		}
+		if (!Target.Actor)
+		{
+			Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("target must be an actor or node"));
+			return;
+		}
+		const FBox Box = ActorBox(Target.Actor);
+		const FVector Top(Box.GetCenter().X, Box.GetCenter().Y, Box.Max.Z);
+		const FVector Anchor = Top + Offset;
+		if (Target.Node)
+		{
+			ParentId = Target.Node->Id;
+			Relative.SetLocation(Target.Actor->GetActorTransform().InverseTransformPosition(Anchor));
+			Relative.SetScale3D(FVector(1.0) / Target.Actor->GetActorScale3D().ComponentMax(FVector(0.0001)));
+		}
+		else
+		{
+			Relative.SetLocation(Anchor);
+		}
+	}
+	else
+	{
+		FVector Location;
+		if (!Inv.GetVector(TEXT("location"), Location))
+		{
+			Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("give a target to label, or a world location"));
+			return;
+		}
+		Relative.SetLocation(Location + Offset);
+	}
+	const FString Source = TEXT("label:") + RuntimeJson::Write(Spec);
+	const FString Name = Inv.GetString(TEXT("name"), TEXT("label"));
+	auto Spawn = [Source, Relative, Name](FRuntimeCommandContext& Ctx, FString& Err) { return FUiToolset::SpawnLabelFromSource(Ctx.World, Source, Relative, Name, Err); };
+	TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(FString::Printf(TEXT("label %s"), *Inv.GetString(TEXT("text"))), Spawn, Name, ParentId,
+		ERuntimeNodeKind::Actor, Source, TArray<FName>());
+	FCreateNodeCommand* Raw = Cmd.Get();
+	if (!Inv.RunCommand(MoveTemp(Cmd)))
+	{
+		return;
+	}
+	TSharedRef<FJsonObject> Out = Obj();
+	Out->SetStringField(TEXT("id"), Raw->GetNodeId());
+	Out->SetStringField(TEXT("path"), Inv.GetGraph()->GetPath(Raw->GetNodeId()));
+	if (const FRuntimeSceneNode* Node = Inv.GetGraph()->Find(Raw->GetNodeId()); Node && Node->Actor.IsValid())
+	{
+		Out->SetField(TEXT("location"), RuntimeJson::Vec(Node->Actor->GetActorLocation()));
+		Out->SetBoolField(TEXT("visible_on_screen"), Inv.GetWorld()->GetGameInstance() != nullptr);
+	}
+	Inv.Succeed(Out);
+}
+
+static void SetLabel(FToolInvocation& Inv)
+{
+	FResolvedTarget Target;
+	if (!Inv.ResolveTarget(TEXT("target"), Target))
+	{
+		return;
+	}
+	ARuntimeToolsetsLabelActor* Label = Cast<ARuntimeToolsetsLabelActor>(Target.Actor);
+	if (!Label || !Target.Node || !Target.Node->Source.StartsWith(TEXT("label:")))
+	{
+		Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("target is not a label"), TEXT("Create one with ui.create_label"));
+		return;
+	}
+	TSharedRef<FJsonObject> Spec = RuntimeJson::Parse(Target.Node->Source.Mid(6)).ToSharedRef();
+	for (const TCHAR* Field : {TEXT("text"), TEXT("size"), TEXT("color"), TEXT("background")})
+	{
+		if (Inv.Has(Field))
+		{
+			Spec->SetField(Field, Inv.GetValue(Field));
+		}
+	}
+	const FString OldSource = Target.Node->Source;
+	const FString NewSource = TEXT("label:") + RuntimeJson::Write(Spec);
+	const FString Id = Target.Node->Id;
+	auto Apply = [Id](FRuntimeCommandContext& Ctx, const FString& Source)
+	{
+		FRuntimeSceneNode* Node = Ctx.Graph ? Ctx.Graph->Find(Id) : nullptr;
+		ARuntimeToolsetsLabelActor* L = Node ? Cast<ARuntimeToolsetsLabelActor>(Node->Actor.Get()) : nullptr;
+		if (!L)
+		{
+			return false;
+		}
+		Node->Source = Source;
+		ApplyLabelSpec(L, RuntimeJson::Parse(Source.Mid(6)));
+		return true;
+	};
+	TSharedRef<FJsonObject> Delta = Obj();
+	Delta->SetStringField(TEXT("label"), Id);
+	Delta->SetStringField(TEXT("text"), Spec->GetStringField(TEXT("text")));
+	if (Inv.RunCommand(MakeUnique<FLambdaCommand>(TEXT("set label"),
+		[Apply, NewSource](FRuntimeCommandContext& Ctx, FString& Error) { return Apply(Ctx, NewSource); },
+		[Apply, OldSource](FRuntimeCommandContext& Ctx) { return Apply(Ctx, OldSource); }, Delta)))
+	{
+		Inv.Succeed(Delta);
+	}
+}
+
 void FUiToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 {
 	const auto Widget = []() { return FToolParam::String(TEXT("widget:Name or a widget path from find_widget"), 1024).Required(); };
@@ -592,6 +748,29 @@ void FUiToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("tint"), FToolParam::Vec3(TEXT("[r,g,b] 0-1"))))
 		.Undoable().RequiresWorld()
 		.Handle(&SetBrush);
+
+	B.Tool(TEXT("create_label"), TEXT("Name tag in the world: text drawn above a target (it follows the target) or at a location."))
+		.Args(FToolSchema()
+			.Add(TEXT("text"), FToolParam::String(TEXT("Label text"), 500).Required())
+			.Add(TEXT("target"), FToolParam::Target(TEXT("Label this node/actor (placed above its top centre)")))
+			.Add(TEXT("location"), FToolParam::Vec3(TEXT("World location when there is no target")))
+			.Add(TEXT("offset"), FToolParam::Vec3(TEXT("World offset from the anchor, default [0,0,100]")))
+			.Add(TEXT("size"), FToolParam::Number(TEXT("Font size"), 6.0, 200.0).Default(28.0))
+			.Add(TEXT("color"), FToolParam::Vec3(TEXT("Text color [r,g,b] 0-1")))
+			.Add(TEXT("background"), FToolParam::Boolean(TEXT("Dark backing box")).Default(true))
+			.Add(TEXT("name"), FToolParam::String(TEXT("Node name"), 128)))
+		.Undoable().RequiresWorld()
+		.Handle(&CreateLabel);
+
+	B.Tool(TEXT("set_label"), TEXT("Change a label's text, size, color or background."))
+		.Args(FToolSchema()
+			.Add(TEXT("target"), FToolParam::Target(TEXT("Label node")).Required())
+			.Add(TEXT("text"), FToolParam::String(TEXT("Text"), 500))
+			.Add(TEXT("size"), FToolParam::Number(TEXT("Font size"), 6.0, 200.0))
+			.Add(TEXT("color"), FToolParam::Vec3(TEXT("[r,g,b] 0-1")))
+			.Add(TEXT("background"), FToolParam::Boolean(TEXT("Dark backing box"))))
+		.Undoable().RequiresWorld()
+		.Handle(&SetLabel);
 
 	B.Tool(TEXT("click_button"), TEXT("Fire a Button's pressed/released/clicked events. Not undoable."))
 		.Args(FToolSchema().Add(TEXT("target"), Widget()))

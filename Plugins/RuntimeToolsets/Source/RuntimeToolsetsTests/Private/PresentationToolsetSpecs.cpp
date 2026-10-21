@@ -223,3 +223,39 @@ void FLightingToolsetSpec::Define()
 }
 
 #endif
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+BEGIN_DEFINE_SPEC(FLabelToolsetSpec, "RuntimeToolsets.Toolsets.Ui.Labels", RUNTIMETOOLSETS_TEST_FLAGS)
+	TUniquePtr<FToolTestHarness> H;
+END_DEFINE_SPEC(FLabelToolsetSpec)
+
+void FLabelToolsetSpec::Define()
+{
+	BeforeEach([this]()
+	{
+		H = MakeUnique<FToolTestHarness>(*this);
+		H->Setup();
+	});
+	AfterEach([this]() { H.Reset(); });
+
+	It("places a label above its target, follows it, and can be edited and undone", [this]()
+	{
+		const FString Tower = H->SpawnCube(TEXT("\"location\":[1000,0,0],\"scale\":[1,1,3]"));
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("ui.create_label"), FString::Printf(TEXT("{\"text\":\"Tower\",\"target\":\"%s\",\"offset\":[0,0,50]}"), *Tower));
+		const FString Label = R->GetStringField(TEXT("id"));
+		AActor* LabelActor = PresentationNodeActor(*H, Label);
+		TestTrue(TEXT("above the top"), LabelActor->GetActorLocation().Equals(FVector(1000, 0, 200), 0.5));
+		TestEqual(TEXT("child of target"), H->GetGraph()->Find(Label)->ParentId, Tower);
+		H->CallOk(TEXT("scene.move_node"), FString::Printf(TEXT("{\"target\":\"%s\",\"offset\":[0,500,0]}"), *Tower));
+		TestTrue(TEXT("follows"), LabelActor->GetActorLocation().Equals(FVector(1000, 500, 200), 0.5));
+		H->CallOk(TEXT("ui.set_label"), FString::Printf(TEXT("{\"target\":\"%s\",\"text\":\"Big Tower\"}"), *Label));
+		TestTrue(TEXT("text in source"), H->GetGraph()->Find(Label)->Source.Contains(TEXT("Big Tower")));
+		H->CallOk(TEXT("history.undo"));
+		TestFalse(TEXT("text undone"), H->GetGraph()->Find(Label)->Source.Contains(TEXT("Big Tower")));
+		H->CallFails(TEXT("ui.create_label"), TEXT("{\"text\":\"x\"}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("ui.set_label"), FString::Printf(TEXT("{\"target\":\"%s\",\"text\":\"x\"}"), *Tower), ERuntimeToolError::InvalidArguments);
+	});
+}
+
+#endif

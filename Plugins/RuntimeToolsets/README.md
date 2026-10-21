@@ -21,7 +21,7 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `build` | create_primitive, create_profile_solid, boolean_op, array, mirror, set_material, measure, check_overlaps, get_build_stats, capture_view |
 | `layout` | align_nodes, distribute_nodes, snap_to_grid, drop_to_ground, arrange_in_row, arrange_in_grid, arrange_in_circle, randomize_transform, find_free_space |
 
-| `ui` | list_widgets, list_widget_tree, find_widget, create_widget, create_hud_text, remove_widget, set_text, set_widget_visibility, set_brush, click_button |
+| `ui` | list_widgets, list_widget_tree, find_widget, create_widget, create_hud_text, create_label, set_label, remove_widget, set_text, set_widget_visibility, set_brush, click_button |
 | `vfx` | spawn_system, list_user_parameters, set_user_variable, activate, deactivate, list_active |
 | `lighting` | get_environment, set_sun, set_sky, set_fog, set_post_process, set_time_of_day, apply_mood |
 | `profiling` | frame_timing, find_hitches, memory_report, gpu_stats, start_trace, stop_trace |
@@ -54,7 +54,7 @@ Any module can register how its node sources are rebuilt with `IRuntimeToolsetsC
 - **`ops.run_automation_test`** starts tests in the running game. Poll `ops.get_test_status` for results.
 - **`profiling.start_trace`** writes Unreal Insights traces to the `Saved/Profiling` folder and never overwrites existing files.
 
-`ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. VFX nodes duplicate/export as `vfx:<system>` (user parameter overrides are not carried over). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
+`ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. `create_label` puts a screen-facing name tag above a node and follows it (source `label:`). VFX nodes duplicate/export as `vfx:<system>` (user parameter overrides are not carried over). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
 
 `materials` and `camera` live in the `RuntimeToolsetsPresentation` module; `layout` lives in `RuntimeToolsetsContent`. Debug view modes (unlit, wireframe…) are only available in cooked builds cooked with `r.ForceDebugViewModes=1`; otherwise `set_view_mode` returns `unsupported` and only `lit` works.
 

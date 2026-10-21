@@ -14,6 +14,7 @@ public:
 	{
 		Registered = {MakeShared<FMaterialsToolset>(), MakeShared<FCameraToolset>(), MakeShared<FUiToolset>(), MakeShared<FVfxToolset>(), MakeShared<FLightingToolset>()};
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("vfx:"), &FVfxToolset::SpawnFromSource);
+		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("label:"), &FUiToolset::SpawnLabelFromSource);
 		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
 		{
 			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
@@ -29,6 +30,7 @@ public:
 				IRuntimeToolsetsCore::Get().UnregisterToolset(Toolset->GetName());
 			}
 			IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(TEXT("vfx:"));
+			IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(TEXT("label:"));
 		}
 		Registered.Reset();
 	}

@@ -25,6 +25,21 @@ I:\ProgramFiles\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat BuildCookRun -project=
 
 The default exposure is `Meta`: only the `session_*` tools are listed. Agents call `session_list_toolsets`, then `session_describe_toolset`, then `session_call_tool`. To list every tool directly, set `ExposureMode=Eager` under `[/Script/RuntimeToolsetsMCP.RuntimeToolsetsMCPSettings]`.
 
+## Drive it from a prompt
+
+You don't call tools by hand: an agent does. With the game running:
+
+```powershell
+claude mcp add --transport http unreal-runtime http://127.0.0.1:8018/mcp   # once
+claude    # then ask, e.g. "build the Eiffel Tower and the Great Pyramid side by side and label each with its name"
+```
+
+You can also run it in one shot: `powershell -File Scripts/prompt_demo.ps1 "your request"`.
+
+From that exact prompt, a fresh Claude Code session discovered the tools, built both buildings, labelled them, framed the camera and checked its own screenshot, in 90 seconds and 19 undoable steps:
+
+![prompt result](Plugins/RuntimeToolsets/Docs/images/prompt_eiffel_pyramid.jpg)
+
 ## Run the tests
 
 ```powershell
