@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0 — 2026-10-22
+
+- **Rewritten after Epic's editor toolsets** (`Engine/Plugins/Experimental/ToolsetRegistry` and `Toolsets/*`):
+  - every toolset is a class whose static `UFUNCTION(meta=(AICallable))` functions are the tools;
+  - input and output schemas and descriptions are generated from signatures and doc comments; results are `{"returnValue": ...}`;
+  - docs are compiled into packaged builds; async results; pluggable struct converters.
+- **Skills** (Epic's AgentSkill model): `skills.list_skills` / `skills.get_skills`; outdoor_lighting, vfx_placement, art_style, pcg_graph_generation, builder, game_logic; markdown skills in `Config/RuntimeToolsets/Skills`.
+- **New toolsets:** `pcg` (graphs node by node like Epic's PCG toolset, instances, params, data view, scatter), `spline`, `style`.
+- **Epic capabilities added:** batch property get/set/reset, describe_enum, actor search by bounds and channel, asset search, sky atmosphere and volumetric clouds, exposure modes, Niagara summaries and one-shots, widget-tree editing, collision channels, test filters and per-test results, batch result references, snap to ground.
+- **Error handling:** candidates on NotFound, expected types on mismatches, a failure test for every tool.
+- **Tests:** 203 automation tests; MCP smoke test passes.
+
 ## 0.11.0 — 2026-10-21
 
 - **AI brains:**
