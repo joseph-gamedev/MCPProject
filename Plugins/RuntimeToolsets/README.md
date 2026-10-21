@@ -20,12 +20,17 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `camera` | get_camera, set_camera, set_fov, frame_nodes, orbit, reset_camera, possess, set_view_mode |
 | `layout` | align_nodes, distribute_nodes, snap_to_grid, drop_to_ground, arrange_in_row, arrange_in_grid, arrange_in_circle, randomize_transform, find_free_space |
 
+| `ui` | list_widgets, list_widget_tree, find_widget, create_widget, create_hud_text, remove_widget, set_text, set_widget_visibility, set_brush, click_button |
+| `vfx` | spawn_system, list_user_parameters, set_user_variable, activate, deactivate, list_active |
+| `lighting` | get_environment, set_sun, set_sky, set_fog, set_post_process, set_time_of_day, apply_mood |
 | `game` | get_game_state, list_players, teleport, set_pause, set_time_dilation |
 | `physics` | line_trace, overlap_test, get_physics, set_simulate, add_impulse, ragdoll |
 | `level` | list_levels, load_level_instance, unload_level, set_level_visibility, set_data_layer, open_level |
 | `input` | inject_key, inject_action, add_mapping_context, remove_mapping_context |
 
 `game`, `physics`, `level` and `input` live in `RuntimeToolsetsGameplay` (needs the EnhancedInput plugin). `load_level_instance` waits asynchronously until the level is visible (or pass `blocking:true`). `open_level` needs `confirm:true` because it destroys the world and all undo history. `inject_key` reports `handled:false` when nothing in the game consumed the key.
+
+`ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. VFX nodes cannot be duplicated or exported yet (their source spec is `vfx:<system>`). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
 
 `materials` and `camera` live in the `RuntimeToolsetsPresentation` module; `layout` lives in `RuntimeToolsetsContent`. Debug view modes (unlit, wireframe…) are only available in cooked builds cooked with `r.ForceDebugViewModes=1`; otherwise `set_view_mode` returns `unsupported` and only `lit` works.
 

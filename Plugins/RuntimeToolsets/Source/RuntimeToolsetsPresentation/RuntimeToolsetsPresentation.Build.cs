@@ -8,7 +8,8 @@ public class RuntimeToolsetsPresentation : ModuleRules
 		// Group modules depend only on RuntimeToolsetsCore (plus engine runtime modules).
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "RenderCore"
+			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "RenderCore",
+			"UMG", "Slate", "SlateCore", "Niagara"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

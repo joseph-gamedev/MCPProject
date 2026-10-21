@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.3.0",
+	"VersionName": "0.4.0",
 	"FriendlyName": "Runtime Toolsets",
 	"Description": "Runtime-safe toolsets (actors, reflection, console, log, capture, scene graph, undo) for AI agents. Plain-JSON API; transport is provided by a connector or the optional RuntimeToolsetsMCP adapter.",
 	"Category": "AI",
@@ -11,7 +11,8 @@
 	"IsExperimentalVersion": true,
 	"Installed": false,
 	"Plugins": [
-		{ "Name": "EnhancedInput", "Enabled": true }
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "Niagara", "Enabled": true }
 	],
 	"Modules": [
 		{

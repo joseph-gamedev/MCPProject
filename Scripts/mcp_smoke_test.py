@@ -182,6 +182,22 @@ def main():
         return level["name"]
 
     step("level_load_level_instance (async) + undo", level_instance)
+    # Phase 2 presentation tools (state["row"] is still framed by the camera).
+    step("lighting_get_environment", lambda: ",".join(call("lighting_get_environment")[0].keys()))
+    step("lighting_apply_mood (sunset)", lambda: call("lighting_apply_mood", {"mood": "sunset"})[0].get("changed"))
+    step("vfx_spawn_system", lambda: call("vfx_spawn_system", {"system": "/Niagara/DefaultAssets/DefaultSystem.DefaultSystem", "location": [0, 600, 200]})[0]["id"])
+    step("ui_create_hud_text", lambda: call("ui_create_hud_text", {"text": "RuntimeToolsets: sunset", "position": [0.5, 0.12], "size": 36, "color": [1, 0.85, 0.4]})[0]["target"])
+    step("ui_find_widget", lambda: call("ui_find_widget", {"text": "RuntimeToolsets*"})[0]["total"])
+
+    def presentation_shot():
+        payload, images = call("capture_screenshot", {"max_dim": 768, "show_ui": True})
+        if args.save_image:
+            with open(args.save_image.replace(".jpg", "_presentation.jpg"), "wb") as f:
+                f.write(base64.b64decode(images[0]["data"]))
+        return f"{payload['w']}x{payload['h']}"
+
+    step("capture_screenshot (with UI)", presentation_shot)
+    step("history_undo (HUD, vfx, mood)", lambda: call("history_undo", {"count": 3})[0].get("steps"))
     step("camera_reset_camera", lambda: call("camera_reset_camera")[0].get("view_target"))
     step("log_tail_log", lambda: len(call("log_tail_log", {"limit": 5})[0]["lines"]))
     step("scene_clear_all", lambda: call("scene_clear_all", {"confirm": True})[0].get("deleted"))

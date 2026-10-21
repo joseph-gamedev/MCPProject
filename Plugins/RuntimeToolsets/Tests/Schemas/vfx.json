@@ -1,0 +1,218 @@
+{
+	"description": "Spawn Niagara systems, set user parameters, activate/deactivate",
+	"name": "vfx",
+	"tools": [
+		{
+			"description": "Spawn a Niagara system as a scene node, optionally with user parameters.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parameters":
+					{
+						"description": "User parameters by name, e.g. {\"SpawnRate\":50}",
+						"type": "object"
+					},
+					"parent":
+					{
+						"description": "Parent node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"system":
+					{
+						"description": "Niagara system path, e.g. /Game/FX/NS_Fire.NS_Fire",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 16,
+						"type": "array"
+					}
+				},
+				"required": [
+					"system"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.spawn_system",
+			"undoable": true
+		},
+		{
+			"description": "User parameters of an effect with types and current values.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "vfx.list_user_parameters"
+		},
+		{
+			"description": "Set a user parameter (float, int, bool, [x,y,z], [r,g,b,a]).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Parameter name (User. prefix optional)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New value"
+					}
+				},
+				"required": [
+					"target",
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.set_user_variable",
+			"undoable": true
+		},
+		{
+			"description": "Start (or restart with reset) an effect.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"reset":
+					{
+						"default": false,
+						"description": "Restart from the beginning",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.activate",
+			"undoable": true
+		},
+		{
+			"description": "Stop an effect (existing particles finish).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.deactivate",
+			"undoable": true
+		},
+		{
+			"description": "Niagara effects currently active in the world.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "vfx.list_active"
+		}
+	],
+	"version": "1.0.0"
+}

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — 2026-10-21
+
+Phase 2, presentation tools.
+
+- **New toolsets in `RuntimeToolsetsPresentation`:**
+  - `ui` 1.0.0 (10 tools): asset-free `create_hud_text`, and `widget:Name` targets.
+  - `vfx` 1.0.0 (6 tools): Niagara systems spawned as scene nodes.
+  - `lighting` 1.0.0 (7 tools): sun, sky, fog, post process, time of day, and `apply_mood` presets.
+- **Test harness:** `SetupLiveWorld()` runs tests against the real game world. It rolls back afterwards, and the UI specs use it.
+- **Cooking:** `/Niagara/DefaultAssets` is always cooked in the host project.
+- **Tests:** 102 automation tests, passing in the editor and in the packaged Development build.
+- **Smoke test:** now covers a sunset mood, a VFX spawn, HUD text, and a screenshot that includes the UI.
+
 ## 0.3.0 — 2026-10-21
 
 Phase 2, game runtime tools.

@@ -27,10 +27,36 @@ void FToolTestHarness::Setup()
 	IRuntimeToolsetsCore::Get().SetWorldOverride(World);
 }
 
+bool FToolTestHarness::SetupLiveWorld()
+{
+	Teardown();
+	IRuntimeToolsetsCore::Get().SetWorldOverride(nullptr);
+	UWorld* Live = IRuntimeToolsetsCore::Get().FindWorld();
+	if (!Live || !GEngine || !GEngine->GameViewport || !Live->GetFirstPlayerController())
+	{
+		return false;
+	}
+	Session = FString::Printf(TEXT("live-test-%s"), *FGuid::NewGuid().ToString(EGuidFormats::Short));
+	World = Live;
+	bLive = true;
+	return true;
+}
+
 void FToolTestHarness::Teardown()
 {
 	if (!World)
 	{
+		return;
+	}
+	if (bLive)
+	{
+		// Roll the live world back to how the test found it.
+		while (Call(TEXT("history.undo"), TEXT("{\"count\":1000}")).IsOk())
+		{
+		}
+		IRuntimeToolsetsCore::Get().EndSession(Session);
+		World = nullptr;
+		bLive = false;
 		return;
 	}
 	IRuntimeToolsetsCore::Get().EndSession(Session);

@@ -1,0 +1,276 @@
+{
+	"description": "Sun, sky, fog, post process, time of day and mood presets",
+	"name": "lighting",
+	"tools": [
+		{
+			"description": "Sun, sky light, fog and post-process settings of the level.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "lighting.get_environment"
+		},
+		{
+			"description": "Set the directional light's rotation, intensity, color or temperature.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"intensity":
+					{
+						"description": "Intensity (lux)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]; pitch -90 = straight down",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Directional light (default: first in level)",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"temperature":
+					{
+						"description": "Kelvin",
+						"maximum": 12000,
+						"minimum": 1700,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_sun",
+			"undoable": true
+		},
+		{
+			"description": "Set the sky light's intensity and color (recaptures if needed).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"intensity":
+					{
+						"description": "Intensity",
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_sky",
+			"undoable": true
+		},
+		{
+			"description": "Set exponential height fog density, falloff, color, start distance, volumetric.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"density":
+					{
+						"description": "Density",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"height_falloff":
+					{
+						"description": "Height falloff",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"start_distance":
+					{
+						"description": "Start distance cm",
+						"minimum": 0,
+						"type": "number"
+					},
+					"volumetric":
+					{
+						"description": "Volumetric fog",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_fog",
+			"undoable": true
+		},
+		{
+			"description": "Set global post process (exposure, bloom, saturation, contrast, vignette, white balance).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"bloom":
+					{
+						"description": "Bloom intensity",
+						"maximum": 8,
+						"minimum": 0,
+						"type": "number"
+					},
+					"contrast":
+					{
+						"description": "Contrast (1 = neutral)",
+						"maximum": 2,
+						"minimum": 0,
+						"type": "number"
+					},
+					"exposure_bias":
+					{
+						"description": "Exposure compensation (stops)",
+						"maximum": 15,
+						"minimum": -15,
+						"type": "number"
+					},
+					"saturation":
+					{
+						"description": "Saturation (1 = neutral)",
+						"maximum": 2,
+						"minimum": 0,
+						"type": "number"
+					},
+					"vignette":
+					{
+						"description": "Vignette intensity",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"white_balance":
+					{
+						"description": "White balance Kelvin",
+						"maximum": 15000,
+						"minimum": 1500,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_post_process",
+			"undoable": true
+		},
+		{
+			"description": "Place the sun for a clock hour (6 sunrise, 12 noon, 18 sunset).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hour":
+					{
+						"description": "Hour 0-24",
+						"maximum": 24,
+						"minimum": 0,
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Directional light (default: first in level)",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"yaw":
+					{
+						"description": "Sun heading degrees",
+						"type": "number"
+					}
+				},
+				"required": [
+					"hour"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_time_of_day",
+			"undoable": true
+		},
+		{
+			"description": "One-step look: noon, morning, sunset, night, overcast, foggy (sun, fog, grading).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"mood":
+					{
+						"description": "Preset",
+						"enum": [
+							"noon",
+							"morning",
+							"sunset",
+							"night",
+							"overcast",
+							"foggy"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"mood"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.apply_mood",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

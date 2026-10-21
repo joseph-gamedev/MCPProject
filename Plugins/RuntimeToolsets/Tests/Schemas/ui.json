@@ -1,0 +1,342 @@
+{
+	"description": "List, find, create and change on-screen UMG widgets",
+	"name": "ui",
+	"tools": [
+		{
+			"description": "Top-level widgets currently on screen.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "ui.list_widgets"
+		},
+		{
+			"description": "Child hierarchy of a widget with classes and texts.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"depth":
+					{
+						"default": 4,
+						"description": "Levels",
+						"maximum": 32,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "ui.list_widget_tree"
+		},
+		{
+			"description": "Find on-screen widgets by name, class or text wildcard.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Class wildcard, e.g. Button",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"name":
+					{
+						"description": "Name wildcard",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "Text wildcard, e.g. *Start*",
+						"maxLength": 256,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ui.find_widget"
+		},
+		{
+			"description": "Create a project widget (WBP) and add it to the screen.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Widget class, e.g. /Game/UI/WBP_Menu",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"z_order":
+					{
+						"default": 0,
+						"description": "Z order",
+						"maximum": 1000,
+						"minimum": -100,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"class"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.create_widget",
+			"undoable": true
+		},
+		{
+			"description": "Show text on screen without any widget asset.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Widget name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"position":
+					{
+						"description": "[x,y] 0-1 screen space, centre of the text",
+						"items":
+						{
+							"maximum": 1,
+							"minimum": 0,
+							"type": "number"
+						},
+						"maxItems": 2,
+						"type": "array"
+					},
+					"size":
+					{
+						"default": 24,
+						"description": "Font size",
+						"maximum": 400,
+						"minimum": 4,
+						"type": "number"
+					},
+					"text":
+					{
+						"description": "Text",
+						"maxLength": 2000,
+						"type": "string"
+					},
+					"z_order":
+					{
+						"default": 10,
+						"description": "Z order",
+						"maximum": 1000,
+						"minimum": -100,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"text"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.create_hud_text",
+			"undoable": true
+		},
+		{
+			"description": "Take a top-level widget off the screen (undo puts it back).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.remove_widget",
+			"undoable": true
+		},
+		{
+			"description": "Change the text of a text block, rich text or editable text.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "New text",
+						"maxLength": 4000,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"text"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_text",
+			"undoable": true
+		},
+		{
+			"description": "Show, hide or collapse a widget.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"visibility":
+					{
+						"description": "Visibility",
+						"enum": [
+							"visible",
+							"hidden",
+							"collapsed",
+							"hit_test_invisible"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"visibility"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_widget_visibility",
+			"undoable": true
+		},
+		{
+			"description": "Set an Image widget's texture and/or tint.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"texture":
+					{
+						"description": "Texture2D path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"tint":
+					{
+						"description": "[r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_brush",
+			"undoable": true
+		},
+		{
+			"description": "Fire a Button's pressed/released/clicked events. Not undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "widget:Name or a widget path from find_widget",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.click_button",
+			"undoable": false
+		}
+	],
+	"version": "1.0.0"
+}
