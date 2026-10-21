@@ -1,0 +1,259 @@
+{
+	"description": "Inspect and change materials and material parameters at runtime",
+	"name": "materials",
+	"tools": [
+		{
+			"description": "Material slots and the scalar/vector/texture parameters (with values) of one slot.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot",
+						"maximum": 255,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor or actor#Component with a mesh",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "materials.list_parameters"
+		},
+		{
+			"description": "Assign a material asset to a slot (or all slots).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"all_slots":
+					{
+						"default": false,
+						"description": "Apply to every slot",
+						"type": "boolean"
+					},
+					"material":
+					{
+						"description": "Material path, e.g. /Game/M_Stone.M_Stone",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot",
+						"maximum": 255,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor or actor#Component with a mesh",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"material"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_material",
+			"undoable": true
+		},
+		{
+			"description": "Set a scalar material parameter (creates a dynamic instance).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Parameter name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot",
+						"maximum": 255,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor or actor#Component with a mesh",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Value",
+						"type": "number"
+					}
+				},
+				"required": [
+					"target",
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_scalar",
+			"undoable": true
+		},
+		{
+			"description": "Set a vector/color material parameter, e.g. Color [r,g,b(,a)] 0-1.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Parameter name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot",
+						"maximum": 255,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor or actor#Component with a mesh",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "[r,g,b] or [r,g,b,a]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"type": "array"
+					}
+				},
+				"required": [
+					"target",
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_vector",
+			"undoable": true
+		},
+		{
+			"description": "Set a texture material parameter (empty texture clears it).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Parameter name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot",
+						"maximum": 255,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor or actor#Component with a mesh",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"texture":
+					{
+						"description": "Texture path",
+						"maxLength": 512,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_texture",
+			"undoable": true
+		},
+		{
+			"description": "Set a material parameter collection value (number or [r,g,b(,a)]) for the whole world.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"collection":
+					{
+						"description": "Collection path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Parameter name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Number or [r,g,b(,a)]"
+					}
+				},
+				"required": [
+					"collection",
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_collection_param",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

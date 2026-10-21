@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 — 2026-10-21
+
+Phase 2, builder tools.
+
+- **New modules:** `RuntimeToolsetsPresentation` and `RuntimeToolsetsContent`. Both depend only on Core.
+- **New toolsets:**
+  - `materials` 1.0.0 (6 tools)
+  - `camera` 1.0.0 (8 tools)
+  - `layout` 1.0.0 (9 tools)
+- **Undo:** every mutating tool is undoable. Layout operations are a single undo step.
+- **Core:** shared helpers moved to the public header `RuntimeToolHelpers.h`.
+- **Tests:** 82 automation tests, passing in the editor and in the packaged Development build.
+- **Smoke test:** now covers layout, materials and camera framing.
+
 ## 0.1.0 — 2026-10-20
 
 Phase 1.

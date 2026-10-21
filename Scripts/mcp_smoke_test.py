@@ -137,6 +137,18 @@ def main():
     step("console_get_cvar", lambda: call("console_get_cvar", {"name": "t.MaxFPS"})[0].get("value"))
     step("log_get_stat", lambda: call("log_get_stat")[0])
 
+    # Phase 2 builder tools: color, arrange, frame, then look.
+    def builder_scene():
+        ids = [call("actors_spawn_actor", {"shape": "cube", "name": f"row_{i}", "location": [i * 37, 600, 50]})[0]["id"] for i in range(4)]
+        state["row"] = ids
+        call("layout_arrange_in_row", {"targets": ids, "start": [0, 600, 50], "gap": 40})
+        call("materials_set_vector", {"target": ids[0], "name": "Color", "value": [0.1, 0.4, 1.0]})
+        return ",".join(ids)
+
+    step("builder: spawn + layout_arrange_in_row + materials_set_vector", builder_scene)
+    step("camera_frame_nodes", lambda: call("camera_frame_nodes", {"targets": state["row"], "direction": [0, 1, -0.4]})[0].get("distance"))
+    step("camera_get_camera", lambda: call("camera_get_camera")[0].get("tool_camera"))
+
     def screenshot():
         payload, images = call("capture_screenshot", {"max_dim": 512})
         if not images:
@@ -148,6 +160,7 @@ def main():
         return f"{payload['w']}x{payload['h']} {images[0]['mimeType']} {len(data)} bytes"
 
     step("capture_screenshot", screenshot)
+    step("camera_reset_camera", lambda: call("camera_reset_camera")[0].get("view_target"))
     step("log_tail_log", lambda: len(call("log_tail_log", {"limit": 5})[0]["lines"]))
     step("scene_clear_all", lambda: call("scene_clear_all", {"confirm": True})[0].get("deleted"))
     step("session_get_usage_report", lambda: call("session_get_usage_report")[0].get("result_bytes_avg"))

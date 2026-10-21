@@ -1,6 +1,6 @@
 # Writing a toolset
 
-A toolset is one class in one `.h/.cpp` pair. It lives in a group module that depends only on `RuntimeToolsetsCore`.
+A toolset is one class in one `.h/.cpp` pair. It lives in a group module that depends only on `RuntimeToolsetsCore`. Shared helpers (`ReadTransform`, `ResolveActorList`, `ActorBox`, `StepToJson`, `Ref`) are in `RuntimeToolHelpers.h`.
 
 ```cpp
 class FLightingToolset final : public IRuntimeToolset

@@ -4,7 +4,7 @@ Runtime-safe toolsets that let AI agents inspect and build inside a running Unre
 
 The plugin only provides tools. A connector (yours, or the optional `RuntimeToolsetsMCP` adapter) owns transport, authentication and sessions.
 
-## Toolsets (Phase 1)
+## Toolsets
 
 | Toolset | Tools |
 |---|---|
@@ -16,6 +16,11 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `log` | tail_log, subscribe_log_category, get_stat |
 | `capture` | screenshot (async), capture_render_target, scene_capture |
 | `history` | undo, redo, get_history, begin_transaction, end_transaction, checkpoint, rollback, set_history_limit |
+| `materials` | list_parameters, set_material, set_scalar, set_vector, set_texture, set_collection_param |
+| `camera` | get_camera, set_camera, set_fov, frame_nodes, orbit, reset_camera, possess, set_view_mode |
+| `layout` | align_nodes, distribute_nodes, snap_to_grid, drop_to_ground, arrange_in_row, arrange_in_grid, arrange_in_circle, randomize_transform, find_free_space |
+
+`materials` and `camera` live in the `RuntimeToolsetsPresentation` module; `layout` lives in `RuntimeToolsetsContent`. Debug view modes (unlit, wireframe…) are only available in cooked builds cooked with `r.ForceDebugViewModes=1`; otherwise `set_view_mode` returns `unsupported` and only `lit` works.
 
 Each toolset's exact names and schemas are in `Tests/Schemas/<toolset>.json`, which is guarded by a snapshot test.
 

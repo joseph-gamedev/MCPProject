@@ -7,7 +7,7 @@ public class RuntimeToolsetsTests : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "Projects"
+			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "RenderCore", "Projects"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

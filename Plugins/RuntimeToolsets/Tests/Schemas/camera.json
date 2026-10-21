@@ -1,0 +1,310 @@
+{
+	"description": "Move the player view: set, frame, orbit, reset, possess, view mode",
+	"name": "camera",
+	"tools": [
+		{
+			"description": "Current player view: location, rotation, fov, view target, pawn.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "camera.get_camera"
+		},
+		{
+			"description": "Move the view to a pose (missing parts keep the current view). Uses a tool camera.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Blend seconds",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"fov":
+					{
+						"description": "Horizontal FOV degrees",
+						"maximum": 170,
+						"minimum": 5,
+						"type": "number"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"look_at":
+					{
+						"description": "Point to look at (overrides rotation)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.set_camera",
+			"undoable": true
+		},
+		{
+			"description": "Change the field of view, keeping the current pose.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Blend seconds",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"fov":
+					{
+						"description": "Horizontal FOV degrees",
+						"maximum": 170,
+						"minimum": 5,
+						"type": "number"
+					}
+				},
+				"required": [
+					"fov"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.set_fov",
+			"undoable": true
+		},
+		{
+			"description": "Point the view so all targets fit on screen.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Blend seconds",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"direction":
+					{
+						"description": "View direction (default: current)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"fov":
+					{
+						"description": "Horizontal FOV degrees",
+						"maximum": 170,
+						"minimum": 5,
+						"type": "number"
+					},
+					"padding":
+					{
+						"default": 1.1499999999999999,
+						"description": "Margin factor",
+						"maximum": 5,
+						"minimum": 0.5,
+						"type": "number"
+					},
+					"targets":
+					{
+						"description": "Targets to frame",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 256,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.frame_nodes",
+			"undoable": true
+		},
+		{
+			"description": "Orbit the view around a target or point by yaw/pitch degrees.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Blend seconds",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"center":
+					{
+						"description": "Or orbit around this point",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"distance":
+					{
+						"description": "New distance cm",
+						"minimum": 1,
+						"type": "number"
+					},
+					"pitch":
+					{
+						"default": 0,
+						"description": "Degrees up/down",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Orbit around this actor's bounds centre",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"yaw":
+					{
+						"default": 0,
+						"description": "Degrees around Z",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.orbit",
+			"undoable": true
+		},
+		{
+			"description": "Give the view back to the player's pawn.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Blend seconds",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.reset_camera",
+			"undoable": true
+		},
+		{
+			"description": "Make the local player control a pawn.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Pawn",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.possess",
+			"undoable": true
+		},
+		{
+			"description": "Viewport render mode (lit, unlit, wireframe, ...).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"mode":
+					{
+						"description": "View mode",
+						"enum": [
+							"lit",
+							"unlit",
+							"wireframe",
+							"lighting_only",
+							"reflections",
+							"shader_complexity",
+							"collision_visibility",
+							"collision_pawn",
+							"lod_coloration"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"mode"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.set_view_mode",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}
