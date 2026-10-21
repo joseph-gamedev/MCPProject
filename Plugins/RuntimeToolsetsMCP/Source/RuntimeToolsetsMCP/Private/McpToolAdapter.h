@@ -15,6 +15,7 @@ public:
 	virtual FString GetName() const override { return McpName; }
 	virtual FString GetDescription() const override;
 	virtual TSharedPtr<FJsonObject> GetInputJsonSchema() const override;
+	virtual TSharedPtr<FJsonObject> GetOutputJsonSchema() const override { return Tool->OutputSchema; }
 	virtual void RunAsync(const FModelContextProtocolToolRequestId& RequestId, const TSharedPtr<FJsonObject>& Params, const FResultCallback& OnComplete) override;
 	virtual void CancelAsync(const FModelContextProtocolToolRequestId& RequestId) override;
 

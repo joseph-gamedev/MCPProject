@@ -4,6 +4,7 @@
 
 #include "RuntimeJson.h"
 #include "RuntimeToolsetsCore.h"
+#include "RuntimeToolReflection.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -59,6 +60,17 @@ bool FRuntimeToolsetsSchemaSnapshotTest::RunTest(const FString& Parameters)
 		{
 			AddError(FString::Printf(TEXT("Toolset '%s' public surface changed. Review and update the snapshot (bump the toolset version)."), *Name));
 		}
+	}
+	// UFUNCTION toolsets: the docs compiled into packaged builds must match the doc comments.
+	FString Report;
+	const int32 Stale = RuntimeToolReflection::WriteCompiledDocs(Report, !bUpdate);
+	if (bUpdate && Stale > 0)
+	{
+		AddInfo(TEXT("Updated compiled tool docs (rebuild to embed them):\n") + Report);
+	}
+	else if (!bUpdate && Stale > 0)
+	{
+		AddError(TEXT("Compiled tool docs are stale. Run with RuntimeToolsets.UpdateSchemaSnapshots=1 and rebuild:\n") + Report);
 	}
 	return true;
 }

@@ -17,6 +17,10 @@ TSharedRef<FJsonObject> FRuntimeToolDescriptor::ToJson(bool bIncludeSchema) cons
 	if (bIncludeSchema)
 	{
 		Out->SetObjectField(TEXT("input_schema"), InputSchema);
+		if (OutputSchema.IsValid())
+		{
+			Out->SetObjectField(TEXT("output_schema"), OutputSchema);
+		}
 	}
 	return Out;
 }
@@ -24,6 +28,18 @@ TSharedRef<FJsonObject> FRuntimeToolDescriptor::ToJson(bool bIncludeSchema) cons
 FRuntimeToolBuilder& FRuntimeToolBuilder::Args(const FToolSchema& Schema)
 {
 	Descriptor->InputSchema = Schema.Build();
+	return *this;
+}
+
+FRuntimeToolBuilder& FRuntimeToolBuilder::ArgsJson(const TSharedRef<FJsonObject>& Schema)
+{
+	Descriptor->InputSchema = Schema;
+	return *this;
+}
+
+FRuntimeToolBuilder& FRuntimeToolBuilder::Returns(const TSharedRef<FJsonObject>& Schema)
+{
+	Descriptor->OutputSchema = Schema;
 	return *this;
 }
 

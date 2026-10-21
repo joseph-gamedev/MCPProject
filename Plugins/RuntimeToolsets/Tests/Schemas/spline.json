@@ -1,9 +1,9 @@
 {
-	"description": "Splines: paths through points shown as roads, rivers, walls or pipes; sample points along them",
+	"description": "Splines: smooth or straight paths through points, optionally shown as a swept mesh (roads, rivers, walls, pipes).\nClosed splines are areas for pcg.scatter (mode inside) and PCG graphs; open ones are paths.",
 	"name": "spline",
 	"tools": [
 		{
-			"description": "A spline through world points (smooth or linear, open or closed loop), optionally shown as a swept mesh: ribbon (road, path, river), wall or tube. Undoable.",
+			"description": "Creates a spline through world points, optionally shown as a mesh swept along it. Undoable.\nReturns: The spline node, its length and whether it is closed.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -12,39 +12,38 @@
 					"closed":
 					{
 						"default": false,
-						"description": "Closed loop (an area for pcg.scatter mode inside)",
+						"description": "Closed loop: an area (forest, field, lake shore) instead of a path.",
 						"type": "boolean"
 					},
 					"follow_ground":
 					{
 						"default": false,
-						"description": "Drop each point onto the ground below",
+						"description": "Drop each point onto the ground below before building the curve.",
 						"type": "boolean"
 					},
 					"linear":
 					{
 						"default": false,
-						"description": "Straight segments instead of a smooth curve",
+						"description": "Straight segments between points instead of a smooth curve (fences, walls, buildings).",
 						"type": "boolean"
 					},
 					"name":
 					{
-						"description": "Node name",
-						"maxLength": 64,
+						"default": "Spline",
+						"description": "Node name.",
 						"type": "string"
 					},
 					"parent":
 					{
-						"description": "Parent node",
-						"maxLength": 1024,
+						"description": "Optional parent node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"points":
 					{
-						"description": "World points [x,y,z] (2+)",
+						"description": "World positions [x,y,z] in cm, at least 2 (e.g. [[0,0,0],[5000,2000,0],[9000,0,0]]).",
 						"items":
 						{
-							"description": "Point",
+							"description": "[x, y, z] (cm)",
 							"items":
 							{
 								"type": "number"
@@ -53,12 +52,50 @@
 							"minItems": 3,
 							"type": "array"
 						},
-						"maxItems": 512,
 						"type": "array"
 					},
 					"profile":
 					{
-						"description": "Mesh along the spline: {kind: ribbon|wall|tube|none, width cm, height cm (ribbon thickness / wall height / tube lift), step cm, z_offset cm, plus builder material fields: material, color, roughness, metallic, emissive, opacity, variation, tile, relief}",
+						"description": "Mesh along the spline: {kind: ribbon|wall|tube|none, width, height, step, z_offset, material:{...}}.",
+						"properties":
+						{
+							"height":
+							{
+								"description": "Height in cm: ribbon thickness (default 8), wall height (default 300), tube lift above the path (default 0). Negative = default.",
+								"type": "number"
+							},
+							"kind":
+							{
+								"description": "What to sweep along the spline.",
+								"enum": [
+									"None",
+									"Ribbon",
+									"Wall",
+									"Tube"
+								],
+								"type": "string"
+							},
+							"material":
+							{
+								"description": "Builder material fields: {\"material\": \"asphalt\", \"color\": [r,g,b], \"roughness\": 0.8, ...} (same as build.create_assembly parts). (Any JSON value)"
+							},
+							"step":
+							{
+								"description": "Distance between mesh rings in cm (smaller = smoother curves).",
+								"type": "number"
+							},
+							"width":
+							{
+								"description": "Width in cm (ribbon and wall width, tube diameter).",
+								"type": "number"
+							},
+							"z_offset":
+							{
+								"description": "Raise the mesh above the path (cm), e.g. to avoid z-fighting with the ground.",
+								"type": "number"
+							}
+						},
+						"title": "RuntimeSplineProfile",
 						"type": "object"
 					}
 				},
@@ -68,11 +105,61 @@
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "spline.create",
+			"name": "spline.create_spline",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The spline node, its length and whether it is closed.",
+						"properties":
+						{
+							"closed":
+							{
+								"description": "Whether the spline is a closed loop (an area).",
+								"type": "boolean"
+							},
+							"length_cm":
+							{
+								"description": "Length along the curve in cm.",
+								"type": "number"
+							},
+							"spline":
+							{
+								"description": "The spline node. Pass it to sample_spline, pcg tools or scene tools. (Actor (null if none))",
+								"properties":
+								{
+									"class":
+									{
+										"type": "string"
+									},
+									"name":
+									{
+										"type": "string"
+									},
+									"ref":
+									{
+										"description": "Pass this back to tools that take this object",
+										"type": "string"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"title": "RuntimeSplineInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Points along a spline every `spacing` cm, with direction and yaw (for placing things in scripts).",
+			"description": "Samples points along a spline, for placing things along a path in scripts.\nReturns: Length, closed flag and the samples (location, direction, yaw, distance).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -80,33 +167,101 @@
 				{
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 200,
+						"description": "Maximum number of samples returned.",
 						"type": "integer"
 					},
 					"spacing":
 					{
 						"default": 500,
-						"description": "Distance between samples (cm)",
-						"maximum": 1000000,
-						"minimum": 1,
+						"description": "Distance between samples in cm.",
 						"type": "number"
 					},
-					"target":
+					"spline":
 					{
-						"description": "Spline node",
-						"maxLength": 1024,
+						"description": "The spline node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
 				"required": [
-					"target"
+					"spline"
 				],
 				"type": "object"
 			},
-			"name": "spline.sample"
+			"name": "spline.sample_spline",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Length, closed flag and the samples (location, direction, yaw, distance).",
+						"properties":
+						{
+							"closed":
+							{
+								"type": "boolean"
+							},
+							"length_cm":
+							{
+								"type": "number"
+							},
+							"points":
+							{
+								"description": "Samples from the start, `spacing` apart.",
+								"items":
+								{
+									"properties":
+									{
+										"direction":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"distance":
+										{
+											"description": "Distance from the start in cm.",
+											"type": "number"
+										},
+										"location":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"yaw":
+										{
+											"description": "Yaw of the direction in degrees (rotate placed objects by this to face along the path).",
+											"type": "number"
+										}
+									},
+									"title": "RuntimeSplineSample",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeSplineSamples",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

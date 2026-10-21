@@ -1,7 +1,7 @@
 """
 Splines + PCG: a valley built from a few splines and PCG scatters.
 
-  * a winding road and a river (spline.create with a ribbon profile)
+  * a winding road and a river (spline.create_spline with a ribbon profile)
   * a stone wall around a field (closed spline, wall profile)
   * a forest filling a closed spline, kept clear of the road and the river (pcg.scatter mode inside + exclude)
   * trees lining both sides of the road, fence posts and lamps following it (pcg.scatter along + offset/align)
@@ -68,20 +68,22 @@ def main():
     rt.build("Ground", [box([60000, 60000, 100], at=[0, 0, -100], **mat("grass", color=[0.22, 0.38, 0.12]))])
     T = templates(rt)
 
+    def spline(name, points, kind=None, width=0, height=-1, z_offset=2, material=None, **flags):
+        """spline.create_spline; returns the node reference."""
+        profile = {"kind": kind, "width": width, "height": height, "z_offset": z_offset, "material": material} if kind else {}
+        return rt.call("spline.create_spline", name=name, points=points, profile=profile, **flags)["returnValue"]["spline"]["ref"]
+
     # Splines.
     road_pts = [[-26000, -9000, 0], [-15000, -3000, 0], [-6000, -5500, 0], [2000, 1000, 0], [9000, 4000, 0], [17000, 1500, 0], [26000, 6000, 0]]
-    road = rt.call("spline.create", name="Road", points=road_pts, follow_ground=True,
-                   profile={"kind": "ribbon", "width": 700, "height": 6, "material": "asphalt", "color": [0.16, 0.16, 0.17]})["id"]
+    road = spline("Road", road_pts, "ribbon", 700, 6, material={"material": "asphalt", "color": [0.16, 0.16, 0.17]}, follow_ground=True)
     river_pts = [[-8000, 26000, 0], [-5000, 15000, 0], [1000, 9000, 0], [3500, 0, 0], [1000, -9000, 0], [6000, -18000, 0], [4000, -26000, 0]]
-    river = rt.call("spline.create", name="River", points=river_pts, follow_ground=True,
-                    profile={"kind": "ribbon", "width": 1400, "height": 4, "z_offset": 3, "material": "concrete",
-                             "color": [0.1, 0.3, 0.42], "roughness": 0.05, "variation": 0.0})["id"]
+    river = spline("River", river_pts, "ribbon", 1400, 4, 3, {"material": "concrete", "color": [0.1, 0.3, 0.42], "roughness": 0.05, "variation": 0.0},
+                   follow_ground=True)
     field_pts = [[9000, -6000, 0], [19000, -5000, 0], [21000, -15000, 0], [11000, -17000, 0]]
-    wall = rt.call("spline.create", name="FieldWall", points=field_pts, closed=True, linear=True, follow_ground=True,
-                   profile={"kind": "wall", "width": 60, "height": 110, "material": "stone", "color": [0.55, 0.53, 0.5]})["id"]
+    spline("FieldWall", field_pts, "wall", 60, 110, material={"material": "stone", "color": [0.55, 0.53, 0.5]}, closed=True, linear=True, follow_ground=True)
     forest_pts = [[-25000, 2000, 0], [-14000, 9000, 0], [-6000, 22000, 0], [-20000, 25000, 0], [-27000, 14000, 0]]
-    forest = rt.call("spline.create", name="ForestArea", points=forest_pts, closed=True)["id"]
-    woods2 = rt.call("spline.create", name="EastWoods", points=[[12000, 9000, 0], [25000, 11000, 0], [24000, 24000, 0], [8000, 22000, 0]], closed=True)["id"]
+    forest = spline("ForestArea", forest_pts, closed=True)
+    woods2 = spline("EastWoods", [[12000, 9000, 0], [25000, 11000, 0], [24000, 24000, 0], [8000, 22000, 0]], closed=True)
 
     keep_clear = [{"spline": road, "clearance": 900}, {"spline": river, "clearance": 1200}]
     s = args.seed
@@ -102,7 +104,7 @@ def main():
              exclude=[{"spline": road, "clearance": 800}], items=[{"template": T["rock"], "scale": [0.5, 1.6]}, {"template": T["bush"], "weight": 0.5}]),
     ]
     for sc in scatters:
-        r = rt.call("pcg.scatter", seed=s, **sc)
+        r = rt.call("pcg.scatter", seed=s, **sc)["returnValue"]
         print(f"{sc['name']:>11}: {r['pcg_points']} PCG points -> {r['instances']} instances",
               {i['template']: i['instances'] for i in r['items']})
 

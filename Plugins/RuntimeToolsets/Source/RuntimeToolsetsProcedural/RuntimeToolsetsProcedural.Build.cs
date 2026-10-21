@@ -9,7 +9,7 @@ public class RuntimeToolsetsProcedural : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"PCG", "GeometryCore", "GeometryFramework", "MeshConversion", "MeshDescription", "StaticMeshDescription"
+			"PCG", "AssetRegistry", "GeometryCore", "GeometryFramework", "MeshConversion", "MeshDescription", "StaticMeshDescription"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

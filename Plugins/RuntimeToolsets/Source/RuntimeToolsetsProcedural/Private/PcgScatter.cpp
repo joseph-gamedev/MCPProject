@@ -1,5 +1,5 @@
-#include "PcgToolset.h"
-#include "SplineToolset.h"
+#include "PcgScatter.h"
+#include "SplineCore.h"
 #include "RuntimeCommonCommands.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -254,8 +254,10 @@ namespace
 		return G;
 	}
 
-	/** Runs the component's graph to completion on this thread (PCG normally spreads work over frames). */
-	bool RunPcg(UWorld* W, UPCGComponent* Comp, FString& OutError)
+}
+
+/** Runs the component's graph to completion on this thread (PCG normally spreads work over frames). */
+bool RuntimePcg::Run(UWorld* W, UPCGComponent* Comp, FString& OutError)
 	{
 		UPCGSubsystem* Sub = UPCGSubsystem::GetInstance(W);
 		if (!Sub)
@@ -283,6 +285,8 @@ namespace
 		return false;
 	}
 
+namespace
+{
 	struct FItem
 	{
 		FString Template;
@@ -298,7 +302,7 @@ namespace
 	};
 }
 
-AActor* FPcgToolset::SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
 {
 	const TSharedPtr<FJsonObject> RP = RuntimeJson::Parse(Source.Mid(8));
 	if (!RP.IsValid())
@@ -308,7 +312,7 @@ AActor* FPcgToolset::SpawnFromSource(UWorld* World, const FString& Source, const
 	}
 	const TSharedRef<FJsonObject> R = RP.ToSharedRef();
 	AActor* SplineActor = NodeActor(World, R->GetStringField(TEXT("spline")));
-	const USplineComponent* Src = FSplineToolset::FindSpline(SplineActor);
+	const USplineComponent* Src = RuntimeSplines::FindSpline(SplineActor);
 	if (!Src)
 	{
 		OutError = TEXT("the scatter's spline node is gone");
@@ -385,7 +389,7 @@ AActor* FPcgToolset::SpawnFromSource(UWorld* World, const FString& Source, const
 	Pcg->RegisterComponent();
 	Actor->AddInstanceComponent(Pcg);
 	Pcg->SetGraphLocal(BuildGraph(Actor, R, Seed));
-	if (!RunPcg(World, Pcg, OutError))
+	if (!RuntimePcg::Run(World, Pcg, OutError))
 	{
 		Actor->Destroy();
 		return nullptr;
@@ -418,7 +422,7 @@ AActor* FPcgToolset::SpawnFromSource(UWorld* World, const FString& Source, const
 		for (const TSharedPtr<FJsonValue>& V : *Ex)
 		{
 			const TSharedPtr<FJsonObject> J = V->AsObject();
-			if (const USplineComponent* XS = FSplineToolset::FindSpline(NodeActor(World, J->GetStringField(TEXT("spline")))))
+			if (const USplineComponent* XS = RuntimeSplines::FindSpline(NodeActor(World, J->GetStringField(TEXT("spline")))))
 			{
 				Excludes.Add({XS, Num(J, TEXT("clearance"), 300.0)});
 			}
@@ -538,147 +542,8 @@ AActor* FPcgToolset::SpawnFromSource(UWorld* World, const FString& Source, const
 	return Actor;
 }
 
-static void Scatter(FToolInvocation& Inv)
+TSharedPtr<FJsonObject> RuntimePcg::ScatterStats(const AActor* Scatter)
 {
-	FResolvedTarget ST;
-	if (!Inv.ResolveTarget(TEXT("spline"), ST))
-	{
-		return;
-	}
-	if (!ST.Node || !FSplineToolset::FindSpline(ST.Actor))
-	{
-		Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("spline must be a spline node"), TEXT("Create one with spline.create"));
-		return;
-	}
-	TSharedRef<FJsonObject> R = Obj();
-	R->SetStringField(TEXT("spline"), ST.Node->Id);
-	R->SetStringField(TEXT("mode"), Inv.GetString(TEXT("mode"), TEXT("along")));
-	for (const TCHAR* F : {TEXT("spacing"), TEXT("jitter"), TEXT("min_distance"), TEXT("keep"), TEXT("noise_scale"), TEXT("seed")})
-	{
-		if (Inv.Has(F))
-		{
-			R->SetNumberField(F, Inv.GetNumber(F));
-		}
-	}
-	if (Inv.Has(TEXT("offset")))
-	{
-		R->SetField(TEXT("offset"), Inv.GetValue(TEXT("offset")));
-	}
-	R->SetStringField(TEXT("side"), Inv.GetString(TEXT("side"), TEXT("both")));
-	R->SetBoolField(TEXT("ground"), Inv.GetBool(TEXT("ground"), true));
-
-	// Resolve item templates and exclusion splines to node ids (names/paths are accepted).
-	TArray<TSharedPtr<FJsonValue>> Items;
-	const TArray<TSharedPtr<FJsonValue>>* In = nullptr;
-	if (!Inv.GetArgs()->TryGetArrayField(TEXT("items"), In) || In->Num() == 0)
-	{
-		Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("items needs at least one {template}"));
-		return;
-	}
-	FRuntimeSceneGraph* G = Inv.GetGraph();
-	auto ResolveId = [&](const FString& Ref, FString& OutId) -> bool
-	{
-		FResolvedTarget T;
-		ERuntimeToolError Err = ERuntimeToolError::NotFound;
-		FString Msg;
-		if (RuntimeObjectResolver::Resolve(Ref, Inv.GetWorld(), G, T, Err, Msg) && T.Node)
-		{
-			OutId = T.Node->Id;
-			return true;
-		}
-		Inv.Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no node '%s' %s"), *Ref, *Msg));
-		return false;
-	};
-	for (const TSharedPtr<FJsonValue>& V : *In)
-	{
-		const TSharedPtr<FJsonObject> J = V->AsObject();
-		FString Ref, Id;
-		if (!J.IsValid() || !J->TryGetStringField(TEXT("template"), Ref))
-		{
-			Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("each item needs a template node"));
-			return;
-		}
-		if (!ResolveId(Ref, Id))
-		{
-			return;
-		}
-		TSharedRef<FJsonObject> Copy = RuntimeJson::Parse(RuntimeJson::Write(J.ToSharedRef())).ToSharedRef();
-		Copy->SetStringField(TEXT("template"), Id);
-		Items.Add(MakeShared<FJsonValueObject>(Copy));
-	}
-	R->SetArrayField(TEXT("items"), Items);
-	const TArray<TSharedPtr<FJsonValue>>* Ex = nullptr;
-	if (Inv.GetArgs()->TryGetArrayField(TEXT("exclude"), Ex))
-	{
-		TArray<TSharedPtr<FJsonValue>> Out;
-		for (const TSharedPtr<FJsonValue>& V : *Ex)
-		{
-			const TSharedPtr<FJsonObject> J = V->AsObject();
-			FString Ref, Id;
-			if (!J.IsValid() || !J->TryGetStringField(TEXT("spline"), Ref) || !ResolveId(Ref, Id))
-			{
-				if (!Inv.IsComplete())
-				{
-					Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("each exclude needs {spline, clearance}"));
-				}
-				return;
-			}
-			TSharedRef<FJsonObject> Copy = Obj();
-			Copy->SetStringField(TEXT("spline"), Id);
-			Copy->SetNumberField(TEXT("clearance"), Num(J, TEXT("clearance"), 300.0));
-			Out.Add(MakeShared<FJsonValueObject>(Copy));
-		}
-		R->SetArrayField(TEXT("exclude"), Out);
-	}
-
-	const FString Source = TEXT("scatter:") + RuntimeJson::Write(R);
-	const FString Name = Inv.GetString(TEXT("name"), TEXT("Scatter"));
-	auto Spawn = [Source, Name](FRuntimeCommandContext& Ctx, FString& Err) -> AActor*
-	{
-		return FPcgToolset::SpawnFromSource(Ctx.World, Source, FTransform::Identity, Name, Err);
-	};
-	TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(TEXT("pcg scatter"), Spawn, Name, FString(), ERuntimeNodeKind::Actor, Source, TArray<FName>{TEXT("scatter")});
-	FCreateNodeCommand* Raw = Cmd.Get();
-	if (!Inv.RunCommand(MoveTemp(Cmd)))
-	{
-		return;
-	}
-	TSharedRef<FJsonObject> Out = Obj();
-	Out->SetStringField(TEXT("id"), Raw->GetNodeId());
-	if (const FRuntimeSceneNode* N = G->Find(Raw->GetNodeId()))
-	{
-		if (const TSharedPtr<FJsonObject>* S = Stats().Find(N->Actor))
-		{
-			for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*S)->Values)
-			{
-				Out->SetField(P.Key, P.Value);
-			}
-		}
-	}
-	Inv.Succeed(Out);
-}
-
-void FPcgToolset::RegisterTools(FRuntimeToolsetBuilder& B)
-{
-	B.Tool(TEXT("scatter"), TEXT("Scatter copies of builder objects along a spline (both sides of a road, a fence line) or inside a closed spline (a forest, a field) "
-			"with a real PCG graph (spline sampler, jitter, self pruning), then noise thinning, exclusion zones and ground snapping. "
-			"Rendered as GPU instances (thousands are cheap). Undoable; same seed = same result."))
-		.Args(FToolSchema()
-			.Add(TEXT("spline"), FToolParam::Target(TEXT("Spline node (spline.create)")).Required())
-			.Add(TEXT("items"), FToolParam::Array(TEXT("What to place: {template: node with a builder mesh, weight, scale:[min,max], align (face along the spline), random_yaw, z_offset, collision}"),
-				FToolParam::Object(TEXT("Item")), 16).Required())
-			.Add(TEXT("mode"), FToolParam::Enum(TEXT("along: on/beside the spline; inside: fill a closed spline"), {TEXT("along"), TEXT("inside")}).Default(TEXT("along")))
-			.Add(TEXT("spacing"), FToolParam::Number(TEXT("Sample spacing (cm)"), 10.0, 100000.0).Default(400.0))
-			.Add(TEXT("offset"), FToolParam::Any(TEXT("along: lateral band [min,max] cm from the spline (e.g. [500,1200] keeps trees off a road)")))
-			.Add(TEXT("side"), FToolParam::Enum(TEXT("along with offset: which side"), {TEXT("both"), TEXT("left"), TEXT("right")}).Default(TEXT("both")))
-			.Add(TEXT("jitter"), FToolParam::Number(TEXT("Random position offset (cm, default 35% of spacing)"), 0.0, 100000.0))
-			.Add(TEXT("min_distance"), FToolParam::Number(TEXT("Minimum gap between objects (cm, PCG self pruning)"), 0.0, 100000.0))
-			.Add(TEXT("keep"), FToolParam::Number(TEXT("0-1 share kept, clumped by noise (1 = all)"), 0.0, 1.0).Default(1.0))
-			.Add(TEXT("noise_scale"), FToolParam::Number(TEXT("Clump size for keep (cm)"), 100.0, 1000000.0).Default(3000.0))
-			.Add(TEXT("exclude"), FToolParam::Array(TEXT("Keep clear of splines: {spline, clearance cm}"), FToolParam::Object(TEXT("Exclusion")), 32))
-			.Add(TEXT("ground"), FToolParam::Boolean(TEXT("Snap to the ground below")).Default(true))
-			.Add(TEXT("seed"), FToolParam::Integer(TEXT("Random seed"), 0, 1000000000).Default(1))
-			.Add(TEXT("name"), FToolParam::String(TEXT("Node name"), 64)))
-		.Undoable().RequiresWorld()
-		.Handle(&Scatter);
+	const TSharedPtr<FJsonObject>* S = Stats().Find(const_cast<AActor*>(Scatter));
+	return S ? *S : nullptr;
 }

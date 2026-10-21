@@ -1,21 +1,28 @@
-#include "SplineToolset.h"
-#include "PcgToolset.h"
+#include "PcgScatter.h"
+#include "RuntimePcgToolset.h"
+#include "RuntimeSplineToolset.h"
+#include "SplineCore.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
 
-/** Procedural group: splines (paths, roads, walls, rivers) and PCG scattering. Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Procedural group: splines and PCG. Toolsets are UFUNCTION classes (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsProceduralModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FSplineToolset>(), MakeShared<FPcgToolset>()};
-		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("spline:"), &FSplineToolset::SpawnFromSource);
-		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("scatter:"), &FPcgToolset::SpawnFromSource);
-		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
-		{
-			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
-		}
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
+		RuntimePcg::RegisterConverters();
+		IRuntimeToolsetsCore& Core = IRuntimeToolsetsCore::Get();
+		Core.RegisterSourceSpawner(TEXT("spline:"), &RuntimeSplines::SpawnFromSource);
+		Core.RegisterSourceSpawner(TEXT("scatter:"), &RuntimePcg::SpawnScatterFromSource);
+		Core.RegisterSourceSpawner(TEXT("pcginst:"), &RuntimePcg::SpawnInstanceFromSource);
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeSplineToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimePcgToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override
@@ -26,9 +33,12 @@ public:
 			{
 				IRuntimeToolsetsCore::Get().UnregisterToolset(Toolset->GetName());
 			}
-			IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(TEXT("spline:"));
-			IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(TEXT("scatter:"));
+			for (const TCHAR* P : {TEXT("spline:"), TEXT("scatter:"), TEXT("pcginst:")})
+			{
+				IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(P);
+			}
 		}
+		RuntimePcg::UnregisterConverters();
 		Registered.Reset();
 	}
 

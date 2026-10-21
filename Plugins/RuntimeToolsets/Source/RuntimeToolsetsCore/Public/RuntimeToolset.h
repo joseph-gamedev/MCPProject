@@ -17,6 +17,8 @@ struct RUNTIMETOOLSETSCORE_API FRuntimeToolDescriptor
 	FString QualifiedName;
 	FString Description;
 	TSharedRef<FJsonObject> InputSchema = FToolSchema().Build();
+	/** JSON schema of the result payload (MCP outputSchema). Null when undocumented. */
+	TSharedPtr<FJsonObject> OutputSchema;
 
 	/** Changes world or engine state. */
 	bool bMutating = false;
@@ -39,6 +41,10 @@ public:
 	explicit FRuntimeToolBuilder(const TSharedRef<FRuntimeToolDescriptor>& InDescriptor) : Descriptor(InDescriptor) {}
 
 	FRuntimeToolBuilder& Args(const FToolSchema& Schema);
+	/** Input schema as raw JSON Schema (generated schemas). */
+	FRuntimeToolBuilder& ArgsJson(const TSharedRef<FJsonObject>& Schema);
+	/** Output schema (shape of the result payload). */
+	FRuntimeToolBuilder& Returns(const TSharedRef<FJsonObject>& Schema);
 	/** Mutating + Undoable. */
 	FRuntimeToolBuilder& Undoable();
 	/** Mutating but cannot be undone (ends the undo chain). */

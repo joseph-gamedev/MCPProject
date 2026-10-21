@@ -1,9 +1,1433 @@
 {
-	"description": "Procedural scattering with Unreal PCG: trees, rocks, fences, lamps along or inside splines, as instanced meshes",
+	"description": "Procedural Content Generation: build and run PCG graphs (the same node-by-node workflow as Epic's editor PCG toolset)\nand scatter builder objects along or inside splines.\nWorkflow: create_graph -> list_native_nodes / get_native_node_schema -> add_node -> connect_node_pins\n-> spawn_graph_instance (on a volume or an existing actor such as a spline) -> execute_graph_instance -> get_node_data_view.\nFor the common case (trees, rocks, fences, lamps along or inside a spline) use scatter.",
 	"name": "pcg",
 	"tools": [
 		{
-			"description": "Scatter copies of builder objects along a spline (both sides of a road, a fence line) or inside a closed spline (a forest, a field) with a real PCG graph (spline sampler, jitter, self pruning), then noise thinning, exclusion zones and ground snapping. Rendered as GPU instances (thousands are cheap). Undoable; same seed = same result.",
+			"description": "Adds a native node to a graph.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"native_node_type":
+					{
+						"description": "Node type from list_native_nodes, e.g. \"Surface Sampler\".",
+						"type": "string"
+					},
+					"node_name":
+					{
+						"description": "Unique name for the node in this graph.",
+						"type": "string"
+					},
+					"params":
+					{
+						"description": "Non-default parameters, e.g. {\"points_per_squared_meter\": 0.05}. See get_native_node_schema. (Any JSON value)"
+					}
+				},
+				"required": [
+					"graph",
+					"native_node_type",
+					"node_name"
+				],
+				"type": "object"
+			},
+			"name": "pcg.add_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"enabled":
+							{
+								"type": "boolean"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+								"type": "string"
+							},
+							"node_type":
+							{
+								"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"param_overrides":
+							{
+								"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+							}
+						},
+						"title": "PcgToolNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Adds a node that runs another graph.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph to modify.",
+						"type": "string"
+					},
+					"node_name":
+					{
+						"description": "Unique name for the node.",
+						"type": "string"
+					},
+					"subgraph":
+					{
+						"description": "Graph to run inside it (name or asset path, see list_graphs).",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph",
+					"subgraph",
+					"node_name"
+				],
+				"type": "object"
+			},
+			"name": "pcg.add_subgraph_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"enabled":
+							{
+								"type": "boolean"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+								"type": "string"
+							},
+							"node_type":
+							{
+								"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"param_overrides":
+							{
+								"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+							}
+						},
+						"title": "PcgToolNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Connects an output pin to an input pin.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"from_node":
+					{
+						"description": "Source node name (\"input\" for the graph input).",
+						"type": "string"
+					},
+					"from_pin":
+					{
+						"description": "Output pin label, e.g. \"Out\".",
+						"type": "string"
+					},
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"to_node":
+					{
+						"description": "Destination node name (\"output\" for the graph output).",
+						"type": "string"
+					},
+					"to_pin":
+					{
+						"description": "Input pin label, e.g. \"In\", \"Spline\", \"Surface\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph",
+					"from_node",
+					"from_pin",
+					"to_node",
+					"to_pin"
+				],
+				"type": "object"
+			},
+			"name": "pcg.connect_node_pins",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Creates a new, empty PCG graph (in memory for this session).\nReturns: The graph structure (only the input and output nodes).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Unique graph name, e.g. \"ForestScatter\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "pcg.create_graph",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The graph structure (only the input and output nodes).",
+						"properties":
+						{
+							"edges":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"dest_node":
+										{
+											"type": "string"
+										},
+										"dest_pin":
+										{
+											"type": "string"
+										},
+										"src_node":
+										{
+											"type": "string"
+										},
+										"src_pin":
+										{
+											"type": "string"
+										}
+									},
+									"title": "PcgToolEdgeInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"graph_params":
+							{
+								"description": "Graph parameters and their default values. (Any JSON value)"
+							},
+							"name":
+							{
+								"description": "Graph name (pass it as `graph` to other tools).",
+								"type": "string"
+							},
+							"nodes":
+							{
+								"description": "Node list, including the \"input\" and \"output\" nodes.",
+								"items":
+								{
+									"properties":
+									{
+										"enabled":
+										{
+											"type": "boolean"
+										},
+										"input_pins":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"multiple_connections":
+													{
+														"description": "Whether the pin accepts several connections.",
+														"type": "boolean"
+													},
+													"name":
+													{
+														"description": "Pin label, used by connect_node_pins.",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+														"type": "string"
+													}
+												},
+												"title": "PcgToolPinInfo",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"name":
+										{
+											"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+											"type": "string"
+										},
+										"node_type":
+										{
+											"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+											"type": "string"
+										},
+										"output_pins":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"multiple_connections":
+													{
+														"description": "Whether the pin accepts several connections.",
+														"type": "boolean"
+													},
+													"name":
+													{
+														"description": "Pin label, used by connect_node_pins.",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+														"type": "string"
+													}
+												},
+												"title": "PcgToolPinInfo",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"param_overrides":
+										{
+											"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+										}
+									},
+									"title": "PcgToolNodeInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "PcgToolGraphStructure",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes the edge between two pins.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"from_node":
+					{
+						"description": "Source node name.",
+						"type": "string"
+					},
+					"from_pin":
+					{
+						"description": "Output pin label.",
+						"type": "string"
+					},
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"to_node":
+					{
+						"description": "Destination node name.",
+						"type": "string"
+					},
+					"to_pin":
+					{
+						"description": "Input pin label.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph",
+					"from_node",
+					"from_pin",
+					"to_node",
+					"to_pin"
+				],
+				"type": "object"
+			},
+			"name": "pcg.disconnect_node_pins",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Executes the graph on an actor and waits for it to finish.\nReturns: Messages emitted while executing and how much data reached the output.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"instance":
+					{
+						"description": "Actor running the graph (from spawn_graph_instance). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"instance"
+				],
+				"type": "object"
+			},
+			"name": "pcg.execute_graph_instance",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Messages emitted while executing and how much data reached the output.",
+						"properties":
+						{
+							"messages":
+							{
+								"description": "Warnings and errors emitted while executing (empty on a clean run).",
+								"items":
+								{
+									"properties":
+									{
+										"message":
+										{
+											"type": "string"
+										},
+										"severity":
+										{
+											"description": "Warning or Error.",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolExecutionMessage",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"output_data":
+							{
+								"description": "Data items reaching the graph output.",
+								"type": "integer"
+							},
+							"output_points":
+							{
+								"description": "Points reaching the graph output.",
+								"type": "integer"
+							}
+						},
+						"title": "PcgToolExecutionResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Gets the graph parameter values of an instance.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"instance":
+					{
+						"description": "Actor running the graph. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"instance"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_graph_instance_params",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Any JSON value"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the schema of a graph's parameters and its input/output pins.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name or asset path.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_graph_schema",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"graph_params_schema":
+							{
+								"description": "JSON schema of the graph parameters (what set_graph_instance_params accepts). (Any JSON value)"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "PcgToolGraphSchema",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the complete structure of a graph: nodes (with parameter overrides and pins), edges and graph parameters.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name or asset path.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_graph_structure",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"edges":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"dest_node":
+										{
+											"type": "string"
+										},
+										"dest_pin":
+										{
+											"type": "string"
+										},
+										"src_node":
+										{
+											"type": "string"
+										},
+										"src_pin":
+										{
+											"type": "string"
+										}
+									},
+									"title": "PcgToolEdgeInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"graph_params":
+							{
+								"description": "Graph parameters and their default values. (Any JSON value)"
+							},
+							"name":
+							{
+								"description": "Graph name (pass it as `graph` to other tools).",
+								"type": "string"
+							},
+							"nodes":
+							{
+								"description": "Node list, including the \"input\" and \"output\" nodes.",
+								"items":
+								{
+									"properties":
+									{
+										"enabled":
+										{
+											"type": "boolean"
+										},
+										"input_pins":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"multiple_connections":
+													{
+														"description": "Whether the pin accepts several connections.",
+														"type": "boolean"
+													},
+													"name":
+													{
+														"description": "Pin label, used by connect_node_pins.",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+														"type": "string"
+													}
+												},
+												"title": "PcgToolPinInfo",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"name":
+										{
+											"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+											"type": "string"
+										},
+										"node_type":
+										{
+											"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+											"type": "string"
+										},
+										"output_pins":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"multiple_connections":
+													{
+														"description": "Whether the pin accepts several connections.",
+														"type": "boolean"
+													},
+													"name":
+													{
+														"description": "Pin label, used by connect_node_pins.",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+														"type": "string"
+													}
+												},
+												"title": "PcgToolPinInfo",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"param_overrides":
+										{
+											"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+										}
+									},
+									"title": "PcgToolNodeInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "PcgToolGraphStructure",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns a node type's parameters (JSON schema) and pins.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"node_name":
+					{
+						"description": "Node type, e.g. \"Surface Sampler\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"node_name"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_native_node_schema",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"description":
+							{
+								"type": "string"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"properties_schema":
+							{
+								"description": "JSON schema of the node parameters (what add_node / update_node accept in `params`). (Any JSON value)"
+							}
+						},
+						"title": "PcgToolNodeSchema",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Executes the instance's graph and returns the data a node produces on one pin (points as rows).\nReturns: {data:[{type, count, attributes, elements:[{position, rotation, scale, density, seed}]}]}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"end_index":
+					{
+						"default": -1,
+						"description": "Last element, exclusive; -1 = up to 100 elements.",
+						"type": "integer"
+					},
+					"instance":
+					{
+						"description": "Actor running the graph. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"node":
+					{
+						"description": "Node to inspect.",
+						"type": "string"
+					},
+					"pin_label":
+					{
+						"default": "Out",
+						"description": "Output pin to read.",
+						"type": "string"
+					},
+					"start_index":
+					{
+						"default": 0,
+						"description": "First element, inclusive.",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"instance",
+					"node"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_node_data_view",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{data:[{type, count, attributes, elements:[{position, rotation, scale, density, seed}]}]}."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns a node's type, parameter overrides and pins.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name or asset path.",
+						"type": "string"
+					},
+					"node":
+					{
+						"description": "Node name.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph",
+					"node"
+				],
+				"type": "object"
+			},
+			"name": "pcg.get_node_info",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"enabled":
+							{
+								"type": "boolean"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+								"type": "string"
+							},
+							"node_type":
+							{
+								"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"param_overrides":
+							{
+								"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+							}
+						},
+						"title": "PcgToolNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists every actor in the world that runs a PCG graph.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "pcg.list_graph_instances",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"items":
+						{
+							"properties":
+							{
+								"actor":
+								{
+									"description": "The actor running the graph (a graph instance volume or the actor it was attached to). (Actor (null if none))",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"graph":
+								{
+									"description": "Graph name.",
+									"type": "string"
+								}
+							},
+							"title": "PcgToolGraphInstanceInfo",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists graphs: the ones created in this session and PCG graph assets packaged with the project (usable as subgraphs).\nReturns: Graph names and asset paths, sorted.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "pcg.list_graphs",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Graph names and asset paths, sorted.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists native PCG node types.\nReturns: Node type names for add_node, sorted.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"common_only":
+					{
+						"default": true,
+						"description": "Only the commonly used nodes. Use false only if the user asks for more.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "pcg.list_native_nodes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Node type names for add_node, sorted.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes graph parameters.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"param_names":
+					{
+						"description": "Names of the parameters to remove.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"graph",
+					"param_names"
+				],
+				"type": "object"
+			},
+			"name": "pcg.remove_graph_params",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes a node and its edges.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"node":
+					{
+						"description": "Node name.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"graph",
+					"node"
+				],
+				"type": "object"
+			},
+			"name": "pcg.remove_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Resets instance parameters back to the graph's defaults.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"instance":
+					{
+						"description": "Actor running the graph. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"param_names":
+					{
+						"description": "Parameters to reset.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"instance",
+					"param_names"
+				],
+				"type": "object"
+			},
+			"name": "pcg.reset_graph_instance_params",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Scatters copies of builder objects along a spline (both sides of a road, a fence line) or inside a closed spline (a forest, a field) with a PCG graph (spline or surface sampler, jitter, self pruning), then noise thinning, exclusion zones and ground snapping. Rendered as GPU instances (thousands are cheap). Undoable; same seed, same result.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,113 +1435,164 @@
 				{
 					"exclude":
 					{
-						"description": "Keep clear of splines: {spline, clearance cm}",
+						"description": "Keep clear of these splines: {spline, clearance}.",
 						"items":
 						{
-							"description": "Exclusion",
+							"properties":
+							{
+								"clearance":
+								{
+									"description": "Distance from the spline that stays empty (cm).",
+									"type": "number"
+								},
+								"spline":
+								{
+									"description": "Spline node to keep clear of (a road, a river). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+									"type": "string"
+								}
+							},
+							"title": "PcgScatterExclusion",
 							"type": "object"
 						},
-						"maxItems": 32,
 						"type": "array"
 					},
 					"ground":
 					{
 						"default": true,
-						"description": "Snap to the ground below",
+						"description": "Snap to the ground below.",
 						"type": "boolean"
 					},
 					"items":
 					{
-						"description": "What to place: {template: node with a builder mesh, weight, scale:[min,max], align (face along the spline), random_yaw, z_offset, collision}",
+						"description": "What to place: {template, weight, scale:[min,max], align, random_yaw, z_offset, collision}.",
 						"items":
 						{
-							"description": "Item",
+							"properties":
+							{
+								"align":
+								{
+									"description": "Face along the spline (fences, lamps).",
+									"type": "boolean"
+								},
+								"collision":
+								{
+									"description": "Block movement and traces.",
+									"type": "boolean"
+								},
+								"random_yaw":
+								{
+									"description": "Random rotation around Z (ignored when aligned unless also set).",
+									"type": "boolean"
+								},
+								"scale":
+								{
+									"description": "[x, y]",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 2,
+									"minItems": 2,
+									"type": "array"
+								},
+								"template":
+								{
+									"description": "Node with a builder mesh to copy (build.create_assembly / create_primitive); keep it out of sight. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+									"type": "string"
+								},
+								"weight":
+								{
+									"description": "Relative chance of being picked.",
+									"type": "number"
+								},
+								"z_offset":
+								{
+									"description": "Lift above the ground (cm).",
+									"type": "number"
+								}
+							},
+							"title": "PcgScatterItem",
 							"type": "object"
 						},
-						"maxItems": 16,
 						"type": "array"
 					},
 					"jitter":
 					{
-						"description": "Random position offset (cm, default 35% of spacing)",
-						"maximum": 100000,
-						"minimum": 0,
+						"default": -1,
+						"description": "Random position offset in cm (-1 = 35% of spacing).",
 						"type": "number"
 					},
 					"keep":
 					{
 						"default": 1,
-						"description": "0-1 share kept, clumped by noise (1 = all)",
-						"maximum": 1,
-						"minimum": 0,
+						"description": "Share of points kept, clumped by noise (1 = all).",
 						"type": "number"
 					},
 					"min_distance":
 					{
-						"description": "Minimum gap between objects (cm, PCG self pruning)",
-						"maximum": 100000,
-						"minimum": 0,
+						"default": -1,
+						"description": "Minimum gap between objects in cm (-1 = 60% of spacing).",
 						"type": "number"
 					},
 					"mode":
 					{
-						"default": "along",
-						"description": "along: on/beside the spline; inside: fill a closed spline",
+						"default": "Along",
+						"description": "along: on or beside the spline; inside: fill a closed spline.",
 						"enum": [
-							"along",
-							"inside"
+							"Along",
+							"Inside"
 						],
 						"type": "string"
 					},
 					"name":
 					{
-						"description": "Node name",
-						"maxLength": 64,
+						"default": "Scatter",
+						"description": "Node name.",
 						"type": "string"
 					},
 					"noise_scale":
 					{
 						"default": 3000,
-						"description": "Clump size for keep (cm)",
-						"maximum": 1000000,
-						"minimum": 100,
+						"description": "Clump size for keep, in cm.",
 						"type": "number"
 					},
 					"offset":
 					{
-						"description": "along: lateral band [min,max] cm from the spline (e.g. [500,1200] keeps trees off a road)"
+						"description": "along: lateral band [min,max] in cm from the spline (e.g. [500,1200] keeps trees off a road); [0,0] = on the line. ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
 					},
 					"seed":
 					{
 						"default": 1,
-						"description": "Random seed",
-						"maximum": 1000000000,
-						"minimum": 0,
+						"description": "Random seed.",
 						"type": "integer"
 					},
 					"side":
 					{
-						"default": "both",
-						"description": "along with offset: which side",
+						"default": "Both",
+						"description": "along with an offset: which side of the spline.",
 						"enum": [
-							"both",
-							"left",
-							"right"
+							"Both",
+							"Left",
+							"Right"
 						],
 						"type": "string"
 					},
 					"spacing":
 					{
 						"default": 400,
-						"description": "Sample spacing (cm)",
-						"maximum": 100000,
-						"minimum": 10,
+						"description": "Sample spacing in cm.",
 						"type": "number"
 					},
 					"spline":
 					{
-						"description": "Spline node (spline.create)",
-						"maxLength": 1024,
+						"description": "Spline node (spline.create_spline). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -129,8 +1604,451 @@
 			},
 			"mutating": true,
 			"name": "pcg.scatter",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"filtered_out":
+							{
+								"description": "Points removed by noise thinning and exclusions.",
+								"type": "integer"
+							},
+							"instances":
+							{
+								"description": "Instances placed.",
+								"type": "integer"
+							},
+							"items":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"instances":
+										{
+											"type": "integer"
+										},
+										"template":
+										{
+											"type": "string"
+										}
+									},
+									"title": "PcgScatterCount",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"pcg_points":
+							{
+								"description": "Points produced by the PCG graph.",
+								"type": "integer"
+							},
+							"scatter":
+							{
+								"description": "The scatter node (delete or undo to remove everything it placed). (Actor (null if none))",
+								"properties":
+								{
+									"class":
+									{
+										"type": "string"
+									},
+									"name":
+									{
+										"type": "string"
+									},
+									"ref":
+									{
+										"description": "Pass this back to tools that take this object",
+										"type": "string"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"title": "PcgScatterResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
+		},
+		{
+			"description": "Overrides graph parameters on one instance (execute again to see the result).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"instance":
+					{
+						"description": "Actor running the graph. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"params":
+					{
+						"description": "{\"param_name\": value, ...}. (Any JSON value)"
+					}
+				},
+				"required": [
+					"instance",
+					"params"
+				],
+				"type": "object"
+			},
+			"name": "pcg.set_graph_instance_params",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Adds graph parameters that each graph instance can override (set_graph_instance_params).\nReturns: True when all parameters were added.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"params":
+					{
+						"description": "Parameter definitions {name, type, array, default_value}.",
+						"items":
+						{
+							"properties":
+							{
+								"array":
+								{
+									"description": "An array of Type instead of a single value.",
+									"type": "boolean"
+								},
+								"default_value":
+								{
+									"description": "Default value (omit for the type's zero value). (Any JSON value)"
+								},
+								"name":
+								{
+									"type": "string"
+								},
+								"type":
+								{
+									"enum": [
+										"Bool",
+										"Int32",
+										"Int64",
+										"Float",
+										"Double",
+										"Name",
+										"String",
+										"Vector",
+										"Vector2D",
+										"Rotator",
+										"Transform",
+										"Color",
+										"SoftObjectPath"
+									],
+									"type": "string"
+								}
+							},
+							"title": "PcgToolParamDefinition",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"graph",
+					"params"
+				],
+				"type": "object"
+			},
+			"name": "pcg.set_graph_params",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "True when all parameters were added.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Runs a graph in the world: on a new volume (its transform is the area samplers fill; default 50 m wide) or on an existing actor (e.g. a spline node, so \"Get Spline Data\" reads its spline). Undoable.\nReturns: The actor running the graph.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"graph":
+					{
+						"description": "Graph name or asset path.",
+						"type": "string"
+					},
+					"name":
+					{
+						"default": "PCGVolume",
+						"description": "Name of the new volume node.",
+						"type": "string"
+					},
+					"on_actor":
+					{
+						"description": "Attach to this actor instead of spawning a volume. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"params":
+					{
+						"description": "Graph parameter overrides, e.g. {\"density\": 0.3}. (Any JSON value)"
+					},
+					"transform":
+					{
+						"description": "Volume transform {location, rotation, scale}; scale 1 = 1 m box (default scale [50,50,10] covers 50 x 50 m).",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z]",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"type": "object"
+					}
+				},
+				"required": [
+					"graph"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "pcg.spawn_graph_instance",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor running the graph.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "The actor running the graph (a graph instance volume or the actor it was attached to). (Actor (null if none))",
+								"properties":
+								{
+									"class":
+									{
+										"type": "string"
+									},
+									"name":
+									{
+										"type": "string"
+									},
+									"ref":
+									{
+										"description": "Pass this back to tools that take this object",
+										"type": "string"
+									}
+								},
+								"type": "object"
+							},
+							"graph":
+							{
+								"description": "Graph name.",
+								"type": "string"
+							}
+						},
+						"title": "PcgToolGraphInstanceInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Changes a node's parameters.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "Enable or disable the node.",
+						"type": "boolean"
+					},
+					"graph":
+					{
+						"description": "Graph name.",
+						"type": "string"
+					},
+					"node":
+					{
+						"description": "Node name.",
+						"type": "string"
+					},
+					"params":
+					{
+						"description": "Parameters to set. (Any JSON value)"
+					}
+				},
+				"required": [
+					"graph",
+					"node"
+				],
+				"type": "object"
+			},
+			"name": "pcg.update_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"enabled":
+							{
+								"type": "boolean"
+							},
+							"input_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Unique node name inside the graph (\"input\" and \"output\" are the graph's own nodes).",
+								"type": "string"
+							},
+							"node_type":
+							{
+								"description": "Native node type (\"Spline Sampler\", \"Surface Sampler\", ...).",
+								"type": "string"
+							},
+							"output_pins":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"multiple_connections":
+										{
+											"description": "Whether the pin accepts several connections.",
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Pin label, used by connect_node_pins.",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Data types the pin accepts or produces (Point, Spline, Surface, Param, Any...).",
+											"type": "string"
+										}
+									},
+									"title": "PcgToolPinInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"param_overrides":
+							{
+								"description": "Parameters that differ from the node type's defaults. (Any JSON value)"
+							}
+						},
+						"title": "PcgToolNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }
