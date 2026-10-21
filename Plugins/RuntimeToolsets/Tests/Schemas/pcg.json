@@ -1,0 +1,136 @@
+{
+	"description": "Procedural scattering with Unreal PCG: trees, rocks, fences, lamps along or inside splines, as instanced meshes",
+	"name": "pcg",
+	"tools": [
+		{
+			"description": "Scatter copies of builder objects along a spline (both sides of a road, a fence line) or inside a closed spline (a forest, a field) with a real PCG graph (spline sampler, jitter, self pruning), then noise thinning, exclusion zones and ground snapping. Rendered as GPU instances (thousands are cheap). Undoable; same seed = same result.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"exclude":
+					{
+						"description": "Keep clear of splines: {spline, clearance cm}",
+						"items":
+						{
+							"description": "Exclusion",
+							"type": "object"
+						},
+						"maxItems": 32,
+						"type": "array"
+					},
+					"ground":
+					{
+						"default": true,
+						"description": "Snap to the ground below",
+						"type": "boolean"
+					},
+					"items":
+					{
+						"description": "What to place: {template: node with a builder mesh, weight, scale:[min,max], align (face along the spline), random_yaw, z_offset, collision}",
+						"items":
+						{
+							"description": "Item",
+							"type": "object"
+						},
+						"maxItems": 16,
+						"type": "array"
+					},
+					"jitter":
+					{
+						"description": "Random position offset (cm, default 35% of spacing)",
+						"maximum": 100000,
+						"minimum": 0,
+						"type": "number"
+					},
+					"keep":
+					{
+						"default": 1,
+						"description": "0-1 share kept, clumped by noise (1 = all)",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"min_distance":
+					{
+						"description": "Minimum gap between objects (cm, PCG self pruning)",
+						"maximum": 100000,
+						"minimum": 0,
+						"type": "number"
+					},
+					"mode":
+					{
+						"default": "along",
+						"description": "along: on/beside the spline; inside: fill a closed spline",
+						"enum": [
+							"along",
+							"inside"
+						],
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"noise_scale":
+					{
+						"default": 3000,
+						"description": "Clump size for keep (cm)",
+						"maximum": 1000000,
+						"minimum": 100,
+						"type": "number"
+					},
+					"offset":
+					{
+						"description": "along: lateral band [min,max] cm from the spline (e.g. [500,1200] keeps trees off a road)"
+					},
+					"seed":
+					{
+						"default": 1,
+						"description": "Random seed",
+						"maximum": 1000000000,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"side":
+					{
+						"default": "both",
+						"description": "along with offset: which side",
+						"enum": [
+							"both",
+							"left",
+							"right"
+						],
+						"type": "string"
+					},
+					"spacing":
+					{
+						"default": 400,
+						"description": "Sample spacing (cm)",
+						"maximum": 100000,
+						"minimum": 10,
+						"type": "number"
+					},
+					"spline":
+					{
+						"description": "Spline node (spline.create)",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"spline",
+					"items"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "pcg.scatter",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

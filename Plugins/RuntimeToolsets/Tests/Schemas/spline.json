@@ -1,0 +1,112 @@
+{
+	"description": "Splines: paths through points shown as roads, rivers, walls or pipes; sample points along them",
+	"name": "spline",
+	"tools": [
+		{
+			"description": "A spline through world points (smooth or linear, open or closed loop), optionally shown as a swept mesh: ribbon (road, path, river), wall or tube. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"closed":
+					{
+						"default": false,
+						"description": "Closed loop (an area for pcg.scatter mode inside)",
+						"type": "boolean"
+					},
+					"follow_ground":
+					{
+						"default": false,
+						"description": "Drop each point onto the ground below",
+						"type": "boolean"
+					},
+					"linear":
+					{
+						"default": false,
+						"description": "Straight segments instead of a smooth curve",
+						"type": "boolean"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"points":
+					{
+						"description": "World points [x,y,z] (2+)",
+						"items":
+						{
+							"description": "Point",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"maxItems": 512,
+						"type": "array"
+					},
+					"profile":
+					{
+						"description": "Mesh along the spline: {kind: ribbon|wall|tube|none, width cm, height cm (ribbon thickness / wall height / tube lift), step cm, z_offset cm, plus builder material fields: material, color, roughness, metallic, emissive, opacity, variation, tile, relief}",
+						"type": "object"
+					}
+				},
+				"required": [
+					"points"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "spline.create",
+			"undoable": true
+		},
+		{
+			"description": "Points along a spline every `spacing` cm, with direction and yaw (for placing things in scripts).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"spacing":
+					{
+						"default": 500,
+						"description": "Distance between samples (cm)",
+						"maximum": 1000000,
+						"minimum": 1,
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Spline node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "spline.sample"
+		}
+	],
+	"version": "1.0.0"
+}

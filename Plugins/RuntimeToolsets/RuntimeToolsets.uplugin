@@ -13,7 +13,8 @@
 	"Plugins": [
 		{ "Name": "EnhancedInput", "Enabled": true },
 		{ "Name": "Niagara", "Enabled": true },
-		{ "Name": "GeometryScripting", "Enabled": true }
+		{ "Name": "GeometryScripting", "Enabled": true },
+		{ "Name": "PCG", "Enabled": true }
 	],
 	"Modules": [
 		{
@@ -54,6 +55,12 @@
 		},
 		{
 			"Name": "RuntimeToolsetsLogic",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+		},
+		{
+			"Name": "RuntimeToolsetsProcedural",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
 			"TargetConfigurationDenyList": [ "Shipping", "Test" ]

@@ -19,11 +19,19 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 
 def fresh_material(name):
     """Existing asset: clear its graph and reuse it (keeps references); otherwise create it."""
-    existing = unreal.load_asset(f"{FOLDER}/{name}.{name}")
-    if existing:
-        lib.delete_all_material_expressions(existing)
-        return existing
-    return tools.create_asset(name, FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+    mat = unreal.load_asset(f"{FOLDER}/{name}.{name}")
+    if mat:
+        lib.delete_all_material_expressions(mat)
+    else:
+        mat = tools.create_asset(name, FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+    # Shaders for these uses must be compiled up front: cooked builds cannot add them later
+    # (otherwise PCG instances, spline meshes and Niagara meshes fall back to the default material).
+    for usage in ("used_with_instanced_static_meshes", "used_with_spline_meshes", "used_with_niagara_mesh_particles"):
+        try:
+            mat.set_editor_property(usage, True)
+        except Exception:
+            pass
+    return mat
 
 
 def scalar(mat, name, value, x, y):
