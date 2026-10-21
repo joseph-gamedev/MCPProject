@@ -35,9 +35,10 @@ namespace
 
 	const TArray<FString>& ActionNames()
 	{
-		static const TArray<FString> Names = {TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
+		// Actions whose own fields reuse another action's keyword ("weapon" has "set") come first.
+		static const TArray<FString> Names = {TEXT("weapon"), TEXT("health"), TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
 			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback"), TEXT("spawner"), TEXT("drop_loot"), TEXT("give"), TEXT("take"),
-			TEXT("save"), TEXT("load"), TEXT("health"), TEXT("weapon")};
+			TEXT("save"), TEXT("load")};
 		return Names;
 	}
 

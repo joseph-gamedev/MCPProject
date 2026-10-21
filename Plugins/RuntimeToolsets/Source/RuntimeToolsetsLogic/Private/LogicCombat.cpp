@@ -414,9 +414,12 @@ int32 FLogicWorld::CallWorldFunction(const FString& Name, TArray<FLogicValue>& A
 		FString Err;
 		ResolveNodes({A[0].ToText()}, Ids, Err);
 		TArray<FLogicValue> Items;
+		FRuntimeSceneGraph* G = GraphFor(World.Get());
 		for (const FString& Id : Ids)
 		{
-			if (!IsHidden(Id))
+			const FRuntimeSceneNode* N = G ? G->Find(Id) : nullptr;
+			// Hidden = collected, dead, or a pooled copy waiting to be spawned.
+			if (!IsHidden(Id) && N && N->Actor.IsValid() && !N->Actor->IsHidden())
 			{
 				Items.Add(FLogicValue::MakeString(Id));
 			}

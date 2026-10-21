@@ -1341,8 +1341,8 @@
 					"radius":
 					{
 						"description": "Collision radius cm",
-						"maximum": 300,
-						"minimum": 10,
+						"maximum": 100000,
+						"minimum": 1,
 						"type": "number"
 					},
 					"reload_key":

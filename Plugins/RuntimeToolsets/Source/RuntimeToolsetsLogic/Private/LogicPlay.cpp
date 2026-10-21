@@ -404,6 +404,8 @@ void FLogicWorld::RemovePlayer()
 			{
 				PC->UnPossess();
 			}
+			Player.Reset();
+			ApplyInputMode(); // back to the menu/cursor mode of the definitions
 		}
 		if (AActor* Body = PlayerBody.Get())
 		{
