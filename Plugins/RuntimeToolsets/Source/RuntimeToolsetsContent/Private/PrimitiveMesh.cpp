@@ -5,6 +5,7 @@
 #include "DynamicMeshActor.h"
 #include "Engine/World.h"
 #include "GeometryScript/MeshBooleanFunctions.h"
+#include "GeometryScript/MeshModelingFunctions.h"
 #include "GeometryScript/MeshPrimitiveFunctions.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -15,38 +16,78 @@
 namespace RuntimePrimitives
 {
 	static const TCHAR* BasicMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
+	static const TCHAR* PbrMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_PBR.M_RT_PBR");
+	static const TCHAR* GlassMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_Glass.M_RT_Glass");
 	static constexpr int32 MaxOps = 64;
 
 	const TArray<FString>& ShapeNames()
 	{
 		static const TArray<FString> Names = {TEXT("box"), TEXT("sphere"), TEXT("cylinder"), TEXT("cone"), TEXT("pyramid"), TEXT("torus"), TEXT("wedge"),
-			TEXT("capsule"), TEXT("plane"), TEXT("dome"), TEXT("tube"), TEXT("arch"), TEXT("lathe"), TEXT("extrude"), TEXT("sweep")};
+			TEXT("capsule"), TEXT("plane"), TEXT("dome"), TEXT("tube"), TEXT("arch"), TEXT("roof"), TEXT("lattice"), TEXT("steps"), TEXT("tiers"),
+			TEXT("column"), TEXT("openings"), TEXT("lathe"), TEXT("extrude"), TEXT("sweep")};
 		return Names;
 	}
 
-	const TArray<TPair<FString, FLinearColor>>& Palette()
+	struct FPreset
 	{
-		static const TArray<TPair<FString, FLinearColor>> Colors = {
-			{TEXT("marble"), FLinearColor(0.92f, 0.91f, 0.87f)},
-			{TEXT("sandstone"), FLinearColor(0.78f, 0.62f, 0.42f)},
-			{TEXT("limestone"), FLinearColor(0.84f, 0.8f, 0.7f)},
-			{TEXT("brick"), FLinearColor(0.55f, 0.22f, 0.15f)},
-			{TEXT("stone"), FLinearColor(0.5f, 0.5f, 0.48f)},
-			{TEXT("concrete"), FLinearColor(0.62f, 0.62f, 0.6f)},
-			{TEXT("wood"), FLinearColor(0.45f, 0.3f, 0.17f)},
-			{TEXT("copper"), FLinearColor(0.72f, 0.45f, 0.2f)},
-			{TEXT("verdigris"), FLinearColor(0.35f, 0.62f, 0.52f)},
-			{TEXT("gold"), FLinearColor(0.83f, 0.65f, 0.25f)},
-			{TEXT("glass"), FLinearColor(0.55f, 0.75f, 0.85f)},
-			{TEXT("grass"), FLinearColor(0.25f, 0.45f, 0.15f)},
-			{TEXT("water"), FLinearColor(0.15f, 0.35f, 0.55f)},
-			{TEXT("white"), FLinearColor(0.95f, 0.95f, 0.95f)},
-			{TEXT("black"), FLinearColor(0.03f, 0.03f, 0.03f)},
-			{TEXT("red"), FLinearColor(0.75f, 0.08f, 0.06f)},
-			{TEXT("green"), FLinearColor(0.1f, 0.6f, 0.15f)},
-			{TEXT("blue"), FLinearColor(0.08f, 0.25f, 0.8f)},
+		FString Name;
+		FLinearColor Color;
+		float Roughness;
+		float Metallic;
+		float Variation;
+		bool bGlass = false;
+		float Emissive = 0.f;
+	};
+
+	static const TArray<FPreset>& Presets()
+	{
+		static const TArray<FPreset> List = {
+			{TEXT("marble"), FLinearColor(0.86f, 0.85f, 0.81f), 0.22f, 0.f, 0.07f},
+			{TEXT("sandstone"), FLinearColor(0.72f, 0.55f, 0.36f), 0.85f, 0.f, 0.22f},
+			{TEXT("limestone"), FLinearColor(0.78f, 0.74f, 0.64f), 0.8f, 0.f, 0.15f},
+			{TEXT("granite"), FLinearColor(0.36f, 0.34f, 0.33f), 0.55f, 0.f, 0.3f},
+			{TEXT("stone"), FLinearColor(0.45f, 0.44f, 0.42f), 0.9f, 0.f, 0.25f},
+			{TEXT("brick"), FLinearColor(0.45f, 0.18f, 0.12f), 0.85f, 0.f, 0.25f},
+			{TEXT("terracotta"), FLinearColor(0.6f, 0.28f, 0.16f), 0.8f, 0.f, 0.18f},
+			{TEXT("concrete"), FLinearColor(0.55f, 0.55f, 0.53f), 0.9f, 0.f, 0.12f},
+			{TEXT("plaster"), FLinearColor(0.85f, 0.82f, 0.76f), 0.9f, 0.f, 0.06f},
+			{TEXT("wood"), FLinearColor(0.36f, 0.22f, 0.12f), 0.7f, 0.f, 0.2f},
+			{TEXT("slate_roof"), FLinearColor(0.18f, 0.2f, 0.24f), 0.7f, 0.f, 0.15f},
+			{TEXT("copper"), FLinearColor(0.95f, 0.64f, 0.54f), 0.35f, 1.f, 0.05f},
+			{TEXT("verdigris"), FLinearColor(0.33f, 0.58f, 0.48f), 0.7f, 0.1f, 0.25f},
+			{TEXT("bronze"), FLinearColor(0.55f, 0.35f, 0.18f), 0.45f, 1.f, 0.08f},
+			{TEXT("gold"), FLinearColor(1.f, 0.77f, 0.34f), 0.22f, 1.f, 0.03f},
+			{TEXT("steel"), FLinearColor(0.56f, 0.57f, 0.58f), 0.35f, 1.f, 0.05f},
+			{TEXT("iron"), FLinearColor(0.2f, 0.18f, 0.16f), 0.6f, 0.6f, 0.15f},
+			{TEXT("painted_iron"), FLinearColor(0.32f, 0.22f, 0.15f), 0.55f, 0.35f, 0.1f},
+			{TEXT("glass"), FLinearColor(0.6f, 0.75f, 0.8f), 0.05f, 0.f, 0.f, true},
+			{TEXT("tinted_glass"), FLinearColor(0.15f, 0.25f, 0.3f), 0.05f, 0.f, 0.f, true},
+			{TEXT("water"), FLinearColor(0.04f, 0.12f, 0.16f), 0.05f, 0.f, 0.02f},
+			{TEXT("grass"), FLinearColor(0.12f, 0.3f, 0.06f), 0.9f, 0.f, 0.3f},
+			{TEXT("sand"), FLinearColor(0.76f, 0.66f, 0.48f), 0.95f, 0.f, 0.15f},
+			{TEXT("asphalt"), FLinearColor(0.08f, 0.08f, 0.08f), 0.85f, 0.f, 0.1f},
+			{TEXT("light"), FLinearColor(1.f, 0.9f, 0.7f), 0.5f, 0.f, 0.f, false, 20.f},
+			{TEXT("white"), FLinearColor(0.9f, 0.9f, 0.9f), 0.5f, 0.f, 0.03f},
+			{TEXT("black"), FLinearColor(0.03f, 0.03f, 0.03f), 0.5f, 0.f, 0.03f},
+			{TEXT("red"), FLinearColor(0.7f, 0.06f, 0.05f), 0.5f, 0.f, 0.05f},
+			{TEXT("green"), FLinearColor(0.08f, 0.45f, 0.12f), 0.5f, 0.f, 0.05f},
+			{TEXT("blue"), FLinearColor(0.06f, 0.2f, 0.7f), 0.5f, 0.f, 0.05f},
 		};
-		return Colors;
+		return List;
+	}
+
+	const TArray<FString>& PaletteNames()
+	{
+		static const TArray<FString> Names = []()
+		{
+			TArray<FString> Out;
+			for (const FPreset& P : Presets())
+			{
+				Out.Add(P.Name);
+			}
+			return Out;
+		}();
+		return Names;
 	}
 
 	FString ToSource(const TSharedRef<FJsonObject>& Recipe)
@@ -143,6 +184,159 @@ namespace RuntimePrimitives
 		return Pivot == TEXT("center") ? EGeometryScriptPrimitiveOriginMode::Center : EGeometryScriptPrimitiveOriginMode::Base;
 	}
 
+	/** A square beam between two points (lattice members). */
+	static void AppendBeam(UDynamicMesh* Mesh, const FVector& A, const FVector& B, double Thickness)
+	{
+		const FVector Dir = B - A;
+		const double Length = Dir.Size();
+		if (Length < 0.01)
+		{
+			return;
+		}
+		const FTransform T(FRotationMatrix::MakeFromX(Dir / Length).ToQuat(), (A + B) * 0.5);
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, FGeometryScriptPrimitiveOptions(), T, Length + Thickness, Thickness, Thickness, 0, 0, 0,
+			EGeometryScriptPrimitiveOriginMode::Center);
+	}
+
+	static double Num(const TSharedRef<FJsonObject>& R, const TCHAR* Field, double Default)
+	{
+		double V = Default;
+		R->TryGetNumberField(Field, V);
+		return V;
+	}
+
+	/** Tapered truss: corner posts, a ring at every level and X-bracing on every face. */
+	static void AppendLattice(UDynamicMesh* Mesh, const FVector& S, const TSharedRef<FJsonObject>& R)
+	{
+		const int32 Levels = FMath::Clamp(static_cast<int32>(Num(R, TEXT("levels"), 6)), 1, 64);
+		const double Taper = FMath::Clamp(Num(R, TEXT("taper"), 1.0), 0.0, 4.0);
+		const double Beam = Num(R, TEXT("beam"), FMath::Max(2.0, FMath::Min(S.X, S.Y) * 0.04));
+		bool bBracing = true;
+		R->TryGetBoolField(TEXT("bracing"), bBracing);
+		auto Corner = [&](int32 Level, int32 K)
+		{
+			const double H = S.Z * Level / Levels;
+			const double Scale = FMath::Lerp(1.0, Taper, H / S.Z);
+			const double X = S.X * 0.5 * Scale * ((K == 0 || K == 3) ? -1.0 : 1.0);
+			const double Y = S.Y * 0.5 * Scale * ((K < 2) ? -1.0 : 1.0);
+			return FVector(X, Y, H);
+		};
+		for (int32 L = 0; L <= Levels; ++L)
+		{
+			for (int32 K = 0; K < 4; ++K)
+			{
+				const int32 N = (K + 1) % 4;
+				if (Taper > 0.0 || L < Levels)
+				{
+					AppendBeam(Mesh, Corner(L, K), Corner(L, N), Beam);
+				}
+				if (L < Levels)
+				{
+					AppendBeam(Mesh, Corner(L, K), Corner(L + 1, K), Beam * 1.4);
+					if (bBracing)
+					{
+						AppendBeam(Mesh, Corner(L, K), Corner(L + 1, N), Beam * 0.7);
+						AppendBeam(Mesh, Corner(L, N), Corner(L + 1, K), Beam * 0.7);
+					}
+				}
+			}
+		}
+	}
+
+	/** Stacked blocks: "steps" keep the width and recede in depth; "tiers" shrink on both axes. */
+	static void AppendStack(UDynamicMesh* Mesh, const FVector& S, const TSharedRef<FJsonObject>& R, bool bTiers)
+	{
+		const int32 Count = FMath::Clamp(static_cast<int32>(Num(R, TEXT("count"), bTiers ? 5 : 8)), 1, 200);
+		const double Taper = FMath::Clamp(Num(R, TEXT("taper"), bTiers ? 0.4 : 0.0), 0.0, 1.0);
+		const double StepH = S.Z / Count;
+		for (int32 i = 0; i < Count; ++i)
+		{
+			const double A = Count > 1 ? static_cast<double>(i) / (Count - 1) : 0.0;
+			if (bTiers)
+			{
+				const double Scale = FMath::Lerp(1.0, Taper, A);
+				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, FGeometryScriptPrimitiveOptions(), FTransform(FVector(0, 0, i * StepH)),
+					S.X * Scale, S.Y * Scale, StepH, 0, 0, 0, EGeometryScriptPrimitiveOriginMode::Base);
+			}
+			else
+			{
+				const double Depth = S.Y * (Count - i) / Count;
+				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, FGeometryScriptPrimitiveOptions(), FTransform(FVector(0, S.Y / 2 - Depth / 2, i * StepH)),
+					S.X, Depth, StepH, 0, 0, 0, EGeometryScriptPrimitiveOriginMode::Base);
+			}
+		}
+	}
+
+	/** Classical column: square plinth, torus, tapered shaft, echinus and abacus. */
+	static void AppendColumn(UDynamicMesh* Mesh, const FVector& S, int32 D)
+	{
+		const FGeometryScriptPrimitiveOptions Opt;
+		const double R = S.X / 2;
+		const double H = S.Z;
+		const double Plinth = H * 0.05, Torus = H * 0.03, Capital = H * 0.06, Abacus = H * 0.03;
+		const double Shaft = H - Plinth - Torus - Capital - Abacus;
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, Opt, FTransform::Identity, S.X * 1.35, S.X * 1.35, Plinth, 0, 0, 0, EGeometryScriptPrimitiveOriginMode::Base);
+		FGeometryScriptRevolveOptions Rev;
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTorus(Mesh, Opt, FTransform(FVector(0, 0, Plinth)), Rev, R * 1.05, Torus / 2, 12 * D, 6 * D,
+			EGeometryScriptPrimitiveOriginMode::Base);
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendCone(Mesh, Opt, FTransform(FVector(0, 0, Plinth + Torus)), R, R * 0.85, Shaft, 12 * D, 2, true,
+			EGeometryScriptPrimitiveOriginMode::Base);
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendCone(Mesh, Opt, FTransform(FVector(0, 0, Plinth + Torus + Shaft)), R * 0.85, R * 1.25, Capital,
+			12 * D, 1, true, EGeometryScriptPrimitiveOriginMode::Base);
+		UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, Opt, FTransform(FVector(0, 0, H - Abacus)), S.X * 1.35, S.X * 1.35, Abacus, 0, 0, 0,
+			EGeometryScriptPrimitiveOriginMode::Base);
+	}
+
+	/** Grid of window/door openings spanning a facade (X wide, Z high), Y deep: use it as a subtract tool. */
+	static void AppendOpenings(UDynamicMesh* Mesh, const FVector& S, const TSharedRef<FJsonObject>& R, int32 D)
+	{
+		const int32 Rows = FMath::Clamp(static_cast<int32>(Num(R, TEXT("rows"), 3)), 1, 100);
+		const int32 Cols = FMath::Clamp(static_cast<int32>(Num(R, TEXT("cols"), 5)), 1, 200);
+		const double Margin = Num(R, TEXT("margin"), FMath::Min(S.X, S.Z) * 0.08);
+		const double CellW = (S.X - 2 * Margin) / Cols;
+		const double CellH = (S.Z - 2 * Margin) / Rows;
+		FVector2D Opening(CellW * 0.55, CellH * 0.6);
+		const TArray<TSharedPtr<FJsonValue>>* O = nullptr;
+		if (R->TryGetArrayField(TEXT("opening"), O) && O->Num() == 2)
+		{
+			Opening = FVector2D((*O)[0]->AsNumber(), (*O)[1]->AsNumber());
+		}
+		bool bArched = false;
+		R->TryGetBoolField(TEXT("arched"), bArched);
+		const FGeometryScriptPrimitiveOptions Opt;
+		for (int32 Row = 0; Row < Rows; ++Row)
+		{
+			for (int32 Col = 0; Col < Cols; ++Col)
+			{
+				const double X = -S.X / 2 + Margin + CellW * (Col + 0.5);
+				const double Z = Margin + CellH * Row + (CellH - Opening.Y) / 2;
+				const double RectH = bArched ? Opening.Y - Opening.X / 2 : Opening.Y;
+				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendBox(Mesh, Opt, FTransform(FVector(X, 0, Z)), Opening.X, S.Y, RectH, 0, 0, 0,
+					EGeometryScriptPrimitiveOriginMode::Base);
+				if (bArched)
+				{
+					// Half-round top: a cylinder lying along Y.
+					const FTransform T(FRotator(0, 0, 90).Quaternion(), FVector(X, 0, Z + RectH));
+					UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendCylinder(Mesh, Opt, T, Opening.X / 2, S.Y, 8 * D, 0, true,
+						EGeometryScriptPrimitiveOriginMode::Center);
+				}
+			}
+		}
+	}
+
+	static void ApplyBevel(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R)
+	{
+		const double Bevel = Num(R, TEXT("bevel"), 0.0);
+		if (Bevel <= 0.0)
+		{
+			return;
+		}
+		FGeometryScriptMeshBevelOptions Options;
+		Options.BevelDistance = static_cast<float>(Bevel);
+		Options.Subdivisions = 1;
+		UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshPolygroupBevel(Mesh, Options);
+	}
+
 	static bool AppendShape(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R, FString& OutError)
 	{
 		FString Shape;
@@ -225,6 +419,30 @@ namespace RuntimePrimitives
 			MakeCounterClockwise(Poly);
 			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleExtrudePolygon(Mesh, Opt, UprightPolygonFrame(bCenter ? -S.Z / 2 : 0.0), Poly, S.Y, 0, true,
 				EGeometryScriptPrimitiveOriginMode::Center);
+		}
+		else if (Shape == TEXT("roof"))
+		{
+			// Gable: ridge along Y at full height.
+			TArray<FVector2D> Poly = {{-S.X / 2, 0}, {S.X / 2, 0}, {0, S.Z}};
+			MakeCounterClockwise(Poly);
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleExtrudePolygon(Mesh, Opt, UprightPolygonFrame(bCenter ? -S.Z / 2 : 0.0), Poly, S.Y, 0, true,
+				EGeometryScriptPrimitiveOriginMode::Center);
+		}
+		else if (Shape == TEXT("lattice"))
+		{
+			AppendLattice(Mesh, S, R);
+		}
+		else if (Shape == TEXT("steps") || Shape == TEXT("tiers"))
+		{
+			AppendStack(Mesh, S, R, Shape == TEXT("tiers"));
+		}
+		else if (Shape == TEXT("column"))
+		{
+			AppendColumn(Mesh, S, D);
+		}
+		else if (Shape == TEXT("openings"))
+		{
+			AppendOpenings(Mesh, S, R, D);
 		}
 		else if (Shape == TEXT("dome"))
 		{
@@ -328,6 +546,7 @@ namespace RuntimePrimitives
 		{
 			return false;
 		}
+		ApplyBevel(Mesh, Recipe);
 		const TArray<TSharedPtr<FJsonValue>>* Ops = nullptr;
 		if (!Recipe->TryGetArrayField(TEXT("ops"), Ops))
 		{
@@ -378,14 +597,36 @@ namespace RuntimePrimitives
 		}
 		FString Material = TEXT("white");
 		Recipe->TryGetStringField(TEXT("material"), Material);
-		FLinearColor Color = FLinearColor::White;
-		bool bColor = false;
-		UMaterialInterface* Base = nullptr;
-		if (const TPair<FString, FLinearColor>* Entry = Palette().FindByPredicate([&Material](const TPair<FString, FLinearColor>& P) { return P.Key == Material; }))
+		UMaterialInterface* Final = nullptr;
+		if (const FPreset* Preset = Presets().FindByPredicate([&Material](const FPreset& P) { return P.Name == Material; }))
 		{
-			Base = LoadObject<UMaterialInterface>(nullptr, BasicMaterialPath);
-			Color = Entry->Value;
-			bColor = true;
+			UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);
+			const bool bPbr = Base != nullptr;
+			if (!Base)
+			{
+				Base = LoadObject<UMaterialInterface>(nullptr, BasicMaterialPath); // plugin content not cooked
+			}
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Comp);
+			FLinearColor Color = Preset->Color;
+			FVector C;
+			if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))
+			{
+				Color = FLinearColor(C.X, C.Y, C.Z);
+			}
+			MID->SetVectorParameterValue(TEXT("Color"), Color);
+			if (bPbr)
+			{
+				MID->SetScalarParameterValue(TEXT("Roughness"), static_cast<float>(Num(Recipe, TEXT("roughness"), Preset->Roughness)));
+				MID->SetScalarParameterValue(TEXT("Metallic"), static_cast<float>(Num(Recipe, TEXT("metallic"), Preset->Metallic)));
+				MID->SetScalarParameterValue(TEXT("Variation"), static_cast<float>(Num(Recipe, TEXT("variation"), Preset->Variation)));
+				MID->SetScalarParameterValue(TEXT("Opacity"), static_cast<float>(Num(Recipe, TEXT("opacity"), 0.3)));
+				FVector E;
+				const bool bEmissiveColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("emissive")), E);
+				const double Strength = Num(Recipe, TEXT("emissive_strength"), bEmissiveColor ? 5.0 : Preset->Emissive);
+				MID->SetVectorParameterValue(TEXT("Emissive"), bEmissiveColor ? FLinearColor(E.X, E.Y, E.Z) : Color);
+				MID->SetScalarParameterValue(TEXT("EmissiveStrength"), static_cast<float>(Strength));
+			}
+			Final = MID;
 		}
 		else
 		{
@@ -394,25 +635,21 @@ namespace RuntimePrimitives
 			{
 				bAllowed |= Material.StartsWith(Root);
 			}
-			Base = bAllowed ? LoadObject<UMaterialInterface>(nullptr, *Material) : nullptr;
+			UMaterialInterface* Base = bAllowed ? LoadObject<UMaterialInterface>(nullptr, *Material) : nullptr;
 			if (!Base)
 			{
-				OutError = FString::Printf(TEXT("material '%s' is not a palette name or an allowed material path"), *Material);
+				OutError = FString::Printf(TEXT("material '%s' is not a preset (%s) or an allowed material path"), *Material,
+					*FString::Join(PaletteNames(), TEXT(", ")));
 				return false;
 			}
-		}
-		FVector C;
-		if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))
-		{
-			Color = FLinearColor(C.X, C.Y, C.Z);
-			bColor = true;
-		}
-		UMaterialInterface* Final = Base;
-		if (bColor && Base)
-		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Comp);
-			MID->SetVectorParameterValue(TEXT("Color"), Color);
-			Final = MID;
+			Final = Base;
+			FVector C;
+			if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))
+			{
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Comp);
+				MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(C.X, C.Y, C.Z));
+				Final = MID;
+			}
 		}
 		for (int32 i = 0; i < FMath::Max(1, Comp->GetNumMaterials()); ++i)
 		{

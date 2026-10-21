@@ -325,6 +325,7 @@ public:
 		TFunction<void(const FToolResult&)> OnDone) override
 	{
 		check(IsInGameThread());
+		ActivityDelegate.Broadcast(Tool, true, true, 0.0);
 		if (Depth > MaxCallDepth)
 		{
 			OnDone(FToolResult::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("call depth limit (%d) reached"), MaxCallDepth)));
@@ -407,6 +408,7 @@ public:
 	}
 
 	virtual FOnRuntimeToolEvent& OnEvent() override { return EventDelegate; }
+	virtual FOnRuntimeToolActivity& OnActivity() override { return ActivityDelegate; }
 	virtual FSimpleMulticastDelegate& OnToolsetsChanged() override { return ToolsetsChangedDelegate; }
 
 	virtual void EndSession(const FString& SessionId) override
@@ -634,6 +636,7 @@ private:
 
 	int32 RecordUsage(const FString& Tool, const FToolResult& Result, double Seconds)
 	{
+		ActivityDelegate.Broadcast(Tool, false, Result.IsOk(), Seconds);
 		const int32 Bytes = Result.ToJsonString().Len();
 		++UsageCalls;
 		UsageErrors += Result.IsOk() ? 0 : 1;
@@ -694,6 +697,7 @@ private:
 	void Execute(const TSharedRef<FToolCall>& Call)
 	{
 		Call->StartTime = FPlatformTime::Seconds();
+		ActivityDelegate.Broadcast(Call->Tool, true, true, 0.0);
 		if (Call->bCancelRequested)
 		{
 			CompleteNow(Call, FToolResult::Fail(ERuntimeToolError::Cancelled, TEXT("cancelled before start")));
@@ -857,6 +861,7 @@ private:
 	TUniquePtr<FRuntimeLogCapture> LogCapture;
 
 	FOnRuntimeToolEvent EventDelegate;
+	FOnRuntimeToolActivity ActivityDelegate;
 	FSimpleMulticastDelegate ToolsetsChangedDelegate;
 
 	FTSTicker::FDelegateHandle TickHandle;

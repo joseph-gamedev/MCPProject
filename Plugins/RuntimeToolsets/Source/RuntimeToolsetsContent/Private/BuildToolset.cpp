@@ -22,11 +22,7 @@ namespace
 	TArray<FString> PaletteNames()
 	{
 		TArray<FString> Names;
-		for (const TPair<FString, FLinearColor>& P : RuntimePrimitives::Palette())
-		{
-			Names.Add(P.Key);
-		}
-		return Names;
+		return RuntimePrimitives::PaletteNames();
 	}
 
 	/** Resolves a target that must be a live scene node. */
@@ -106,7 +102,9 @@ namespace
 	void ReadCommonRecipe(const FToolInvocation& Inv, const TSharedRef<FJsonObject>& R)
 	{
 		for (const TCHAR* Field : {TEXT("size"), TEXT("detail"), TEXT("pivot"), TEXT("material"), TEXT("color"), TEXT("top_ratio"), TEXT("thickness"),
-				 TEXT("profile"), TEXT("path"), TEXT("height"), TEXT("angle"), TEXT("closed")})
+				 TEXT("profile"), TEXT("path"), TEXT("height"), TEXT("angle"), TEXT("closed"), TEXT("bevel"), TEXT("roughness"), TEXT("metallic"),
+				 TEXT("emissive"), TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("count"), TEXT("taper"), TEXT("beam"),
+				 TEXT("levels"), TEXT("bracing"), TEXT("rows"), TEXT("cols"), TEXT("opening"), TEXT("arched"), TEXT("margin")})
 		{
 			if (Inv.Has(Field))
 			{
@@ -554,6 +552,42 @@ static void CheckOverlaps(FToolInvocation& Inv)
 	Inv.Succeed(Out);
 }
 
+static const TCHAR* BuilderGuide = TEXT(R"GUIDE(
+QUALITY BAR: aim for a recognisable, realistic landmark at true scale, not a toy block-out.
+Units: centimetres, Z up. Use REAL dimensions (Eiffel Tower 33000 cm tall, base 12500 cm square;
+Great Pyramid 13800 tall, base 23000). If the scene is small, scale the whole group with scene.scale_node at the end.
+
+WORKFLOW (repeat until it matches a reference photo in your head):
+1. Plan the silhouette: list the major masses with real proportions before building.
+2. Build mass first (big shapes), then secondary forms (tiers, arches, roofs), then detail
+   (columns, windows, railings, steps, ornaments). Realism comes from the detail layer: expect 30-150 parts.
+3. Group everything: scene.create_group, then pass "parent" to every create call.
+4. Use generators instead of single boxes:
+   - lattice: steel truss towers/bridges (levels, taper, beam, bracing). Stack several lattices with taper for curves.
+   - tiers: stepped pyramids, ziggurats, wedding-cake towers (count, taper).
+   - steps: staircases/plinths. column: classical columns (array them for colonnades).
+   - openings: a window/door grid; use it as the tool of boolean_op subtract on a wall box (arched for arcades).
+   - roof (gable), dome, arch, tube, lathe (onion domes, finials, vases), sweep (railings, cables), extrude (footprints).
+5. Materials sell realism. Use PBR presets: marble, limestone, sandstone, granite, stone, brick, terracotta, concrete,
+   plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water,
+   grass, sand, asphalt, light. Tune roughness/metallic/color per part; mix 2-4 related materials, never one flat color.
+   Use "bevel" (1-5% of the part size) on boxes so edges catch light.
+6. Context: a ground plane (grass/sand/asphalt/water) larger than the build, paths, a plinth.
+   Then lighting.apply_mood (golden_hour / sunset / overcast) for atmosphere.
+7. Verify: build.capture_view (front/right/top/perspective) and capture.screenshot. Compare against the real
+   landmark: proportions, silhouette, part count, colors. Fix with scene.move_node/scale_node or rebuild parts. Iterate at least twice.
+8. build.check_overlaps and build.measure to catch floating or misplaced parts. Everything rests on something.
+9. Frame the view with camera.frame_target; the player keeps WASD/mouse fly control afterwards.
+Use ops.run_batch to send many create calls in one round trip.
+)GUIDE");
+
+static void GetGuide(FToolInvocation& Inv)
+{
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	Out->SetStringField(TEXT("guide"), FString(BuilderGuide).TrimStartAndEnd());
+	Inv.Succeed(Out);
+}
+
 static void GetBuildStats(FToolInvocation& Inv)
 {
 	bool bOk = true;
@@ -749,15 +783,33 @@ void FBuildToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	const auto Looks = [](FToolSchema& S)
 	{
 		S.Add(TEXT("detail"), FToolParam::Enum(TEXT("Tessellation"), {TEXT("low"), TEXT("medium"), TEXT("high")}).Default(TEXT("medium")))
-			.Add(TEXT("material"), FToolParam::String(TEXT("Palette name (marble, sandstone, brick, copper, gold, glass, ...) or material path"), 512).Default(TEXT("white")))
-			.Add(TEXT("color"), FToolParam::Vec3(TEXT("Color override [r,g,b] 0-1")));
+			.Add(TEXT("material"), FToolParam::Enum(TEXT("PBR preset (or use a material path via build.set_material)"), RuntimePrimitives::PaletteNames()).Default(TEXT("white")))
+			.Add(TEXT("color"), FToolParam::Vec3(TEXT("Base color override [r,g,b] 0-1 (linear)")))
+			.Add(TEXT("roughness"), FToolParam::Number(TEXT("0 mirror .. 1 matte"), 0.0, 1.0))
+			.Add(TEXT("metallic"), FToolParam::Number(TEXT("0 dielectric .. 1 metal"), 0.0, 1.0))
+			.Add(TEXT("emissive"), FToolParam::Vec3(TEXT("Glow color [r,g,b]")))
+			.Add(TEXT("emissive_strength"), FToolParam::Number(TEXT("Glow strength (5-50 for lamps)"), 0.0, 1000.0))
+			.Add(TEXT("opacity"), FToolParam::Number(TEXT("Glass opacity"), 0.0, 1.0))
+			.Add(TEXT("variation"), FToolParam::Number(TEXT("Surface color variation 0..0.5"), 0.0, 1.0))
+			.Add(TEXT("bevel"), FToolParam::Number(TEXT("Chamfer edges by this many cm (boxes, wedges, extrusions)"), 0.0, 500.0));
 	};
 
 	{
 		FToolSchema S;
-		S.Add(TEXT("shape"), FToolParam::Enum(TEXT("Shape"), {TEXT("box"), TEXT("sphere"), TEXT("cylinder"), TEXT("cone"), TEXT("pyramid"), TEXT("torus"),
-				TEXT("wedge"), TEXT("capsule"), TEXT("plane"), TEXT("dome"), TEXT("tube"), TEXT("arch")}).Required())
-			.Add(TEXT("size"), FToolParam::Vec3(TEXT("[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch = width, depth, height")))
+		S.Add(TEXT("shape"), FToolParam::Enum(TEXT("Shape or generator"), {TEXT("box"), TEXT("sphere"), TEXT("cylinder"), TEXT("cone"), TEXT("pyramid"),
+				TEXT("torus"), TEXT("wedge"), TEXT("capsule"), TEXT("plane"), TEXT("dome"), TEXT("tube"), TEXT("arch"), TEXT("roof"), TEXT("lattice"),
+				TEXT("steps"), TEXT("tiers"), TEXT("column"), TEXT("openings")}).Required())
+			.Add(TEXT("size"), FToolParam::Vec3(TEXT("[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch/roof = width, depth, height")))
+			.Add(TEXT("levels"), FToolParam::Integer(TEXT("lattice: bays up the height"), 1, 64))
+			.Add(TEXT("taper"), FToolParam::Number(TEXT("lattice/tiers: top size / bottom size"), 0.0, 4.0))
+			.Add(TEXT("beam"), FToolParam::Number(TEXT("lattice: member thickness cm"), 0.5))
+			.Add(TEXT("bracing"), FToolParam::Boolean(TEXT("lattice: X-bracing on faces")))
+			.Add(TEXT("count"), FToolParam::Integer(TEXT("steps/tiers: number of steps or tiers"), 1, 200))
+			.Add(TEXT("rows"), FToolParam::Integer(TEXT("openings: rows"), 1, 100))
+			.Add(TEXT("cols"), FToolParam::Integer(TEXT("openings: columns"), 1, 200))
+			.Add(TEXT("opening"), FToolParam::Array(TEXT("openings: [width,height] cm of each opening"), FToolParam::Number(FString()), 2))
+			.Add(TEXT("arched"), FToolParam::Boolean(TEXT("openings: round-topped")))
+			.Add(TEXT("margin"), FToolParam::Number(TEXT("openings: border around the grid cm"), 0.0))
 			.Add(TEXT("pivot"), FToolParam::Enum(TEXT("Origin"), {TEXT("base"), TEXT("center")}).Default(TEXT("base")))
 			.Add(TEXT("top_ratio"), FToolParam::Number(TEXT("Cone top radius / base radius"), 0.0, 1.0))
 			.Add(TEXT("thickness"), FToolParam::Number(TEXT("Tube wall thickness cm"), 0.1));
@@ -832,6 +884,10 @@ void FBuildToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("limit"), FToolParam::Limit()))
 		.RequiresWorld()
 		.Handle(&CheckOverlaps);
+
+	B.Tool(TEXT("get_guide"), TEXT("READ FIRST before building: workflow, real-scale dimensions, generators and materials for realistic results."))
+		.Args(FToolSchema())
+		.Handle(&GetGuide);
 
 	B.Tool(TEXT("get_build_stats"), TEXT("Nodes, triangles, components, materials and estimated draw calls."))
 		.Args(FToolSchema().Add(TEXT("under"), FToolParam::Target(TEXT("Only count below this node"))))

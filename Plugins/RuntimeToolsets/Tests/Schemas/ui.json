@@ -315,6 +315,29 @@
 			"undoable": true
 		},
 		{
+			"description": "Optional on-screen activity panel (current step, count, time, recent actions). Use only when the user asks to see progress.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"description": "Show or hide the panel",
+						"type": "boolean"
+					},
+					"status":
+					{
+						"description": "What you are doing, e.g. 'Building the Eiffel Tower legs' (empty clears)",
+						"maxLength": 160,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ui.show_activity"
+		},
+		{
 			"description": "Name tag in the world: text drawn above a target (it follows the target) or at a location.",
 			"input_schema":
 			{
@@ -472,5 +495,5 @@
 			"undoable": false
 		}
 	],
-	"version": "1.1.0"
+	"version": "1.2.0"
 }

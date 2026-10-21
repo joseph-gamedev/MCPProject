@@ -29,14 +29,16 @@ namespace
 
 	APostProcessVolume* FindUnboundVolume(UWorld* World)
 	{
+		// Volumes are always hidden in game, so visibility is not a filter. Highest priority wins.
+		APostProcessVolume* Best = nullptr;
 		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
 		{
-			if (It->bUnbound && It->bEnabled && !It->IsHidden())
+			if (It->bUnbound && It->bEnabled && (!Best || It->Priority > Best->Priority))
 			{
-				return *It;
+				Best = *It;
 			}
 		}
-		return nullptr;
+		return Best;
 	}
 
 	/** Sun elevation for a 24h clock: 6 = sunrise (0°), 12 = noon (90°), 18 = sunset, night below the horizon. */

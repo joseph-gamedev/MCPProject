@@ -33,6 +33,8 @@ using FRuntimeSourceSpawner = TFunction<AActor*(UWorld* World, const FString& So
 
 /** Event pushed to connectors (log subscriptions, history changes). Fired on the game thread. */
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnRuntimeToolEvent, const FString& /*SessionId*/, const TSharedRef<FJsonObject>& /*Event*/);
+/** A tool call started (bStarted) or finished (bOk, Seconds). Game thread. Used for on-screen activity. */
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnRuntimeToolActivity, const FString& /*Tool*/, bool /*bStarted*/, bool /*bOk*/, double /*Seconds*/);
 
 /**
  * Public entry point of RuntimeToolsets. A connector (or the MCP adapter) needs only this interface:
@@ -89,6 +91,7 @@ public:
 		TFunction<void(const FToolResult&)> OnDone) = 0;
 
 	virtual FOnRuntimeToolEvent& OnEvent() = 0;
+	virtual FOnRuntimeToolActivity& OnActivity() = 0;
 	virtual FSimpleMulticastDelegate& OnToolsetsChanged() = 0;
 
 	virtual void RegisterToolset(const TSharedRef<IRuntimeToolset>& Toolset) = 0;

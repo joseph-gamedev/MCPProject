@@ -1,5 +1,5 @@
 {
-	"description": "Move the player view: set, frame, orbit, reset, possess, view mode",
+	"description": "Move the player view (player keeps WASD/mouse control): set, frame, orbit, fly mode, reset, view mode",
 	"name": "camera",
 	"tools": [
 		{
@@ -15,7 +15,7 @@
 			"name": "camera.get_camera"
 		},
 		{
-			"description": "Move the view to a pose (missing parts keep the current view). Uses a tool camera.",
+			"description": "Move the player's view to a pose (missing parts keep the current view). The player keeps fly control.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -228,7 +228,7 @@
 			"undoable": true
 		},
 		{
-			"description": "Give the view back to the player's pawn.",
+			"description": "Give the view back to the player's pawn and leave fly mode.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -248,6 +248,75 @@
 			"mutating": true,
 			"name": "camera.reset_camera",
 			"undoable": true
+		},
+		{
+			"description": "Let the player fly freely (WASD/QE + mouse) from the current view, or return to their pawn.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "Fly mode on",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.set_fly_mode",
+			"undoable": true
+		},
+		{
+			"description": "Fly speed: 'auto' scales with distance to the nearest surface (fast far away, slow up close) or 'fixed'.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_speed":
+					{
+						"description": "Auto: fastest cm/s",
+						"maximum": 10000000,
+						"minimum": 10,
+						"type": "number"
+					},
+					"min_speed":
+					{
+						"description": "Auto: slowest cm/s",
+						"maximum": 1000000,
+						"minimum": 10,
+						"type": "number"
+					},
+					"mode":
+					{
+						"description": "auto or fixed",
+						"enum": [
+							"auto",
+							"fixed"
+						],
+						"type": "string"
+					},
+					"multiplier":
+					{
+						"description": "Scales either mode",
+						"maximum": 100,
+						"minimum": 0.01,
+						"type": "number"
+					},
+					"speed":
+					{
+						"description": "Fixed speed cm/s",
+						"maximum": 1000000,
+						"minimum": 10,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "camera.set_fly_speed"
 		},
 		{
 			"description": "Make the local player control a pawn.",
@@ -306,5 +375,5 @@
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "1.2.0"
 }

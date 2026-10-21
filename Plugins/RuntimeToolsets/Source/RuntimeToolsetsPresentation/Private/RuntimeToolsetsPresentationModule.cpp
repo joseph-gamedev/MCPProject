@@ -2,6 +2,7 @@
 #include "LightingToolset.h"
 #include "MaterialsToolset.h"
 #include "UiToolset.h"
+#include "RuntimeToolsetsActivity.h"
 #include "VfxToolset.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
@@ -19,10 +20,15 @@ public:
 		{
 			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
 		}
+		if (!IsRunningCommandlet())
+		{
+			FRuntimeToolsetsActivity::Get().Startup();
+		}
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FRuntimeToolsetsActivity::Get().Shutdown();
 		if (IRuntimeToolsetsCore::IsAvailable())
 		{
 			for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)

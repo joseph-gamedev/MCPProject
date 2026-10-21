@@ -7,7 +7,7 @@ class FCameraToolset final : public IRuntimeToolset
 {
 public:
 	virtual FName GetName() const override { return TEXT("camera"); }
-	virtual FString GetDescription() const override { return TEXT("Move the player view: set, frame, orbit, reset, possess, view mode"); }
-	virtual FString GetVersion() const override { return TEXT("1.0.0"); }
+	virtual FString GetDescription() const override { return TEXT("Move the player view (player keeps WASD/mouse control): set, frame, orbit, fly mode, reset, view mode"); }
+	virtual FString GetVersion() const override { return TEXT("1.2.0"); }
 	virtual void RegisterTools(FRuntimeToolsetBuilder& B) override;
 };

@@ -1,5 +1,5 @@
 {
-	"description": "Block out landmarks: primitives, lathe/extrude/sweep, booleans, arrays, mirror, ortho views",
+	"description": "Build realistic landmarks (call build.get_guide first): primitives, generators (lattice, tiers, columns, openings), PBR materials, booleans, arrays, ortho views",
 	"name": "build",
 	"tools": [
 		{
@@ -9,9 +9,32 @@
 				"additionalProperties": false,
 				"properties":
 				{
+					"arched":
+					{
+						"description": "openings: round-topped",
+						"type": "boolean"
+					},
+					"beam":
+					{
+						"description": "lattice: member thickness cm",
+						"minimum": 0.5,
+						"type": "number"
+					},
+					"bevel":
+					{
+						"description": "Chamfer edges by this many cm (boxes, wedges, extrusions)",
+						"maximum": 500,
+						"minimum": 0,
+						"type": "number"
+					},
+					"bracing":
+					{
+						"description": "lattice: X-bracing on faces",
+						"type": "boolean"
+					},
 					"color":
 					{
-						"description": "Color override [r,g,b] 0-1",
+						"description": "Base color override [r,g,b] 0-1 (linear)",
 						"items":
 						{
 							"type": "number"
@@ -19,6 +42,20 @@
 						"maxItems": 3,
 						"minItems": 3,
 						"type": "array"
+					},
+					"cols":
+					{
+						"description": "openings: columns",
+						"maximum": 200,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"count":
+					{
+						"description": "steps/tiers: number of steps or tiers",
+						"maximum": 200,
+						"minimum": 1,
+						"type": "integer"
 					},
 					"detail":
 					{
@@ -31,6 +68,31 @@
 						],
 						"type": "string"
 					},
+					"emissive":
+					{
+						"description": "Glow color [r,g,b]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"description": "Glow strength (5-50 for lamps)",
+						"maximum": 1000,
+						"minimum": 0,
+						"type": "number"
+					},
+					"levels":
+					{
+						"description": "lattice: bays up the height",
+						"maximum": 64,
+						"minimum": 1,
+						"type": "integer"
+					},
 					"location":
 					{
 						"description": "[x,y,z] cm (relative to parent)",
@@ -42,18 +104,79 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"margin":
+					{
+						"description": "openings: border around the grid cm",
+						"minimum": 0,
+						"type": "number"
+					},
 					"material":
 					{
 						"default": "white",
-						"description": "Palette name (marble, sandstone, brick, copper, gold, glass, ...) or material path",
-						"maxLength": 512,
+						"description": "PBR preset (or use a material path via build.set_material)",
+						"enum": [
+							"marble",
+							"sandstone",
+							"limestone",
+							"granite",
+							"stone",
+							"brick",
+							"terracotta",
+							"concrete",
+							"plaster",
+							"wood",
+							"slate_roof",
+							"copper",
+							"verdigris",
+							"bronze",
+							"gold",
+							"steel",
+							"iron",
+							"painted_iron",
+							"glass",
+							"tinted_glass",
+							"water",
+							"grass",
+							"sand",
+							"asphalt",
+							"light",
+							"white",
+							"black",
+							"red",
+							"green",
+							"blue"
+						],
 						"type": "string"
+					},
+					"metallic":
+					{
+						"description": "0 dielectric .. 1 metal",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
 					},
 					"name":
 					{
 						"description": "Node name",
 						"maxLength": 128,
 						"type": "string"
+					},
+					"opacity":
+					{
+						"description": "Glass opacity",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"opening":
+					{
+						"description": "openings: [width,height] cm of each opening",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"type": "array"
 					},
 					"parent":
 					{
@@ -82,6 +205,20 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"roughness":
+					{
+						"description": "0 mirror .. 1 matte",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"rows":
+					{
+						"description": "openings: rows",
+						"maximum": 100,
+						"minimum": 1,
+						"type": "integer"
+					},
 					"scale":
 					{
 						"description": "[x,y,z]",
@@ -95,7 +232,7 @@
 					},
 					"shape":
 					{
-						"description": "Shape",
+						"description": "Shape or generator",
 						"enum": [
 							"box",
 							"sphere",
@@ -108,13 +245,19 @@
 							"plane",
 							"dome",
 							"tube",
-							"arch"
+							"arch",
+							"roof",
+							"lattice",
+							"steps",
+							"tiers",
+							"column",
+							"openings"
 						],
 						"type": "string"
 					},
 					"size":
 					{
-						"description": "[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch = width, depth, height",
+						"description": "[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch/roof = width, depth, height",
 						"items":
 						{
 							"type": "number"
@@ -134,6 +277,13 @@
 						"maxItems": 16,
 						"type": "array"
 					},
+					"taper":
+					{
+						"description": "lattice/tiers: top size / bottom size",
+						"maximum": 4,
+						"minimum": 0,
+						"type": "number"
+					},
 					"thickness":
 					{
 						"description": "Tube wall thickness cm",
@@ -143,6 +293,13 @@
 					"top_ratio":
 					{
 						"description": "Cone top radius / base radius",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"variation":
+					{
+						"description": "Surface color variation 0..0.5",
 						"maximum": 1,
 						"minimum": 0,
 						"type": "number"
@@ -171,6 +328,13 @@
 						"minimum": 1,
 						"type": "number"
 					},
+					"bevel":
+					{
+						"description": "Chamfer edges by this many cm (boxes, wedges, extrusions)",
+						"maximum": 500,
+						"minimum": 0,
+						"type": "number"
+					},
 					"closed":
 					{
 						"description": "Sweep path is a loop",
@@ -178,7 +342,7 @@
 					},
 					"color":
 					{
-						"description": "Color override [r,g,b] 0-1",
+						"description": "Base color override [r,g,b] 0-1 (linear)",
 						"items":
 						{
 							"type": "number"
@@ -197,6 +361,24 @@
 							"high"
 						],
 						"type": "string"
+					},
+					"emissive":
+					{
+						"description": "Glow color [r,g,b]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"description": "Glow strength (5-50 for lamps)",
+						"maximum": 1000,
+						"minimum": 0,
+						"type": "number"
 					},
 					"height":
 					{
@@ -228,15 +410,60 @@
 					"material":
 					{
 						"default": "white",
-						"description": "Palette name (marble, sandstone, brick, copper, gold, glass, ...) or material path",
-						"maxLength": 512,
+						"description": "PBR preset (or use a material path via build.set_material)",
+						"enum": [
+							"marble",
+							"sandstone",
+							"limestone",
+							"granite",
+							"stone",
+							"brick",
+							"terracotta",
+							"concrete",
+							"plaster",
+							"wood",
+							"slate_roof",
+							"copper",
+							"verdigris",
+							"bronze",
+							"gold",
+							"steel",
+							"iron",
+							"painted_iron",
+							"glass",
+							"tinted_glass",
+							"water",
+							"grass",
+							"sand",
+							"asphalt",
+							"light",
+							"white",
+							"black",
+							"red",
+							"green",
+							"blue"
+						],
 						"type": "string"
+					},
+					"metallic":
+					{
+						"description": "0 dielectric .. 1 metal",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
 					},
 					"name":
 					{
 						"description": "Node name",
 						"maxLength": 128,
 						"type": "string"
+					},
+					"opacity":
+					{
+						"description": "Glass opacity",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
 					},
 					"parent":
 					{
@@ -287,6 +514,13 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"roughness":
+					{
+						"description": "0 mirror .. 1 matte",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
 					"scale":
 					{
 						"description": "[x,y,z]",
@@ -308,6 +542,13 @@
 						},
 						"maxItems": 16,
 						"type": "array"
+					},
+					"variation":
+					{
+						"description": "Surface color variation 0..0.5",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
 					}
 				},
 				"required": [
@@ -623,6 +864,18 @@
 			"name": "build.check_overlaps"
 		},
 		{
+			"description": "READ FIRST before building: workflow, real-scale dimensions, generators and materials for realistic results.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "build.get_guide"
+		},
+		{
 			"description": "Nodes, triangles, components, materials and estimated draw calls.",
 			"input_schema":
 			{
@@ -714,5 +967,5 @@
 			"name": "build.capture_view"
 		}
 	],
-	"version": "1.0.0"
+	"version": "1.1.0"
 }

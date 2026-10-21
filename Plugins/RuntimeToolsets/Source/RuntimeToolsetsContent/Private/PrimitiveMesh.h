@@ -11,14 +11,16 @@ class UWorld;
  * Builder primitives are dynamic-mesh actors generated from a JSON recipe kept as the node source ("prim:{...}").
  * Booleans append to the recipe, so a mesh can always be rebuilt (undo, duplicate, import, arrays).
  *
- * Recipe: {"shape","size":[x,y,z],"detail","pivot","profile","path","height","angle","closed","thickness",
- *          "ops":[{"op","tool":{recipe},"location","rotation","scale"}],"material","color"}
+ * Recipe: {"shape","size":[x,y,z],"detail","pivot","bevel","profile","path","height","angle","closed","thickness",
+ *          generator params ("count","taper","beam","levels","rows","cols","opening","arched","margin"),
+ *          "ops":[{"op","tool":{recipe},"location","rotation","scale"}],
+ *          "material","color","roughness","metallic","emissive","emissive_strength","opacity","variation"}
  */
 namespace RuntimePrimitives
 {
 	const TArray<FString>& ShapeNames();
-	/** Palette names -> base colors (applied to the engine's basic shape material). */
-	const TArray<TPair<FString, FLinearColor>>& Palette();
+	/** Physically based material presets (marble, copper, glass, ...). */
+	const TArray<FString>& PaletteNames();
 
 	/** Rebuilds Mesh from the recipe (shape + boolean ops). */
 	bool BuildMesh(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError);

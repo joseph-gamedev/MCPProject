@@ -1,4 +1,5 @@
 #include "UiToolset.h"
+#include "RuntimeToolsetsActivity.h"
 #include "RuntimeToolHelpers.h"
 #include "RuntimeToolsetsHudWidget.h"
 #include "RuntimeToolsetsLabelActor.h"
@@ -561,6 +562,22 @@ AActor* FUiToolset::SpawnLabelFromSource(UWorld* World, const FString& Source, c
 	return Label;
 }
 
+static void ShowActivity(FToolInvocation& Inv)
+{
+	FRuntimeToolsetsActivity& Activity = FRuntimeToolsetsActivity::Get();
+	if (Inv.Has(TEXT("enabled")))
+	{
+		Activity.SetPanelEnabled(Inv.GetBool(TEXT("enabled")));
+	}
+	if (Inv.Has(TEXT("status")))
+	{
+		Activity.SetStatus(Inv.GetString(TEXT("status")));
+	}
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	Out->SetBoolField(TEXT("enabled"), Activity.IsPanelEnabled());
+	Inv.Succeed(Out);
+}
+
 static void CreateLabel(FToolInvocation& Inv)
 {
 	TSharedRef<FJsonObject> Spec = Obj();
@@ -748,6 +765,12 @@ void FUiToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("tint"), FToolParam::Vec3(TEXT("[r,g,b] 0-1"))))
 		.Undoable().RequiresWorld()
 		.Handle(&SetBrush);
+
+	B.Tool(TEXT("show_activity"), TEXT("Optional on-screen activity panel (current step, count, time, recent actions). Use only when the user asks to see progress."))
+		.Args(FToolSchema()
+			.Add(TEXT("enabled"), FToolParam::Boolean(TEXT("Show or hide the panel")))
+			.Add(TEXT("status"), FToolParam::String(TEXT("What you are doing, e.g. 'Building the Eiffel Tower legs' (empty clears)"), 160)))
+		.Handle(&ShowActivity);
 
 	B.Tool(TEXT("create_label"), TEXT("Name tag in the world: text drawn above a target (it follows the target) or at a location."))
 		.Args(FToolSchema()
