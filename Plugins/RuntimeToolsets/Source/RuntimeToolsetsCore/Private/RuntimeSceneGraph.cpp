@@ -1,5 +1,6 @@
 #include "RuntimeSceneGraph.h"
 #include "RuntimeJson.h"
+#include "RuntimeToolHelpers.h"
 #include "RuntimeToolsetsGroupActor.h"
 #include "RuntimeToolsetsLog.h"
 #include "Components/PrimitiveComponent.h"
@@ -392,11 +393,10 @@ TSharedRef<FJsonObject> FRuntimeSceneGraph::NodeToJson(const FRuntimeSceneNode& 
 	}
 	if (Fields.Contains(TEXT("bounds")))
 	{
-		FVector Origin, Extent;
-		Actor->GetActorBounds(false, Origin, Extent, true);
+		const FBox Box = RuntimeTools::ActorBox(Actor); // includes child nodes
 		TSharedRef<FJsonObject> B = MakeShared<FJsonObject>();
-		B->SetField(TEXT("center"), RuntimeJson::Vec(Origin));
-		B->SetField(TEXT("size"), RuntimeJson::Vec(Extent * 2.0));
+		B->SetField(TEXT("center"), RuntimeJson::Vec(Box.GetCenter()));
+		B->SetField(TEXT("size"), RuntimeJson::Vec(Box.GetSize()));
 		J->SetObjectField(TEXT("bounds"), B);
 	}
 	if (Actor->IsHidden() && !Node.bSoftDeleted)

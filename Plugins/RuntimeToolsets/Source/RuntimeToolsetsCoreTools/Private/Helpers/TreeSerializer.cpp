@@ -3,6 +3,7 @@
 #include "RuntimeCommonCommands.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
+#include "RuntimeToolsetsCore.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -86,9 +87,9 @@ namespace RuntimeTreeSerializer
 		}
 		FString Source = TEXT("group");
 		Spec->TryGetStringField(TEXT("source"), Source);
-		if (Source != TEXT("group") && !Source.StartsWith(TEXT("shape:")) && !Source.StartsWith(TEXT("class:")))
+		if (!IRuntimeToolsetsCore::Get().HasSourceSpawner(Source))
 		{
-			OutError = FString::Printf(TEXT("bad source '%s' (group, shape:<name>, class:<path>)"), *Source);
+			OutError = FString::Printf(TEXT("bad source '%s' (group, shape:<name>, class:<path>, or a registered kind such as prim:/vfx:)"), *Source.Left(80));
 			return false;
 		}
 		FString Name = NameOverride;

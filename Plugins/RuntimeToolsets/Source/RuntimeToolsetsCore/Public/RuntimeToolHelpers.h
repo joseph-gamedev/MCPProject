@@ -112,12 +112,35 @@ namespace RuntimeTools
 		return true;
 	}
 
-	/** World-space bounding box of an actor's components (colliding and non-colliding). */
+	/**
+	 * World-space bounding box of an actor and every visible actor attached below it, so groups and parent nodes
+	 * report the extent of their children. Falls back to the actor's own (possibly empty) bounds.
+	 */
 	inline FBox ActorBox(const AActor* Actor)
 	{
-		FVector Origin, Extent;
-		Actor->GetActorBounds(false, Origin, Extent, true);
-		return FBox(Origin - Extent, Origin + Extent);
+		TArray<AActor*> All = {const_cast<AActor*>(Actor)};
+		Actor->GetAttachedActors(All, false, true);
+		FBox Box(ForceInit);
+		for (const AActor* A : All)
+		{
+			if (A != Actor && A->IsHidden())
+			{
+				continue; // soft-deleted or hidden children
+			}
+			FVector Origin, Extent;
+			A->GetActorBounds(false, Origin, Extent, true);
+			if (!Extent.IsNearlyZero())
+			{
+				Box += FBox(Origin - Extent, Origin + Extent);
+			}
+		}
+		if (!Box.IsValid)
+		{
+			FVector Origin, Extent;
+			Actor->GetActorBounds(false, Origin, Extent, true);
+			Box = FBox(Origin - Extent, Origin + Extent);
+		}
+		return Box;
 	}
 
 	/** Reference string for results: node id, actor:Name, or object path. */

@@ -328,6 +328,27 @@ static void ListActive(FToolInvocation& Inv)
 	Inv.Succeed(Out);
 }
 
+AActor* FVfxToolset::SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+{
+	UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *Source.Mid(4));
+	if (!System)
+	{
+		OutError = FString::Printf(TEXT("Niagara system '%s' not found"), *Source.Mid(4));
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ANiagaraActor* Actor = World->SpawnActor<ANiagaraActor>(ANiagaraActor::StaticClass(), Transform, Params);
+	if (!Actor)
+	{
+		OutError = TEXT("could not spawn a Niagara actor");
+		return nullptr;
+	}
+	Actor->GetNiagaraComponent()->SetAsset(System);
+	Actor->GetNiagaraComponent()->Activate(true);
+	return Actor;
+}
+
 void FVfxToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 {
 	B.Tool(TEXT("spawn_system"), TEXT("Spawn a Niagara system as a scene node, optionally with user parameters."))

@@ -1,0 +1,718 @@
+{
+	"description": "Block out landmarks: primitives, lathe/extrude/sweep, booleans, arrays, mirror, ortho views",
+	"name": "build",
+	"tools": [
+		{
+			"description": "Create a parametric mesh at true scale (cm). Base pivot by default.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Color override [r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"detail":
+					{
+						"default": "medium",
+						"description": "Tessellation",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						],
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm (relative to parent)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"default": "white",
+						"description": "Palette name (marble, sandstone, brick, copper, gold, glass, ...) or material path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"pivot":
+					{
+						"default": "base",
+						"description": "Origin",
+						"enum": [
+							"base",
+							"center"
+						],
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"shape":
+					{
+						"description": "Shape",
+						"enum": [
+							"box",
+							"sphere",
+							"cylinder",
+							"cone",
+							"pyramid",
+							"torus",
+							"wedge",
+							"capsule",
+							"plane",
+							"dome",
+							"tube",
+							"arch"
+						],
+						"type": "string"
+					},
+					"size":
+					{
+						"description": "[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch = width, depth, height",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 16,
+						"type": "array"
+					},
+					"thickness":
+					{
+						"description": "Tube wall thickness cm",
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"top_ratio":
+					{
+						"description": "Cone top radius / base radius",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"required": [
+					"shape"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_primitive",
+			"undoable": true
+		},
+		{
+			"description": "Create a solid from a 2D profile: lathe (domes, columns, vases), extrude (walls, plans), sweep (rails, pipes).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"angle":
+					{
+						"description": "Lathe degrees",
+						"maximum": 360,
+						"minimum": 1,
+						"type": "number"
+					},
+					"closed":
+					{
+						"description": "Sweep path is a loop",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Color override [r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"detail":
+					{
+						"default": "medium",
+						"description": "Tessellation",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						],
+						"type": "string"
+					},
+					"height":
+					{
+						"description": "Extrude height cm",
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"kind":
+					{
+						"description": "Solid kind",
+						"enum": [
+							"lathe",
+							"extrude",
+							"sweep"
+						],
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm (relative to parent)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"default": "white",
+						"description": "Palette name (marble, sandstone, brick, copper, gold, glass, ...) or material path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"path":
+					{
+						"description": "Sweep path [[x,y,z],...]",
+						"items":
+						{
+							"description": "",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"maxItems": 512,
+						"type": "array"
+					},
+					"profile":
+					{
+						"description": "2D points [[x,y],...]: lathe = [radius,height] path; extrude/sweep = closed polygon",
+						"items":
+						{
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 2,
+							"type": "array"
+						},
+						"maxItems": 512,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 16,
+						"type": "array"
+					}
+				},
+				"required": [
+					"kind",
+					"profile"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_profile_solid",
+			"undoable": true
+		},
+		{
+			"description": "Cut, join or intersect two builder primitives. The tool is consumed unless keep_tool.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"keep_tool":
+					{
+						"default": false,
+						"description": "Keep the tool node",
+						"type": "boolean"
+					},
+					"op":
+					{
+						"default": "subtract",
+						"description": "Operation",
+						"enum": [
+							"subtract",
+							"union",
+							"intersect"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Primitive to change",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"tool":
+					{
+						"description": "Primitive used as the cutter/addition",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"tool"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.boolean_op",
+			"undoable": true
+		},
+		{
+			"description": "Copy a node in a line, around an axis or in a grid (copies share its parent). One undo step.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"angle":
+					{
+						"default": 360,
+						"description": "Radial total degrees",
+						"maximum": 360,
+						"minimum": 1,
+						"type": "number"
+					},
+					"axis":
+					{
+						"description": "Radial axis (default Z)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"center":
+					{
+						"description": "Radial centre (parent space, default origin)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"count":
+					{
+						"default": 4,
+						"description": "Total items incl. the original (linear/radial)",
+						"maximum": 1001,
+						"minimum": 2,
+						"type": "integer"
+					},
+					"counts":
+					{
+						"description": "Grid counts [nx,ny,nz]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"mode":
+					{
+						"default": "linear",
+						"description": "Pattern",
+						"enum": [
+							"linear",
+							"radial",
+							"grid"
+						],
+						"type": "string"
+					},
+					"offset":
+					{
+						"description": "Linear step [x,y,z] cm (parent space)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"spacing":
+					{
+						"description": "Grid spacing [x,y,z] cm (default: bounds size)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.array",
+			"undoable": true
+		},
+		{
+			"description": "Create a mirrored copy of a node across a plane (parent space).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"axis":
+					{
+						"default": "x",
+						"description": "Mirror normal",
+						"enum": [
+							"x",
+							"y",
+							"z"
+						],
+						"type": "string"
+					},
+					"point":
+					{
+						"description": "A point on the mirror plane (default parent origin)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.mirror",
+			"undoable": true
+		},
+		{
+			"description": "Set palette material / color on builder primitives.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Color override [r,g,b] 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"description": "Palette name or material path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"targets":
+					{
+						"description": "Builder nodes",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.set_material",
+			"undoable": true
+		},
+		{
+			"description": "Distance, gap and sizes between two objects' bounds.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"a":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"b":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"a",
+					"b"
+				],
+				"type": "object"
+			},
+			"name": "build.measure"
+		},
+		{
+			"description": "Node pairs whose bounds interpenetrate more than the tolerance.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"tolerance":
+					{
+						"default": 1,
+						"description": "Ignore overlaps up to this depth cm",
+						"minimum": 0,
+						"type": "number"
+					},
+					"under":
+					{
+						"description": "Only check below this node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "build.check_overlaps"
+		},
+		{
+			"description": "Nodes, triangles, components, materials and estimated draw calls.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"under":
+					{
+						"description": "Only count below this node",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "build.get_build_stats"
+		},
+		{
+			"description": "One contact-sheet image of ortho front/right/top (and perspective) views framing the build.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"format":
+					{
+						"default": "jpg",
+						"description": "Image format",
+						"enum": [
+							"jpg",
+							"png"
+						],
+						"type": "string"
+					},
+					"padding":
+					{
+						"default": 1.1499999999999999,
+						"description": "Margin factor",
+						"maximum": 3,
+						"minimum": 1,
+						"type": "number"
+					},
+					"size":
+					{
+						"default": 384,
+						"description": "Pixels per view",
+						"maximum": 1024,
+						"minimum": 64,
+						"type": "integer"
+					},
+					"targets":
+					{
+						"description": "Frame these (default: all nodes or 'under')",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					},
+					"under":
+					{
+						"description": "Frame this subtree",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"views":
+					{
+						"description": "Views (default front,right,top,perspective)",
+						"items":
+						{
+							"enum": [
+								"front",
+								"back",
+								"left",
+								"right",
+								"top",
+								"perspective"
+							],
+							"type": "string"
+						},
+						"maxItems": 6,
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"name": "build.capture_view"
+		}
+	],
+	"version": "1.0.0"
+}

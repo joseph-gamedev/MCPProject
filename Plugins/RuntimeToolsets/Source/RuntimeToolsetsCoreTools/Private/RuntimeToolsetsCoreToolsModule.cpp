@@ -6,6 +6,7 @@
 #include "ReflectionToolset.h"
 #include "SceneGraphToolset.h"
 #include "SessionToolset.h"
+#include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
 #include "Modules/ModuleManager.h"
 
@@ -28,6 +29,10 @@ public:
 			MakeShared<FLogToolset>(),
 			MakeShared<FCaptureToolset>(),
 		};
+		for (const FString& Prefix : {FString(TEXT("group")), FString(TEXT("shape:")), FString(TEXT("class:"))})
+		{
+			Core.RegisterSourceSpawner(Prefix, &RuntimeSpawn::SpawnBuiltin);
+		}
 		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
 		{
 			Core.RegisterToolset(Toolset);
@@ -42,6 +47,10 @@ public:
 			for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
 			{
 				IRuntimeToolsetsCore::Get().UnregisterToolset(Toolset->GetName());
+			}
+			for (const TCHAR* Prefix : {TEXT("group"), TEXT("shape:"), TEXT("class:")})
+			{
+				IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(Prefix);
 			}
 		}
 		Registered.Reset();

@@ -13,6 +13,7 @@ public:
 	virtual void StartupModule() override
 	{
 		Registered = {MakeShared<FMaterialsToolset>(), MakeShared<FCameraToolset>(), MakeShared<FUiToolset>(), MakeShared<FVfxToolset>(), MakeShared<FLightingToolset>()};
+		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("vfx:"), &FVfxToolset::SpawnFromSource);
 		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
 		{
 			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
@@ -27,6 +28,7 @@ public:
 			{
 				IRuntimeToolsetsCore::Get().UnregisterToolset(Toolset->GetName());
 			}
+			IRuntimeToolsetsCore::Get().UnregisterSourceSpawner(TEXT("vfx:"));
 		}
 		Registered.Reset();
 	}

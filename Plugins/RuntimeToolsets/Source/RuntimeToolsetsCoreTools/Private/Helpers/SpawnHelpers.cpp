@@ -1,5 +1,6 @@
 #include "SpawnHelpers.h"
 #include "RuntimeToolsetsGroupActor.h"
+#include "RuntimeToolsetsCore.h"
 #include "RuntimeToolsetsSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -102,6 +103,11 @@ namespace RuntimeSpawn
 	}
 
 	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& BaseName, FString& OutError)
+	{
+		return IRuntimeToolsetsCore::Get().SpawnFromSource(World, Source, Transform, BaseName, OutError);
+	}
+
+	AActor* SpawnBuiltin(UWorld* World, const FString& Source, const FTransform& Transform, const FString& BaseName, FString& OutError)
 	{
 		if (!World)
 		{

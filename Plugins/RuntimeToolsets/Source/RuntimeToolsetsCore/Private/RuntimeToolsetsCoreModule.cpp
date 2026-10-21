@@ -360,6 +360,52 @@ public:
 		};
 	}
 
+	virtual void RegisterSourceSpawner(const FString& Prefix, FRuntimeSourceSpawner Spawner) override
+	{
+		FWriteScopeLock Lock(RegistryLock);
+		SourceSpawners.Add(Prefix, MoveTemp(Spawner));
+	}
+
+	virtual void UnregisterSourceSpawner(const FString& Prefix) override
+	{
+		FWriteScopeLock Lock(RegistryLock);
+		SourceSpawners.Remove(Prefix);
+	}
+
+	virtual bool HasSourceSpawner(const FString& Source) const override
+	{
+		FReadScopeLock Lock(RegistryLock);
+		return FindSpawnerLocked(Source) != nullptr;
+	}
+
+	virtual AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError) override
+	{
+		FRuntimeSourceSpawner Spawner;
+		{
+			FReadScopeLock Lock(RegistryLock);
+			if (const FRuntimeSourceSpawner* Found = FindSpawnerLocked(Source))
+			{
+				Spawner = *Found;
+			}
+		}
+		if (!Spawner)
+		{
+			TArray<FString> Prefixes;
+			{
+				FReadScopeLock Lock(RegistryLock);
+				SourceSpawners.GetKeys(Prefixes);
+			}
+			OutError = FString::Printf(TEXT("no spawner for source '%s' (known: %s)"), *Source.Left(64), *FString::Join(Prefixes, TEXT(", ")));
+			return nullptr;
+		}
+		if (!World)
+		{
+			OutError = TEXT("no world");
+			return nullptr;
+		}
+		return Spawner(World, Source, Transform, Name, OutError);
+	}
+
 	virtual FOnRuntimeToolEvent& OnEvent() override { return EventDelegate; }
 	virtual FSimpleMulticastDelegate& OnToolsetsChanged() override { return ToolsetsChangedDelegate; }
 
@@ -479,6 +525,26 @@ private:
 	{
 		const TArray<FString>& Enabled = URuntimeToolsetsSettings::Get().EnabledToolsets;
 		return Name == TEXT("session") || Enabled.Num() == 0 || Enabled.Contains(Name.ToString());
+	}
+
+	/** Exact match first, then the longest registered prefix ending in ':'. */
+	const FRuntimeSourceSpawner* FindSpawnerLocked(const FString& Source) const
+	{
+		if (const FRuntimeSourceSpawner* Exact = SourceSpawners.Find(Source))
+		{
+			return Exact;
+		}
+		const FRuntimeSourceSpawner* Best = nullptr;
+		int32 BestLen = 0;
+		for (const TPair<FString, FRuntimeSourceSpawner>& P : SourceSpawners)
+		{
+			if (P.Key.EndsWith(TEXT(":")) && Source.StartsWith(P.Key, ESearchCase::CaseSensitive) && P.Key.Len() > BestLen)
+			{
+				Best = &P.Value;
+				BestLen = P.Key.Len();
+			}
+		}
+		return Best;
 	}
 
 	void UnregisterLocked(FName Name)
@@ -778,6 +844,7 @@ private:
 	mutable FRWLock RegistryLock;
 	TMap<FName, FToolsetEntry> Toolsets;
 	TMap<FString, TSharedRef<const FRuntimeToolDescriptor>> ToolsByName;
+	TMap<FString, FRuntimeSourceSpawner> SourceSpawners;
 
 	TQueue<TSharedPtr<FToolCall>, EQueueMode::Mpsc> Queue;
 	std::atomic<int32> QueuedCount{0};

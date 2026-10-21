@@ -1,4 +1,4 @@
-#include "ImageEncoding.h"
+#include "RuntimeImage.h"
 #include "ImageCore.h"
 #include "ImageUtils.h"
 #include "Engine/TextureRenderTarget.h"

@@ -16,10 +16,13 @@ namespace RuntimeSpawn
 	UClass* LoadSpawnClass(const FString& ClassPath, FString& OutError, bool* OutNotAllowed = nullptr);
 
 	/**
-	 * Spawns from a source string: "shape:cube", "class:/Script/Engine.PointLight", "group".
-	 * The actor is movable and does not tick unless its class requires it.
+	 * Spawns from any registered source ("shape:cube", "class:/Script/Engine.PointLight", "group", "prim:{...}", "vfx:...")
+	 * through IRuntimeToolsetsCore::SpawnFromSource.
 	 */
 	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& BaseName, FString& OutError);
+
+	/** Built-in spawner for "group", "shape:<name>" and "class:<path>" (registered with the core at startup). */
+	AActor* SpawnBuiltin(UWorld* World, const FString& Source, const FTransform& Transform, const FString& BaseName, FString& OutError);
 
 	/** Sets the "Color" parameter of the BasicShapeMaterial (creates a dynamic instance once). */
 	bool SetShapeColor(AActor* Actor, const FLinearColor& Color);

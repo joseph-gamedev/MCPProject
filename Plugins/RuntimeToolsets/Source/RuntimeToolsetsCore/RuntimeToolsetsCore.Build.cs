@@ -32,7 +32,7 @@ public class RuntimeToolsetsCore : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "DeveloperSettings" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "Projects" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Projects", "ImageCore" });
 		RuntimeToolsetsBuildGuard.Check(this);
 	}
 }

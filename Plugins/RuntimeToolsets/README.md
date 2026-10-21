@@ -18,6 +18,7 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `history` | undo, redo, get_history, begin_transaction, end_transaction, checkpoint, rollback, set_history_limit |
 | `materials` | list_parameters, set_material, set_scalar, set_vector, set_texture, set_collection_param |
 | `camera` | get_camera, set_camera, set_fov, frame_nodes, orbit, reset_camera, possess, set_view_mode |
+| `build` | create_primitive, create_profile_solid, boolean_op, array, mirror, set_material, measure, check_overlaps, get_build_stats, capture_view |
 | `layout` | align_nodes, distribute_nodes, snap_to_grid, drop_to_ground, arrange_in_row, arrange_in_grid, arrange_in_circle, randomize_transform, find_free_space |
 
 | `ui` | list_widgets, list_widget_tree, find_widget, create_widget, create_hud_text, remove_widget, set_text, set_widget_visibility, set_brush, click_button |
@@ -32,13 +33,28 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 
 `game`, `physics`, `level` and `input` live in `RuntimeToolsetsGameplay` (needs the EnhancedInput plugin). `load_level_instance` waits asynchronously until the level is visible (or pass `blocking:true`). `open_level` needs `confirm:true` because it destroys the world and all undo history. `inject_key` reports `handled:false` when nothing in the game consumed the key.
 
+## Primitive builder (`build`)
+
+Builder nodes are dynamic meshes (Geometry Script) generated from a JSON **recipe** that is stored as the node source (`prim:{...}`).
+
+- **Shapes:** box, sphere, cylinder, cone, pyramid, torus, wedge, capsule, plane, dome, tube, arch. Profile solids: lathe, extrude, sweep.
+- **Sizes** are true scale in cm, and the pivot sits at the base by default.
+- **Booleans** append to the target's recipe, so every mesh can be rebuilt. That keeps undo, `scene.duplicate_node`, `export_tree`/`import_tree` and arrays exact.
+- **Materials:** a palette (marble, sandstone, limestone, brick, stone, concrete, wood, copper, verdigris, gold, glass, grass, water, plus basic colors) or any allowed material path.
+- **Checking the work:** `capture_view` returns one contact sheet of ortho front/right/top and a perspective view, framing the whole build, so an agent can compare it with a reference. `check_overlaps` and `get_build_stats` report bounding-box overlaps and size/triangle counts.
+- **Demo:** `Scripts/build_landmark_demo.py` builds a simplified Taj Mahal (18 nodes) in under a second:
+
+![contact sheet](Docs/images/landmark_contact_sheet.jpg)
+
+Any module can register how its node sources are rebuilt with `IRuntimeToolsetsCore::RegisterSourceSpawner`. Built-ins: `group`, `shape:`, `class:`, `prim:`, `vfx:`.
+
 `profiling` and `ops` live in `RuntimeToolsetsOps`.
 - **`ops.run_batch`** runs up to 100 calls in one request. With `atomic:true` it is all-or-nothing: it rolls back on the first failure, and one undo reverts a successful batch.
 - **`ops.wait_for_condition`** polls any tool until a field of its result matches, e.g. `{"tool":"scene.get_node","arguments":{"target":"n5"},"path":"location[2]","op":"lt","value":60}`.
 - **`ops.run_automation_test`** starts tests in the running game. Poll `ops.get_test_status` for results.
 - **`profiling.start_trace`** writes Unreal Insights traces to the `Saved/Profiling` folder and never overwrites existing files.
 
-`ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. VFX nodes cannot be duplicated or exported yet (their source spec is `vfx:<system>`). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
+`ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. VFX nodes duplicate/export as `vfx:<system>` (user parameter overrides are not carried over). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
 
 `materials` and `camera` live in the `RuntimeToolsetsPresentation` module; `layout` lives in `RuntimeToolsetsContent`. Debug view modes (unlit, wireframe…) are only available in cooked builds cooked with `r.ForceDebugViewModes=1`; otherwise `set_view_mode` returns `unsupported` and only `lit` works.
 

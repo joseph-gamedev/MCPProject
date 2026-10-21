@@ -10,4 +10,7 @@ public:
 	virtual FString GetDescription() const override { return TEXT("Spawn Niagara systems, set user parameters, activate/deactivate"); }
 	virtual FString GetVersion() const override { return TEXT("1.0.0"); }
 	virtual void RegisterTools(FRuntimeToolsetBuilder& B) override;
+
+	/** Source spawner for "vfx:<system path>" nodes (duplicate / import / arrays). */
+	static AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError);
 };

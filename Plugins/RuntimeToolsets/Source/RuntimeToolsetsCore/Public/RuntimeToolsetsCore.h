@@ -6,6 +6,7 @@
 #include "RuntimeToolTypes.h"
 #include "RuntimeToolset.h"
 
+class AActor;
 class FRuntimeSceneGraph;
 class FRuntimeCommandHistory;
 class FRuntimeLogCapture;
@@ -24,6 +25,12 @@ public:
 
 DECLARE_DELEGATE_TwoParams(FOnToolProgress, float /*Fraction 0..1*/, const FString& /*Message*/);
 DECLARE_DELEGATE_OneParam(FOnToolComplete, const FToolResult& /*Result*/);
+/**
+ * Builds an actor from a node source string ("shape:cube", "prim:{...}", "vfx:/Path"). Used by duplicate, import and arrays,
+ * so every node kind can be recreated from its source. Spawns at Transform (relative to the future parent).
+ */
+using FRuntimeSourceSpawner = TFunction<AActor*(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)>;
+
 /** Event pushed to connectors (log subscriptions, history changes). Fired on the game thread. */
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnRuntimeToolEvent, const FString& /*SessionId*/, const TSharedRef<FJsonObject>& /*Event*/);
 
@@ -91,6 +98,16 @@ public:
 	virtual TArray<TSharedRef<const FRuntimeToolDescriptor>> GetAllTools() const = 0;
 	virtual TSharedPtr<const FRuntimeToolDescriptor> FindTool(const FString& QualifiedName) const = 0;
 	virtual bool IsToolEnabled(const FRuntimeToolDescriptor& Tool) const = 0;
+
+	/**
+	 * Registers how to build actors for sources starting with Prefix (e.g. "prim:"); an exact source such as "group"
+	 * may be registered too. Game thread.
+	 */
+	virtual void RegisterSourceSpawner(const FString& Prefix, FRuntimeSourceSpawner Spawner) = 0;
+	virtual void UnregisterSourceSpawner(const FString& Prefix) = 0;
+	virtual bool HasSourceSpawner(const FString& Source) const = 0;
+	/** Spawns from a registered source; nullptr with an error when no spawner matches or spawning fails. */
+	virtual AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError) = 0;
 
 	/** Drops the session's history (finalizing soft-deletes) and its log subscriptions. */
 	virtual void EndSession(const FString& SessionId) = 0;

@@ -1,5 +1,5 @@
 #include "CaptureToolset.h"
-#include "Helpers/ImageEncoding.h"
+#include "RuntimeImage.h"
 #include "Helpers/ToolsCommon.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/SceneCaptureComponent2D.h"

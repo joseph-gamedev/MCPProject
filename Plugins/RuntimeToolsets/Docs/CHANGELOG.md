@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.0 — 2026-10-21
+
+Phase 3, primitive builder.
+
+- **New toolset `build` 1.0.0** (10 tools) in `RuntimeToolsetsContent`, built on Geometry Script dynamic meshes:
+  - Recipe-based primitives and profile solids.
+  - Booleans, radial/linear/grid arrays, mirror.
+  - Palette materials.
+  - measure, check_overlaps, get_build_stats.
+  - An ortho contact-sheet `capture_view`.
+- **Core:**
+  - Source-spawner registry (`RegisterSourceSpawner`, `SpawnFromSource`, `HasSourceSpawner`).
+  - Shared image encoding (`RuntimeImage.h`).
+  - `RuntimeActorUtils::CopyMaterials`.
+- **Fixes:**
+  - VFX nodes can now be duplicated and exported/imported.
+  - Bounds (`ActorBox`, node `bounds`) include visible attached children, so framing a group works.
+- **Tests:** 121 automation tests, passing in the editor and in the packaged Development build.
+- **New script:** `Scripts/build_landmark_demo.py`.
+
 ## 0.5.0 — 2026-10-21
 
 Phase 2, ops tools. This completes Phase 2.

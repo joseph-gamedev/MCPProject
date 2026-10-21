@@ -8,7 +8,8 @@ public class RuntimeToolsetsContent : ModuleRules
 		// Group modules depend only on RuntimeToolsetsCore (plus engine runtime modules).
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities"
+			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
+			"GeometryCore", "GeometryFramework", "GeometryScriptingCore", "RenderCore"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}
