@@ -1,5 +1,5 @@
 {
-	"description": "Build realistic landmarks (call build.get_guide first): primitives, generators (lattice, tiers, columns, openings), PBR materials, booleans, arrays, ortho views",
+	"description": "Build realistic landmarks (call build.get_guide first): assemblies of 500+ parts per call, loft/revolve/sweep/extrude/raw, generators, procedural PBR materials, booleans, ortho views",
 	"name": "build",
 	"tools": [
 		{
@@ -139,6 +139,8 @@
 							"grass",
 							"sand",
 							"asphalt",
+							"roof_tile",
+							"cobblestone",
 							"light",
 							"white",
 							"black",
@@ -193,6 +195,13 @@
 							"center"
 						],
 						"type": "string"
+					},
+					"relief":
+					{
+						"description": "Bump depth cm",
+						"maximum": 50,
+						"minimum": 0,
+						"type": "number"
 					},
 					"rotation":
 					{
@@ -266,6 +275,23 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"style":
+					{
+						"description": "Surface style override (presets pick one: brick joints, stone blocks, marble veins, roof tiles, planks, ...)",
+						"enum": [
+							"smooth",
+							"brick",
+							"blocks",
+							"marble",
+							"plaster",
+							"concrete",
+							"roof_tiles",
+							"planks",
+							"brushed",
+							"ground"
+						],
+						"type": "string"
+					},
 					"tags":
 					{
 						"description": "Tags",
@@ -288,6 +314,13 @@
 					{
 						"description": "Tube wall thickness cm",
 						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"tile":
+					{
+						"description": "Pattern size cm (brick length, block width, tile width)",
+						"maximum": 100000,
+						"minimum": 1,
 						"type": "number"
 					},
 					"top_ratio":
@@ -436,6 +469,8 @@
 							"grass",
 							"sand",
 							"asphalt",
+							"roof_tile",
+							"cobblestone",
 							"light",
 							"white",
 							"black",
@@ -503,6 +538,13 @@
 						"maxItems": 512,
 						"type": "array"
 					},
+					"relief":
+					{
+						"description": "Bump depth cm",
+						"maximum": 50,
+						"minimum": 0,
+						"type": "number"
+					},
 					"rotation":
 					{
 						"description": "[pitch,yaw,roll]",
@@ -532,6 +574,23 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"style":
+					{
+						"description": "Surface style override (presets pick one: brick joints, stone blocks, marble veins, roof tiles, planks, ...)",
+						"enum": [
+							"smooth",
+							"brick",
+							"blocks",
+							"marble",
+							"plaster",
+							"concrete",
+							"roof_tiles",
+							"planks",
+							"brushed",
+							"ground"
+						],
+						"type": "string"
+					},
 					"tags":
 					{
 						"description": "Tags",
@@ -542,6 +601,13 @@
 						},
 						"maxItems": 16,
 						"type": "array"
+					},
+					"tile":
+					{
+						"description": "Pattern size cm (brick length, block width, tile width)",
+						"maximum": 100000,
+						"minimum": 1,
+						"type": "number"
 					},
 					"variation":
 					{
@@ -876,6 +942,191 @@
 			"name": "build.get_guide"
 		},
 		{
+			"description": "Build many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Default color [r,g,b] linear 0-1",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "World location cm (or relative to parent)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"description": "Default preset for parts without one",
+						"enum": [
+							"marble",
+							"sandstone",
+							"limestone",
+							"granite",
+							"stone",
+							"brick",
+							"terracotta",
+							"concrete",
+							"plaster",
+							"wood",
+							"slate_roof",
+							"copper",
+							"verdigris",
+							"bronze",
+							"gold",
+							"steel",
+							"iron",
+							"painted_iron",
+							"glass",
+							"tinted_glass",
+							"water",
+							"grass",
+							"sand",
+							"asphalt",
+							"roof_tile",
+							"cobblestone",
+							"light",
+							"white",
+							"black",
+							"red",
+							"green",
+							"blue"
+						],
+						"type": "string"
+					},
+					"metallic":
+					{
+						"description": "Default metallic",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"name":
+					{
+						"description": "Node name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent group",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"parts":
+					{
+						"description": "Parts. Each: {shape, size, <shape params>, location, rotation, scale, material, color, roughness, metallic, style, tile, relief, bevel}. Shapes: box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof lattice steps tiers column openings revolve{profile:[[r,z]..],segments,angle} extrude{profile:[[x,y]..],height | profile:[[x,y,z]..],direction} sweep{profile:[[x,y]..],path:[[x,y,z]..],closed} loft{sections:[[[x,y,z]..]..],closed,cap} raw{vertices,triangles}. Booleans per part via ops:[{op:subtract|union|intersect,tool:{recipe},location}].",
+						"items":
+						{
+							"description": "Part recipe",
+							"type": "object"
+						},
+						"maxItems": 512,
+						"type": "array"
+					},
+					"relief":
+					{
+						"description": "Default bump depth cm",
+						"maximum": 50,
+						"minimum": 0,
+						"type": "number"
+					},
+					"repair_coplanar":
+					{
+						"default": true,
+						"description": "Nudge overlapping same-plane faces of later parts outward to stop flicker",
+						"type": "boolean"
+					},
+					"rotation":
+					{
+						"description": "Rotation",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"roughness":
+					{
+						"description": "Default roughness",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"scale":
+					{
+						"description": "Scale",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"style":
+					{
+						"description": "Default surface style",
+						"enum": [
+							"smooth",
+							"brick",
+							"blocks",
+							"marble",
+							"plaster",
+							"concrete",
+							"roof_tiles",
+							"planks",
+							"brushed",
+							"ground"
+						],
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Tags",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 64,
+						"type": "array"
+					},
+					"tile":
+					{
+						"description": "Default pattern size cm",
+						"maximum": 100000,
+						"minimum": 1,
+						"type": "number"
+					}
+				},
+				"required": [
+					"parts"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_assembly",
+			"undoable": true
+		},
+		{
 			"description": "Nodes, triangles, components, materials and estimated draw calls.",
 			"input_schema":
 			{
@@ -967,5 +1218,5 @@
 			"name": "build.capture_view"
 		}
 	],
-	"version": "1.1.0"
+	"version": "1.2.0"
 }

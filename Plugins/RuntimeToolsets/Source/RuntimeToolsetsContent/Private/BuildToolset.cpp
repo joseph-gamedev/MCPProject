@@ -104,7 +104,8 @@ namespace
 		for (const TCHAR* Field : {TEXT("size"), TEXT("detail"), TEXT("pivot"), TEXT("material"), TEXT("color"), TEXT("top_ratio"), TEXT("thickness"),
 				 TEXT("profile"), TEXT("path"), TEXT("height"), TEXT("angle"), TEXT("closed"), TEXT("bevel"), TEXT("roughness"), TEXT("metallic"),
 				 TEXT("emissive"), TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("count"), TEXT("taper"), TEXT("beam"),
-				 TEXT("levels"), TEXT("bracing"), TEXT("rows"), TEXT("cols"), TEXT("opening"), TEXT("arched"), TEXT("margin")})
+				 TEXT("levels"), TEXT("bracing"), TEXT("rows"), TEXT("cols"), TEXT("opening"), TEXT("arched"), TEXT("margin"), TEXT("style"), TEXT("tile"),
+				 TEXT("relief")})
 		{
 			if (Inv.Has(Field))
 			{
@@ -122,7 +123,7 @@ namespace
 		}
 		// Validate by building once into a scratch mesh: errors surface as invalid_arguments, not command failures.
 		FString Error;
-		if (!RuntimePrimitives::BuildMesh(NewObject<UDynamicMesh>(), Recipe, Error))
+		if (!RuntimePrimitives::BuildMesh(NewObject<UDynamicMesh>(), Recipe, Error) || !RuntimePrimitives::ValidateMaterials(Recipe, Error))
 		{
 			Inv.Fail(ERuntimeToolError::InvalidArguments, Error);
 			return;
@@ -144,6 +145,14 @@ namespace
 		if (const FRuntimeSceneNode* Node = Inv.GetGraph()->Find(Raw->GetNodeId()))
 		{
 			Out->SetNumberField(TEXT("triangles"), RuntimePrimitives::TriangleCount(Node->Actor.Get()));
+		}
+		FString Shape;
+		if (Recipe->TryGetStringField(TEXT("shape"), Shape) && Shape == TEXT("assembly"))
+		{
+			const RuntimePrimitives::FAssemblyStats& Stats = RuntimePrimitives::LastAssemblyStats();
+			Out->SetNumberField(TEXT("parts"), Stats.Parts);
+			Out->SetNumberField(TEXT("materials"), Stats.Materials);
+			Out->SetNumberField(TEXT("coplanar_faces_separated"), Stats.CoplanarSeparated);
 		}
 		Inv.Succeed(Out);
 	}
@@ -246,6 +255,25 @@ static void CreatePrimitive(FToolInvocation& Inv)
 	Recipe->SetStringField(TEXT("shape"), Inv.GetString(TEXT("shape")));
 	ReadCommonRecipe(Inv, Recipe);
 	CreateFromRecipe(Inv, Recipe, Inv.GetString(TEXT("shape")));
+}
+
+static void CreateAssembly(FToolInvocation& Inv)
+{
+	TSharedRef<FJsonObject> Recipe = Obj();
+	Recipe->SetStringField(TEXT("shape"), TEXT("assembly"));
+	Recipe->SetField(TEXT("parts"), Inv.GetValue(TEXT("parts")));
+	for (const FString& Field : RuntimePrimitives::MaterialFieldNames())
+	{
+		if (Inv.Has(*Field))
+		{
+			Recipe->SetField(Field, Inv.GetValue(*Field));
+		}
+	}
+	if (Inv.Has(TEXT("repair_coplanar")))
+	{
+		Recipe->SetBoolField(TEXT("repair_coplanar"), Inv.GetBool(TEXT("repair_coplanar")));
+	}
+	CreateFromRecipe(Inv, Recipe, TEXT("Assembly"));
 }
 
 static void CreateProfileSolid(FToolInvocation& Inv)
@@ -553,32 +581,44 @@ static void CheckOverlaps(FToolInvocation& Inv)
 }
 
 static const TCHAR* BuilderGuide = TEXT(R"GUIDE(
-QUALITY BAR: aim for a recognisable, realistic landmark at true scale, not a toy block-out.
-Units: centimetres, Z up. Use REAL dimensions (Eiffel Tower 33000 cm tall, base 12500 cm square;
-Great Pyramid 13800 tall, base 23000). If the scene is small, scale the whole group with scene.scale_node at the end.
+QUALITY BAR: a recognisable, realistic recreation at TRUE SCALE. Hero landmarks need 500-3000 parts, not 30.
+Units: cm, Z up, rotations [pitch,yaw,roll]. Use real dimensions (Eiffel Tower 33000 tall, base 12500 square;
+Great Pyramid base 23040, height 13860; Taj Mahal dome top 7300).
 
-WORKFLOW (repeat until it matches a reference photo in your head):
-1. Plan the silhouette: list the major masses with real proportions before building.
-2. Build mass first (big shapes), then secondary forms (tiers, arches, roofs), then detail
-   (columns, windows, railings, steps, ornaments). Realism comes from the detail layer: expect 30-150 parts.
-3. Group everything: scene.create_group, then pass "parent" to every create call.
-4. Use generators instead of single boxes:
-   - lattice: steel truss towers/bridges (levels, taper, beam, bracing). Stack several lattices with taper for curves.
-   - tiers: stepped pyramids, ziggurats, wedding-cake towers (count, taper).
-   - steps: staircases/plinths. column: classical columns (array them for colonnades).
-   - openings: a window/door grid; use it as the tool of boolean_op subtract on a wall box (arched for arcades).
-   - roof (gable), dome, arch, tube, lathe (onion domes, finials, vases), sweep (railings, cables), extrude (footprints).
-5. Materials sell realism. Use PBR presets: marble, limestone, sandstone, granite, stone, brick, terracotta, concrete,
-   plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water,
-   grass, sand, asphalt, light. Tune roughness/metallic/color per part; mix 2-4 related materials, never one flat color.
-   Use "bevel" (1-5% of the part size) on boxes so edges catch light.
-6. Context: a ground plane (grass/sand/asphalt/water) larger than the build, paths, a plinth.
-   Then lighting.apply_mood (golden_hour / sunset / overcast) for atmosphere.
-7. Verify: build.capture_view (front/right/top/perspective) and capture.screenshot. Compare against the real
-   landmark: proportions, silhouette, part count, colors. Fix with scene.move_node/scale_node or rebuild parts. Iterate at least twice.
-8. build.check_overlaps and build.measure to catch floating or misplaced parts. Everything rests on something.
-9. Frame the view with camera.frame_target; the player keeps WASD/mouse fly control afterwards.
-Use ops.run_batch to send many create calls in one round trip.
+BEST METHOD - write a generator script, send big batches:
+  If you can run code, write a Python script with Scripts/rtbuild.py (helpers: box, beam(a,b,t), cyl, taper, frustum,
+  loft(rings), ring(n,r,z), rect, revolve(profile), onion(r,h), sweep/pipe(path), panel(outline,depth,at,yaw),
+  arch_outline, column, steps, tiers, lattice, polar, spline, mat(preset,..)). Loops make repeated detail cheap:
+  truss bracing, colonnades, window bays, railings, roof tiles, stairs. Runtime().build(name, parts) sends them.
+  Example: Scripts/examples/eiffel_and_pyramid.py (2000 parts, 1.4 s).
+  Otherwise call build.create_assembly directly with up to 512 parts per call (one object, one undo step).
+
+PART SHAPES (create_assembly parts / create_primitive):
+  box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof(gable)
+  generators: lattice(levels,taper,beam,bracing) tiers(count,taper) steps(count) column openings(rows,cols,arched)
+  revolve{profile:[[r,z]..],segments} - domes, bulbs, finials, drums, vases
+  loft{sections:[[[x,y,z]..]..]} - rings with equal point counts: curved/tapering towers, legs, onion domes, spires
+  extrude{profile:[[x,y,z]..],direction} - flat outline pushed out: facade panels, arch frames, ornaments
+  sweep{profile:[[x,y]..],path:[[x,y,z]..]} - rails, cornices, cables, arch ribs, mouldings
+  raw{vertices,triangles} - anything else. ops:[{op:subtract,tool:{openings...}}] cuts windows/arcades.
+  Every part takes location/rotation/scale and its own material fields.
+
+MATERIALS sell realism. Presets carry PBR values AND a procedural surface (world-projected, no UVs):
+  marble(veins) limestone/sandstone/granite/stone/cobblestone(blocks) brick(bond+mortar) roof_tile/terracotta/slate_roof
+  (tile rows) concrete(panels) plaster wood(planks) copper/bronze/gold/steel/iron(brushed) painted_iron verdigris glass
+  tinted_glass water grass sand asphalt light. Override color (LINEAR rgb: real colours are darker than you think,
+  e.g. limestone [0.42,0.34,0.24], weathered iron [0.15,0.1,0.065]), roughness, metallic, style, tile (pattern cm),
+  relief (bump cm). Use 3-6 related materials per building, never one flat colour. bevel 1-5% on hard edges.
+
+WORKFLOW:
+1. Plan: list the defining features and their real measurements (silhouette first, then secondary forms, then detail).
+2. Build site + massing in one batch; check build.capture_view (front/right/top/perspective). Fix proportions.
+3. Add detail layers (structure, openings, ornament, railings) in batches; group with scene.create_group + parent.
+4. Context: a ground much larger than the view (sand/grass/asphalt), paths, trees, plinths. Nothing floats.
+5. Light: lighting.apply_mood, then lighting.set_sun so the sun is behind/beside the camera (not backlit).
+6. Verify with capture.screenshot from a wide and a close view; compare with the real landmark and refine at least twice.
+7. Frame with camera.set_camera or camera.frame_nodes; the player keeps WASD/mouse fly control.
+Only if the user asks to see progress: ui.show_activity {enabled:true, status:"..."}.
 )GUIDE");
 
 static void GetGuide(FToolInvocation& Inv)
@@ -791,7 +831,10 @@ void FBuildToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("emissive_strength"), FToolParam::Number(TEXT("Glow strength (5-50 for lamps)"), 0.0, 1000.0))
 			.Add(TEXT("opacity"), FToolParam::Number(TEXT("Glass opacity"), 0.0, 1.0))
 			.Add(TEXT("variation"), FToolParam::Number(TEXT("Surface color variation 0..0.5"), 0.0, 1.0))
-			.Add(TEXT("bevel"), FToolParam::Number(TEXT("Chamfer edges by this many cm (boxes, wedges, extrusions)"), 0.0, 500.0));
+			.Add(TEXT("bevel"), FToolParam::Number(TEXT("Chamfer edges by this many cm (boxes, wedges, extrusions)"), 0.0, 500.0))
+			.Add(TEXT("style"), FToolParam::Enum(TEXT("Surface style override (presets pick one: brick joints, stone blocks, marble veins, roof tiles, planks, ...)"), RuntimePrimitives::StyleNames()))
+			.Add(TEXT("tile"), FToolParam::Number(TEXT("Pattern size cm (brick length, block width, tile width)"), 1.0, 100000.0))
+			.Add(TEXT("relief"), FToolParam::Number(TEXT("Bump depth cm"), 0.0, 50.0));
 	};
 
 	{
@@ -888,6 +931,31 @@ void FBuildToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("get_guide"), TEXT("READ FIRST before building: workflow, real-scale dimensions, generators and materials for realistic results."))
 		.Args(FToolSchema())
 		.Handle(&GetGuide);
+
+	B.Tool(TEXT("create_assembly"), TEXT("Build many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material."))
+		.Args(FToolSchema()
+			.Add(TEXT("parts"), FToolParam::Array(TEXT("Parts. Each: {shape, size, <shape params>, location, rotation, scale, material, color, roughness, metallic, style, tile, relief, bevel}. "
+				"Shapes: box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof lattice steps tiers column openings "
+				"revolve{profile:[[r,z]..],segments,angle} extrude{profile:[[x,y]..],height | profile:[[x,y,z]..],direction} "
+				"sweep{profile:[[x,y]..],path:[[x,y,z]..],closed} loft{sections:[[[x,y,z]..]..],closed,cap} raw{vertices,triangles}. "
+				"Booleans per part via ops:[{op:subtract|union|intersect,tool:{recipe},location}]."),
+				FToolParam::Object(TEXT("Part recipe")), 512).Required())
+			.Add(TEXT("name"), FToolParam::String(TEXT("Node name"), 128))
+			.Add(TEXT("parent"), FToolParam::Target(TEXT("Parent group")))
+			.Add(TEXT("location"), FToolParam::Vec3(TEXT("World location cm (or relative to parent)")))
+			.Add(TEXT("rotation"), FToolParam::Rotator(TEXT("Rotation")))
+			.Add(TEXT("scale"), FToolParam::Vec3(TEXT("Scale")))
+			.Add(TEXT("tags"), FToolParam::StringArray(TEXT("Tags")))
+			.Add(TEXT("material"), FToolParam::Enum(TEXT("Default preset for parts without one"), RuntimePrimitives::PaletteNames()))
+			.Add(TEXT("color"), FToolParam::Vec3(TEXT("Default color [r,g,b] linear 0-1")))
+			.Add(TEXT("roughness"), FToolParam::Number(TEXT("Default roughness"), 0.0, 1.0))
+			.Add(TEXT("metallic"), FToolParam::Number(TEXT("Default metallic"), 0.0, 1.0))
+			.Add(TEXT("style"), FToolParam::Enum(TEXT("Default surface style"), RuntimePrimitives::StyleNames()))
+			.Add(TEXT("tile"), FToolParam::Number(TEXT("Default pattern size cm"), 1.0, 100000.0))
+			.Add(TEXT("relief"), FToolParam::Number(TEXT("Default bump depth cm"), 0.0, 50.0))
+			.Add(TEXT("repair_coplanar"), FToolParam::Boolean(TEXT("Nudge overlapping same-plane faces of later parts outward to stop flicker")).Default(true)))
+		.Undoable().RequiresWorld()
+		.Handle(&CreateAssembly);
 
 	B.Tool(TEXT("get_build_stats"), TEXT("Nodes, triangles, components, materials and estimated draw calls."))
 		.Args(FToolSchema().Add(TEXT("under"), FToolParam::Target(TEXT("Only count below this node"))))

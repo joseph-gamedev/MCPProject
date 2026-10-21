@@ -4,7 +4,11 @@
 #include "Components/DynamicMeshComponent.h"
 #include "DynamicMeshActor.h"
 #include "Engine/World.h"
+#include "GeometryScript/MeshBasicEditFunctions.h"
 #include "GeometryScript/MeshBooleanFunctions.h"
+#include "GeometryScript/MeshMaterialFunctions.h"
+#include "GeometryScript/MeshNormalsFunctions.h"
+#include "CompGeom/PolygonTriangulation.h"
 #include "GeometryScript/MeshModelingFunctions.h"
 #include "GeometryScript/MeshPrimitiveFunctions.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -19,12 +23,14 @@ namespace RuntimePrimitives
 	static const TCHAR* PbrMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_PBR.M_RT_PBR");
 	static const TCHAR* GlassMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_Glass.M_RT_Glass");
 	static constexpr int32 MaxOps = 64;
+	static constexpr int32 MaxParts = 512;
+	static constexpr int32 MaxAssemblyTriangles = 400000;
 
 	const TArray<FString>& ShapeNames()
 	{
 		static const TArray<FString> Names = {TEXT("box"), TEXT("sphere"), TEXT("cylinder"), TEXT("cone"), TEXT("pyramid"), TEXT("torus"), TEXT("wedge"),
 			TEXT("capsule"), TEXT("plane"), TEXT("dome"), TEXT("tube"), TEXT("arch"), TEXT("roof"), TEXT("lattice"), TEXT("steps"), TEXT("tiers"),
-			TEXT("column"), TEXT("openings"), TEXT("lathe"), TEXT("extrude"), TEXT("sweep")};
+			TEXT("column"), TEXT("openings"), TEXT("lathe"), TEXT("revolve"), TEXT("extrude"), TEXT("sweep"), TEXT("loft"), TEXT("raw"), TEXT("assembly")};
 		return Names;
 	}
 
@@ -66,6 +72,8 @@ namespace RuntimePrimitives
 			{TEXT("grass"), FLinearColor(0.12f, 0.3f, 0.06f), 0.9f, 0.f, 0.3f},
 			{TEXT("sand"), FLinearColor(0.76f, 0.66f, 0.48f), 0.95f, 0.f, 0.15f},
 			{TEXT("asphalt"), FLinearColor(0.08f, 0.08f, 0.08f), 0.85f, 0.f, 0.1f},
+			{TEXT("roof_tile"), FLinearColor(0.5f, 0.2f, 0.12f), 0.75f, 0.f, 0.2f},
+			{TEXT("cobblestone"), FLinearColor(0.38f, 0.36f, 0.33f), 0.85f, 0.f, 0.3f},
 			{TEXT("light"), FLinearColor(1.f, 0.9f, 0.7f), 0.5f, 0.f, 0.f, false, 20.f},
 			{TEXT("white"), FLinearColor(0.9f, 0.9f, 0.9f), 0.5f, 0.f, 0.03f},
 			{TEXT("black"), FLinearColor(0.03f, 0.03f, 0.03f), 0.5f, 0.f, 0.03f},
@@ -89,6 +97,62 @@ namespace RuntimePrimitives
 		}();
 		return Names;
 	}
+
+
+	const TArray<FString>& StyleNames()
+	{
+		static const TArray<FString> Names = {TEXT("smooth"), TEXT("brick"), TEXT("blocks"), TEXT("marble"), TEXT("plaster"), TEXT("concrete"),
+			TEXT("roof_tiles"), TEXT("planks"), TEXT("brushed"), TEXT("ground")};
+		return Names;
+	}
+
+	const TArray<FString>& MaterialFieldNames()
+	{
+		static const TArray<FString> Names = {TEXT("material"), TEXT("color"), TEXT("roughness"), TEXT("metallic"), TEXT("emissive"),
+			TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("style"), TEXT("tile"), TEXT("relief")};
+		return Names;
+	}
+
+	struct FStyle
+	{
+		int32 Style;
+		float Tile;   // pattern size in cm (brick length, block width, plank width, ...)
+		float Relief; // bump depth in cm
+	};
+
+	static FStyle PresetStyle(const FString& Preset)
+	{
+		static const TMap<FString, FStyle> Map = {
+			{TEXT("marble"), {3, 260.f, 0.05f}},
+			{TEXT("sandstone"), {2, 110.f, 1.2f}},
+			{TEXT("limestone"), {2, 140.f, 1.0f}},
+			{TEXT("granite"), {2, 160.f, 0.6f}},
+			{TEXT("stone"), {2, 70.f, 2.0f}},
+			{TEXT("cobblestone"), {2, 22.f, 2.5f}},
+			{TEXT("brick"), {1, 24.f, 0.8f}},
+			{TEXT("terracotta"), {6, 28.f, 2.0f}},
+			{TEXT("roof_tile"), {6, 30.f, 2.5f}},
+			{TEXT("slate_roof"), {6, 24.f, 1.2f}},
+			{TEXT("concrete"), {5, 240.f, 0.3f}},
+			{TEXT("plaster"), {4, 150.f, 0.25f}},
+			{TEXT("verdigris"), {4, 80.f, 0.3f}},
+			{TEXT("asphalt"), {4, 40.f, 0.25f}},
+			{TEXT("wood"), {7, 18.f, 0.4f}},
+			{TEXT("copper"), {8, 60.f, 0.03f}},
+			{TEXT("bronze"), {8, 60.f, 0.03f}},
+			{TEXT("gold"), {8, 60.f, 0.02f}},
+			{TEXT("steel"), {8, 60.f, 0.03f}},
+			{TEXT("iron"), {8, 60.f, 0.05f}},
+			{TEXT("painted_iron"), {4, 60.f, 0.05f}},
+			{TEXT("grass"), {9, 250.f, 2.0f}},
+			{TEXT("sand"), {9, 300.f, 1.5f}},
+		};
+		const FStyle* Found = Map.Find(Preset);
+		return Found ? *Found : FStyle{0, 100.f, 0.f};
+	}
+
+	static FAssemblyStats GAssemblyStats;
+	const FAssemblyStats& LastAssemblyStats() { return GAssemblyStats; }
 
 	FString ToSource(const TSharedRef<FJsonObject>& Recipe)
 	{
@@ -337,6 +401,197 @@ namespace RuntimePrimitives
 		UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshPolygroupBevel(Mesh, Options);
 	}
 
+	static bool ReadPoints3D(const TSharedPtr<FJsonValue>& Value, TArray<FVector>& Out, int32 MinPoints, int32 MaxPoints, const TCHAR* What, FString& OutError)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
+		if (!Value.IsValid() || !Value->TryGetArray(Arr) || Arr->Num() < MinPoints || Arr->Num() > MaxPoints)
+		{
+			OutError = FString::Printf(TEXT("%s needs %d-%d [x,y,z] points"), What, MinPoints, MaxPoints);
+			return false;
+		}
+		Out.Reset(Arr->Num());
+		for (const TSharedPtr<FJsonValue>& V : *Arr)
+		{
+			FVector P;
+			if (!RuntimeJson::ToVector(V, P))
+			{
+				OutError = FString::Printf(TEXT("%s points must be [x,y,z]"), What);
+				return false;
+			}
+			Out.Add(P);
+		}
+		return true;
+	}
+
+	static void SplitNormals(UDynamicMesh* Mesh, float AngleDeg)
+	{
+		FGeometryScriptSplitNormalsOptions Split;
+		Split.OpeningAngleDeg = AngleDeg;
+		UGeometryScriptLibrary_MeshNormalsFunctions::ComputeSplitNormals(Mesh, Split, FGeometryScriptCalculateNormalsOptions());
+	}
+
+	/** Rings with the same point count joined into a surface, with optional flat caps. Faces point outward. */
+	static void AppendRings(UDynamicMesh* Mesh, const TArray<TArray<FVector>>& Rings, bool bClosedRing, bool bCap, float SmoothAngle)
+	{
+		const int32 N = Rings[0].Num();
+		const int32 NumRings = Rings.Num();
+		TArray<FVector> Centers;
+		for (const TArray<FVector>& Ring : Rings)
+		{
+			FVector C = FVector::ZeroVector;
+			for (const FVector& P : Ring)
+			{
+				C += P;
+			}
+			Centers.Add(C / Ring.Num());
+		}
+		Mesh->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+		{
+			TArray<TArray<int32>> Ids;
+			for (const TArray<FVector>& Ring : Rings)
+			{
+				TArray<int32>& Row = Ids.AddDefaulted_GetRef();
+				for (const FVector& P : Ring)
+				{
+					Row.Add(M.AppendVertex(FVector3d(P)));
+				}
+			}
+			const int32 Segs = bClosedRing ? N : N - 1;
+			// Orientation: the first non-degenerate side quad must face away from the axis through the ring centres.
+			bool bFlip = false;
+			for (int32 r = 0; r < NumRings - 1 && !bFlip; ++r)
+			{
+				bool bFound = false;
+				for (int32 i = 0; i < Segs; ++i)
+				{
+					const FVector& A = Rings[r][i];
+					const FVector& B = Rings[r][(i + 1) % N];
+					const FVector& C = Rings[r + 1][(i + 1) % N];
+					const FVector Nrm = FVector::CrossProduct(B - A, C - A);
+					if (Nrm.SizeSquared() > 1e-8)
+					{
+						const FVector Out = (A + B + C) / 3.0 - (Centers[r] + Centers[r + 1]) * 0.5;
+						bFlip = FVector::DotProduct(Nrm, Out) < 0.0;
+						bFound = true;
+						break;
+					}
+				}
+				if (bFound)
+				{
+					break;
+				}
+			}
+			auto Tri = [&M](int32 A, int32 B, int32 C, bool bReverse)
+			{
+				M.AppendTriangle(bReverse ? UE::Geometry::FIndex3i(A, C, B) : UE::Geometry::FIndex3i(A, B, C));
+			};
+			for (int32 r = 0; r < NumRings - 1; ++r)
+			{
+				for (int32 i = 0; i < Segs; ++i)
+				{
+					const int32 j = (i + 1) % N;
+					Tri(Ids[r][i], Ids[r][j], Ids[r + 1][j], bFlip);
+					Tri(Ids[r][i], Ids[r + 1][j], Ids[r + 1][i], bFlip);
+				}
+			}
+			if (bCap && bClosedRing && N >= 3 && NumRings >= 2)
+			{
+				for (const int32 End : {0, NumRings - 1})
+				{
+					TArray<FVector3d> Poly;
+					for (const FVector& P : Rings[End])
+					{
+						Poly.Add(FVector3d(P));
+					}
+					TArray<UE::Geometry::FIndex3i> Tris;
+					::PolygonTriangulation::TriangulateSimplePolygon(Poly, Tris, false);
+					const FVector Away = Centers[End] - Centers[End == 0 ? 1 : NumRings - 2];
+					for (const UE::Geometry::FIndex3i& T : Tris)
+					{
+						const FVector Nrm = FVector::CrossProduct(Poly[T.B] - Poly[T.A], Poly[T.C] - Poly[T.A]);
+						Tri(Ids[End][T.A], Ids[End][T.B], Ids[End][T.C], FVector::DotProduct(Nrm, Away) < 0.0);
+					}
+				}
+			}
+		});
+		SplitNormals(Mesh, SmoothAngle);
+	}
+
+	static bool AppendLoft(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R, FString& OutError)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Sections = nullptr;
+		if (!R->TryGetArrayField(TEXT("sections"), Sections) || Sections->Num() < 2 || Sections->Num() > 256)
+		{
+			OutError = TEXT("loft needs 2-256 sections (rings of [x,y,z] points, same count each)");
+			return false;
+		}
+		TArray<TArray<FVector>> Rings;
+		for (const TSharedPtr<FJsonValue>& V : *Sections)
+		{
+			if (!ReadPoints3D(V, Rings.AddDefaulted_GetRef(), 2, 512, TEXT("loft section"), OutError))
+			{
+				return false;
+			}
+			if (Rings.Last().Num() != Rings[0].Num())
+			{
+				OutError = TEXT("all loft sections need the same number of points");
+				return false;
+			}
+		}
+		bool bClosed = true, bCap = true;
+		R->TryGetBoolField(TEXT("closed"), bClosed);
+		R->TryGetBoolField(TEXT("cap"), bCap);
+		AppendRings(Mesh, Rings, bClosed, bCap, static_cast<float>(Num(R, TEXT("smooth_angle"), 40.0)));
+		return true;
+	}
+
+	static bool AppendRaw(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R, FString& OutError)
+	{
+		TArray<FVector> Verts;
+		if (!ReadPoints3D(R->TryGetField(TEXT("vertices")), Verts, 3, 50000, TEXT("raw vertices"), OutError))
+		{
+			return false;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Tris = nullptr;
+		if (!R->TryGetArrayField(TEXT("triangles"), Tris) || Tris->Num() == 0 || Tris->Num() > 100000)
+		{
+			OutError = TEXT("raw needs 1-100000 triangles [a,b,c] (vertex indices, counter-clockwise seen from outside)");
+			return false;
+		}
+		TArray<UE::Geometry::FIndex3i> Indices;
+		for (const TSharedPtr<FJsonValue>& T : *Tris)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* Idx = nullptr;
+			if (!T->TryGetArray(Idx) || Idx->Num() != 3)
+			{
+				OutError = TEXT("raw triangles must be [a,b,c]");
+				return false;
+			}
+			UE::Geometry::FIndex3i I((*Idx)[0]->AsNumber(), (*Idx)[1]->AsNumber(), (*Idx)[2]->AsNumber());
+			if (!Verts.IsValidIndex(I.A) || !Verts.IsValidIndex(I.B) || !Verts.IsValidIndex(I.C))
+			{
+				OutError = TEXT("raw triangle index out of range");
+				return false;
+			}
+			Indices.Add(I);
+		}
+		Mesh->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+		{
+			TArray<int32> Ids;
+			for (const FVector& P : Verts)
+			{
+				Ids.Add(M.AppendVertex(FVector3d(P)));
+			}
+			for (const UE::Geometry::FIndex3i& I : Indices)
+			{
+				// UE is left-handed: flip so counter-clockwise (seen from outside) faces outward.
+				M.AppendTriangle(UE::Geometry::FIndex3i(Ids[I.A], Ids[I.C], Ids[I.B]));
+			}
+		});
+		SplitNormals(Mesh, static_cast<float>(Num(R, TEXT("smooth_angle"), 40.0)));
+		return true;
+	}
+
 	static bool AppendShape(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R, FString& OutError)
 	{
 		FString Shape;
@@ -469,7 +724,7 @@ namespace RuntimePrimitives
 			const FTransform T(FQuat::Identity, FVector(0, 0, bCenter ? -S.Z / 2 : 0.0), FVector(1.0, S.Y / S.X, 1.0));
 			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendRevolvePath(Mesh, Opt, T, Path, Rev, 12 * D, false);
 		}
-		else if (Shape == TEXT("lathe"))
+		else if (Shape == TEXT("lathe") || Shape == TEXT("revolve"))
 		{
 			TArray<FVector2D> Profile;
 			if (!ReadPoints2D(R, TEXT("profile"), Profile, 2, OutError))
@@ -480,7 +735,40 @@ namespace RuntimePrimitives
 			R->TryGetNumberField(TEXT("angle"), Angle);
 			FGeometryScriptRevolveOptions Rev;
 			Rev.RevolveDegrees = static_cast<float>(FMath::Clamp(Angle, 1.0, 360.0));
-			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendRevolvePath(Mesh, Opt, FTransform::Identity, Profile, Rev, 16 * D, true);
+			const int32 Segments = FMath::Clamp(static_cast<int32>(Num(R, TEXT("segments"), 16 * D)), 3, 256);
+			const FTransform T(FRotator(0, Num(R, TEXT("start_angle"), 0.0), 0).Quaternion());
+			UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendRevolvePath(Mesh, Opt, T, Profile, Rev, Segments, true);
+		}
+		else if (Shape == TEXT("loft"))
+		{
+			return AppendLoft(Mesh, R, OutError);
+		}
+		else if (Shape == TEXT("raw"))
+		{
+			return AppendRaw(Mesh, R, OutError);
+		}
+		else if (Shape == TEXT("extrude") && R->HasField(TEXT("direction")))
+		{
+			// Planar 3D outline pushed along a direction (a panel on a facade, a slanted slab).
+			TArray<FVector> Profile;
+			FVector Dir;
+			if (!ReadPoints3D(R->TryGetField(TEXT("profile")), Profile, 3, 512, TEXT("extrude profile"), OutError))
+			{
+				return false;
+			}
+			if (!RuntimeJson::ToVector(R->TryGetField(TEXT("direction")), Dir) || Dir.IsNearlyZero())
+			{
+				OutError = TEXT("extrude direction must be a non-zero [x,y,z]");
+				return false;
+			}
+			TArray<FVector> Top = Profile;
+			for (FVector& P : Top)
+			{
+				P += Dir;
+			}
+			bool bCap = true;
+			R->TryGetBoolField(TEXT("cap"), bCap);
+			AppendRings(Mesh, {Profile, Top}, true, bCap, 20.f);
 		}
 		else if (Shape == TEXT("extrude"))
 		{
@@ -539,8 +827,298 @@ namespace RuntimePrimitives
 		return true;
 	}
 
+	/** Coplanar faces of different parts that overlap and face the same way z-fight. Later parts are nudged outward. */
+	struct FCoplanarTri
+	{
+		FVector3d N;
+		double D = 0.0;
+		FVector3d A, B, C;
+		FBox Box;
+		int32 Part = -1;
+		int32 Level = 0;
+	};
+
+	static uint64 PlaneKey(const FVector3d& N, double D, int32 DOffset)
+	{
+		const uint64 Nx = static_cast<uint64>(FMath::RoundToInt64(N.X * 50.0) + 64);
+		const uint64 Ny = static_cast<uint64>(FMath::RoundToInt64(N.Y * 50.0) + 64);
+		const uint64 Nz = static_cast<uint64>(FMath::RoundToInt64(N.Z * 50.0) + 64);
+		const uint64 Dq = static_cast<uint64>(FMath::RoundToInt64(D / 0.5) + DOffset + (int64(1) << 38)) & ((uint64(1) << 40) - 1);
+		return (Nx << 56) | (Ny << 48) | (Nz << 40) | Dq;
+	}
+
+	static bool OverlapCoplanar(const FCoplanarTri& Q, const FCoplanarTri& R)
+	{
+		const FVector3d An = R.N.GetAbs();
+		const int32 Drop = An.X > An.Y ? (An.X > An.Z ? 0 : 2) : (An.Y > An.Z ? 1 : 2);
+		auto P2 = [Drop](const FVector3d& P) { return Drop == 0 ? FVector2d(P.Y, P.Z) : Drop == 1 ? FVector2d(P.X, P.Z) : FVector2d(P.X, P.Y); };
+		const FVector2d T1[3] = {P2(Q.A), P2(Q.B), P2(Q.C)};
+		const FVector2d T2[3] = {P2(R.A), P2(R.B), P2(R.C)};
+		auto Separated = [](const FVector2d* X, const FVector2d* Y)
+		{
+			for (int32 e = 0; e < 3; ++e)
+			{
+				const FVector2d Edge = X[(e + 1) % 3] - X[e];
+				const FVector2d Axis(-Edge.Y, Edge.X);
+				const double Len = Axis.Size();
+				if (Len < 1e-9)
+				{
+					continue;
+				}
+				double MinX = DBL_MAX, MaxX = -DBL_MAX, MinY = DBL_MAX, MaxY = -DBL_MAX;
+				for (int32 k = 0; k < 3; ++k)
+				{
+					const double PX = FVector2d::DotProduct(X[k], Axis), PY = FVector2d::DotProduct(Y[k], Axis);
+					MinX = FMath::Min(MinX, PX); MaxX = FMath::Max(MaxX, PX);
+					MinY = FMath::Min(MinY, PY); MaxY = FMath::Max(MaxY, PY);
+				}
+				const double Tol = 0.05 * Len; // touching edges are not overlaps
+				if (MaxX <= MinY + Tol || MaxY <= MinX + Tol)
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+		return !Separated(T1, T2) && !Separated(T2, T1);
+	}
+
+	static int32 SeparateCoplanar(UE::Geometry::FDynamicMesh3& M, const TArray<int32>& TriPart)
+	{
+		constexpr double Step = 0.3; // cm per layer: well above depth precision at a few km
+		TArray<FCoplanarTri> Tris;
+		Tris.SetNum(M.MaxTriangleID());
+		TMap<uint64, TArray<int32>> Buckets;
+		for (const int32 T : M.TriangleIndicesItr())
+		{
+			FCoplanarTri& R = Tris[T];
+			M.GetTriVertices(T, R.A, R.B, R.C);
+			const FVector3d Cross = FVector3d::CrossProduct(R.B - R.A, R.C - R.A);
+			const double Len = Cross.Size();
+			if (Len < 1e-6 || !TriPart.IsValidIndex(T))
+			{
+				continue;
+			}
+			R.N = Cross / Len;
+			R.D = FVector3d::DotProduct(R.N, R.A);
+			R.Box = FBox(ForceInit);
+			R.Box += R.A;
+			R.Box += R.B;
+			R.Box += R.C;
+			R.Box = R.Box.ExpandBy(0.01);
+			R.Part = TriPart[T];
+			Buckets.FindOrAdd(PlaneKey(R.N, R.D, 0)).Add(T);
+		}
+		int32 Moved = 0;
+		for (int32 T = 0; T < Tris.Num(); ++T)
+		{
+			FCoplanarTri& R = Tris[T];
+			if (R.Part < 0)
+			{
+				continue;
+			}
+			int32 MaxLevel = -1;
+			for (int32 Off = -1; Off <= 1; ++Off)
+			{
+				const TArray<int32>* Cands = Buckets.Find(PlaneKey(R.N, R.D, Off));
+				if (!Cands)
+				{
+					continue;
+				}
+				for (const int32 O : *Cands)
+				{
+					if (O >= T)
+					{
+						break; // buckets are in triangle order, which is part order
+					}
+					const FCoplanarTri& Q = Tris[O];
+					if (Q.Part >= R.Part || FVector3d::DotProduct(Q.N, R.N) < 0.999 || FMath::Abs(Q.D - R.D) > 0.3 || !Q.Box.Intersect(R.Box)
+						|| !OverlapCoplanar(Q, R))
+					{
+						continue;
+					}
+					MaxLevel = FMath::Max(MaxLevel, Q.Level);
+				}
+			}
+			if (MaxLevel >= 0)
+			{
+				R.Level = MaxLevel + 1;
+				++Moved;
+			}
+		}
+		if (Moved == 0)
+		{
+			return 0;
+		}
+		// Push each vertex out along every nudged face normal it belongs to (max level per normal).
+		TMap<int32, TMap<uint64, TPair<FVector3d, int32>>> Offsets;
+		for (int32 T = 0; T < Tris.Num(); ++T)
+		{
+			const FCoplanarTri& R = Tris[T];
+			if (R.Level <= 0)
+			{
+				continue;
+			}
+			const UE::Geometry::FIndex3i V = M.GetTriangle(T);
+			for (int32 k = 0; k < 3; ++k)
+			{
+				TPair<FVector3d, int32>& E = Offsets.FindOrAdd(V[k]).FindOrAdd(PlaneKey(R.N, 0.0, 0), TPair<FVector3d, int32>(R.N, 0));
+				E.Value = FMath::Max(E.Value, R.Level);
+			}
+		}
+		for (const TPair<int32, TMap<uint64, TPair<FVector3d, int32>>>& Vert : Offsets)
+		{
+			FVector3d P = M.GetVertex(Vert.Key);
+			for (const TPair<uint64, TPair<FVector3d, int32>>& E : Vert.Value)
+			{
+				P += E.Value.Key * (E.Value.Value * Step);
+			}
+			M.SetVertex(Vert.Key, P);
+		}
+		return Moved;
+	}
+
+	/** Effective material fields of each part (part fields override the assembly's) and the unique set. */
+	static void CollectAssemblyMaterials(const TSharedRef<FJsonObject>& Recipe, TArray<TSharedRef<FJsonObject>>& OutMaterials, TArray<int32>& OutPartSlot)
+	{
+		TMap<FString, int32> Seen;
+		const TArray<TSharedPtr<FJsonValue>>* Parts = nullptr;
+		if (!Recipe->TryGetArrayField(TEXT("parts"), Parts))
+		{
+			return;
+		}
+		for (const TSharedPtr<FJsonValue>& V : *Parts)
+		{
+			const TSharedPtr<FJsonObject>* Part = nullptr;
+			V->TryGetObject(Part);
+			TSharedRef<FJsonObject> M = MakeShared<FJsonObject>();
+			for (const FString& F : MaterialFieldNames())
+			{
+				TSharedPtr<FJsonValue> Val = Part ? (*Part)->TryGetField(F) : nullptr;
+				if (!Val.IsValid())
+				{
+					Val = Recipe->TryGetField(F);
+				}
+				if (Val.IsValid())
+				{
+					M->SetField(F, Val);
+				}
+			}
+			const FString Key = RuntimeJson::Write(M);
+			if (const int32* Slot = Seen.Find(Key))
+			{
+				OutPartSlot.Add(*Slot);
+				continue;
+			}
+			OutPartSlot.Add(OutMaterials.Num());
+			Seen.Add(Key, OutMaterials.Num());
+			OutMaterials.Add(M);
+		}
+	}
+
+	static bool IsAssembly(const TSharedRef<FJsonObject>& Recipe)
+	{
+		FString Shape;
+		return Recipe->TryGetStringField(TEXT("shape"), Shape) && Shape == TEXT("assembly");
+	}
+
+	static bool BuildAssembly(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Parts = nullptr;
+		if (!Recipe->TryGetArrayField(TEXT("parts"), Parts) || Parts->Num() == 0 || Parts->Num() > MaxParts)
+		{
+			OutError = FString::Printf(TEXT("assembly needs 1-%d parts"), MaxParts);
+			return false;
+		}
+		// Creating a node builds once to validate and once to spawn: keep the last result.
+		static uint32 CachedHash = 0;
+		static int32 CachedLen = -1;
+		static UE::Geometry::FDynamicMesh3 CachedMesh;
+		static FAssemblyStats CachedStats;
+		const FString Key = RuntimeJson::Write(Recipe);
+		const uint32 Hash = GetTypeHash(Key);
+		if (Hash == CachedHash && Key.Len() == CachedLen)
+		{
+			Mesh->SetMesh(CachedMesh);
+			GAssemblyStats = CachedStats;
+			return true;
+		}
+
+		TArray<TSharedRef<FJsonObject>> Materials;
+		TArray<int32> PartSlot;
+		CollectAssemblyMaterials(Recipe, Materials, PartSlot);
+		UDynamicMesh* Accum = NewObject<UDynamicMesh>();
+		UGeometryScriptLibrary_MeshMaterialFunctions::EnableMaterialIDs(Accum);
+		UDynamicMesh* Temp = NewObject<UDynamicMesh>();
+		TArray<int32> TriPart;
+		for (int32 i = 0; i < Parts->Num(); ++i)
+		{
+			const TSharedPtr<FJsonObject>* PartObj = nullptr;
+			if (!(*Parts)[i]->TryGetObject(PartObj))
+			{
+				OutError = FString::Printf(TEXT("part %d is not an object"), i);
+				return false;
+			}
+			const TSharedRef<FJsonObject> Part = PartObj->ToSharedRef();
+			FString Shape;
+			Part->TryGetStringField(TEXT("shape"), Shape);
+			if (Shape == TEXT("assembly"))
+			{
+				OutError = FString::Printf(TEXT("part %d: assemblies cannot be nested"), i);
+				return false;
+			}
+			FString PartError;
+			if (!BuildMesh(Temp, Part, PartError))
+			{
+				OutError = FString::Printf(TEXT("part %d (%s): %s"), i, *Shape, *PartError);
+				return false;
+			}
+			UGeometryScriptLibrary_MeshMaterialFunctions::ClearMaterialIDs(Temp, PartSlot[i]);
+			FTransform T = FTransform::Identity;
+			FVector V;
+			FRotator Rot;
+			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("location")), V)) T.SetLocation(V);
+			if (RuntimeJson::ToRotator(Part->TryGetField(TEXT("rotation")), Rot)) T.SetRotation(Rot.Quaternion());
+			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("scale")), V)) T.SetScale3D(V);
+			const int32 Before = Accum->GetMeshRef().MaxTriangleID();
+			UGeometryScriptLibrary_MeshBasicEditFunctions::AppendMesh(Accum, Temp, T, true);
+			const int32 After = Accum->GetMeshRef().MaxTriangleID();
+			TriPart.SetNum(After);
+			for (int32 t = Before; t < After; ++t)
+			{
+				TriPart[t] = i;
+			}
+			if (Accum->GetTriangleCount() > MaxAssemblyTriangles)
+			{
+				OutError = FString::Printf(TEXT("assembly exceeds %d triangles at part %d; lower detail/segments or split it"), MaxAssemblyTriangles, i);
+				return false;
+			}
+		}
+		bool bRepair = true;
+		Recipe->TryGetBoolField(TEXT("repair_coplanar"), bRepair);
+		int32 Separated = 0;
+		if (bRepair)
+		{
+			Separated = SeparateCoplanar(Accum->GetMeshRef(), TriPart);
+		}
+		GAssemblyStats.Parts = Parts->Num();
+		GAssemblyStats.Triangles = Accum->GetTriangleCount();
+		GAssemblyStats.Materials = Materials.Num();
+		GAssemblyStats.CoplanarSeparated = Separated;
+		CachedMesh = Accum->GetMeshRef();
+		CachedStats = GAssemblyStats;
+		CachedHash = Hash;
+		CachedLen = Key.Len();
+		Mesh->SetMesh(Accum->GetMeshRef());
+		return true;
+	}
+
 	bool BuildMesh(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
 	{
+		if (IsAssembly(Recipe))
+		{
+			return BuildAssembly(Mesh, Recipe, OutError);
+		}
 		Mesh->Reset();
 		if (!AppendShape(Mesh, Recipe, OutError))
 		{
@@ -586,18 +1164,13 @@ namespace RuntimePrimitives
 		return true;
 	}
 
-	bool ApplyMaterial(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
+	/** Material for a set of material fields: a preset (PBR + procedural style) or an allowed material path. */
+	static UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer, FString& OutError)
 	{
-		ADynamicMeshActor* MeshActor = Cast<ADynamicMeshActor>(Actor);
-		UDynamicMeshComponent* Comp = MeshActor ? MeshActor->GetDynamicMeshComponent() : nullptr;
-		if (!Comp)
-		{
-			OutError = TEXT("not a builder mesh");
-			return false;
-		}
 		FString Material = TEXT("white");
 		Recipe->TryGetStringField(TEXT("material"), Material);
-		UMaterialInterface* Final = nullptr;
+		FVector C;
+		const bool bColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C);
 		if (const FPreset* Preset = Presets().FindByPredicate([&Material](const FPreset& P) { return P.Name == Material; }))
 		{
 			UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);
@@ -606,13 +1179,8 @@ namespace RuntimePrimitives
 			{
 				Base = LoadObject<UMaterialInterface>(nullptr, BasicMaterialPath); // plugin content not cooked
 			}
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Comp);
-			FLinearColor Color = Preset->Color;
-			FVector C;
-			if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))
-			{
-				Color = FLinearColor(C.X, C.Y, C.Z);
-			}
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Outer);
+			const FLinearColor Color = bColor ? FLinearColor(C.X, C.Y, C.Z) : Preset->Color;
 			MID->SetVectorParameterValue(TEXT("Color"), Color);
 			if (bPbr)
 			{
@@ -625,31 +1193,94 @@ namespace RuntimePrimitives
 				const double Strength = Num(Recipe, TEXT("emissive_strength"), bEmissiveColor ? 5.0 : Preset->Emissive);
 				MID->SetVectorParameterValue(TEXT("Emissive"), bEmissiveColor ? FLinearColor(E.X, E.Y, E.Z) : Color);
 				MID->SetScalarParameterValue(TEXT("EmissiveStrength"), static_cast<float>(Strength));
+				FStyle Style = PresetStyle(Material);
+				FString StyleName;
+				if (Recipe->TryGetStringField(TEXT("style"), StyleName))
+				{
+					const int32 Index = StyleNames().IndexOfByKey(StyleName);
+					if (Index == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("unknown style '%s' (%s)"), *StyleName, *FString::Join(StyleNames(), TEXT(", ")));
+						return nullptr;
+					}
+					Style.Style = Index;
+				}
+				MID->SetScalarParameterValue(TEXT("Style"), static_cast<float>(Style.Style));
+				MID->SetScalarParameterValue(TEXT("TileCm"), static_cast<float>(Num(Recipe, TEXT("tile"), Style.Tile)));
+				MID->SetScalarParameterValue(TEXT("Relief"), static_cast<float>(Num(Recipe, TEXT("relief"), Style.Relief)));
 			}
-			Final = MID;
+			return MID;
 		}
-		else
+		bool bAllowed = URuntimeToolsetsSettings::Get().AllowedObjectRoots.Num() == 0;
+		for (const FString& Root : URuntimeToolsetsSettings::Get().AllowedObjectRoots)
 		{
-			bool bAllowed = URuntimeToolsetsSettings::Get().AllowedObjectRoots.Num() == 0;
-			for (const FString& Root : URuntimeToolsetsSettings::Get().AllowedObjectRoots)
+			bAllowed |= Material.StartsWith(Root);
+		}
+		UMaterialInterface* Base = bAllowed ? LoadObject<UMaterialInterface>(nullptr, *Material) : nullptr;
+		if (!Base)
+		{
+			OutError = FString::Printf(TEXT("material '%s' is not a preset (%s) or an allowed material path"), *Material, *FString::Join(PaletteNames(), TEXT(", ")));
+			return nullptr;
+		}
+		if (!bColor)
+		{
+			return Base;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Outer);
+		MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(C.X, C.Y, C.Z));
+		return MID;
+	}
+
+	bool ValidateMaterials(const TSharedRef<FJsonObject>& Recipe, FString& OutError)
+	{
+		if (!IsAssembly(Recipe))
+		{
+			return MakeMaterial(Recipe, GetTransientPackage(), OutError) != nullptr;
+		}
+		TArray<TSharedRef<FJsonObject>> Fields;
+		TArray<int32> PartSlot;
+		CollectAssemblyMaterials(Recipe, Fields, PartSlot);
+		for (const TSharedRef<FJsonObject>& F : Fields)
+		{
+			if (!MakeMaterial(F, GetTransientPackage(), OutError))
 			{
-				bAllowed |= Material.StartsWith(Root);
-			}
-			UMaterialInterface* Base = bAllowed ? LoadObject<UMaterialInterface>(nullptr, *Material) : nullptr;
-			if (!Base)
-			{
-				OutError = FString::Printf(TEXT("material '%s' is not a preset (%s) or an allowed material path"), *Material,
-					*FString::Join(PaletteNames(), TEXT(", ")));
 				return false;
 			}
-			Final = Base;
-			FVector C;
-			if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))
+		}
+		return true;
+	}
+
+	bool ApplyMaterial(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
+	{
+		ADynamicMeshActor* MeshActor = Cast<ADynamicMeshActor>(Actor);
+		UDynamicMeshComponent* Comp = MeshActor ? MeshActor->GetDynamicMeshComponent() : nullptr;
+		if (!Comp)
+		{
+			OutError = TEXT("not a builder mesh");
+			return false;
+		}
+		if (IsAssembly(Recipe))
+		{
+			TArray<TSharedRef<FJsonObject>> Fields;
+			TArray<int32> PartSlot;
+			CollectAssemblyMaterials(Recipe, Fields, PartSlot);
+			TArray<UMaterialInterface*> Set;
+			for (const TSharedRef<FJsonObject>& F : Fields)
 			{
-				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Comp);
-				MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(C.X, C.Y, C.Z));
-				Final = MID;
+				UMaterialInterface* M = MakeMaterial(F, Comp, OutError);
+				if (!M)
+				{
+					return false;
+				}
+				Set.Add(M);
 			}
+			Comp->ConfigureMaterialSet(Set);
+			return true;
+		}
+		UMaterialInterface* Final = MakeMaterial(Recipe, Comp, OutError);
+		if (!Final)
+		{
+			return false;
 		}
 		for (int32 i = 0; i < FMath::Max(1, Comp->GetNumMaterials()); ++i)
 		{

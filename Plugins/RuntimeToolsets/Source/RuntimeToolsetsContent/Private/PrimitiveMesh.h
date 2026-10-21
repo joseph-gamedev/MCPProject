@@ -21,9 +21,26 @@ namespace RuntimePrimitives
 	const TArray<FString>& ShapeNames();
 	/** Physically based material presets (marble, copper, glass, ...). */
 	const TArray<FString>& PaletteNames();
+	/** Procedural surface styles of the PBR material (brick, blocks, marble, ...). */
+	const TArray<FString>& StyleNames();
+	/** Recipe fields that describe a material (per part in an assembly). */
+	const TArray<FString>& MaterialFieldNames();
+
+	/** Stats of the most recent assembly build (game thread). */
+	struct FAssemblyStats
+	{
+		int32 Parts = 0;
+		int32 Triangles = 0;
+		int32 Materials = 0;
+		int32 CoplanarSeparated = 0;
+	};
+	const FAssemblyStats& LastAssemblyStats();
 
 	/** Rebuilds Mesh from the recipe (shape + boolean ops). */
 	bool BuildMesh(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError);
+
+	/** Checks the recipe's material fields (every part of an assembly) without touching an actor. */
+	bool ValidateMaterials(const TSharedRef<FJsonObject>& Recipe, FString& OutError);
 
 	/** Applies the recipe's material/color to a builder actor. */
 	bool ApplyMaterial(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError);

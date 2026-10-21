@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 — 2026-10-21
+
+Builder quality: ideas ported from the StreamPixelMCP analysis (no code copied).
+
+- **`build.create_assembly`:** up to 512 parts per call, merged into one object with per-part materials and one undo step. Assemblies are cached between the validation build and the spawn build.
+- **New part shapes:**
+  - `loft` (rings with equal point counts);
+  - `revolve` (`segments` and `start_angle`);
+  - 3D `extrude` (an outline pushed along a `direction`);
+  - `raw` triangles.
+- **Coplanar repair:** where faces of later parts overlap earlier faces in the same plane and facing the same way, they are nudged 3 mm per layer, so touching parts don't flicker.
+- **Procedural PBR material** (`M_RT_PBR`): world-projected brick, stone blocks, marble, plaster, concrete, roof tiles, planks, brushed metal and ground patterns, with derivative bump relief. New presets `roof_tile` and `cobblestone`. Per-part `style`, `tile` and `relief`.
+- **`Scripts/rtbuild.py`** generator helpers and **`Scripts/examples/eiffel_and_pyramid.py`** (2,020 parts in 1.4 s).
+- **`build.get_guide`** rewritten around generator scripts and true-scale detail.
+- **Renderer** pinned to Lumen GI and reflections, virtual shadow maps, mesh distance fields and TSR.
+- **Earlier in this version:**
+  - fly camera with distance-based speed (`camera.set_fly_mode`, `camera.set_fly_speed`);
+  - an optional activity panel (`ui.show_activity`);
+  - the `set_post_process` volume reuse fix.
+- **Tests:** 126 automation tests.
+
 ## 0.6.1 — 2026-10-21
 
 - **New `ui.create_label` / `ui.set_label`** (ui 1.1.0): world-anchored name tags. They are child nodes of their target, so they follow it, and they undo, duplicate and export like any other node.
