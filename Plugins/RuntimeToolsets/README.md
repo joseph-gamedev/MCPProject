@@ -79,6 +79,25 @@ Any module can register how its node sources are rebuilt with `IRuntimeToolsetsC
 
 Each toolset's exact names and schemas are in `Tests/Schemas/<toolset>.json`, which is guarded by a snapshot test.
 
+## Game logic (`logic`)
+
+Turns a scene into a playable game with no code. The game runs inside the engine on its own; the agent only defines it.
+`RuntimeToolsetsLogic` module, `logic.get_guide` explains it to agents.
+
+- **Variables** (`define_vars`): numbers, text, lists, maps. `start` and the `restart` action reset them to their starting values.
+- **Rules** (`define_rules`): *when* an event happens, *if* a condition holds, *run* actions.
+  - Events: `start`, `click` and `right_click` (on a node, its children, or `tag:x`), `key`, `button`, `timer`, `var_changed`, custom `event`, `tick`.
+  - Actions: `set`, `set_item`, `push`, `let`, `if`/`then`/`else`, `for`, `call` (any tool, with `=expr` and `{expr}` templated arguments), `emit`, `timer`, `cancel_timer`, `set_ui`, `log`, `restart`, `stop`.
+  - Objects that rules create are removed on restart.
+- **Expressions:** arithmetic, comparison and logic, `a ? b : c`, lists, maps and `event.*`, plus functions including the board-game helpers `grid_lines`, `line_winner`, `winning_line` and `winning_move`.
+- **UI** (`define_ui`): on-screen text with live templates (`"{turn} to move"`) and buttons that fire `button` rules.
+- **Input:** `set_input_mode cursor` shows the cursor, so clicks hit objects; `lock_camera` gives a fixed board view.
+- **Testing and debugging:** `fire_event` simulates clicks, keys and buttons; `step` advances timers; `get_state` returns variables, timers and an event log with errors. Bad rules are rejected with the exact field and reason.
+- **Undo and portability:** definitions are undoable, and `export`/`import` move a whole game as JSON.
+- **Example:** `Scripts/examples/tictactoe.py [--ai]` is a full tic-tac-toe made only from tool calls: two players or against the computer, a win highlight, a draw, scores, a Restart button and R to restart. The tests build and play a whole win, draw and restart through the tools.
+
+![tic-tac-toe](Docs/images/tictactoe_win.jpg)
+
 ## Using it from C++ (connector API)
 
 ```cpp

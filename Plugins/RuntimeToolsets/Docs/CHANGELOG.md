@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 — 2026-10-21
+
+- **New `logic` toolset** (module `RuntimeToolsetsLogic`): 17 tools to make a scene playable without code.
+  - **Variables**, an expression language and **rules** (event → condition → actions).
+  - **Events:** click, key, button, timer, var_changed, custom and tick.
+  - **UI:** on-screen text and buttons; cursor mode and camera lock.
+  - **Game control:** start/restart (objects created during play are cleaned up), simulated input, time stepping, state and event log, undo, and export/import.
+- **`Scripts/examples/tictactoe.py`:** a complete tic-tac-toe built only from tool calls, with an optional computer opponent.
+- **`Scripts/examples/city.py`:** a district of 64 buildings of 8 different types.
+- **Tests:** 133 automation tests, including full tic-tac-toe games.
+
 ## 0.7.0 — 2026-10-21
 
 Builder quality: ideas ported from the StreamPixelMCP analysis (no code copied).

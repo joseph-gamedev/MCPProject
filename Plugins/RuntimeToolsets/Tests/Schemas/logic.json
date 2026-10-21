@@ -1,0 +1,431 @@
+{
+	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/start -> if -> actions), HUD text and buttons, cursor mode, start/restart",
+	"name": "logic",
+	"tools": [
+		{
+			"description": "READ FIRST: how to turn a scene into a playable game with variables, rules, UI and start/restart.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.get_guide"
+		},
+		{
+			"description": "Define game variables and their starting values (start/restart resets to these).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"replace":
+					{
+						"default": false,
+						"description": "Remove all other variables",
+						"type": "boolean"
+					},
+					"vars":
+					{
+						"description": "{name: starting value} (number, text, bool, list, map)",
+						"type": "object"
+					}
+				},
+				"required": [
+					"vars"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_vars",
+			"undoable": true
+		},
+		{
+			"description": "Change a variable while the game runs (fires var_changed rules).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"expr":
+					{
+						"description": "Or an expression to evaluate",
+						"maxLength": 4000,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Variable",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New value (JSON)"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "logic.set_var"
+		},
+		{
+			"description": "Evaluate an expression against the current variables (test conditions and functions).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"expr":
+					{
+						"description": "Expression",
+						"maxLength": 4000,
+						"type": "string"
+					}
+				},
+				"required": [
+					"expr"
+				],
+				"type": "object"
+			},
+			"name": "logic.eval"
+		},
+		{
+			"description": "Add or replace rules (by name): when <on> [target/key/filter] and <condition> then <actions>.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"rules":
+					{
+						"description": "Rules: {name, on, target, key, filter, condition, actions:[...], enabled}",
+						"items":
+						{
+							"description": "Rule",
+							"type": "object"
+						},
+						"maxItems": 200,
+						"type": "array"
+					}
+				},
+				"required": [
+					"rules"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_rules",
+			"undoable": true
+		},
+		{
+			"description": "Remove rules by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Rule names",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 200,
+						"type": "array"
+					}
+				},
+				"required": [
+					"names"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.remove_rules",
+			"undoable": true
+		},
+		{
+			"description": "All rules with their full definitions.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.list_rules"
+		},
+		{
+			"description": "Attach data to a node (and its children); click rules read it as event.data.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"data":
+					{
+						"description": "e.g. {index: 4}",
+						"type": "object"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"data"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_data",
+			"undoable": true
+		},
+		{
+			"description": "Add or replace on-screen text and buttons. Text is a live template: 'Score: {score}'. Buttons fire 'button' rules.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"items":
+					{
+						"description": "Items: {name, kind: text|button, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if}",
+						"items":
+						{
+							"description": "UI item",
+							"type": "object"
+						},
+						"maxItems": 64,
+						"type": "array"
+					}
+				},
+				"required": [
+					"items"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_ui",
+			"undoable": true
+		},
+		{
+			"description": "Remove on-screen items by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Item names",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 64,
+						"type": "array"
+					}
+				},
+				"required": [
+					"names"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.remove_ui",
+			"undoable": true
+		},
+		{
+			"description": "cursor: visible mouse cursor, clicks hit objects and buttons (board/puzzle games). game: normal play/fly.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"lock_camera":
+					{
+						"default": false,
+						"description": "Stop mouse-look and movement (fixed board view)",
+						"type": "boolean"
+					},
+					"mode":
+					{
+						"default": "cursor",
+						"description": "Mode",
+						"enum": [
+							"cursor",
+							"game"
+						],
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_input_mode",
+			"undoable": true
+		},
+		{
+			"description": "Start or restart the game: reset variables, remove objects made during play, clear timers, run 'start' rules.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.start"
+		},
+		{
+			"description": "Stop running rules (definitions are kept).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.stop"
+		},
+		{
+			"description": "Simulate player input to test the game: a click on a node, a key, a button press or a custom event.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"data":
+					{
+						"description": "event data",
+						"type": "object"
+					},
+					"key":
+					{
+						"description": "key: key name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "button/timer/event name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"on":
+					{
+						"description": "Event",
+						"enum": [
+							"click",
+							"right_click",
+							"key",
+							"button",
+							"timer",
+							"event"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "click: the node clicked",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"on"
+				],
+				"type": "object"
+			},
+			"name": "logic.fire_event"
+		},
+		{
+			"description": "Advance game time for timers and tick rules (testing).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"seconds":
+					{
+						"default": 1,
+						"description": "Seconds",
+						"maximum": 600,
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "logic.step"
+		},
+		{
+			"description": "Running state: variables, timers, rules, UI, objects made in play, and the recent event log with errors.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"log_limit":
+					{
+						"default": 20,
+						"description": "Log entries",
+						"maximum": 100,
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "logic.get_state"
+		},
+		{
+			"description": "The whole game definition (vars, rules, ui, node data, input mode) as JSON.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.export"
+		},
+		{
+			"description": "Replace the game definition with one from logic.export.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"logic":
+					{
+						"description": "Definition from logic.export",
+						"type": "object"
+					}
+				},
+				"required": [
+					"logic"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.import",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}
