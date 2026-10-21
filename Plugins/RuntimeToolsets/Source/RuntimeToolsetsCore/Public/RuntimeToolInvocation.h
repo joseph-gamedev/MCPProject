@@ -69,6 +69,10 @@ public:
 	bool IsComplete() const { return bComplete; }
 	void ReportProgress(float Fraction, const FString& Message);
 	bool IsCancelled() const;
+	/** Lets a deferred tool run longer than the default timeout (e.g. waits, long samples). */
+	void SetTimeout(double Seconds) { TimeoutOverride = Seconds; }
+	TOptional<double> GetTimeoutOverride() const { return TimeoutOverride; }
+
 	/** Called once if the call is cancelled or times out while deferred. */
 	void SetCancelHandler(TFunction<void()> InHandler) { CancelHandler = MoveTemp(InHandler); }
 
@@ -95,4 +99,5 @@ private:
 	bool bDeferred = false;
 	bool bComplete = false;
 	TFunction<void()> CancelHandler;
+	TOptional<double> TimeoutOverride;
 };

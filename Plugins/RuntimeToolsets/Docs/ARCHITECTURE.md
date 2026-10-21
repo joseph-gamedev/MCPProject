@@ -12,7 +12,7 @@ RuntimeToolsetsCore ── registry ── MPSC queue ── game-thread pump (F
         ▲
 RuntimeToolsetsCoreTools: session · actors · scene · reflection · console · log · capture · history
 RuntimeToolsetsPresentation: materials · camera · ui · vfx · lighting      RuntimeToolsetsContent: layout
-RuntimeToolsetsGameplay: game · physics · level · input
+RuntimeToolsetsGameplay: game · physics · level · input      RuntimeToolsetsOps: profiling · ops
 ```
 
 ## Modules
@@ -24,6 +24,7 @@ RuntimeToolsetsGameplay: game · physics · level · input
 | RuntimeToolsetsGameplay | Runtime, PostDefault | Core only (plus InputCore, EnhancedInput, PhysicsCore) | game, physics, level, input |
 | RuntimeToolsetsPresentation | Runtime, PostDefault | Core only (plus RenderCore, UMG, Slate, Niagara) | materials, camera, ui, vfx, lighting |
 | RuntimeToolsetsContent | Runtime, PostDefault | Core only | layout |
+| RuntimeToolsetsOps | Runtime, PostDefault | Core only (plus RHI, RenderCore) | profiling, ops |
 | RuntimeToolsetsTests | Runtime, PostEngineInit | Core only | Specs, schema snapshot test, `RuntimeToolsets.RunTests` packaged runner |
 | RuntimeToolsetsMCP (separate plugin) | Runtime, PostEngineInit | Core + Epic ModelContextProtocol | Optional adapter for local testing |
 
@@ -45,6 +46,10 @@ RuntimeToolsetsGameplay: game · physics · level · input
 4. **Async tools.** An async tool calls `Defer()` and blocks the queue until it completes, is cancelled, or hits `DefaultTimeoutSeconds`. Calls stay strictly serial.
 5. **Callbacks** always fire on the game thread.
 6. **Nested calls.** `session.call_tool` runs nested tools inline (`ExecuteNested`), up to depth 4, and can wait for async tools.
+
+Deferred tools may extend their timeout with `FToolInvocation::SetTimeout`. `session.call_tool` allows nested work up to 10 minutes, and nested tools such as `wait_for_condition` enforce their own limits.
+
+The in-process test runner (`FRuntimeTestRunner`) lives in Core. It is shared by the `RuntimeToolsets.RunTests` console command and by `ops.run_automation_test`.
 
 ## Command layer
 

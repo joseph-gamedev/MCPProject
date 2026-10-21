@@ -14,6 +14,7 @@ import argparse
 import base64
 import json
 import sys
+import time
 import urllib.request
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -168,9 +169,13 @@ def main():
         cube = call("actors_spawn_actor", {"shape": "cube", "name": "physics_cube", "location": [0, -400, 600]})[0]["id"]
         call("physics_set_simulate", {"target": cube})
         call("physics_add_impulse", {"target": cube, "impulse": [0, 0, 300]})
+        state["falling"] = cube
         return call("physics_get_physics", {"target": cube})[0].get("velocity")
 
     step("physics_set_simulate + add_impulse", physics_drop)
+    step("ops_wait_for_condition (cube lands)", lambda: call("ops_wait_for_condition", {
+        "tool": "scene_get_node", "arguments": {"target": state["falling"]},
+        "path": "location[2]", "op": "lt", "value": 60, "timeout_s": 10})[0].get("waited_s"))
     step("input_inject_key (tap SpaceBar)", lambda: call("input_inject_key", {"key": "SpaceBar", "duration": 0.2})[0].get("handled"))
 
     def level_instance():
@@ -198,6 +203,30 @@ def main():
 
     step("capture_screenshot (with UI)", presentation_shot)
     step("history_undo (HUD, vfx, mood)", lambda: call("history_undo", {"count": 3})[0].get("steps"))
+    # Phase 2 ops tools.
+    def atomic_batch():
+        payload, _ = call("ops_run_batch", {"atomic": True, "label": "pillars", "calls": [
+            {"tool": "actors.spawn_actor", "arguments": {"shape": "cylinder", "name": f"pillar_{i}", "location": [i * 150, -800, 100], "scale": [0.5, 0.5, 2]}}
+            for i in range(5)]})
+        call("history_undo")
+        return f"{payload['completed']} calls, one undo"
+
+    step("ops_run_batch (atomic) + undo", atomic_batch)
+    step("profiling_frame_timing", lambda: {k: call("profiling_frame_timing", {"seconds": 1})[0][k] for k in ("fps", "p95_ms", "hitches")})
+    step("profiling_memory_report", lambda: call("profiling_memory_report", {"top_classes": 3})[0]["used_physical_mb"])
+
+    def in_game_tests():
+        call("ops_run_automation_test", {"filter": "RuntimeToolsets.Core.SchemaValidator"})
+        for _ in range(200):
+            status = call("ops_get_test_status")[0]
+            if not status["running"]:
+                if status["failed"]:
+                    raise RuntimeError(json.dumps(status["failures"]))
+                return f"{status['passed']}/{status['total']} passed"
+            time.sleep(0.1)
+        raise RuntimeError("test run did not finish")
+
+    step("ops_run_automation_test + get_test_status", in_game_tests)
     step("camera_reset_camera", lambda: call("camera_reset_camera")[0].get("view_target"))
     step("log_tail_log", lambda: len(call("log_tail_log", {"limit": 5})[0]["lines"]))
     step("scene_clear_all", lambda: call("scene_clear_all", {"confirm": True})[0].get("deleted"))

@@ -681,7 +681,7 @@ private:
 		{
 			return true;
 		}
-		const double Timeout = ActiveCall->Caller.TimeoutSeconds.Get(URuntimeToolsetsSettings::Get().DefaultTimeoutSeconds);
+		const double Timeout = ActiveInvocation->GetTimeoutOverride().Get(ActiveCall->Caller.TimeoutSeconds.Get(URuntimeToolsetsSettings::Get().DefaultTimeoutSeconds));
 		const bool bCancelled = ActiveCall->bCancelRequested;
 		const bool bTimedOut = FPlatformTime::Seconds() - ActiveCall->StartTime > Timeout;
 		if (bCancelled || bTimedOut)

@@ -1,0 +1,231 @@
+{
+	"description": "run_batch, wait_for_condition, wait, and in-process automation tests",
+	"name": "ops",
+	"tools": [
+		{
+			"description": "Run several tool calls in order in one request. atomic = all-or-nothing, one undo step.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"atomic":
+					{
+						"default": false,
+						"description": "Roll everything back if a call fails; one undo step on success",
+						"type": "boolean"
+					},
+					"calls":
+					{
+						"description": "[{tool, arguments}]",
+						"items":
+						{
+							"additionalProperties": false,
+							"properties":
+							{
+								"arguments":
+								{
+									"description": "Arguments",
+									"type": "object"
+								},
+								"tool":
+								{
+									"description": "Tool name",
+									"maxLength": 128,
+									"type": "string"
+								}
+							},
+							"required": [
+								"tool"
+							],
+							"type": "object"
+						},
+						"maxItems": 100,
+						"type": "array"
+					},
+					"label":
+					{
+						"description": "History label for atomic batches",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"stop_on_error":
+					{
+						"default": true,
+						"description": "Stop at the first failure (always true when atomic)",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"calls"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ops.run_batch",
+			"undoable": true
+		},
+		{
+			"description": "Poll a tool until a field of its result meets a condition (or time out).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"arguments":
+					{
+						"description": "Arguments for the polled tool",
+						"type": "object"
+					},
+					"interval_s":
+					{
+						"default": 0.25,
+						"description": "Seconds between polls",
+						"maximum": 10,
+						"minimum": 0.01,
+						"type": "number"
+					},
+					"op":
+					{
+						"default": "truthy",
+						"description": "Comparison",
+						"enum": [
+							"truthy",
+							"exists",
+							"not_exists",
+							"equals",
+							"not_equals",
+							"gt",
+							"gte",
+							"lt",
+							"lte",
+							"contains"
+						],
+						"type": "string"
+					},
+					"path":
+					{
+						"description": "Field in the result, e.g. location[2] or level.visible (empty = whole result)",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"timeout_s":
+					{
+						"default": 10,
+						"description": "Give up after",
+						"maximum": 300,
+						"minimum": 0.050000000000000003,
+						"type": "number"
+					},
+					"tool":
+					{
+						"description": "Tool to poll, e.g. scene.get_node",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Value to compare with"
+					}
+				},
+				"required": [
+					"tool"
+				],
+				"type": "object"
+			},
+			"name": "ops.wait_for_condition"
+		},
+		{
+			"async": true,
+			"description": "Let the game run for a number of seconds (real time).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"seconds":
+					{
+						"description": "Seconds",
+						"maximum": 120,
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"required": [
+					"seconds"
+				],
+				"type": "object"
+			},
+			"name": "ops.wait"
+		},
+		{
+			"description": "Automation tests available in this build (filter by path prefix).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"description": "Path prefix, e.g. RuntimeToolsets.",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ops.list_tests"
+		},
+		{
+			"description": "Start automation tests in-process (also in packaged builds). Poll get_test_status.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"description": "Path prefix, e.g. RuntimeToolsets.Toolsets.Actors",
+						"maxLength": 256,
+						"type": "string"
+					}
+				},
+				"required": [
+					"filter"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ops.run_automation_test",
+			"undoable": false
+		},
+		{
+			"description": "Progress and failures of the current/last test run.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_failures":
+					{
+						"default": 20,
+						"description": "Failures to include",
+						"maximum": 200,
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ops.get_test_status"
+		}
+	],
+	"version": "1.0.0"
+}

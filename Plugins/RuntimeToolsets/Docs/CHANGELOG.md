@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-10-21
+
+Phase 2, ops tools. This completes Phase 2.
+
+- **New module:** `RuntimeToolsetsOps`.
+- **New toolsets:**
+  - `profiling` 1.0.0 (6 tools): frame timing, hitches, memory, GPU, and Insights traces.
+  - `ops` 1.0.0 (6 tools): `run_batch` (optionally atomic), `wait_for_condition`, `wait`, and in-process automation tests.
+- **Core:**
+  - `FRuntimeTestRunner` moved into Core and now reports status.
+  - Added `FToolInvocation::SetTimeout`.
+  - `call_tool` allows long-running nested tools.
+- **Fixes:**
+  - The test runner reports only errors in failure details.
+  - Trace files are never overwritten.
+- **Tests:** 112 automation tests, passing in the editor and in the packaged Development build.
+- **Smoke test:** now covers waiting for a falling cube, an atomic batch with undo, frame timing, memory, and an in-game test run over MCP.
+
 ## 0.4.0 — 2026-10-21
 
 Phase 2, presentation tools.

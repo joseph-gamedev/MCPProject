@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.4.0",
+	"VersionName": "0.5.0",
 	"FriendlyName": "Runtime Toolsets",
 	"Description": "Runtime-safe toolsets (actors, reflection, console, log, capture, scene graph, undo) for AI agents. Plain-JSON API; transport is provided by a connector or the optional RuntimeToolsetsMCP adapter.",
 	"Category": "AI",
@@ -41,6 +41,12 @@
 		},
 		{
 			"Name": "RuntimeToolsetsContent",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+		},
+		{
+			"Name": "RuntimeToolsetsOps",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
 			"TargetConfigurationDenyList": [ "Shipping", "Test" ]

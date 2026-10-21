@@ -118,7 +118,7 @@ namespace
 		return W;
 	}
 
-	APlayerController* RequirePlayer(FToolInvocation& Inv)
+	APlayerController* RequireWidgetOwner(FToolInvocation& Inv)
 	{
 		APlayerController* PC = Inv.GetWorld()->GetFirstPlayerController();
 		if (!PC || !PC->IsLocalController() || !PC->GetLocalPlayer())
@@ -280,7 +280,7 @@ static void FindWidget(FToolInvocation& Inv)
 
 static void CreateProjectWidget(FToolInvocation& Inv)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	APlayerController* PC = RequireWidgetOwner(Inv);
 	if (!PC)
 	{
 		return;
@@ -314,7 +314,7 @@ static void CreateProjectWidget(FToolInvocation& Inv)
 
 static void CreateHudText(FToolInvocation& Inv)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	APlayerController* PC = RequireWidgetOwner(Inv);
 	if (!PC)
 	{
 		return;

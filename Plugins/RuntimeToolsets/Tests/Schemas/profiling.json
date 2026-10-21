@@ -1,0 +1,143 @@
+{
+	"description": "Frame timing, hitches, memory, GPU info, Insights traces",
+	"name": "profiling",
+	"tools": [
+		{
+			"async": true,
+			"description": "Sample frame times for a few seconds: avg, p50/p95/p99, max, fps, hitches.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hitch_ms":
+					{
+						"default": 50,
+						"description": "Frames at or above this count as hitches",
+						"minimum": 1,
+						"type": "number"
+					},
+					"seconds":
+					{
+						"default": 2,
+						"description": "Sample window",
+						"maximum": 60,
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "profiling.frame_timing"
+		},
+		{
+			"async": true,
+			"description": "Sample frames and list the worst hitches with their time offsets.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hitch_ms":
+					{
+						"default": 50,
+						"description": "Threshold ms",
+						"minimum": 1,
+						"type": "number"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"seconds":
+					{
+						"default": 5,
+						"description": "Sample window",
+						"maximum": 60,
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "profiling.find_hitches"
+		},
+		{
+			"description": "Process memory, UObject count and the most common object classes.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"top_classes":
+					{
+						"default": 10,
+						"description": "How many classes to list (0 = skip)",
+						"maximum": 100,
+						"minimum": 0,
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "profiling.memory_report"
+		},
+		{
+			"description": "RHI, GPU adapter, GPU frame time, viewport size, screen percentage, vsync.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "profiling.gpu_stats"
+		},
+		{
+			"description": "Start an Unreal Insights trace to a file in the Profiling folder.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"channels":
+					{
+						"default": "default",
+						"description": "Trace channels, e.g. default,memory or cpu,gpu,frame",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"file":
+					{
+						"description": "File name (default: timestamped)",
+						"maxLength": 128,
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "profiling.start_trace",
+			"undoable": false
+		},
+		{
+			"description": "Stop the running trace; returns the .utrace path.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "profiling.stop_trace",
+			"undoable": false
+		}
+	],
+	"version": "1.0.0"
+}

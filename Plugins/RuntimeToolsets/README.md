@@ -23,12 +23,20 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `ui` | list_widgets, list_widget_tree, find_widget, create_widget, create_hud_text, remove_widget, set_text, set_widget_visibility, set_brush, click_button |
 | `vfx` | spawn_system, list_user_parameters, set_user_variable, activate, deactivate, list_active |
 | `lighting` | get_environment, set_sun, set_sky, set_fog, set_post_process, set_time_of_day, apply_mood |
+| `profiling` | frame_timing, find_hitches, memory_report, gpu_stats, start_trace, stop_trace |
+| `ops` | run_batch, wait_for_condition, wait, list_tests, run_automation_test, get_test_status |
 | `game` | get_game_state, list_players, teleport, set_pause, set_time_dilation |
 | `physics` | line_trace, overlap_test, get_physics, set_simulate, add_impulse, ragdoll |
 | `level` | list_levels, load_level_instance, unload_level, set_level_visibility, set_data_layer, open_level |
 | `input` | inject_key, inject_action, add_mapping_context, remove_mapping_context |
 
 `game`, `physics`, `level` and `input` live in `RuntimeToolsetsGameplay` (needs the EnhancedInput plugin). `load_level_instance` waits asynchronously until the level is visible (or pass `blocking:true`). `open_level` needs `confirm:true` because it destroys the world and all undo history. `inject_key` reports `handled:false` when nothing in the game consumed the key.
+
+`profiling` and `ops` live in `RuntimeToolsetsOps`.
+- **`ops.run_batch`** runs up to 100 calls in one request. With `atomic:true` it is all-or-nothing: it rolls back on the first failure, and one undo reverts a successful batch.
+- **`ops.wait_for_condition`** polls any tool until a field of its result matches, e.g. `{"tool":"scene.get_node","arguments":{"target":"n5"},"path":"location[2]","op":"lt","value":60}`.
+- **`ops.run_automation_test`** starts tests in the running game. Poll `ops.get_test_status` for results.
+- **`profiling.start_trace`** writes Unreal Insights traces to the `Saved/Profiling` folder and never overwrites existing files.
 
 `ui`, `vfx` and `lighting` are also in `RuntimeToolsetsPresentation` (needs UMG and the Niagara plugin). Widgets are addressed as `widget:Name` or by the path `ui.find_widget` returns; `create_hud_text` needs no widget asset. VFX nodes cannot be duplicated or exported yet (their source spec is `vfx:<system>`). `apply_mood` changes sun angle/temperature, fog and global grading in one undo step; it leaves light intensities alone.
 

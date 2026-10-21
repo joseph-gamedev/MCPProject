@@ -125,6 +125,8 @@ static void CallTool(FToolInvocation& Inv)
 	{
 		// Nested tool is async: wait for it.
 		Inv.SetCancelHandler(MoveTemp(Cancel));
+		// The nested tool enforces its own timeout (waits, long samples); allow it the room.
+		Inv.SetTimeout(600.0);
 		Inv.Defer();
 	}
 }
