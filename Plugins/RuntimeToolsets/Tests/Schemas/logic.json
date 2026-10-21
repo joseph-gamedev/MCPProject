@@ -1,7 +1,443 @@
 {
-	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/start -> if -> actions), HUD text and buttons, cursor mode, start/restart",
+	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer player, moving objects, start/restart",
 	"name": "logic",
 	"tools": [
+		{
+			"description": "Animate nodes smoothly: move/rotate/scale/color with easing, delay, yoyo/loop, and hide/show/release at the end.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"add":
+					{
+						"description": "Run alongside other tweens on the node instead of replacing them",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "End base color [r,g,b] (builder materials)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"delay":
+					{
+						"description": "Seconds before starting",
+						"maximum": 600,
+						"minimum": 0,
+						"type": "number"
+					},
+					"duration":
+					{
+						"default": 0.29999999999999999,
+						"description": "Seconds per cycle",
+						"maximum": 600,
+						"minimum": 0.001,
+						"type": "number"
+					},
+					"ease":
+					{
+						"default": "out_quad",
+						"description": "Easing curve",
+						"enum": [
+							"linear",
+							"in_quad",
+							"out_quad",
+							"in_out_quad",
+							"in_cubic",
+							"out_cubic",
+							"in_out_cubic",
+							"in_sine",
+							"out_sine",
+							"in_out_sine",
+							"in_back",
+							"out_back",
+							"in_out_back",
+							"out_elastic",
+							"in_bounce",
+							"out_bounce"
+						],
+						"type": "string"
+					},
+					"emit":
+					{
+						"description": "Custom event fired at the end (rules on:event)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "Absolute end location",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"loop":
+					{
+						"default": "once",
+						"description": "once, yoyo (there and back), loop (restart), pingpong (forever)",
+						"enum": [
+							"once",
+							"yoyo",
+							"loop",
+							"pingpong"
+						],
+						"type": "string"
+					},
+					"move":
+					{
+						"description": "Relative offset",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"repeat":
+					{
+						"description": "Cycles for yoyo/loop (-1 = forever for loop)",
+						"maximum": 10000,
+						"minimum": -1,
+						"type": "number"
+					},
+					"rotate":
+					{
+						"description": "Relative rotation (can exceed 360)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "Absolute end rotation",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "End scale: number or [x,y,z]"
+					},
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					},
+					"then":
+					{
+						"description": "At the end",
+						"enum": [
+							"none",
+							"hide",
+							"show",
+							"release"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"name": "logic.tween"
+		},
+		{
+			"description": "Actor pool: pre-made hidden copies of a template node that rules spawn/release instead of creating objects.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Pool name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"size":
+					{
+						"default": 8,
+						"description": "Copies",
+						"maximum": 500,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"template":
+					{
+						"description": "Node to copy (it gets hidden)",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"template"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_pool",
+			"undoable": true
+		},
+		{
+			"description": "Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"air_control":
+					{
+						"description": "0-1 (default 0.85)",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
+					},
+					"body":
+					{
+						"description": "Optional model node (feet at z=0, facing +X); default: a hero",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"camera_distance":
+					{
+						"description": "cm (default 1700)",
+						"maximum": 20000,
+						"minimum": 100,
+						"type": "number"
+					},
+					"camera_height":
+					{
+						"description": "cm above the player (default 250)",
+						"maximum": 5000,
+						"minimum": -5000,
+						"type": "number"
+					},
+					"camera_lead":
+					{
+						"description": "cm ahead in the facing direction (default 200)",
+						"maximum": 5000,
+						"minimum": 0,
+						"type": "number"
+					},
+					"camera_pitch":
+					{
+						"description": "degrees (default -6)",
+						"maximum": 89,
+						"minimum": -89,
+						"type": "number"
+					},
+					"fov":
+					{
+						"description": "Field of view (default 55)",
+						"maximum": 120,
+						"minimum": 10,
+						"type": "number"
+					},
+					"gravity":
+					{
+						"description": "Gravity scale (default 2.8)",
+						"maximum": 10,
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"height":
+					{
+						"description": "Height cm",
+						"maximum": 600,
+						"minimum": 40,
+						"type": "number"
+					},
+					"jump":
+					{
+						"description": "Jump velocity cm/s (default 1250)",
+						"maximum": 10000,
+						"minimum": 100,
+						"type": "number"
+					},
+					"jump_hold":
+					{
+						"description": "Seconds holding jump adds height (default 0.22)",
+						"maximum": 2,
+						"minimum": 0,
+						"type": "number"
+					},
+					"kill_z":
+					{
+						"description": "Falling below this fires 'fall' (default start z - 1500)",
+						"type": "number"
+					},
+					"location":
+					{
+						"description": "Start point (feet) [x,0,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"radius":
+					{
+						"description": "Collision radius cm",
+						"maximum": 300,
+						"minimum": 10,
+						"type": "number"
+					},
+					"speed":
+					{
+						"description": "Run speed cm/s (default 650)",
+						"maximum": 5000,
+						"minimum": 50,
+						"type": "number"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.spawn_player",
+			"undoable": true
+		},
+		{
+			"description": "Remove the playable character and give the view back.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.remove_player",
+			"undoable": true
+		},
+		{
+			"description": "Make nodes move while the game runs: patrol back and forth, follow a path, bob, and/or spin. Reset on restart.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"motion":
+					{
+						"description": "{type: patrol|path|bob|none, axis:[1,0,0], distance, speed, points:[[dx,dy,dz]..], loop, amplitude, period, spin:[p,y,r] deg/s, face, offset}",
+						"type": "object"
+					},
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets",
+					"motion"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_motion",
+			"undoable": true
+		},
+		{
+			"description": "Stop moving these nodes.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.clear_motion",
+			"undoable": true
+		},
+		{
+			"description": "Whether nodes block the player (pickups and enemies: false; they still fire touch).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"solid":
+					{
+						"description": "Blocks movement",
+						"type": "boolean"
+					},
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 500,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets",
+					"solid"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_solid",
+			"undoable": true
+		},
 		{
 			"description": "READ FIRST: how to turn a scene into a playable game with variables, rules, UI and start/restart.",
 			"input_schema":
@@ -310,7 +746,7 @@
 				{
 					"data":
 					{
-						"description": "event data",
+						"description": "event data; touch: {from_above, from_below}",
 						"type": "object"
 					},
 					"key":
@@ -334,13 +770,15 @@
 							"key",
 							"button",
 							"timer",
-							"event"
+							"event",
+							"touch",
+							"fall"
 						],
 						"type": "string"
 					},
 					"target":
 					{
-						"description": "click: the node clicked",
+						"description": "click/touch: the node",
 						"maxLength": 1024,
 						"type": "string"
 					}
@@ -427,5 +865,5 @@
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "1.1.0"
 }

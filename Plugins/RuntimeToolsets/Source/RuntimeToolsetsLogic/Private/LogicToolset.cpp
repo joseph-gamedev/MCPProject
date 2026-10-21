@@ -4,6 +4,7 @@
 #include "RuntimeObjectResolver.h"
 #include "RuntimeSceneGraph.h"
 #include "RuntimeToolHelpers.h"
+#include "RuntimeJson.h"
 
 using namespace RuntimeTools;
 
@@ -39,6 +40,33 @@ MAKE A PLAYABLE GAME WITHOUT CODE. The game runs by itself once started; you onl
 8. logic.start. Test it yourself: logic.fire_event {on:"click", target:"cell_4"} / {on:"button", name:"restart"} /
    {on:"key", key:"R"}, logic.step {seconds} for timers, logic.get_state for vars + event log + errors.
    Fix rules until a full game (win, draw, restart) works, then tell the user how to play.
+PLATFORMERS / ACTION GAMES:
+   logic.spawn_player {location:[x,0,z] (feet), speed, jump, body:"<node>" (optional: your own character model, feet at
+   z=0, facing +X; default: a cap-and-overalls hero), kill_z}. Side view: the level runs along +X in the plane Y=0, the
+   camera follows from +Y (put background scenery at negative Y). Controls: A/D or arrows to run, Shift to sprint,
+   Space/W/Up to jump (hold for higher), gamepad works too. Do not use camera tools while a player exists.
+   Touch: on:"touch", target:"tag:coin" fires when the player first overlaps it; event.data.from_above (stomp),
+   event.data.from_below (head bump), event.data.side. on:"fall" fires below kill_z (without a fall rule: respawn).
+   logic.set_solid {targets:["tag:coin","tag:enemy"], solid:false} so pickups and enemies don't block the player.
+   logic.set_motion {targets:["tag:goomba"], motion:{type:"patrol", axis:[1,0,0], distance:500, speed:120, face:true}}
+      types: patrol | path {points:[[0,0,0],[0,0,300]], loop} | bob {amplitude, period}; any: spin:[0,180,0] deg/s, offset.
+   Actions: {"hide":"event.target"} / {"show":...} (restored on restart), {"player":"bounce","value":"900"},
+   {"player":"respawn"}, {"player":"checkpoint"}, {"player":"freeze"}, {"player":"launch","value":"[0,0,1500]"}.
+   Expressions: player.x / player.z / player.grounded / player.velocity.
+   Typical rules: coin touch -> hide + coins+1; enemy touch from_above -> hide enemy + bounce + score; enemy touch
+   otherwise -> lives-1 + respawn (lives==0 -> freeze + game over text); fall -> same as hit; flag touch -> win + freeze;
+   checkpoint touch -> {"player":"checkpoint"}; key R or button -> restart (keep high score).
+TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
+   fields: location|move (relative), rotation|rotate (relative), scale (number or [x,y,z]), color [r,g,b], duration, delay,
+   ease (linear in_quad out_quad in_out_quad in_cubic out_cubic in_out_cubic in_sine out_sine in_out_sine in_back out_back
+   in_out_back out_elastic in_bounce out_bounce), loop (once|yoyo|loop|pingpong), repeat, then (hide|show|release),
+   emit (event name when done), add (stack with other tweens). Values may be "=expr". Also the logic.tween tool (any time).
+   Examples: stomp squash {"tween":"event.target","scale":[1.4,1.4,0.2],"duration":0.25,"ease":"out_back","then":"hide"};
+   coin collect {"tween":"event.target","move":[0,0,150],"scale":0.2,"duration":0.3,"then":"hide"};
+   block bump {"tween":"event.target","move":[0,0,30],"duration":0.08,"loop":"yoyo"}.
+POOLS (reuse objects instead of creating them): logic.define_pool {name:"pop", template:"<node>", size:8} hides the
+   template and pre-makes copies. Action {"spawn":"pop","at":"[x,y,z] expr","as":"p"} shows a free copy there (p.id);
+   {"release":"p.id"} or tween then:"release" returns it. Restart returns all. Use for coins from blocks, bullets, effects.
 Computer opponent: on var_changed turn (filter:"turn", condition:"turn == 'O'"), start a short timer, then pick
    winning_move(board,lines,'O','') or block winning_move(board,lines,'X','') or 4 or pick(indices(board,'')).
 )GUIDE");
@@ -367,7 +395,27 @@ static void FireEvent(FToolInvocation& Inv)
 	}
 	const FString On = Inv.GetString(TEXT("on"));
 	FLogicEvent E;
-	if (On == TEXT("click") || On == TEXT("right_click"))
+	if (On == TEXT("touch"))
+	{
+		FResolvedTarget T;
+		if (!Inv.ResolveTarget(TEXT("target"), T))
+		{
+			return;
+		}
+		const TSharedPtr<FJsonObject> D = Inv.GetObject(TEXT("data"));
+		bool bAbove = false, bBelow = false;
+		if (D.IsValid())
+		{
+			D->TryGetBoolField(TEXT("from_above"), bAbove);
+			D->TryGetBoolField(TEXT("from_below"), bBelow);
+		}
+		if (!T.Node || !L.MakeTouchEvent(T.Node->Id, bAbove, bBelow, E))
+		{
+			Inv.Fail(ERuntimeToolError::NotFound, TEXT("touch target is not a scene node"));
+			return;
+		}
+	}
+	else if (On == TEXT("click") || On == TEXT("right_click"))
 	{
 		FResolvedTarget T;
 		if (!Inv.ResolveTarget(TEXT("target"), T))
@@ -435,8 +483,282 @@ static void Import(FToolInvocation& Inv)
 	}
 }
 
+
+static TSharedPtr<FJsonObject> PlayerDefFromArgs(FToolInvocation& Inv)
+{
+	TSharedRef<FJsonObject> Def = Obj();
+	for (const TCHAR* F : {TEXT("location"), TEXT("radius"), TEXT("height"), TEXT("speed"), TEXT("jump"), TEXT("jump_hold"), TEXT("gravity"),
+			 TEXT("air_control"), TEXT("body"), TEXT("camera_distance"), TEXT("camera_height"), TEXT("camera_lead"), TEXT("camera_pitch"), TEXT("fov"),
+			 TEXT("kill_z")})
+	{
+		if (Inv.Has(F))
+		{
+			Def->SetField(F, Inv.GetValue(F));
+		}
+	}
+	return Def;
+}
+
+static void TweenTool(FToolInvocation& Inv)
+{
+	FLogicWorld& L = *Logic(Inv);
+	TArray<FString> Ids;
+	FString Err;
+	if (!L.ResolveNodes(Inv.GetStringArray(TEXT("targets")), Ids, Err))
+	{
+		Inv.Fail(ERuntimeToolError::NotFound, Err);
+		return;
+	}
+	TSharedRef<FJsonObject> Spec = RuntimeJson::Parse(RuntimeJson::Write(Inv.GetArgs())).ToSharedRef();
+	Spec->RemoveField(TEXT("targets"));
+	for (const FString& Id : Ids)
+	{
+		if (!L.StartTween(Id, Spec, Err))
+		{
+			Inv.Fail(ERuntimeToolError::InvalidArguments, Err);
+			return;
+		}
+	}
+	TSharedRef<FJsonObject> Out = Obj();
+	Out->SetNumberField(TEXT("nodes"), Ids.Num());
+	Out->SetNumberField(TEXT("active_tweens"), L.NumTweens());
+	Inv.Succeed(Out);
+}
+
+static void DefinePool(FToolInvocation& Inv)
+{
+	FResolvedTarget T;
+	if (!Inv.ResolveTarget(TEXT("template"), T))
+	{
+		return;
+	}
+	if (!T.Node)
+	{
+		Inv.Fail(ERuntimeToolError::NotFound, TEXT("template is not a scene node"));
+		return;
+	}
+	const FString Name = Inv.GetString(TEXT("name"));
+	const FString TemplateId = T.Node->Id;
+	const int32 Size = static_cast<int32>(Inv.GetInt(TEXT("size"), 8));
+	if (EditDefinitions(Inv, TEXT("define pool"), [&](FLogicWorld& L, FString& Err)
+	{
+		TSharedRef<FJsonObject> Def = Obj();
+		Def->SetStringField(TEXT("template"), TemplateId);
+		Def->SetNumberField(TEXT("size"), Size);
+		L.Pools.Add(Name, Def);
+		return L.EnsurePool(Name, Err);
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetStringField(TEXT("pool"), Name);
+		Out->SetNumberField(TEXT("free"), Logic(Inv)->PoolFree(Name));
+		Inv.Succeed(Out);
+	}
+}
+
+static void SpawnPlayerTool(FToolInvocation& Inv)
+{
+	const TSharedPtr<FJsonObject> Def = PlayerDefFromArgs(Inv);
+	if (EditDefinitions(Inv, TEXT("spawn player"), [&](FLogicWorld& L, FString& Err)
+	{
+		L.PlayerDef = Def;
+		return L.SpawnPlayer(Err);
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Logic(Inv)->PlayerJson();
+		Out->SetStringField(TEXT("controls"), TEXT("A/D or arrows: run, Shift: sprint, Space/W/Up: jump (hold = higher)"));
+		Inv.Succeed(Out);
+	}
+}
+
+static void RemovePlayerTool(FToolInvocation& Inv)
+{
+	if (EditDefinitions(Inv, TEXT("remove player"), [&](FLogicWorld& L, FString&)
+	{
+		L.PlayerDef = nullptr;
+		L.RemovePlayer();
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void SetMotion(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = Inv.GetStringArray(TEXT("targets"));
+	const TSharedPtr<FJsonObject> Motion = Inv.GetObject(TEXT("motion"));
+	TArray<FString> Ids;
+	if (EditDefinitions(Inv, TEXT("set motion"), [&](FLogicWorld& L, FString& Err)
+	{
+		FString Type = TEXT("none");
+		Motion->TryGetStringField(TEXT("type"), Type);
+		if (Type != TEXT("patrol") && Type != TEXT("path") && Type != TEXT("bob") && Type != TEXT("none"))
+		{
+			Err = TEXT("motion type must be patrol, path, bob or none (spin works with any)");
+			return false;
+		}
+		if (!L.ResolveNodes(Targets, Ids, Err))
+		{
+			return false;
+		}
+		FRuntimeSceneGraph* Graph = Inv.GetGraph();
+		for (const FString& Id : Ids)
+		{
+			const FRuntimeSceneNode* N = Graph ? Graph->Find(Id) : nullptr;
+			AActor* A = N ? N->Actor.Get() : nullptr;
+			if (!A)
+			{
+				continue;
+			}
+			// Keep the original start pose when a motion is redefined.
+			TSharedRef<FJsonObject> M = RuntimeJson::Parse(RuntimeJson::Write(Motion.ToSharedRef())).ToSharedRef();
+			const TSharedPtr<FJsonObject>* Old = nullptr;
+			if (const TSharedPtr<FJsonObject>* Prev = L.Motions.Find(Id))
+			{
+				M->SetField(TEXT("origin"), (*Prev)->TryGetField(TEXT("origin")));
+				M->SetField(TEXT("origin_rot"), (*Prev)->TryGetField(TEXT("origin_rot")));
+			}
+			else
+			{
+				M->SetField(TEXT("origin"), RuntimeJson::Vec(A->GetActorLocation()));
+				M->SetField(TEXT("origin_rot"), RuntimeJson::Rot(A->GetActorRotation()));
+			}
+			L.Motions.Add(Id, M);
+		}
+		return true;
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetNumberField(TEXT("nodes"), Ids.Num());
+		Inv.Succeed(Out);
+	}
+}
+
+static void ClearMotion(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = Inv.GetStringArray(TEXT("targets"));
+	if (EditDefinitions(Inv, TEXT("clear motion"), [&](FLogicWorld& L, FString& Err)
+	{
+		TArray<FString> Ids;
+		if (!L.ResolveNodes(Targets, Ids, Err))
+		{
+			return false;
+		}
+		for (const FString& Id : Ids)
+		{
+			L.Motions.Remove(Id);
+		}
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void SetSolid(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = Inv.GetStringArray(TEXT("targets"));
+	const bool bSolid = Inv.GetBool(TEXT("solid"));
+	int32 Count = 0;
+	if (EditDefinitions(Inv, TEXT("set solid"), [&](FLogicWorld& L, FString& Err)
+	{
+		TArray<FString> Ids;
+		if (!L.ResolveNodes(Targets, Ids, Err))
+		{
+			return false;
+		}
+		for (const FString& Id : Ids)
+		{
+			L.Solid.Add(Id, bSolid);
+		}
+		Count = Ids.Num();
+		L.ApplySolid();
+		return true;
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetNumberField(TEXT("nodes"), Count);
+		Out->SetBoolField(TEXT("solid"), bSolid);
+		Inv.Succeed(Out);
+	}
+}
+
 void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 {
+	B.Tool(TEXT("tween"), TEXT("Animate nodes smoothly: move/rotate/scale/color with easing, delay, yoyo/loop, and hide/show/release at the end."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 500).Required())
+			.Add(TEXT("location"), FToolParam::Vec3(TEXT("Absolute end location")))
+			.Add(TEXT("move"), FToolParam::Vec3(TEXT("Relative offset")))
+			.Add(TEXT("rotation"), FToolParam::Rotator(TEXT("Absolute end rotation")))
+			.Add(TEXT("rotate"), FToolParam::Rotator(TEXT("Relative rotation (can exceed 360)")))
+			.Add(TEXT("scale"), FToolParam::Any(TEXT("End scale: number or [x,y,z]")))
+			.Add(TEXT("color"), FToolParam::Vec3(TEXT("End base color [r,g,b] (builder materials)")))
+			.Add(TEXT("duration"), FToolParam::Number(TEXT("Seconds per cycle"), 0.001, 600.0).Default(0.3))
+			.Add(TEXT("delay"), FToolParam::Number(TEXT("Seconds before starting"), 0.0, 600.0))
+			.Add(TEXT("ease"), FToolParam::Enum(TEXT("Easing curve"), FLogicWorld::EaseNames()).Default(TEXT("out_quad")))
+			.Add(TEXT("loop"), FToolParam::Enum(TEXT("once, yoyo (there and back), loop (restart), pingpong (forever)"), {TEXT("once"), TEXT("yoyo"), TEXT("loop"), TEXT("pingpong")}).Default(TEXT("once")))
+			.Add(TEXT("repeat"), FToolParam::Number(TEXT("Cycles for yoyo/loop (-1 = forever for loop)"), -1.0, 10000.0))
+			.Add(TEXT("then"), FToolParam::Enum(TEXT("At the end"), {TEXT("none"), TEXT("hide"), TEXT("show"), TEXT("release")}))
+			.Add(TEXT("emit"), FToolParam::String(TEXT("Custom event fired at the end (rules on:event)"), 128))
+			.Add(TEXT("add"), FToolParam::Boolean(TEXT("Run alongside other tweens on the node instead of replacing them"))))
+		.RequiresWorld()
+		.Handle(&TweenTool);
+
+	B.Tool(TEXT("define_pool"), TEXT("Actor pool: pre-made hidden copies of a template node that rules spawn/release instead of creating objects."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Pool name"), 64).Required())
+			.Add(TEXT("template"), FToolParam::Target(TEXT("Node to copy (it gets hidden)")).Required())
+			.Add(TEXT("size"), FToolParam::Integer(TEXT("Copies"), 1, 500).Default(8)))
+		.Undoable().RequiresWorld()
+		.Handle(&DefinePool);
+
+	B.Tool(TEXT("spawn_player"), TEXT("Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y."))
+		.Args(FToolSchema()
+			.Add(TEXT("location"), FToolParam::Vec3(TEXT("Start point (feet) [x,0,z]")).Required())
+			.Add(TEXT("body"), FToolParam::Target(TEXT("Optional model node (feet at z=0, facing +X); default: a hero")))
+			.Add(TEXT("radius"), FToolParam::Number(TEXT("Collision radius cm"), 10.0, 300.0))
+			.Add(TEXT("height"), FToolParam::Number(TEXT("Height cm"), 40.0, 600.0))
+			.Add(TEXT("speed"), FToolParam::Number(TEXT("Run speed cm/s (default 650)"), 50.0, 5000.0))
+			.Add(TEXT("jump"), FToolParam::Number(TEXT("Jump velocity cm/s (default 1250)"), 100.0, 10000.0))
+			.Add(TEXT("jump_hold"), FToolParam::Number(TEXT("Seconds holding jump adds height (default 0.22)"), 0.0, 2.0))
+			.Add(TEXT("gravity"), FToolParam::Number(TEXT("Gravity scale (default 2.8)"), 0.1, 10.0))
+			.Add(TEXT("air_control"), FToolParam::Number(TEXT("0-1 (default 0.85)"), 0.0, 1.0))
+			.Add(TEXT("camera_distance"), FToolParam::Number(TEXT("cm (default 1700)"), 100.0, 20000.0))
+			.Add(TEXT("camera_height"), FToolParam::Number(TEXT("cm above the player (default 250)"), -5000.0, 5000.0))
+			.Add(TEXT("camera_lead"), FToolParam::Number(TEXT("cm ahead in the facing direction (default 200)"), 0.0, 5000.0))
+			.Add(TEXT("camera_pitch"), FToolParam::Number(TEXT("degrees (default -6)"), -89.0, 89.0))
+			.Add(TEXT("fov"), FToolParam::Number(TEXT("Field of view (default 55)"), 10.0, 120.0))
+			.Add(TEXT("kill_z"), FToolParam::Number(TEXT("Falling below this fires 'fall' (default start z - 1500)"))))
+		.Undoable().RequiresWorld()
+		.Handle(&SpawnPlayerTool);
+
+	B.Tool(TEXT("remove_player"), TEXT("Remove the playable character and give the view back."))
+		.Args(FToolSchema())
+		.Undoable().RequiresWorld()
+		.Handle(&RemovePlayerTool);
+
+	B.Tool(TEXT("set_motion"), TEXT("Make nodes move while the game runs: patrol back and forth, follow a path, bob, and/or spin. Reset on restart."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 500).Required())
+			.Add(TEXT("motion"), FToolParam::Object(TEXT("{type: patrol|path|bob|none, axis:[1,0,0], distance, speed, points:[[dx,dy,dz]..], loop, amplitude, period, spin:[p,y,r] deg/s, face, offset}")).Required()))
+		.Undoable().RequiresWorld()
+		.Handle(&SetMotion);
+
+	B.Tool(TEXT("clear_motion"), TEXT("Stop moving these nodes."))
+		.Args(FToolSchema().Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 500).Required()))
+		.Undoable().RequiresWorld()
+		.Handle(&ClearMotion);
+
+	B.Tool(TEXT("set_solid"), TEXT("Whether nodes block the player (pickups and enemies: false; they still fire touch)."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 500).Required())
+			.Add(TEXT("solid"), FToolParam::Boolean(TEXT("Blocks movement")).Required()))
+		.Undoable().RequiresWorld()
+		.Handle(&SetSolid);
+
+
 	B.Tool(TEXT("get_guide"), TEXT("READ FIRST: how to turn a scene into a playable game with variables, rules, UI and start/restart."))
 		.Args(FToolSchema())
 		.Handle(&GetGuide);
@@ -514,11 +836,11 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 
 	B.Tool(TEXT("fire_event"), TEXT("Simulate player input to test the game: a click on a node, a key, a button press or a custom event."))
 		.Args(FToolSchema()
-			.Add(TEXT("on"), FToolParam::Enum(TEXT("Event"), {TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"), TEXT("event")}).Required())
-			.Add(TEXT("target"), FToolParam::Target(TEXT("click: the node clicked")))
+			.Add(TEXT("on"), FToolParam::Enum(TEXT("Event"), {TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"), TEXT("event"), TEXT("touch"), TEXT("fall")}).Required())
+			.Add(TEXT("target"), FToolParam::Target(TEXT("click/touch: the node")))
 			.Add(TEXT("key"), FToolParam::String(TEXT("key: key name"), 64))
 			.Add(TEXT("name"), FToolParam::String(TEXT("button/timer/event name"), 128))
-			.Add(TEXT("data"), FToolParam::Object(TEXT("event data"))))
+			.Add(TEXT("data"), FToolParam::Object(TEXT("event data; touch: {from_above, from_below}"))))
 		.RequiresWorld()
 		.Handle(&FireEvent);
 

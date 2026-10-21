@@ -98,6 +98,26 @@ Turns a scene into a playable game with no code. The game runs inside the engine
 
 ![tic-tac-toe](Docs/images/tictactoe_win.jpg)
 
+**Platformers** (`spawn_player`, `set_motion`, `set_solid`, `touch`/`fall` events):
+- **The hero:** a playable side-scrolling character with a follow camera. A/D or arrows to run, Shift to sprint, Space to jump (hold for higher), and gamepad support. The default hero has a walk cycle, a jump pose, squash and stretch, and blinks while invulnerable after a hit.
+- **Touch events** say how the player hit something: from above (stomp), from below (head bump) or from the side.
+- **Moving objects:** patrol, path, bob, spin and waddle.
+- **Actions:** `hide`/`show` (restored on restart), and `player` respawn/bounce/checkpoint/freeze/launch.
+
+**Tweens** (`logic.tween` tool and `tween` action):
+- Move, rotate, scale and colour.
+- 16 easing curves; once, yoyo, loop or pingpong; delay and repeat.
+- At the end: hide, show or release, and/or emit an event.
+
+**Actor pools** (`define_pool`, with `spawn`/`release` actions): pre-made hidden copies, recycled instead of created. Used for coins popping out of blocks and stomp effects.
+
+**Example:** `Scripts/examples/platformer.py` is a one-level platformer built only from tool calls:
+- ground with pits, brick and question blocks, pipes, a moving platform, spikes, stairs and a castle;
+- spinning coins, waddling enemies to stomp, a checkpoint and a flagpole;
+- lives, score, time, best score, and Game Over / Course Clear screens with restart.
+
+![platformer](Docs/images/platformer_run.jpg)
+
 ## Using it from C++ (connector API)
 
 ```cpp

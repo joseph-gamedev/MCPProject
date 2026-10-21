@@ -6,6 +6,11 @@
 #include "LogicExpr.h"
 
 class SWidget;
+class ACameraActor;
+class ACharacter;
+class APawn;
+class APlayerController;
+struct FRuntimeSceneNode;
 class UWorld;
 class UGameViewportClient;
 
@@ -13,8 +18,8 @@ class UGameViewportClient;
 struct FLogicRule
 {
 	FString Name;
-	FString On;        // start, click, right_click, key, button, timer, var_changed, event, tick
-	FString Target;    // click: node id / name / path or "tag:<tag>" (matches the clicked node or an ancestor)
+	FString On;        // start, click, right_click, key, button, timer, var_changed, event, tick, touch, fall
+	FString Target;    // click/touch: node id / name / path or "tag:<tag>"
 	FString Key;       // key: key name ("R", "SpaceBar", "One")
 	FString Filter;    // button / timer / var_changed / event: its name
 	FString Condition; // optional expression
@@ -64,6 +69,14 @@ public:
 	TMap<FString, FLogicValue> NodeData;
 	FString InputMode = TEXT("game");
 	bool bLockCamera = false;
+	/** Platformer player (spawn_player args); null when there is none. */
+	TSharedPtr<FJsonObject> PlayerDef;
+	/** Node id -> motion {type, axis, distance, speed, points, loop, spin, amplitude, period, face, origin, origin_rot}. */
+	TMap<FString, TSharedPtr<FJsonObject>> Motions;
+	/** Node id -> blocks movement. */
+	TMap<FString, bool> Solid;
+	/** Pool name -> {template: node id, size}. */
+	TMap<FString, TSharedPtr<FJsonObject>> Pools;
 
 	TSharedRef<FJsonObject> ExportDefinitions() const;
 	bool ImportDefinitions(const TSharedPtr<FJsonObject>& Json, FString& OutError);
@@ -89,6 +102,33 @@ public:
 	/** Click event for an actor (the node that owns it), as the input poller builds it. */
 	bool MakeClickEvent(AActor* Actor, const FVector& Location, bool bRight, FLogicEvent& Out) const;
 	bool MakeClickEventForNode(const FString& NodeId, bool bRight, FLogicEvent& Out) const;
+
+	// ---- play: player, touch, motion
+	bool SpawnPlayer(FString& OutError);
+	void RemovePlayer();
+	void RespawnPlayer();
+	bool HasPlayer() const;
+	ACharacter* GetPlayer() const;
+	void ApplySolid();
+	bool HideNode(const FString& Id, bool bHide);
+	/** Resolves "n12", "a/b", a node name or "tag:x" (all nodes with that tag). */
+	bool ResolveNodes(const TArray<FString>& Targets, TArray<FString>& OutIds, FString& OutError) const;
+	bool MakeTouchEvent(const FString& NodeId, bool bFromAbove, bool bFromBelow, FLogicEvent& Out) const;
+	TSharedRef<FJsonObject> PlayerJson() const;
+
+	// ---- tweens and pools
+	static const TArray<FString>& EaseNames();
+	static double Ease(const FString& Name, double T);
+	static bool ValidateTween(const TSharedPtr<FJsonObject>& Spec, FString& OutError);
+	bool StartTween(const FString& NodeId, const TSharedPtr<FJsonObject>& Spec, FString& OutError);
+	void TickTweens(double Dt);
+	bool HasTweens() const { return Tweens.Num() > 0; }
+	int32 NumTweens() const { return Tweens.Num(); }
+	bool IsTweening(const FString& NodeId) const;
+	bool EnsurePool(const FString& Name, FString& OutError);
+	FString AcquireFromPool(const FString& Name, const FVector& At, FString& OutError);
+	void ReleaseToPool(const FString& NodeId);
+	int32 PoolFree(const FString& Name) const;
 
 	// ---- UI overlay
 	void RefreshUi();
@@ -127,6 +167,44 @@ private:
 	void ClearPlayObjects();
 	void AddLog(const FLogicEvent& Event, const TArray<FString>& RulesRun, const TArray<FString>& Errors);
 	FLogicValue FindNodeData(const FString& NodeId) const;
+	void TickPlay(double Dt);
+	void TickPlayerInput(APlayerController* PC);
+	void TickMotion();
+	void TickTouch();
+	void TickCamera(double Dt, bool bSnap);
+	bool IsHidden(const FString& NodeId) const;
+	static bool DirectMatch(const FRuntimeSceneNode& Node, const FString& Target, const class FRuntimeSceneGraph& Graph);
+	void ResetPlay();
+	struct FTween
+	{
+		FString NodeId;
+		TSharedPtr<FJsonObject> Spec;
+		double Duration = 0.3;
+		double Delay = 0.0;
+		double Elapsed = 0.0;
+		FString EaseName = TEXT("out_quad");
+		int32 Cycles = 1; // -1 forever
+		bool bYoyo = false;
+		bool bForward = true;
+		bool bStarted = false;
+		FString Then;
+		FString Emit;
+		bool bLoc = false, bRot = false, bScale = false, bColor = false;
+		FVector FromLoc = FVector::ZeroVector, ToLoc = FVector::ZeroVector, FromScale = FVector::OneVector, ToScale = FVector::OneVector;
+		FRotator FromRot = FRotator::ZeroRotator, ToRot = FRotator::ZeroRotator;
+		FLinearColor FromColor = FLinearColor::White, ToColor = FLinearColor::White;
+	};
+	void ActivateTween(FTween& T, AActor* A);
+	void ApplyTween(const FTween& T, AActor* A, double Alpha);
+	void ResetTweens();
+	void ResetPools();
+	void TickPlayerAnim(double Dt);
+	struct FLimb
+	{
+		TWeakObjectPtr<AActor> Actor;
+		int32 Kind = 0; // 0 left leg, 1 right leg, 2 left arm, 3 right arm
+		double Pitch = 0.0;
+	};
 
 	TWeakObjectPtr<UWorld> World;
 	bool bRunning = false;
@@ -141,6 +219,38 @@ private:
 	int64 EventCount = 0;
 	FRandomStream Random;
 	double Time = 0.0;
+
+	TWeakObjectPtr<ACharacter> Player;
+	TWeakObjectPtr<AActor> PlayerBody;
+	FString PlayerBodyNode;
+	TArray<FString> PlayerBodyNodes;
+	TArray<FLimb> Limbs;
+	double AnimPhase = 0.0;
+	double Squash = 0.0;
+	double Invulnerable = 0.0;
+	/** Player feet height on the previous frame (stomp detection). */
+	double PrevFeetZ = TNumericLimits<double>::Max();
+	bool bWasGrounded = true;
+	TArray<FTween> Tweens;
+	TMap<FString, FTransform> TweenOrigins;
+	TMap<FString, TArray<FString>> PoolMembers;
+	TMap<FString, FString> PoolOf;
+	TSet<FString> PoolBusy;
+	TArray<FString> PoolOrder;
+	bool bOwnBody = false;
+	TWeakObjectPtr<ACameraActor> PlayerCamera;
+	TWeakObjectPtr<APawn> PreviousPawn;
+	FVector SpawnPoint = FVector::ZeroVector;
+	FVector Checkpoint = FVector::ZeroVector;
+	FVector CamPos = FVector::ZeroVector;
+	double PlayTime = 0.0;
+	float Facing = 1.f;
+	bool bFrozen = false;
+	bool bFell = false;
+	TSet<FString> Touching;
+	/** Node id -> play time it was last touched (no re-touch within 0.35 s, e.g. a bumped block bouncing back). */
+	TMap<FString, double> LastTouch;
+	TSet<FString> Hidden;
 
 	TSharedPtr<SWidget> Overlay;
 	TWeakObjectPtr<UGameViewportClient> OverlayViewport;

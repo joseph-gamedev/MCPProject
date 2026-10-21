@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0 — 2026-10-21
+
+- **Platformer support in `logic`:**
+  - `spawn_player`: a side-scroll character with run/sprint/variable-height jump, a follow camera, and procedural walk/jump/squash animation;
+  - `touch` (from above, from below or from the side) and `fall` events;
+  - `set_motion`: patrol, path, bob, spin, waddle;
+  - `set_solid`;
+  - `hide`/`show`/`player` actions and a `player` expression variable;
+  - invulnerability after a hit, and a re-touch cooldown.
+- **Tweens:** the `logic.tween` tool and `tween` action, with 16 easings, yoyo/loop/pingpong, delay, repeat, then hide/show/release, an end event, and colour tweens.
+- **Actor pools:** `logic.define_pool` with `spawn`/`release` actions; when full, the oldest copy is recycled.
+- **`restart` can keep variables** (`"keep":[...]`).
+- **Fixes:**
+  - touch direction is now readable as `event.data.from_above` (stomps and head bumps never fired before);
+  - stomp detection uses the previous frame's feet height;
+  - motion blur is off project-wide.
+- **`Scripts/examples/platformer.py`.**
+- **Tests:** 137 automation tests.
+
 ## 0.8.0 — 2026-10-21
 
 - **New `logic` toolset** (module `RuntimeToolsetsLogic`): 17 tools to make a scene playable without code.

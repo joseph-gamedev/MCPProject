@@ -131,6 +131,101 @@ void FLogicToolsetSpec::Define()
 		TestEqual(TEXT("reset"), static_cast<int32>(V->GetNumberField(TEXT("round"))), 1);
 	});
 
+	It("runs a platformer: player, touch pickups and enemies, motion, hide/show reset on restart", [this]()
+	{
+		const FString Coin = H->CallOk(TEXT("build.create_primitive"), TEXT(R"({"shape":"cylinder","size":[60,60,12],"location":[0,0,60],"name":"coin_a","tags":["coin"]})"))->GetStringField(TEXT("id"));
+		const FString Enemy = H->CallOk(TEXT("build.create_primitive"), TEXT(R"({"shape":"box","size":[80,80,80],"location":[1000,0,0],"name":"goomba","tags":["enemy"]})"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.set_solid"), TEXT(R"({"targets":["tag:coin","tag:enemy"],"solid":false})"));
+		H->CallOk(TEXT("logic.set_motion"), TEXT(R"({"targets":["tag:enemy"],"motion":{"type":"patrol","axis":[1,0,0],"distance":400,"speed":100}})"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"({"vars":{"coins":0,"lives":3,"stomps":0}})"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[
+			{"name":"coin","on":"touch","target":"tag:coin","actions":[{"hide":"event.target"},{"set":"coins","value":"coins + 1"}]},
+			{"name":"stomp","on":"touch","target":"tag:enemy","condition":"event.data.from_above","actions":[{"hide":"event.target"},{"set":"stomps","value":"stomps + 1"},{"player":"bounce","value":"900"}]},
+			{"name":"hit","on":"touch","target":"tag:enemy","condition":"!event.data.from_above","actions":[{"set":"lives","value":"lives - 1"},{"player":"respawn"}]},
+			{"name":"fell","on":"fall","actions":[{"set":"lives","value":"lives - 1"}]}
+		]})J"));
+		const TSharedRef<FJsonObject> P = H->CallOk(TEXT("logic.spawn_player"), TEXT(R"({"location":[0,0,0]})"));
+		TestTrue(TEXT("player exists"), P->GetBoolField(TEXT("exists")));
+		H->CallOk(TEXT("logic.start"));
+		// The player stands on the coin: stepping detects the overlap geometrically.
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.1})"));
+		TSharedPtr<FJsonObject> V = Vars();
+		TestEqual(TEXT("coin collected by overlap"), static_cast<int32>(V->GetNumberField(TEXT("coins"))), 1);
+		AActor* CoinActor = H->GetGraph()->Find(Coin)->Actor.Get();
+		TestTrue(TEXT("coin hidden"), CoinActor->IsHidden());
+		// Enemy patrols.
+		const FVector Before = H->GetGraph()->Find(Enemy)->Actor->GetActorLocation();
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":2})"));
+		const FVector After = H->GetGraph()->Find(Enemy)->Actor->GetActorLocation();
+		TestTrue(TEXT("enemy moved ~200"), FMath::IsNearlyEqual(After.X - Before.X, 200.0, 15.0));
+		// Side hit vs stomp.
+		H->CallOk(TEXT("logic.fire_event"), FString::Printf(TEXT(R"({"on":"touch","target":"%s","data":{"from_above":false}})"), *Enemy));
+		TestEqual(TEXT("side hit costs a life"), static_cast<int32>(Vars()->GetNumberField(TEXT("lives"))), 2);
+		H->CallOk(TEXT("logic.fire_event"), FString::Printf(TEXT(R"({"on":"touch","target":"%s","data":{"from_above":true}})"), *Enemy));
+		TestEqual(TEXT("stomped"), static_cast<int32>(Vars()->GetNumberField(TEXT("stomps"))), 1);
+		TestTrue(TEXT("enemy hidden"), H->GetGraph()->Find(Enemy)->Actor->IsHidden());
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"({"on":"fall"})"));
+		TestEqual(TEXT("fall rule"), static_cast<int32>(Vars()->GetNumberField(TEXT("lives"))), 1);
+		// Restart: everything back.
+		H->CallOk(TEXT("logic.start"));
+		TestFalse(TEXT("coin back"), CoinActor->IsHidden());
+		TestFalse(TEXT("enemy back"), H->GetGraph()->Find(Enemy)->Actor->IsHidden());
+		TestTrue(TEXT("enemy at its start"), H->GetGraph()->Find(Enemy)->Actor->GetActorLocation().Equals(FVector(1000, 0, 0), 1.0));
+		TestEqual(TEXT("lives reset"), static_cast<int32>(Vars()->GetNumberField(TEXT("lives"))), 3);
+		// Bad inputs.
+		H->CallFails(TEXT("logic.set_motion"), TEXT(R"({"targets":["tag:nothing"],"motion":{"type":"patrol"}})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_motion"), TEXT(R"({"targets":["tag:coin"],"motion":{"type":"teleport"}})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_rules"), TEXT(R"({"rules":[{"name":"x","on":"touch","actions":[{"player":"fly"}]}]})"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("history.undo")); // last good edit: spawn_player... undo chain still consistent
+		H->CallOk(TEXT("logic.remove_player"));
+	});
+
+	It("tweens with easing, yoyo, then-actions and end events", [this]()
+	{
+		const FString Box = H->SpawnCube();
+		AActor* A = H->GetGraph()->Find(Box)->Actor.Get();
+		const FVector Start = A->GetActorLocation();
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"({"vars":{"done":0}})"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"({"rules":[{"name":"d","on":"event","filter":"moved","actions":[{"set":"done","value":"done + 1"}]}]})"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"move":[0,0,100],"duration":1,"ease":"linear","emit":"moved"})"), *Box));
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.5})"));
+		TestTrue(TEXT("halfway"), FMath::IsNearlyEqual(A->GetActorLocation().Z - Start.Z, 50.0, 2.0));
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.6})"));
+		TestTrue(TEXT("arrived"), FMath::IsNearlyEqual(A->GetActorLocation().Z - Start.Z, 100.0, 0.5));
+		TestEqual(TEXT("end event"), static_cast<int32>(Vars()->GetNumberField(TEXT("done"))), 1);
+		H->CallOk(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"move":[0,0,40],"duration":0.25,"loop":"yoyo"})"), *Box));
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.6})"));
+		TestTrue(TEXT("yoyo returns"), FMath::IsNearlyEqual(A->GetActorLocation().Z - Start.Z, 100.0, 0.5));
+		H->CallOk(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"scale":0.1,"duration":0.2,"then":"hide"})"), *Box));
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.3})"));
+		TestTrue(TEXT("hidden at the end"), A->IsHidden());
+		H->CallFails(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"duration":1})"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("logic.start"));
+		TestFalse(TEXT("restart restores"), A->IsHidden());
+		TestTrue(TEXT("restart puts it back"), A->GetActorLocation().Equals(Start, 0.5));
+	});
+
+	It("pools objects: spawn reuses hidden copies and release returns them", [this]()
+	{
+		const FString Tpl = H->CallOk(TEXT("build.create_primitive"), TEXT(R"({"shape":"sphere","size":[40,40,40],"name":"pop_tpl"})"))->GetStringField(TEXT("id"));
+		const TSharedRef<FJsonObject> P = H->CallOk(TEXT("logic.define_pool"), FString::Printf(TEXT(R"({"name":"pop","template":"%s","size":2})"), *Tpl));
+		TestEqual(TEXT("2 free"), static_cast<int32>(P->GetNumberField(TEXT("free"))), 2);
+		TestTrue(TEXT("template hidden"), H->GetGraph()->Find(Tpl)->Actor->IsHidden());
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[{"name":"pop","on":"button","filter":"pop","actions":[
+			{"spawn":"pop","at":"[0, 0, 300]","as":"p"},
+			{"tween":"p.id","move":[0,0,100],"duration":0.3,"then":"release"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"({"on":"button","name":"pop"})"));
+		TestEqual(TEXT("one in use"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("pools_free"))->GetNumberField(TEXT("pop"))), 1);
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"({"on":"button","name":"pop"})"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"({"on":"button","name":"pop"})")); // recycles the oldest
+		TestEqual(TEXT("all in use"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("pools_free"))->GetNumberField(TEXT("pop"))), 0);
+		H->CallOk(TEXT("logic.step"), TEXT(R"({"seconds":0.5})"));
+		TestEqual(TEXT("released after the tween"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("pools_free"))->GetNumberField(TEXT("pop"))), 2);
+		H->CallFails(TEXT("logic.define_rules"), TEXT(R"({"rules":[{"name":"x","on":"start","actions":[{"spawn":"pop"}]}]})"), ERuntimeToolError::InvalidArguments);
+	});
+
 	It("detects a draw", [this]()
 	{
 		BuildTicTacToe();

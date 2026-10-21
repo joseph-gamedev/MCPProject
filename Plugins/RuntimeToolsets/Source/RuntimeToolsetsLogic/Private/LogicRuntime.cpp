@@ -8,6 +8,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -22,14 +25,14 @@ namespace
 	const TArray<FString>& EventNames()
 	{
 		static const TArray<FString> Names = {TEXT("start"), TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"),
-			TEXT("var_changed"), TEXT("event"), TEXT("tick")};
+			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall")};
 		return Names;
 	}
 
 	const TArray<FString>& ActionNames()
 	{
 		static const TArray<FString> Names = {TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
-			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop")};
+			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release")};
 		return Names;
 	}
 
@@ -192,6 +195,44 @@ namespace
 				}
 				if (!CheckActions(*Sub, At + TEXT(" do"), OutError))
 				{
+					return false;
+				}
+			}
+			if (Kind == TEXT("hide") || Kind == TEXT("show"))
+			{
+				FString Expr;
+				if (!(*A)->TryGetStringField(Kind, Expr) || !CheckExpr(Expr, At + TEXT(" ") + Kind, OutError))
+				{
+					OutError = OutError.IsEmpty() ? At + FString::Printf(TEXT(": '%s' needs an expression giving a node id, e.g. \"event.target\""), *Kind) : OutError;
+					return false;
+				}
+			}
+			if (Kind == TEXT("tween"))
+			{
+				FString Expr;
+				if (!(*A)->TryGetStringField(TEXT("tween"), Expr) || !CheckExpr(Expr, At + TEXT(" tween"), OutError))
+				{
+					OutError = OutError.IsEmpty() ? At + TEXT(": 'tween' needs an expression giving node id(s), e.g. \"event.target\"") : OutError;
+					return false;
+				}
+				FString Err;
+				if (!FLogicWorld::ValidateTween(*A, Err))
+				{
+					OutError = At + TEXT(": ") + Err;
+					return false;
+				}
+			}
+			if (Kind == TEXT("spawn") && !(*A)->HasField(TEXT("at")))
+			{
+				OutError = At + TEXT(": 'spawn' needs \"at\" (an expression giving [x,y,z]) and optionally \"as\"");
+				return false;
+			}
+			if (Kind == TEXT("player"))
+			{
+				static const TArray<FString> Ops = {TEXT("respawn"), TEXT("bounce"), TEXT("freeze"), TEXT("unfreeze"), TEXT("checkpoint"), TEXT("launch")};
+				if (!Ops.Contains(ReadString(*A, TEXT("player"))))
+				{
+					OutError = At + TEXT(": 'player' must be one of ") + FString::Join(Ops, TEXT(", "));
 					return false;
 				}
 			}
@@ -396,6 +437,28 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 	J->SetObjectField(TEXT("node_data"), D);
 	J->SetStringField(TEXT("input_mode"), InputMode);
 	J->SetBoolField(TEXT("lock_camera"), bLockCamera);
+	if (PlayerDef.IsValid())
+	{
+		J->SetObjectField(TEXT("player"), PlayerDef);
+	}
+	TSharedRef<FJsonObject> Mo = MakeShared<FJsonObject>();
+	for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Motions)
+	{
+		Mo->SetObjectField(P.Key, P.Value);
+	}
+	J->SetObjectField(TEXT("motions"), Mo);
+	TSharedRef<FJsonObject> So = MakeShared<FJsonObject>();
+	for (const TPair<FString, bool>& P : Solid)
+	{
+		So->SetBoolField(P.Key, P.Value);
+	}
+	J->SetObjectField(TEXT("solid"), So);
+	TSharedRef<FJsonObject> Po = MakeShared<FJsonObject>();
+	for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Pools)
+	{
+		Po->SetObjectField(P.Key, P.Value);
+	}
+	J->SetObjectField(TEXT("pools"), Po);
 	return J;
 }
 
@@ -472,6 +535,68 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 		InputMode = Mode;
 	}
 	J->TryGetBoolField(TEXT("lock_camera"), bLockCamera);
+	Motions.Reset();
+	const TSharedPtr<FJsonObject>* Mo = nullptr;
+	if (J->TryGetObjectField(TEXT("motions"), Mo))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*Mo)->Values)
+		{
+			if (P.Value->Type == EJson::Object)
+			{
+				Motions.Add(P.Key, P.Value->AsObject());
+			}
+		}
+	}
+	Pools.Reset();
+	const TSharedPtr<FJsonObject>* Po = nullptr;
+	if (J->TryGetObjectField(TEXT("pools"), Po))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*Po)->Values)
+		{
+			if (P.Value->Type == EJson::Object)
+			{
+				Pools.Add(P.Key, P.Value->AsObject());
+			}
+		}
+	}
+	TMap<FString, bool> NewSolid;
+	const TSharedPtr<FJsonObject>* So = nullptr;
+	if (J->TryGetObjectField(TEXT("solid"), So))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*So)->Values)
+		{
+			NewSolid.Add(P.Key, P.Value->AsBool());
+		}
+	}
+	// Objects no longer listed get their collision back.
+	TMap<FString, bool> Restore;
+	for (const TPair<FString, bool>& P : Solid)
+	{
+		if (!NewSolid.Contains(P.Key))
+		{
+			Restore.Add(P.Key, true);
+		}
+	}
+	Solid = Restore;
+	ApplySolid();
+	Solid = NewSolid;
+	ApplySolid();
+	const TSharedPtr<FJsonObject>* Pl = nullptr;
+	const bool bHadPlayer = PlayerDef.IsValid();
+	const FString OldDef = bHadPlayer ? RuntimeJson::Write(PlayerDef.ToSharedRef()) : FString();
+	PlayerDef = J->TryGetObjectField(TEXT("player"), Pl) ? *Pl : nullptr;
+	if (PlayerDef.IsValid())
+	{
+		if (!Player.IsValid() || OldDef != RuntimeJson::Write(PlayerDef.ToSharedRef()))
+		{
+			FString Err;
+			SpawnPlayer(Err);
+		}
+	}
+	else if (bHadPlayer)
+	{
+		RemovePlayer();
+	}
 	RefreshUi();
 	return true;
 }
@@ -493,6 +618,18 @@ FLogicScope FLogicWorld::MakeScope(FFrame& Frame)
 		if (const FLogicValue* V = Vars.Find(Name))
 		{
 			return V;
+		}
+		if (Name == TEXT("player"))
+		{
+			FLogicValue P = FLogicValue::FromJson(MakeShared<FJsonValueObject>(PlayerJson()));
+			if (const FLogicValue* L = P.M->Find(TEXT("location")); L && L->Type == FLogicValue::EType::List && L->L->Num() == 3)
+			{
+				P.M->Add(TEXT("x"), (*L->L)[0]);
+				P.M->Add(TEXT("y"), (*L->L)[1]);
+				P.M->Add(TEXT("z"), (*L->L)[2]);
+			}
+			Frame.Locals.Add(TEXT("player"), P);
+			return Frame.Locals.Find(TEXT("player"));
 		}
 		if (Name == TEXT("time"))
 		{
@@ -536,6 +673,7 @@ void FLogicWorld::Start()
 	Time = 0.0;
 	bRunning = true;
 	ApplyInputMode();
+	ResetPlay();
 	RefreshUi();
 	FLogicEvent E;
 	E.On = TEXT("start");
@@ -658,6 +796,16 @@ bool FLogicWorld::Matches(const FLogicRule& Rule, const FLogicEvent& E) const
 	if (E.On == TEXT("click") || E.On == TEXT("right_click"))
 	{
 		return Rule.Target.IsEmpty() || NodeMatches(E.Target, Rule.Target);
+	}
+	if (E.On == TEXT("touch"))
+	{
+		FRuntimeSceneGraph* Graph = World.IsValid() ? IRuntimeToolsetsCore::Get().GetSceneGraph(World.Get()) : nullptr;
+		const FRuntimeSceneNode* N = Graph ? Graph->Find(E.Target) : nullptr;
+		return Rule.Target.IsEmpty() || (N && DirectMatch(*N, Rule.Target, *Graph));
+	}
+	if (E.On == TEXT("fall"))
+	{
+		return true;
 	}
 	if (E.On == TEXT("key"))
 	{
@@ -1122,6 +1270,175 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 		}
 		return true;
 	}
+	if (A->TryGetStringField(TEXT("hide"), Name) || A->TryGetStringField(TEXT("show"), Name))
+	{
+		const bool bHide = A->HasField(TEXT("hide"));
+		FLogicScope Scope = MakeScope(Frame);
+		const FLogicValue V = LogicExpr::Evaluate(Name, Scope);
+		if (!Scope.Error.IsEmpty())
+		{
+			OutError = Scope.Error;
+			return false;
+		}
+		TArray<FString> Targets;
+		if (V.Type == FLogicValue::EType::List)
+		{
+			for (const FLogicValue& X : *V.L)
+			{
+				Targets.Add(X.ToText());
+			}
+		}
+		else
+		{
+			Targets.Add(V.ToText());
+		}
+		TArray<FString> Ids;
+		if (!ResolveNodes(Targets, Ids, OutError))
+		{
+			return false;
+		}
+		for (const FString& Id : Ids)
+		{
+			HideNode(Id, bHide);
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("tween"), Name))
+	{
+		FLogicScope Scope = MakeScope(Frame);
+		const FLogicValue V = LogicExpr::Evaluate(Name, Scope);
+		if (!Scope.Error.IsEmpty())
+		{
+			OutError = Scope.Error;
+			return false;
+		}
+		TArray<FString> Targets;
+		if (V.Type == FLogicValue::EType::List)
+		{
+			for (const FLogicValue& X : *V.L)
+			{
+				Targets.Add(X.Type == FLogicValue::EType::Map && X.M->Contains(TEXT("id")) ? X.M->FindRef(TEXT("id")).ToText() : X.ToText());
+			}
+		}
+		else
+		{
+			Targets.Add(V.Type == FLogicValue::EType::Map && V.M->Contains(TEXT("id")) ? V.M->FindRef(TEXT("id")).ToText() : V.ToText());
+		}
+		TArray<FString> Ids;
+		if (!ResolveNodes(Targets, Ids, OutError))
+		{
+			return false;
+		}
+		// Expression-valued fields ("=expr") are evaluated now.
+		const TSharedPtr<FJsonValue> Spec = Template(MakeShared<FJsonValueObject>(A), Frame, OutError);
+		if (!OutError.IsEmpty())
+		{
+			return false;
+		}
+		for (const FString& Id : Ids)
+		{
+			if (!StartTween(Id, Spec->AsObject(), OutError))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("spawn"), Name))
+	{
+		FLogicValue At;
+		if (!EvalField(A, TEXT("at"), Frame, At, OutError))
+		{
+			return false;
+		}
+		FVector L;
+		if (!RuntimeJson::ToVector(At.ToJson(), L))
+		{
+			OutError = TEXT("spawn: 'at' must be [x,y,z]");
+			return false;
+		}
+		const FString Id = AcquireFromPool(Name, L, OutError);
+		if (Id.IsEmpty())
+		{
+			return false;
+		}
+		FString As;
+		if (A->TryGetStringField(TEXT("as"), As))
+		{
+			FLogicValue M = FLogicValue::MakeMap();
+			M.M->Add(TEXT("id"), FLogicValue::MakeString(Id));
+			Frame.Locals.Add(As, M);
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("release"), Name))
+	{
+		FLogicScope Scope = MakeScope(Frame);
+		const FLogicValue V = LogicExpr::Evaluate(Name, Scope);
+		if (!Scope.Error.IsEmpty())
+		{
+			OutError = Scope.Error;
+			return false;
+		}
+		ReleaseToPool(V.Type == FLogicValue::EType::Map && V.M->Contains(TEXT("id")) ? V.M->FindRef(TEXT("id")).ToText() : V.ToText());
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("player"), Name))
+	{
+		ACharacter* C = GetPlayer();
+		if (!C)
+		{
+			OutError = TEXT("there is no player (logic.spawn_player)");
+			return false;
+		}
+		if (Name == TEXT("respawn"))
+		{
+			RespawnPlayer();
+		}
+		else if (Name == TEXT("freeze") || Name == TEXT("unfreeze"))
+		{
+			bFrozen = Name == TEXT("freeze");
+			if (bFrozen)
+			{
+				C->GetCharacterMovement()->StopMovementImmediately();
+			}
+		}
+		else if (Name == TEXT("bounce"))
+		{
+			FLogicValue V = FLogicValue::MakeNumber(900.0);
+			if (A->HasField(TEXT("value")) && !EvalField(A, TEXT("value"), Frame, V, OutError))
+			{
+				return false;
+			}
+			C->LaunchCharacter(FVector(0, 0, V.N), false, true);
+		}
+		else if (Name == TEXT("launch") || Name == TEXT("checkpoint"))
+		{
+			FVector L = C->GetActorLocation() - FVector(0, 0, C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+			if (A->HasField(TEXT("value")) || Name == TEXT("launch"))
+			{
+				FLogicValue V;
+				if (!EvalField(A, TEXT("value"), Frame, V, OutError))
+				{
+					return false;
+				}
+				if (!RuntimeJson::ToVector(V.ToJson(), L))
+				{
+					OutError = Name + TEXT(" value must be [x,y,z]");
+					return false;
+				}
+			}
+			if (Name == TEXT("launch"))
+			{
+				C->LaunchCharacter(L, true, true);
+			}
+			else
+			{
+				Checkpoint = L;
+			}
+		}
+		return true;
+	}
 	if (A->HasField(TEXT("restart")))
 	{
 		KeepOnRestart.Reset();
@@ -1183,6 +1500,7 @@ void FLogicWorld::Step(double Seconds)
 		E.Name = Name;
 		Queue.Add(MoveTemp(E));
 	}
+	TickPlay(Seconds);
 	if (Rules.ContainsByPredicate([](const FLogicRule& R) { return R.bEnabled && R.On == TEXT("tick"); }))
 	{
 		FLogicEvent E;
@@ -1252,6 +1570,7 @@ void FLogicWorld::PollInput()
 	{
 		return;
 	}
+	TickPlayerInput(PC);
 	for (const bool bRight : {false, true})
 	{
 		const TCHAR* On = bRight ? TEXT("right_click") : TEXT("click");
@@ -1295,7 +1614,7 @@ void FLogicWorld::ApplyInputMode()
 {
 	UWorld* W = World.Get();
 	APlayerController* PC = W ? W->GetFirstPlayerController() : nullptr;
-	if (!PC)
+	if (!PC || (Player.IsValid() && PC->GetPawn() == Player.Get()))
 	{
 		return;
 	}
@@ -1375,6 +1694,23 @@ TSharedRef<FJsonObject> FLogicWorld::GetState(int32 LogLimit) const
 	J->SetArrayField(TEXT("ui"), U);
 	J->SetNumberField(TEXT("play_objects"), PlayNodes.Num());
 	J->SetStringField(TEXT("input_mode"), InputMode);
+	if (PlayerDef.IsValid())
+	{
+		J->SetObjectField(TEXT("player"), PlayerJson());
+	}
+	TArray<TSharedPtr<FJsonValue>> HiddenList;
+	for (const FString& Id : Hidden)
+	{
+		HiddenList.Add(MakeShared<FJsonValueString>(Id));
+	}
+	J->SetArrayField(TEXT("hidden"), HiddenList);
+	J->SetNumberField(TEXT("tweens"), Tweens.Num());
+	TSharedRef<FJsonObject> PoolState = MakeShared<FJsonObject>();
+	for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Pools)
+	{
+		PoolState->SetNumberField(P.Key, PoolFree(P.Key));
+	}
+	J->SetObjectField(TEXT("pools_free"), PoolState);
 	TArray<TSharedPtr<FJsonValue>> L;
 	for (int32 i = FMath::Max(0, Log.Num() - LogLimit); i < Log.Num(); ++i)
 	{
@@ -1565,12 +1901,34 @@ bool FLogicManager::Tick(float DeltaTime)
 			continue;
 		}
 		TSharedPtr<FLogicWorld> L = It->Value;
-		if (!L->IsRunning() || !W->IsGameWorld())
+		if (!W->IsGameWorld())
 		{
+			continue;
+		}
+		if (!L->IsRunning())
+		{
+			if (L->HasTweens())
+			{
+				L->TickTweens(DeltaTime);
+			}
 			continue;
 		}
 		L->PollInput();
 		L->Step(W->IsPaused() ? 0.0 : DeltaTime);
 	}
 	return true;
+}
+
+int32 FLogicWorld::PoolFree(const FString& Name) const
+{
+	const TArray<FString>* Members = PoolMembers.Find(Name);
+	int32 Free = 0;
+	if (Members)
+	{
+		for (const FString& Id : *Members)
+		{
+			Free += PoolBusy.Contains(Id) ? 0 : 1;
+		}
+	}
+	return Free;
 }
