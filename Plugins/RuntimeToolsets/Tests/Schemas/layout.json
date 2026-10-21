@@ -1,9 +1,9 @@
 {
-	"description": "Align, distribute, snap, drop to ground, arrange and find free space",
+	"description": "Layout: arrange many objects at once by their bounds (children included): align, distribute, snap to a grid, drop to\nthe ground, rows / grids / circles, seeded jitter, and finding free space for something new.\nEvery tool that moves objects is one undo step; targets are node ids, node paths, actor:Name or object paths.\nWorkflow: create objects (build.*, actors.spawn_actor) -> arrange_in_row / arrange_in_grid / arrange_in_circle or\nalign_nodes / distribute_nodes -> drop_to_ground -> randomize_transform for a natural look. Use find_free_space before\nplacing something new in a crowded scene.",
 	"name": "layout",
 	"tools": [
 		{
-			"description": "Align bounds (min/center/max) on an axis to the selection, a target, or a value.",
+			"description": "Aligns the bounds (min, centre or max) of objects on one axis: to the selection's combined bounds, to another object's bounds, or to a coordinate. Undoable. Fails if targets is empty.\nReturns: {moved, nodes, aligned_to}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,47 +11,39 @@
 				{
 					"axis":
 					{
-						"default": "x",
-						"description": "Axis",
+						"default": "X",
+						"description": "Axis to align on.",
 						"enum": [
-							"x",
-							"y",
-							"z"
+							"X",
+							"Y",
+							"Z"
 						],
 						"type": "string"
 					},
 					"mode":
 					{
 						"default": "center",
-						"description": "Which bounds point",
-						"enum": [
-							"min",
-							"center",
-							"max"
-						],
+						"description": "Which bounds point to align: \"min\", \"center\" or \"max\".",
 						"type": "string"
 					},
 					"targets":
 					{
-						"description": "Targets (node ids, paths, actor:Name)",
+						"description": "Objects to align, e.g. [\"n3\",\"n4\",\"n5\"].",
 						"items":
 						{
-							"maxLength": 256,
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 							"type": "string"
 						},
-						"maxItems": 500,
 						"type": "array"
 					},
 					"to":
 					{
-						"description": "Align to this target's bounds",
-						"maxLength": 1024,
+						"description": "Align to this object's bounds instead of the selection. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"value":
 					{
-						"description": "Align to this coordinate",
-						"type": "number"
+						"description": "Align to this coordinate (a number in cm) instead, e.g. 0 for the floor. (Any JSON value)"
 					}
 				},
 				"required": [
@@ -61,257 +53,46 @@
 			},
 			"mutating": true,
 			"name": "layout.align_nodes",
-			"undoable": true
-		},
-		{
-			"description": "Space objects evenly between the first and last, or with a fixed gap.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"axis":
+					"returnValue":
 					{
-						"default": "x",
-						"description": "Axis",
-						"enum": [
-							"x",
-							"y",
-							"z"
-						],
-						"type": "string"
-					},
-					"gap":
-					{
-						"description": "Edge-to-edge gap cm (omit for even centres)",
-						"type": "number"
-					},
-					"targets":
-					{
-						"description": "Targets (node ids, paths, actor:Name)",
-						"items":
+						"description": "{moved, nodes, aligned_to}.",
+						"properties":
 						{
-							"maxLength": 256,
-							"type": "string"
+							"aligned_to":
+							{
+								"description": "The coordinate everything was aligned to (cm).",
+								"type": "number"
+							},
+							"moved":
+							{
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
 						},
-						"maxItems": 500,
-						"type": "array"
+						"title": "LayoutToolAlignResult",
+						"type": "object"
 					}
 				},
 				"required": [
-					"targets"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "layout.distribute_nodes",
 			"undoable": true
 		},
 		{
-			"description": "Snap locations (and optionally rotations) to a grid.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"rotation_step":
-					{
-						"default": 0,
-						"description": "Rotation snap degrees (0 = off)",
-						"maximum": 180,
-						"minimum": 0,
-						"type": "number"
-					},
-					"size":
-					{
-						"default": 100,
-						"description": "Grid size cm",
-						"minimum": 0.10000000000000001,
-						"type": "number"
-					},
-					"snap_z":
-					{
-						"default": false,
-						"description": "Also snap Z",
-						"type": "boolean"
-					},
-					"targets":
-					{
-						"description": "Targets (node ids, paths, actor:Name)",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "layout.snap_to_grid",
-			"undoable": true
-		},
-		{
-			"description": "Move objects down until their bounds rest on what is below.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"max_distance":
-					{
-						"default": 100000,
-						"description": "Trace length cm",
-						"minimum": 1,
-						"type": "number"
-					},
-					"offset":
-					{
-						"default": 0,
-						"description": "Extra height above ground cm",
-						"type": "number"
-					},
-					"targets":
-					{
-						"description": "Targets (node ids, paths, actor:Name)",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "layout.drop_to_ground",
-			"undoable": true
-		},
-		{
-			"description": "Line objects up edge to edge along a direction.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"direction":
-					{
-						"default": [
-							1,
-							0,
-							0
-						],
-						"description": "Row direction",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"gap":
-					{
-						"default": 50,
-						"description": "Gap cm",
-						"type": "number"
-					},
-					"start":
-					{
-						"description": "Centre of the first object (default: its current centre)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"targets":
-					{
-						"description": "Targets (node ids, paths, actor:Name)",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "layout.arrange_in_row",
-			"undoable": true
-		},
-		{
-			"description": "Place objects in a grid on the XY plane (cell = largest object + gap).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"columns":
-					{
-						"description": "Columns (default: square)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"gap":
-					{
-						"default": 50,
-						"description": "Gap cm",
-						"type": "number"
-					},
-					"origin":
-					{
-						"description": "Centre of the first cell",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"targets":
-					{
-						"description": "Targets (node ids, paths, actor:Name)",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "layout.arrange_in_grid",
-			"undoable": true
-		},
-		{
-			"description": "Place objects on a circle or arc around a centre.",
+			"description": "Places objects evenly on a horizontal circle or arc (heights unchanged). A full circle spaces N objects N ways; a partial arc includes both ends. Undoable. Fails if radius is negative or arc is outside 1-360.\nReturns: {moved, nodes}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -320,14 +101,12 @@
 					"arc":
 					{
 						"default": 360,
-						"description": "Arc degrees",
-						"maximum": 360,
-						"minimum": 1,
+						"description": "Degrees covered, e.g. 180 for a half circle.",
 						"type": "number"
 					},
 					"center":
 					{
-						"description": "Circle centre (default: selection centre)",
+						"description": "Circle centre [x,y,z] (default: the selection's centre). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -338,37 +117,35 @@
 					},
 					"facing":
 					{
-						"default": "keep",
-						"description": "Rotation",
+						"default": "Keep",
+						"description": "Rotation of the objects.",
 						"enum": [
-							"keep",
-							"center",
-							"outward"
+							"Keep",
+							"Center",
+							"Outward"
 						],
 						"type": "string"
 					},
 					"radius":
 					{
 						"default": 500,
-						"description": "Radius cm",
-						"minimum": 0,
+						"description": "Radius in cm.",
 						"type": "number"
 					},
 					"start_angle":
 					{
 						"default": 0,
-						"description": "Degrees",
+						"description": "Angle of the first object in degrees (0 = +X).",
 						"type": "number"
 					},
 					"targets":
 					{
-						"description": "Targets (node ids, paths, actor:Name)",
+						"description": "Objects in order around the circle.",
 						"items":
 						{
-							"maxLength": 256,
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 							"type": "string"
 						},
-						"maxItems": 500,
 						"type": "array"
 					}
 				},
@@ -379,18 +156,63 @@
 			},
 			"mutating": true,
 			"name": "layout.arrange_in_circle",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes}.",
+						"properties":
+						{
+							"moved":
+							{
+								"description": "Objects that actually moved (unchanged ones are skipped).",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "References of the moved objects (at most 50).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolMoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Add seeded random offset, yaw and uniform scale.",
+			"description": "Places objects in a grid on the XY plane, row by row in the given order; each cell is the largest object plus the gap. Undoable. Fails if columns is negative.\nReturns: {moved, nodes, columns, rows}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"location_jitter":
+					"columns":
 					{
-						"description": "Max offset per axis cm",
+						"default": 0,
+						"description": "Columns per row (0 = as square as possible).",
+						"type": "integer"
+					},
+					"gap":
+					{
+						"default": 50,
+						"description": "Gap between cells in cm.",
+						"type": "number"
+					},
+					"origin":
+					{
+						"description": "Centre of the first cell [x,y,z] (default: the first object's centre). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -399,39 +221,15 @@
 						"minItems": 3,
 						"type": "array"
 					},
-					"scale_jitter":
-					{
-						"default": 0,
-						"description": "Max scale change fraction",
-						"maximum": 0.94999999999999996,
-						"minimum": 0,
-						"type": "number"
-					},
-					"seed":
-					{
-						"default": 0,
-						"description": "Random seed",
-						"minimum": 0,
-						"type": "integer"
-					},
 					"targets":
 					{
-						"description": "Targets (node ids, paths, actor:Name)",
+						"description": "Objects in grid order.",
 						"items":
 						{
-							"maxLength": 256,
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 							"type": "string"
 						},
-						"maxItems": 500,
 						"type": "array"
-					},
-					"yaw_jitter":
-					{
-						"default": 0,
-						"description": "Max yaw change deg",
-						"maximum": 180,
-						"minimum": 0,
-						"type": "number"
 					}
 				},
 				"required": [
@@ -440,11 +238,294 @@
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "layout.randomize_transform",
+			"name": "layout.arrange_in_grid",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes, columns, rows}.",
+						"properties":
+						{
+							"columns":
+							{
+								"type": "integer"
+							},
+							"moved":
+							{
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"rows":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "LayoutToolGridResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Find the nearest spot where a box of a given size fits without overlaps.",
+			"description": "Lines objects up edge to edge along a direction, in the given order. Undoable. Fails if direction is zero.\nReturns: {moved, nodes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"direction":
+					{
+						"description": "Row direction, e.g. [0,1,0] (default [1,0,0]). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"gap":
+					{
+						"default": 50,
+						"description": "Gap between neighbours in cm.",
+						"type": "number"
+					},
+					"start":
+					{
+						"description": "Centre of the first object [x,y,z] (default: its current centre). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"targets":
+					{
+						"description": "Objects in row order.",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "layout.arrange_in_row",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes}.",
+						"properties":
+						{
+							"moved":
+							{
+								"description": "Objects that actually moved (unchanged ones are skipped).",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "References of the moved objects (at most 50).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolMoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Spaces objects along an axis: even centres between the first and the last, or a fixed edge-to-edge gap starting at the first. Objects are ordered by their position on the axis. Undoable. Fails with fewer than 2 targets.\nReturns: {moved, nodes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"axis":
+					{
+						"default": "X",
+						"description": "Axis to distribute along.",
+						"enum": [
+							"X",
+							"Y",
+							"Z"
+						],
+						"type": "string"
+					},
+					"gap":
+					{
+						"default": -1,
+						"description": "Edge-to-edge gap in cm, e.g. 50 (negative = even centres between the first and the last).",
+						"type": "number"
+					},
+					"targets":
+					{
+						"description": "Objects to distribute.",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "layout.distribute_nodes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes}.",
+						"properties":
+						{
+							"moved":
+							{
+								"description": "Objects that actually moved (unchanged ones are skipped).",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "References of the moved objects (at most 50).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolMoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Moves objects down (or up) until the bottom of their bounds rests on what is below their centre (Epic: snap_to_ground). Targets ignore each other. Undoable. Fails if max_distance is not positive.\nReturns: {moved, nodes, no_ground} (no_ground: targets with nothing below them).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_distance":
+					{
+						"default": 100000,
+						"description": "How far down to look, in cm.",
+						"type": "number"
+					},
+					"offset":
+					{
+						"default": 0,
+						"description": "Extra height above the ground in cm.",
+						"type": "number"
+					},
+					"targets":
+					{
+						"description": "Objects to drop.",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "layout.drop_to_ground",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes, no_ground} (no_ground: targets with nothing below them).",
+						"properties":
+						{
+							"moved":
+							{
+								"type": "integer"
+							},
+							"no_ground":
+							{
+								"description": "Targets with nothing below them within max_distance (not moved).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"nodes":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolDropResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Finds the nearest spot where a box of the given size fits without overlapping anything, searching a square spiral outward from a point (optionally resting on the ground). Read-only. Fails if size is not positive.\nReturns: {found, center, ground_location, tested}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -452,7 +533,7 @@
 				{
 					"near":
 					{
-						"description": "Search from here",
+						"description": "Search from here [x,y,z] (default the origin). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -464,19 +545,18 @@
 					"on_ground":
 					{
 						"default": true,
-						"description": "Rest the box on the ground",
+						"description": "Rest the box on the ground (spots without ground are skipped).",
 						"type": "boolean"
 					},
 					"radius":
 					{
 						"default": 3000,
-						"description": "Search radius cm",
-						"minimum": 1,
+						"description": "Search radius in cm.",
 						"type": "number"
 					},
 					"size":
 					{
-						"description": "Box size [x,y,z] cm",
+						"description": "Box size [x,y,z] cm, e.g. [400,400,300]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -487,8 +567,8 @@
 					},
 					"step":
 					{
-						"description": "Grid step cm (default: box size)",
-						"minimum": 1,
+						"default": 0,
+						"description": "Grid step in cm (0 = the box's larger horizontal size).",
 						"type": "number"
 					}
 				},
@@ -497,8 +577,226 @@
 				],
 				"type": "object"
 			},
-			"name": "layout.find_free_space"
+			"name": "layout.find_free_space",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{found, center, ground_location, tested}.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"found":
+							{
+								"description": "Whether a free spot was found within the radius.",
+								"type": "boolean"
+							},
+							"ground_location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tested":
+							{
+								"description": "Candidate spots tested.",
+								"type": "integer"
+							}
+						},
+						"title": "LayoutToolFreeSpace",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Adds seeded random offset, yaw and uniform scale for a natural look; the same seed gives the same result. Undoable. Fails if scale_jitter is outside 0-0.95.\nReturns: {moved, nodes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location_jitter":
+					{
+						"description": "Maximum offset per axis [x,y,z] cm, e.g. [100,100,0]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale_jitter":
+					{
+						"default": 0,
+						"description": "Maximum uniform scale change as a fraction, e.g. 0.2.",
+						"type": "number"
+					},
+					"seed":
+					{
+						"default": 0,
+						"description": "Random seed.",
+						"type": "integer"
+					},
+					"targets":
+					{
+						"description": "Objects to jitter.",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"yaw_jitter":
+					{
+						"default": 0,
+						"description": "Maximum yaw change in degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "layout.randomize_transform",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes}.",
+						"properties":
+						{
+							"moved":
+							{
+								"description": "Objects that actually moved (unchanged ones are skipped).",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "References of the moved objects (at most 50).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolMoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Snaps locations (X and Y, optionally Z) and optionally rotations to a grid. Undoable. Fails if size is not positive.\nReturns: {moved, nodes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"rotation_step":
+					{
+						"default": 0,
+						"description": "Rotation snap in degrees, e.g. 45 (0 = rotations unchanged).",
+						"type": "number"
+					},
+					"size":
+					{
+						"default": 100,
+						"description": "Grid size in cm, e.g. 100.",
+						"type": "number"
+					},
+					"snap_z":
+					{
+						"default": false,
+						"description": "Also snap Z.",
+						"type": "boolean"
+					},
+					"targets":
+					{
+						"description": "Objects to snap.",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "layout.snap_to_grid",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{moved, nodes}.",
+						"properties":
+						{
+							"moved":
+							{
+								"description": "Objects that actually moved (unchanged ones are skipped).",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "References of the moved objects (at most 50).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LayoutToolMoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

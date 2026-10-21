@@ -304,6 +304,31 @@ void FLayoutToolsetSpec::Define()
 		TestTrue(TEXT("same seed, same result"), At(0)->GetActorLocation().Equals(First, 0.01));
 	});
 
+	It("fails clearly for every tool", [this]()
+	{
+		const FString T = Targets(Cubes);
+		H->CallFails(TEXT("layout.align_nodes"), TEXT("{\"targets\":[]}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.align_nodes"), FString::Printf(TEXT("{%s,\"mode\":\"middle\"}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.align_nodes"), FString::Printf(TEXT("{%s,\"axis\":\"w\"}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.snap_to_grid"), FString::Printf(TEXT("{%s,\"size\":0}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.drop_to_ground"), FString::Printf(TEXT("{%s,\"max_distance\":0}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.arrange_in_row"), FString::Printf(TEXT("{%s,\"direction\":[0,0,0]}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.arrange_in_grid"), FString::Printf(TEXT("{%s,\"columns\":-1}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.arrange_in_circle"), FString::Printf(TEXT("{%s,\"arc\":0}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.randomize_transform"), FString::Printf(TEXT("{%s,\"scale_jitter\":2}"), *T), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("layout.find_free_space"), TEXT("{\"size\":[0,100,100]}"), ERuntimeToolError::InvalidArguments);
+		TestTrue(TEXT("nothing moved"), At(1)->GetActorLocation().Equals(FVector(100, 40, 200), 0.01));
+	});
+
+	It("aligns to another object and reports targets with no ground", [this]()
+	{
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("layout.align_nodes"), FString::Printf(TEXT("{%s,\"axis\":\"x\",\"mode\":\"max\",\"to\":\"%s\"}"),
+			*Targets({Cubes[0], Cubes[1]}), *Cubes[2]));
+		TestEqual(TEXT("aligned to the third cube's max x"), R->GetNumberField(TEXT("aligned_to")), 1050.0);
+		const TSharedRef<FJsonObject> D = H->CallOk(TEXT("layout.drop_to_ground"), FString::Printf(TEXT("{%s,\"max_distance\":10}"), *Targets({Cubes[1]})));
+		TestEqual(TEXT("no ground within 10 cm"), D->GetArrayField(TEXT("no_ground")).Num(), 1);
+	});
+
 	It("finds free space next to an obstacle", [this]()
 	{
 		// Off the ground: the origin is taken by the first cube, so the nearest free cell is one step away.

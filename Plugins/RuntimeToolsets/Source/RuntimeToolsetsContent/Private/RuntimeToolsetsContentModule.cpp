@@ -1,21 +1,23 @@
-#include "BuildToolset.h"
-#include "LayoutToolset.h"
 #include "PrimitiveMesh.h"
+#include "RuntimeBuildToolset.h"
+#include "RuntimeLayoutToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
 
-/** Content group: layout and the primitive builder. Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Content group: layout and the primitive builder. Toolsets are UFUNCTION classes (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsContentModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FLayoutToolset>(), MakeShared<FBuildToolset>()};
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("prim:"), &RuntimePrimitives::SpawnFromSource);
-		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
-		{
-			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
-		}
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeLayoutToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeBuildToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override

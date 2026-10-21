@@ -1,681 +1,9 @@
 {
-	"description": "Build realistic landmarks (call build.get_guide first): assemblies of 500+ parts per call, loft/revolve/sweep/extrude/raw, generators, procedural PBR materials, booleans, ortho views",
+	"description": "Builder: realistic objects and landmarks from parametric parts at true scale (cm, Z up), as editable meshes with\nprocedural PBR materials. Every create tool is one undo step and rebuilds exactly from its recipe (undo, duplicate,\nexport).\nWorkflow: get_guide (READ FIRST) -> create_assembly (up to 512 parts per call: the fast way) or create_primitive /\ncreate_profile_solid -> boolean_op / array / mirror -> set_material -> capture_view, check_overlaps, measure,\nget_build_stats to verify -> refine.\nMaterial fields (on every create tool, per assembly part and in set_material): material (preset from list_materials or\nan allowed material path), color [r,g,b] linear 0-1, roughness, metallic, emissive [r,g,b], emissive_strength, opacity,\nvariation, style, tile (pattern cm), relief (bump cm). Numeric material and generator fields left at -1 (or 0 for counts)\nkeep the preset's or the shape's own value.",
 	"name": "build",
 	"tools": [
 		{
-			"description": "Create a parametric mesh at true scale (cm). Base pivot by default.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"arched":
-					{
-						"description": "openings: round-topped",
-						"type": "boolean"
-					},
-					"beam":
-					{
-						"description": "lattice: member thickness cm",
-						"minimum": 0.5,
-						"type": "number"
-					},
-					"bevel":
-					{
-						"description": "Chamfer edges by this many cm (boxes, wedges, extrusions)",
-						"maximum": 500,
-						"minimum": 0,
-						"type": "number"
-					},
-					"bracing":
-					{
-						"description": "lattice: X-bracing on faces",
-						"type": "boolean"
-					},
-					"color":
-					{
-						"description": "Base color override [r,g,b] 0-1 (linear)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"cols":
-					{
-						"description": "openings: columns",
-						"maximum": 200,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"count":
-					{
-						"description": "steps/tiers: number of steps or tiers",
-						"maximum": 200,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"detail":
-					{
-						"default": "medium",
-						"description": "Tessellation",
-						"enum": [
-							"low",
-							"medium",
-							"high"
-						],
-						"type": "string"
-					},
-					"emissive":
-					{
-						"description": "Glow color [r,g,b]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"emissive_strength":
-					{
-						"description": "Glow strength (5-50 for lamps)",
-						"maximum": 1000,
-						"minimum": 0,
-						"type": "number"
-					},
-					"levels":
-					{
-						"description": "lattice: bays up the height",
-						"maximum": 64,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"location":
-					{
-						"description": "[x,y,z] cm (relative to parent)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"margin":
-					{
-						"description": "openings: border around the grid cm",
-						"minimum": 0,
-						"type": "number"
-					},
-					"material":
-					{
-						"default": "white",
-						"description": "PBR preset (or use a material path via build.set_material)",
-						"enum": [
-							"marble",
-							"sandstone",
-							"limestone",
-							"granite",
-							"stone",
-							"brick",
-							"terracotta",
-							"concrete",
-							"plaster",
-							"wood",
-							"slate_roof",
-							"copper",
-							"verdigris",
-							"bronze",
-							"gold",
-							"steel",
-							"iron",
-							"painted_iron",
-							"glass",
-							"tinted_glass",
-							"water",
-							"grass",
-							"sand",
-							"asphalt",
-							"roof_tile",
-							"cobblestone",
-							"light",
-							"white",
-							"black",
-							"red",
-							"green",
-							"blue"
-						],
-						"type": "string"
-					},
-					"metallic":
-					{
-						"description": "0 dielectric .. 1 metal",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"name":
-					{
-						"description": "Node name",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"opacity":
-					{
-						"description": "Glass opacity",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"opening":
-					{
-						"description": "openings: [width,height] cm of each opening",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 2,
-						"type": "array"
-					},
-					"parent":
-					{
-						"description": "Parent node",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"pivot":
-					{
-						"default": "base",
-						"description": "Origin",
-						"enum": [
-							"base",
-							"center"
-						],
-						"type": "string"
-					},
-					"relief":
-					{
-						"description": "Bump depth cm",
-						"maximum": 50,
-						"minimum": 0,
-						"type": "number"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"roughness":
-					{
-						"description": "0 mirror .. 1 matte",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"rows":
-					{
-						"description": "openings: rows",
-						"maximum": 100,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"scale":
-					{
-						"description": "[x,y,z]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"shape":
-					{
-						"description": "Shape or generator",
-						"enum": [
-							"box",
-							"sphere",
-							"cylinder",
-							"cone",
-							"pyramid",
-							"torus",
-							"wedge",
-							"capsule",
-							"plane",
-							"dome",
-							"tube",
-							"arch",
-							"roof",
-							"lattice",
-							"steps",
-							"tiers",
-							"column",
-							"openings"
-						],
-						"type": "string"
-					},
-					"size":
-					{
-						"description": "[x,y,z] cm: box dims; round shapes use x as diameter, z as height; torus z = tube; arch/roof = width, depth, height",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"style":
-					{
-						"description": "Surface style override (presets pick one: brick joints, stone blocks, marble veins, roof tiles, planks, ...)",
-						"enum": [
-							"smooth",
-							"brick",
-							"blocks",
-							"marble",
-							"plaster",
-							"concrete",
-							"roof_tiles",
-							"planks",
-							"brushed",
-							"ground"
-						],
-						"type": "string"
-					},
-					"tags":
-					{
-						"description": "Tags",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 16,
-						"type": "array"
-					},
-					"taper":
-					{
-						"description": "lattice/tiers: top size / bottom size",
-						"maximum": 4,
-						"minimum": 0,
-						"type": "number"
-					},
-					"thickness":
-					{
-						"description": "Tube wall thickness cm",
-						"minimum": 0.10000000000000001,
-						"type": "number"
-					},
-					"tile":
-					{
-						"description": "Pattern size cm (brick length, block width, tile width)",
-						"maximum": 100000,
-						"minimum": 1,
-						"type": "number"
-					},
-					"top_ratio":
-					{
-						"description": "Cone top radius / base radius",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"variation":
-					{
-						"description": "Surface color variation 0..0.5",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"required": [
-					"shape"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "build.create_primitive",
-			"undoable": true
-		},
-		{
-			"description": "Create a solid from a 2D profile: lathe (domes, columns, vases), extrude (walls, plans), sweep (rails, pipes).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"angle":
-					{
-						"description": "Lathe degrees",
-						"maximum": 360,
-						"minimum": 1,
-						"type": "number"
-					},
-					"bevel":
-					{
-						"description": "Chamfer edges by this many cm (boxes, wedges, extrusions)",
-						"maximum": 500,
-						"minimum": 0,
-						"type": "number"
-					},
-					"closed":
-					{
-						"description": "Sweep path is a loop",
-						"type": "boolean"
-					},
-					"color":
-					{
-						"description": "Base color override [r,g,b] 0-1 (linear)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"detail":
-					{
-						"default": "medium",
-						"description": "Tessellation",
-						"enum": [
-							"low",
-							"medium",
-							"high"
-						],
-						"type": "string"
-					},
-					"emissive":
-					{
-						"description": "Glow color [r,g,b]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"emissive_strength":
-					{
-						"description": "Glow strength (5-50 for lamps)",
-						"maximum": 1000,
-						"minimum": 0,
-						"type": "number"
-					},
-					"height":
-					{
-						"description": "Extrude height cm",
-						"minimum": 0.10000000000000001,
-						"type": "number"
-					},
-					"kind":
-					{
-						"description": "Solid kind",
-						"enum": [
-							"lathe",
-							"extrude",
-							"sweep"
-						],
-						"type": "string"
-					},
-					"location":
-					{
-						"description": "[x,y,z] cm (relative to parent)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"material":
-					{
-						"default": "white",
-						"description": "PBR preset (or use a material path via build.set_material)",
-						"enum": [
-							"marble",
-							"sandstone",
-							"limestone",
-							"granite",
-							"stone",
-							"brick",
-							"terracotta",
-							"concrete",
-							"plaster",
-							"wood",
-							"slate_roof",
-							"copper",
-							"verdigris",
-							"bronze",
-							"gold",
-							"steel",
-							"iron",
-							"painted_iron",
-							"glass",
-							"tinted_glass",
-							"water",
-							"grass",
-							"sand",
-							"asphalt",
-							"roof_tile",
-							"cobblestone",
-							"light",
-							"white",
-							"black",
-							"red",
-							"green",
-							"blue"
-						],
-						"type": "string"
-					},
-					"metallic":
-					{
-						"description": "0 dielectric .. 1 metal",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"name":
-					{
-						"description": "Node name",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"opacity":
-					{
-						"description": "Glass opacity",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"parent":
-					{
-						"description": "Parent node",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"path":
-					{
-						"description": "Sweep path [[x,y,z],...]",
-						"items":
-						{
-							"description": "",
-							"items":
-							{
-								"type": "number"
-							},
-							"maxItems": 3,
-							"minItems": 3,
-							"type": "array"
-						},
-						"maxItems": 512,
-						"type": "array"
-					},
-					"profile":
-					{
-						"description": "2D points [[x,y],...]: lathe = [radius,height] path; extrude/sweep = closed polygon",
-						"items":
-						{
-							"items":
-							{
-								"type": "number"
-							},
-							"maxItems": 2,
-							"type": "array"
-						},
-						"maxItems": 512,
-						"type": "array"
-					},
-					"relief":
-					{
-						"description": "Bump depth cm",
-						"maximum": 50,
-						"minimum": 0,
-						"type": "number"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"roughness":
-					{
-						"description": "0 mirror .. 1 matte",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"scale":
-					{
-						"description": "[x,y,z]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"style":
-					{
-						"description": "Surface style override (presets pick one: brick joints, stone blocks, marble veins, roof tiles, planks, ...)",
-						"enum": [
-							"smooth",
-							"brick",
-							"blocks",
-							"marble",
-							"plaster",
-							"concrete",
-							"roof_tiles",
-							"planks",
-							"brushed",
-							"ground"
-						],
-						"type": "string"
-					},
-					"tags":
-					{
-						"description": "Tags",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 16,
-						"type": "array"
-					},
-					"tile":
-					{
-						"description": "Pattern size cm (brick length, block width, tile width)",
-						"maximum": 100000,
-						"minimum": 1,
-						"type": "number"
-					},
-					"variation":
-					{
-						"description": "Surface color variation 0..0.5",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"required": [
-					"kind",
-					"profile"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "build.create_profile_solid",
-			"undoable": true
-		},
-		{
-			"description": "Cut, join or intersect two builder primitives. The tool is consumed unless keep_tool.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"keep_tool":
-					{
-						"default": false,
-						"description": "Keep the tool node",
-						"type": "boolean"
-					},
-					"op":
-					{
-						"default": "subtract",
-						"description": "Operation",
-						"enum": [
-							"subtract",
-							"union",
-							"intersect"
-						],
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Primitive to change",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"tool":
-					{
-						"description": "Primitive used as the cutter/addition",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target",
-					"tool"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "build.boolean_op",
-			"undoable": true
-		},
-		{
-			"description": "Copy a node in a line, around an axis or in a grid (copies share its parent). One undo step.",
+			"description": "Copies a node in a line, around an axis or in a grid. Copies share its parent; offsets are in the parent's space. One undo step. Fails for groups (use scene.duplicate_node) or more than 1000 copies.\nReturns: {created, ids} (ids of the copies, at most 100).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -684,14 +12,12 @@
 					"angle":
 					{
 						"default": 360,
-						"description": "Radial total degrees",
-						"maximum": 360,
-						"minimum": 1,
+						"description": "radial: total degrees (360 = evenly around).",
 						"type": "number"
 					},
 					"axis":
 					{
-						"description": "Radial axis (default Z)",
+						"description": "radial: rotation axis (default [0,0,1]). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -702,7 +28,7 @@
 					},
 					"center":
 					{
-						"description": "Radial centre (parent space, default origin)",
+						"description": "radial: centre (parent space, default the parent origin). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -714,14 +40,12 @@
 					"count":
 					{
 						"default": 4,
-						"description": "Total items incl. the original (linear/radial)",
-						"maximum": 1001,
-						"minimum": 2,
+						"description": "linear/radial: total items including the original (2-1001).",
 						"type": "integer"
 					},
 					"counts":
 					{
-						"description": "Grid counts [nx,ny,nz]",
+						"description": "grid: copies per axis [nx,ny,nz] including the original (default [2,2,1]). ([x, y, z] integers)",
 						"items":
 						{
 							"type": "number"
@@ -732,18 +56,18 @@
 					},
 					"mode":
 					{
-						"default": "linear",
-						"description": "Pattern",
+						"default": "Linear",
+						"description": "Pattern.",
 						"enum": [
-							"linear",
-							"radial",
-							"grid"
+							"Linear",
+							"Radial",
+							"Grid"
 						],
 						"type": "string"
 					},
 					"offset":
 					{
-						"description": "Linear step [x,y,z] cm (parent space)",
+						"description": "linear: step [x,y,z] cm between copies (default [100,0,0]). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -754,7 +78,7 @@
 					},
 					"spacing":
 					{
-						"description": "Grid spacing [x,y,z] cm (default: bounds size)",
+						"description": "grid: spacing [x,y,z] cm (default: the bounds size). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -765,8 +89,7 @@
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Node to copy. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -777,128 +100,242 @@
 			},
 			"mutating": true,
 			"name": "build.array",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{created, ids} (ids of the copies, at most 100).",
+						"properties":
+						{
+							"created":
+							{
+								"description": "Copies created (the original is not counted).",
+								"type": "integer"
+							},
+							"ids":
+							{
+								"description": "Node ids of the copies in creation order (at most 100).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "BuildToolCopiesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Create a mirrored copy of a node across a plane (parent space).",
+			"description": "Cuts, joins or intersects two builder objects. The result is recorded in the target's recipe (rebuildable); the tool object is consumed unless keep_tool. Undoable. Fails if either is not a builder object or both are the same node.\nReturns: {target, op, ops (operations on the target so far), triangles}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"axis":
+					"keep_tool":
 					{
-						"default": "x",
-						"description": "Mirror normal",
+						"default": false,
+						"description": "Keep the tool object instead of deleting it.",
+						"type": "boolean"
+					},
+					"op":
+					{
+						"default": "Subtract",
+						"description": "Operation.",
 						"enum": [
-							"x",
-							"y",
-							"z"
+							"Subtract",
+							"Union",
+							"Intersect"
 						],
 						"type": "string"
 					},
-					"point":
-					{
-						"description": "A point on the mirror plane (default parent origin)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Builder object to change. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tool":
+					{
+						"description": "Builder object used as the cutter or addition (positioned where it should cut). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
 				"required": [
-					"target"
+					"target",
+					"tool"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "build.mirror",
+			"name": "build.boolean_op",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{target, op, ops (operations on the target so far), triangles}.",
+						"properties":
+						{
+							"op":
+							{
+								"description": "subtract, union or intersect.",
+								"type": "string"
+							},
+							"ops":
+							{
+								"description": "Boolean operations now recorded on the target.",
+								"type": "integer"
+							},
+							"target":
+							{
+								"description": "The changed node (its id).",
+								"type": "string"
+							},
+							"triangles":
+							{
+								"description": "Triangles after the operation.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolBooleanResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Set palette material / color on builder primitives.",
+			"description": "Renders one contact-sheet image (attached to the result) of orthographic front/right/top and perspective views framing the build, to check proportions. Fails without rendering (null RHI) or when there is nothing to frame.\nReturns: {layout, bounds_size, w, h}; the image is attached.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"color":
+					"format":
 					{
-						"description": "Color override [r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"material":
-					{
-						"description": "Palette name or material path",
-						"maxLength": 512,
+						"default": "Jpg",
+						"description": "Image format.",
+						"enum": [
+							"Jpg",
+							"Png"
+						],
 						"type": "string"
+					},
+					"padding":
+					{
+						"default": 1.1499999761581421,
+						"description": "Margin factor (1-3).",
+						"type": "number"
+					},
+					"size":
+					{
+						"default": 384,
+						"description": "Pixels per view (64-1024).",
+						"type": "integer"
 					},
 					"targets":
 					{
-						"description": "Builder nodes",
+						"description": "Frame these objects (default: every node, or `under`).",
 						"items":
 						{
-							"maxLength": 256,
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 							"type": "string"
 						},
-						"maxItems": 500,
+						"type": "array"
+					},
+					"under":
+					{
+						"description": "Frame this subtree. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"views":
+					{
+						"description": "Views to render (default front, right, top, perspective).",
+						"items":
+						{
+							"enum": [
+								"Front",
+								"Back",
+								"Left",
+								"Right",
+								"Top",
+								"Perspective"
+							],
+							"type": "string"
+						},
 						"type": "array"
 					}
 				},
-				"required": [
-					"targets"
-				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "build.set_material",
-			"undoable": true
-		},
-		{
-			"description": "Distance, gap and sizes between two objects' bounds.",
-			"input_schema":
+			"name": "build.capture_view",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"a":
+					"returnValue":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"b":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
+						"description": "{layout, bounds_size, w, h}; the image is attached.",
+						"properties":
+						{
+							"bounds_size":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"h":
+							{
+								"description": "Image height in pixels.",
+								"type": "integer"
+							},
+							"layout":
+							{
+								"description": "Where each view is in the sheet, e.g. \"front(row 0, col 0)\".",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"w":
+							{
+								"description": "Image width in pixels.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolCaptureResult",
+						"type": "object"
 					}
 				},
 				"required": [
-					"a",
-					"b"
+					"returnValue"
 				],
 				"type": "object"
-			},
-			"name": "build.measure"
+			}
 		},
 		{
-			"description": "Node pairs whose bounds interpenetrate more than the tolerance.",
+			"description": "Finds node pairs whose bounds interpenetrate more than the tolerance (parents and their children are not compared). A bounding-box test: intended overlaps (booleans, touching parts) also appear.\nReturns: {checked, overlaps, pairs:[{a, b, depth}], note}, pairs sorted by the first node's min X.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -906,43 +343,92 @@
 				{
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 50,
+						"description": "Maximum pairs returned.",
 						"type": "integer"
 					},
 					"tolerance":
 					{
 						"default": 1,
-						"description": "Ignore overlaps up to this depth cm",
-						"minimum": 0,
+						"description": "Ignore overlaps up to this depth cm.",
 						"type": "number"
 					},
 					"under":
 					{
-						"description": "Only check below this node",
-						"maxLength": 1024,
+						"description": "Only check below this node (default: every node). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
 				"type": "object"
 			},
-			"name": "build.check_overlaps"
-		},
-		{
-			"description": "READ FIRST before building: workflow, real-scale dimensions, generators and materials for realistic results.",
-			"input_schema":
+			"name": "build.check_overlaps",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
+					"returnValue":
+					{
+						"description": "{checked, overlaps, pairs:[{a, b, depth}], note}, pairs sorted by the first node's min X.",
+						"properties":
+						{
+							"checked":
+							{
+								"description": "Nodes tested.",
+								"type": "integer"
+							},
+							"note":
+							{
+								"type": "string"
+							},
+							"overlaps":
+							{
+								"description": "Overlapping pairs found (pairs may be truncated to limit).",
+								"type": "integer"
+							},
+							"pairs":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"a":
+										{
+											"type": "string"
+										},
+										"b":
+										{
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										}
+									},
+									"title": "BuildToolOverlapPair",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "BuildToolOverlapReport",
+						"type": "object"
+					}
 				},
+				"required": [
+					"returnValue"
+				],
 				"type": "object"
-			},
-			"name": "build.get_guide"
+			}
 		},
 		{
-			"description": "Build many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material.",
+			"description": "Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults given here. One undo step. Fails with the part index when a part is invalid.\nReturns: {id, name, path, triangles, parts, materials, coplanar_faces_separated, snapped_to_ground}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -950,7 +436,7 @@
 				{
 					"color":
 					{
-						"description": "Default color [r,g,b] linear 0-1",
+						"description": "Default colour [r,g,b] linear 0-1. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -961,7 +447,7 @@
 					},
 					"emissive":
 					{
-						"description": "Default glow color",
+						"description": "Default glow colour. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -972,14 +458,13 @@
 					},
 					"emissive_strength":
 					{
-						"description": "Default glow strength",
-						"maximum": 1000,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default glow strength.",
 						"type": "number"
 					},
 					"location":
 					{
-						"description": "World location cm (or relative to parent)",
+						"description": "World location cm (relative to the parent when one is given). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -990,96 +475,57 @@
 					},
 					"material":
 					{
-						"description": "Default preset for parts without one",
-						"enum": [
-							"marble",
-							"sandstone",
-							"limestone",
-							"granite",
-							"stone",
-							"brick",
-							"terracotta",
-							"concrete",
-							"plaster",
-							"wood",
-							"slate_roof",
-							"copper",
-							"verdigris",
-							"bronze",
-							"gold",
-							"steel",
-							"iron",
-							"painted_iron",
-							"glass",
-							"tinted_glass",
-							"water",
-							"grass",
-							"sand",
-							"asphalt",
-							"roof_tile",
-							"cobblestone",
-							"light",
-							"white",
-							"black",
-							"red",
-							"green",
-							"blue"
-						],
+						"default": "",
+						"description": "Default preset for parts without one, e.g. \"sandstone\".",
 						"type": "string"
 					},
 					"metallic":
 					{
-						"description": "Default metallic",
-						"maximum": 1,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default metallic (omit for the preset value).",
 						"type": "number"
 					},
 					"name":
 					{
-						"description": "Node name",
-						"maxLength": 128,
+						"default": "Assembly",
+						"description": "Node name.",
 						"type": "string"
 					},
 					"opacity":
 					{
-						"description": "Default glass opacity",
-						"maximum": 1,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default glass opacity.",
 						"type": "number"
 					},
 					"parent":
 					{
-						"description": "Parent group",
-						"maxLength": 1024,
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"parts":
 					{
-						"description": "Parts. Each: {shape, size, <shape params>, location, rotation, scale, material, color, roughness, metallic, style, tile, relief, bevel}. Shapes: box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof lattice steps tiers column openings revolve{profile:[[r,z]..],segments,angle} extrude{profile:[[x,y]..],height | profile:[[x,y,z]..],direction} sweep{profile:[[x,y]..],path:[[x,y,z]..],closed} loft{sections:[[[x,y,z]..]..],closed,cap} raw{vertices,triangles}. Booleans per part via ops:[{op:subtract|union|intersect,tool:{recipe},location}].",
+						"description": "Part recipes. Each: {shape, size, <shape params>, location, rotation, scale, material, color, roughness, metallic, style, tile, relief, bevel}. Shapes: box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof lattice steps tiers column openings, revolve{profile:[[r,z]..],segments,angle}, extrude{profile:[[x,y]..],height | profile:[[x,y,z]..],direction}, sweep{profile:[[x,y]..],path:[[x,y,z]..],closed}, loft{sections:[[[x,y,z]..]..],closed,cap}, raw{vertices,triangles}. Booleans per part: ops:[{op:subtract|union|intersect,tool:{recipe},location}]. E.g. [{\"shape\":\"box\",\"size\":[400,400,40]},{\"shape\":\"cylinder\",\"size\":[30,30,300],\"location\":[150,150,40],\"material\":\"copper\"}].",
 						"items":
 						{
-							"description": "Part recipe",
-							"type": "object"
+							"description": "Any JSON value"
 						},
-						"maxItems": 512,
 						"type": "array"
 					},
 					"relief":
 					{
-						"description": "Default bump depth cm",
-						"maximum": 50,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default bump depth cm.",
 						"type": "number"
 					},
 					"repair_coplanar":
 					{
 						"default": true,
-						"description": "Nudge overlapping same-plane faces of later parts outward to stop flicker",
+						"description": "Nudge overlapping same-plane faces of later parts outward to stop flicker.",
 						"type": "boolean"
 					},
 					"rotation":
 					{
-						"description": "Rotation",
+						"description": "[pitch,yaw,roll] degrees. ([pitch, yaw, roll] (degrees))",
 						"items":
 						{
 							"type": "number"
@@ -1090,14 +536,13 @@
 					},
 					"roughness":
 					{
-						"description": "Default roughness",
-						"maximum": 1,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default roughness (omit for the preset value).",
 						"type": "number"
 					},
 					"scale":
 					{
-						"description": "Scale",
+						"description": "[x,y,z]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -1106,46 +551,37 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"snap_to_ground":
+					{
+						"default": false,
+						"description": "Rest the bottom of the bounds on the ground below.",
+						"type": "boolean"
+					},
 					"style":
 					{
-						"description": "Default surface style",
-						"enum": [
-							"smooth",
-							"brick",
-							"blocks",
-							"marble",
-							"plaster",
-							"concrete",
-							"roof_tiles",
-							"planks",
-							"brushed",
-							"ground"
-						],
+						"default": "",
+						"description": "Default surface style.",
 						"type": "string"
 					},
 					"tags":
 					{
-						"description": "Tags",
+						"description": "Node tags.",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 64,
 						"type": "array"
 					},
 					"tile":
 					{
-						"description": "Default pattern size cm",
-						"maximum": 100000,
-						"minimum": 1,
+						"default": -1,
+						"description": "Default pattern size cm.",
 						"type": "number"
 					},
 					"variation":
 					{
-						"description": "Default surface variation",
-						"maximum": 1,
-						"minimum": 0,
+						"default": -1,
+						"description": "Default surface variation.",
 						"type": "number"
 					}
 				},
@@ -1156,99 +592,1150 @@
 			},
 			"mutating": true,
 			"name": "build.create_assembly",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{id, name, path, triangles, parts, materials, coplanar_faces_separated, snapped_to_ground}.",
+						"properties":
+						{
+							"coplanar_faces_separated":
+							{
+								"description": "Same-plane overlapping faces nudged apart (repair_coplanar) so they do not flicker.",
+								"type": "integer"
+							},
+							"id":
+							{
+								"description": "Node id of the assembly (one object for all parts).",
+								"type": "string"
+							},
+							"materials":
+							{
+								"description": "Material slots: one per distinct combination of material fields.",
+								"type": "integer"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"parts":
+							{
+								"description": "Parts built.",
+								"type": "integer"
+							},
+							"path":
+							{
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"type": "boolean"
+							},
+							"triangles":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolAssemblyResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Nodes, triangles, components, materials and estimated draw calls.",
+			"description": "Creates a parametric mesh at true scale (cm). Base pivot by default, so the object sits on its location. Undoable. Fails if a material field is invalid (unknown preset or style) or the parent is not a scene node.\nReturns: The new node: {id, name, path, triangles, snapped_to_ground}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"under":
+					"arched":
 					{
-						"description": "Only count below this node",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "build.get_build_stats"
-		},
-		{
-			"description": "One contact-sheet image of ortho front/right/top (and perspective) views framing the build.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"format":
+						"default": false,
+						"description": "openings: round-topped.",
+						"type": "boolean"
+					},
+					"beam":
 					{
-						"default": "jpg",
-						"description": "Image format",
+						"default": -1,
+						"description": "lattice: member thickness cm.",
+						"type": "number"
+					},
+					"bevel":
+					{
+						"default": 0,
+						"description": "Chamfer hard edges by this many cm (boxes, wedges).",
+						"type": "number"
+					},
+					"bracing":
+					{
+						"default": true,
+						"description": "lattice: X-bracing on the faces.",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Base colour override [r,g,b] linear 0-1, e.g. [0.42,0.34,0.24]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"cols":
+					{
+						"default": 0,
+						"description": "openings: columns (default 5).",
+						"type": "integer"
+					},
+					"count":
+					{
+						"default": 0,
+						"description": "steps/tiers: number of steps or tiers (steps default 8, tiers 5).",
+						"type": "integer"
+					},
+					"detail":
+					{
+						"default": "Medium",
+						"description": "Tessellation.",
 						"enum": [
-							"jpg",
-							"png"
+							"Low",
+							"Medium",
+							"High"
 						],
 						"type": "string"
 					},
-					"padding":
+					"emissive":
 					{
-						"default": 1.1499999999999999,
-						"description": "Margin factor",
-						"maximum": 3,
-						"minimum": 1,
+						"description": "Glow colour [r,g,b]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"default": -1,
+						"description": "Glow strength (5-50 for lamps).",
 						"type": "number"
+					},
+					"levels":
+					{
+						"default": 0,
+						"description": "lattice: bays up the height (default 6).",
+						"type": "integer"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm (relative to the parent when one is given). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"margin":
+					{
+						"default": -1,
+						"description": "openings: border around the grid cm.",
+						"type": "number"
+					},
+					"material":
+					{
+						"default": "",
+						"description": "Preset (list_materials), e.g. \"sandstone\", or an allowed material path. Omit for white.",
+						"type": "string"
+					},
+					"metallic":
+					{
+						"default": -1,
+						"description": "0 dielectric .. 1 metal (omit for the preset value).",
+						"type": "number"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (default: the shape).",
+						"type": "string"
+					},
+					"opacity":
+					{
+						"default": -1,
+						"description": "Glass opacity 0-1.",
+						"type": "number"
+					},
+					"opening":
+					{
+						"description": "openings: [width,height] cm of each opening, e.g. [120,220]. ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"parent":
+					{
+						"description": "Parent node (group or object). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"pivot":
+					{
+						"default": "Base",
+						"description": "Origin of the mesh.",
+						"enum": [
+							"Base",
+							"Center"
+						],
+						"type": "string"
+					},
+					"relief":
+					{
+						"default": -1,
+						"description": "Bump depth cm.",
+						"type": "number"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll] degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"roughness":
+					{
+						"default": -1,
+						"description": "0 mirror .. 1 matte (omit for the preset value).",
+						"type": "number"
+					},
+					"rows":
+					{
+						"default": 0,
+						"description": "openings: rows (default 3).",
+						"type": "integer"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"shape":
+					{
+						"description": "Shape or generator, e.g. \"box\", \"lattice\".",
+						"enum": [
+							"Box",
+							"Sphere",
+							"Cylinder",
+							"Cone",
+							"Pyramid",
+							"Torus",
+							"Wedge",
+							"Capsule",
+							"Plane",
+							"Dome",
+							"Tube",
+							"Arch",
+							"Roof",
+							"Lattice",
+							"Steps",
+							"Tiers",
+							"Column",
+							"Openings"
+						],
+						"type": "string"
 					},
 					"size":
 					{
-						"default": 384,
-						"description": "Pixels per view",
-						"maximum": 1024,
-						"minimum": 64,
-						"type": "integer"
-					},
-					"targets":
-					{
-						"description": "Frame these (default: all nodes or 'under')",
+						"description": "[x,y,z] cm: box dims; round shapes use x as diameter and z as height; torus z = tube; arch/roof = width, depth, height. E.g. [400,300,250]. ([x, y, z] (cm))",
 						"items":
 						{
-							"maxLength": 256,
-							"type": "string"
+							"type": "number"
 						},
-						"maxItems": 500,
+						"maxItems": 3,
+						"minItems": 3,
 						"type": "array"
 					},
-					"under":
+					"snap_to_ground":
 					{
-						"description": "Frame this subtree",
-						"maxLength": 1024,
+						"default": false,
+						"description": "Move the object down (or up) so the bottom of its bounds rests on what is below it.",
+						"type": "boolean"
+					},
+					"style":
+					{
+						"default": "",
+						"description": "Surface style override, e.g. \"brick\" (presets pick one; see list_materials).",
 						"type": "string"
 					},
-					"views":
+					"tags":
 					{
-						"description": "Views (default front,right,top,perspective)",
+						"description": "Node tags, e.g. [\"wall\"].",
 						"items":
 						{
-							"enum": [
-								"front",
-								"back",
-								"left",
-								"right",
-								"top",
-								"perspective"
-							],
 							"type": "string"
 						},
-						"maxItems": 6,
 						"type": "array"
+					},
+					"taper":
+					{
+						"default": -1,
+						"description": "lattice/tiers: top size / bottom size (lattice default 1, tiers 0.4).",
+						"type": "number"
+					},
+					"thickness":
+					{
+						"default": -1,
+						"description": "tube: wall thickness cm.",
+						"type": "number"
+					},
+					"tile":
+					{
+						"default": -1,
+						"description": "Pattern size cm (brick length, block width, tile width).",
+						"type": "number"
+					},
+					"top_ratio":
+					{
+						"default": -1,
+						"description": "cone: top radius / base radius (0-1).",
+						"type": "number"
+					},
+					"variation":
+					{
+						"default": -1,
+						"description": "Surface colour variation 0..0.5.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"shape"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_primitive",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new node: {id, name, path, triangles, snapped_to_ground}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the new object (pass it to other tools).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name (unique among its siblings).",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path, e.g. \"temple/columns/col_3\".",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "True when snap_to_ground moved the object onto the ground below.",
+								"type": "boolean"
+							},
+							"triangles":
+							{
+								"description": "Triangles in the generated mesh.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolNodeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Creates a solid from a 2D profile: lathe (domes, columns, vases), extrude (walls, floor plans), sweep (rails, pipes). Undoable. Fails if the profile has too few points (lathe 2, extrude and sweep 3) or a sweep has no path.\nReturns: The new node: {id, name, path, triangles, snapped_to_ground}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"angle":
+					{
+						"default": -1,
+						"description": "lathe: degrees swept (360 = full turn).",
+						"type": "number"
+					},
+					"bevel":
+					{
+						"default": 0,
+						"description": "Chamfer edges by this many cm (extrusions).",
+						"type": "number"
+					},
+					"closed":
+					{
+						"default": false,
+						"description": "sweep: the path is a loop.",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Base colour override [r,g,b] linear 0-1. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"detail":
+					{
+						"default": "Medium",
+						"description": "Tessellation.",
+						"enum": [
+							"Low",
+							"Medium",
+							"High"
+						],
+						"type": "string"
+					},
+					"emissive":
+					{
+						"description": "Glow colour [r,g,b]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"default": -1,
+						"description": "Glow strength.",
+						"type": "number"
+					},
+					"height":
+					{
+						"default": -1,
+						"description": "extrude: height cm.",
+						"type": "number"
+					},
+					"kind":
+					{
+						"description": "Solid kind.",
+						"enum": [
+							"Lathe",
+							"Extrude",
+							"Sweep"
+						],
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm (relative to the parent when one is given). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"default": "",
+						"description": "Preset (list_materials) or an allowed material path. Omit for white.",
+						"type": "string"
+					},
+					"metallic":
+					{
+						"default": -1,
+						"description": "0 dielectric .. 1 metal (omit for the preset value).",
+						"type": "number"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (default: the kind).",
+						"type": "string"
+					},
+					"opacity":
+					{
+						"default": -1,
+						"description": "Glass opacity 0-1.",
+						"type": "number"
+					},
+					"parent":
+					{
+						"description": "Parent node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"path":
+					{
+						"description": "sweep: path [[x,y,z],...] cm.",
+						"items":
+						{
+							"description": "[x, y, z] (cm)",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"profile":
+					{
+						"description": "2D points [[x,y],...]: lathe = [radius,height] path, e.g. [[0,0],[40,0],[30,60],[0,90]]; extrude/sweep = closed polygon.",
+						"items":
+						{
+							"description": "[x, y]",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 2,
+							"minItems": 2,
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"relief":
+					{
+						"default": -1,
+						"description": "Bump depth cm.",
+						"type": "number"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll] degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"roughness":
+					{
+						"default": -1,
+						"description": "0 mirror .. 1 matte (omit for the preset value).",
+						"type": "number"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"snap_to_ground":
+					{
+						"default": false,
+						"description": "Rest the bottom of the bounds on the ground below.",
+						"type": "boolean"
+					},
+					"style":
+					{
+						"default": "",
+						"description": "Surface style override (list_materials).",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"tile":
+					{
+						"default": -1,
+						"description": "Pattern size cm.",
+						"type": "number"
+					},
+					"variation":
+					{
+						"default": -1,
+						"description": "Surface colour variation 0..0.5.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"kind",
+					"profile"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_profile_solid",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new node: {id, name, path, triangles, snapped_to_ground}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the new object (pass it to other tools).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name (unique among its siblings).",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path, e.g. \"temple/columns/col_3\".",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "True when snap_to_ground moved the object onto the ground below.",
+								"type": "boolean"
+							},
+							"triangles":
+							{
+								"description": "Triangles in the generated mesh.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolNodeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Counts nodes, triangles, components, materials and estimated draw calls (performance budget of a build).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"under":
+					{
+						"description": "Only count below this node (default: every node). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
 					}
 				},
 				"type": "object"
 			},
-			"name": "build.capture_view"
+			"name": "build.get_build_stats",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"builder_primitives":
+							{
+								"type": "integer"
+							},
+							"components":
+							{
+								"description": "Visible primitive components.",
+								"type": "integer"
+							},
+							"draw_calls_estimate":
+							{
+								"type": "integer"
+							},
+							"materials":
+							{
+								"description": "Distinct materials.",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"type": "integer"
+							},
+							"size":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"triangles":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolStats",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "READ FIRST before building: quality bar, real-scale dimensions, part shapes, generators, materials and the build workflow for realistic results.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "build.get_guide",
+			"output_schema":
+			{
+				"properties":
+				{
+					"guide":
+					{
+						"description": "The guide text.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"guide"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the material presets, surface styles and part shapes the builder accepts.\nReturns: {presets, styles, shapes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "build.list_materials",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{presets, styles, shapes}.",
+						"properties":
+						{
+							"presets":
+							{
+								"description": "Material presets for the `material` field, sorted as defined (stones, metals, glass, ground, plain colours).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"shapes":
+							{
+								"description": "Every part shape accepted by create_assembly.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"styles":
+							{
+								"description": "Procedural surface styles for the `style` field.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "BuildToolMaterialList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Measures distance, gap and sizes between two objects' bounds (children included).\nReturns: {center_distance, center_delta, gap, gap_xyz, size_a, size_b, overlapping}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"a":
+					{
+						"description": "First object. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"b":
+					{
+						"description": "Second object. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"a",
+					"b"
+				],
+				"type": "object"
+			},
+			"name": "build.measure",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{center_distance, center_delta, gap, gap_xyz, size_a, size_b, overlapping}.",
+						"properties":
+						{
+							"center_delta":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"center_distance":
+							{
+								"description": "Distance between the bounds centres (cm).",
+								"type": "number"
+							},
+							"gap":
+							{
+								"description": "Shortest distance between the bounds (0 when they touch or overlap).",
+								"type": "number"
+							},
+							"gap_xyz":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"overlapping":
+							{
+								"type": "boolean"
+							},
+							"size_a":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"size_b":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "BuildToolMeasurement",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Creates a mirrored copy of a node across a plane (parent space); the reflection is kept as a negative scale. Undoable. Fails for groups.\nReturns: {created: 1, ids: [copy]}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"axis":
+					{
+						"default": "X",
+						"description": "Mirror plane normal.",
+						"enum": [
+							"X",
+							"Y",
+							"Z"
+						],
+						"type": "string"
+					},
+					"point":
+					{
+						"description": "A point on the mirror plane [x,y,z] (default the parent origin). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Node to mirror. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.mirror",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{created: 1, ids: [copy]}.",
+						"properties":
+						{
+							"created":
+							{
+								"description": "Copies created (the original is not counted).",
+								"type": "integer"
+							},
+							"ids":
+							{
+								"description": "Node ids of the copies in creation order (at most 100).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "BuildToolCopiesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Changes the material fields of builder objects (same fields as create tools); fields not given keep their value. One undo step. Fails if no field is given, a field is invalid, or none of the targets is a builder object.\nReturns: {changed: [ids], skipped_not_builder: [refs]}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Colour override [r,g,b] linear 0-1. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive":
+					{
+						"description": "Glow colour [r,g,b]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"default": -1,
+						"description": "Glow strength.",
+						"type": "number"
+					},
+					"material":
+					{
+						"default": "",
+						"description": "Preset (list_materials) or an allowed material path, e.g. \"copper\". Setting it clears a previous colour override unless color is given.",
+						"type": "string"
+					},
+					"metallic":
+					{
+						"default": -1,
+						"description": "0 dielectric .. 1 metal.",
+						"type": "number"
+					},
+					"opacity":
+					{
+						"default": -1,
+						"description": "Glass opacity.",
+						"type": "number"
+					},
+					"relief":
+					{
+						"default": -1,
+						"description": "Bump depth cm.",
+						"type": "number"
+					},
+					"roughness":
+					{
+						"default": -1,
+						"description": "0 mirror .. 1 matte.",
+						"type": "number"
+					},
+					"style":
+					{
+						"default": "",
+						"description": "Surface style.",
+						"type": "string"
+					},
+					"targets":
+					{
+						"description": "Builder nodes, e.g. [\"n12\",\"n13\"].",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"tile":
+					{
+						"default": -1,
+						"description": "Pattern size cm.",
+						"type": "number"
+					},
+					"variation":
+					{
+						"default": -1,
+						"description": "Surface colour variation.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.set_material",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{changed: [ids], skipped_not_builder: [refs]}.",
+						"properties":
+						{
+							"changed":
+							{
+								"description": "Node ids whose material changed.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"skipped_not_builder":
+							{
+								"description": "Targets that are not builder objects (use the materials toolset for them).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "BuildToolMaterialResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
-	"version": "1.2.0"
+	"version": "2.0.0"
 }

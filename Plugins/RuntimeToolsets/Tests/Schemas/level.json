@@ -1,9 +1,102 @@
 {
-	"description": "List levels, load/unload level instances, visibility, data layers, open map",
+	"description": "Levels and content of the running game: streaming levels, level instances, World Partition data layers, map travel and\na search over the cooked asset registry.\nWorkflow: find_assets (asset_class World) to discover maps -> list_levels / get_current_level -> load_level_instance\n(streams a map in at a transform; undo unloads it) -> set_level_visibility / unload_level / set_data_layer.\nopen_level replaces the whole world and ends all undo history.",
 	"name": "level",
 	"tools": [
 		{
-			"description": "Persistent level, streaming levels (loaded/visible) and data layer states.",
+			"description": "Searches the cooked asset registry for assets (maps, meshes, materials, input actions, ...). Only assets packaged with the build are found. Per-actor packages (__ExternalActors__) are skipped.\nReturns: Total matches and the assets {path, package, class}, sorted by path. Fails if folder_path does not start with \"/\" or the class is unknown.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"asset_class":
+					{
+						"description": "Only assets of this class or a subclass, e.g. \"World\" for maps, \"StaticMesh\", \"InputAction\". (Class name or path (a Object))",
+						"type": "string"
+					},
+					"folder_path":
+					{
+						"default": "",
+						"description": "Folder to search, e.g. \"/Game/Maps\"; empty = /Game and every plugin content root.",
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 0,
+						"description": "Maximum results (0 = default list limit).",
+						"type": "integer"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Only assets whose name contains this text (case-insensitive), e.g. \"Sandbox\".",
+						"type": "string"
+					},
+					"recursive":
+					{
+						"default": true,
+						"description": "Also search sub-folders.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "level.find_assets",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total matches and the assets {path, package, class}, sorted by path. Fails if folder_path does not start with \"/\" or the class is unknown.",
+						"properties":
+						{
+							"assets":
+							{
+								"description": "Matches sorted by path, at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"class":
+										{
+											"description": "Asset class, e.g. \"World\", \"StaticMesh\", \"InputAction\".",
+											"type": "string"
+										},
+										"package":
+										{
+											"description": "Package path, e.g. \"/Game/Maps/Sandbox\" (what load_level_instance / open_level take for maps).",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Object path, e.g. \"/Game/Maps/Sandbox.Sandbox\" (pass it to tools that take an asset).",
+											"type": "string"
+										}
+									},
+									"title": "LevelToolAssetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Matches before the limit.",
+								"type": "integer"
+							}
+						},
+						"title": "LevelToolAssetSearch",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the package path of the loaded map (the persistent level), e.g. \"/Game/Maps/Main\".",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -12,10 +105,120 @@
 				},
 				"type": "object"
 			},
-			"name": "level.list_levels"
+			"name": "level.get_current_level",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "string"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Stream a map in as an instance at a transform. Completes when visible.",
+			"description": "Lists the persistent level, streaming levels and level instances (loaded/visible state) and data layer states.\nReturns: {persistent, streaming:[{name, package, loaded, visible, should_be_loaded, should_be_visible, instance}], data_layers:{name: state}}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "level.list_levels",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{persistent, streaming:[{name, package, loaded, visible, should_be_loaded, should_be_visible, instance}], data_layers:{name: state}}.",
+						"properties":
+						{
+							"data_layers":
+							{
+								"additionalProperties":
+								{
+									"enum": [
+										"Unloaded",
+										"Loaded",
+										"Activated"
+									],
+									"type": "string"
+								},
+								"description": "World Partition data layers: short name -> Unloaded / Loaded / Activated (empty without World Partition).",
+								"type": "object"
+							},
+							"persistent":
+							{
+								"description": "Package of the persistent level, e.g. \"/Game/Maps/Main\".",
+								"type": "string"
+							},
+							"streaming":
+							{
+								"description": "Streaming levels and level instances, in the world's order.",
+								"items":
+								{
+									"properties":
+									{
+										"instance":
+										{
+											"description": "Loaded by load_level_instance (a dynamic level instance).",
+											"type": "boolean"
+										},
+										"loaded":
+										{
+											"type": "boolean"
+										},
+										"name":
+										{
+											"description": "Short name, e.g. \"Sandbox\" (pass it as `level`).",
+											"type": "string"
+										},
+										"package":
+										{
+											"description": "Package path, e.g. \"/Game/Maps/Sandbox\" (or the instance's unique package).",
+											"type": "string"
+										},
+										"should_be_loaded":
+										{
+											"description": "Requested state (streaming catches up over the next frames).",
+											"type": "boolean"
+										},
+										"should_be_visible":
+										{
+											"type": "boolean"
+										},
+										"visible":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "LevelToolStreamingInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LevelToolLevels",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"async": true,
+			"description": "Streams a map in as a level instance at a transform and completes when it is loaded and visible. Undoable (undo unloads it).\nReturns: {level:{name, package, loaded, visible, ...}} once visible. Fails if the path is not a map package or the map is not in the build.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -24,12 +227,12 @@
 					"blocking":
 					{
 						"default": false,
-						"description": "Finish now (frame hitch) instead of waiting asynchronously",
+						"description": "Finish now with a full streaming flush (frame hitch) instead of waiting over the next frames.",
 						"type": "boolean"
 					},
 					"location":
 					{
-						"description": "[x,y,z] cm",
+						"description": "Offset of the instance [x,y,z] in cm, e.g. [0,0,-5000]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -40,19 +243,18 @@
 					},
 					"map":
 					{
-						"description": "Map package, e.g. /Game/Maps/Sandbox",
-						"maxLength": 512,
+						"description": "Map package, e.g. \"/Game/Maps/Sandbox\" (see find_assets with asset_class World).",
 						"type": "string"
 					},
 					"name":
 					{
-						"description": "Optional unique instance name",
-						"maxLength": 128,
+						"default": "",
+						"description": "Optional unique instance name.",
 						"type": "string"
 					},
 					"rotation":
 					{
-						"description": "[pitch,yaw,roll]",
+						"description": "Rotation [pitch,yaw,roll] of the instance. ([pitch, yaw, roll] (degrees))",
 						"items":
 						{
 							"type": "number"
@@ -69,74 +271,131 @@
 			},
 			"mutating": true,
 			"name": "level.load_level_instance",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"level":
+							{
+								"description": "The streamed-in level (loaded and visible).",
+								"properties":
+								{
+									"instance":
+									{
+										"description": "Loaded by load_level_instance (a dynamic level instance).",
+										"type": "boolean"
+									},
+									"loaded":
+									{
+										"type": "boolean"
+									},
+									"name":
+									{
+										"description": "Short name, e.g. \"Sandbox\" (pass it as `level`).",
+										"type": "string"
+									},
+									"package":
+									{
+										"description": "Package path, e.g. \"/Game/Maps/Sandbox\" (or the instance's unique package).",
+										"type": "string"
+									},
+									"should_be_loaded":
+									{
+										"description": "Requested state (streaming catches up over the next frames).",
+										"type": "boolean"
+									},
+									"should_be_visible":
+									{
+										"type": "boolean"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "LevelToolStreamingInfo",
+								"type": "object"
+							}
+						},
+						"title": "LevelToolLoadResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Unload a streaming level or instance (undo loads it back).",
+			"description": "Travels to another map. This destroys the current world, its scene graph and all undo history; travel happens next frame (poll session.ping until the new map reports).\nReturns: The destination package and a note. Fails without confirm, if the path is not a map package or the map is not in the build.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"blocking":
+					"confirm":
 					{
 						"default": false,
-						"description": "Finish now (frame hitch) instead of waiting asynchronously",
+						"description": "Must be true: acknowledges that the world and its history are lost.",
 						"type": "boolean"
 					},
-					"level":
+					"map":
 					{
-						"description": "Package or short name from list_levels",
-						"maxLength": 512,
+						"description": "Map package, e.g. \"/Game/Maps/Sandbox\".",
+						"type": "string"
+					},
+					"options":
+					{
+						"default": "",
+						"description": "URL options, e.g. \"?game=/Script/Engine.GameModeBase\".",
 						"type": "string"
 					}
 				},
 				"required": [
-					"level"
+					"map"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "level.unload_level",
-			"undoable": true
-		},
-		{
-			"description": "Show or hide a streaming level (showing also loads it).",
-			"input_schema":
+			"name": "level.open_level",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"blocking":
+					"returnValue":
 					{
-						"default": false,
-						"description": "Finish now (frame hitch) instead of waiting asynchronously",
-						"type": "boolean"
-					},
-					"level":
-					{
-						"description": "Package or short name from list_levels",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"visible":
-					{
-						"description": "Visible",
-						"type": "boolean"
+						"description": "The destination package and a note. Fails without confirm, if the path is not a map package or the map is not in the build.",
+						"properties":
+						{
+							"note":
+							{
+								"type": "string"
+							},
+							"travel_to":
+							{
+								"description": "Map package the game travels to.",
+								"type": "string"
+							}
+						},
+						"title": "LevelToolTravelInfo",
+						"type": "object"
 					}
 				},
 				"required": [
-					"level",
-					"visible"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "level.set_level_visibility",
-			"undoable": true
+			"undoable": false
 		},
 		{
-			"description": "Set a World Partition data layer to unloaded, loaded or activated.",
+			"description": "Sets a World Partition data layer to Unloaded, Loaded or Activated. Undoable.\nReturns: The layer, its new and previous state. Fails if the world has no data layers (not World Partition) or no layer matches (the known ones are listed).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -144,23 +403,22 @@
 				{
 					"name":
 					{
-						"description": "Data layer name",
-						"maxLength": 256,
+						"description": "Data layer short name from list_levels, e.g. \"Night\".",
 						"type": "string"
 					},
 					"recursive":
 					{
 						"default": false,
-						"description": "Apply to child layers",
+						"description": "Apply to child layers too.",
 						"type": "boolean"
 					},
 					"state":
 					{
-						"description": "Runtime state",
+						"description": "Unloaded, Loaded or Activated.",
 						"enum": [
-							"unloaded",
-							"loaded",
-							"activated"
+							"Unloaded",
+							"Loaded",
+							"Activated"
 						],
 						"type": "string"
 					}
@@ -173,43 +431,176 @@
 			},
 			"mutating": true,
 			"name": "level.set_data_layer",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The layer, its new and previous state. Fails if the world has no data layers (not World Partition) or no layer matches (the known ones are listed).",
+						"properties":
+						{
+							"data_layer":
+							{
+								"description": "Data layer short name.",
+								"type": "string"
+							},
+							"previous":
+							{
+								"enum": [
+									"Unloaded",
+									"Loaded",
+									"Activated"
+								],
+								"type": "string"
+							},
+							"state":
+							{
+								"enum": [
+									"Unloaded",
+									"Loaded",
+									"Activated"
+								],
+								"type": "string"
+							}
+						},
+						"title": "LevelToolDataLayerChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Travel to another map. Destroys the world and all undo history; needs confirm.",
+			"description": "Shows or hides a streaming level (showing also loads it). Undoable.\nReturns: The level package and its requested state. Fails if no streaming level matches (the known ones are listed).",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"confirm":
+					"blocking":
 					{
 						"default": false,
-						"description": "Must be true to proceed",
+						"description": "Flush streaming now instead of over the next frames.",
 						"type": "boolean"
 					},
-					"map":
+					"level":
 					{
-						"description": "Map package, e.g. /Game/Maps/Sandbox",
-						"maxLength": 512,
+						"description": "Short name or package from list_levels, e.g. \"Sandbox\".",
 						"type": "string"
 					},
-					"options":
+					"visible":
 					{
-						"description": "URL options, e.g. ?game=/Script/Engine.GameModeBase",
-						"maxLength": 512,
-						"type": "string"
+						"description": "true to show, false to hide (it stays loaded).",
+						"type": "boolean"
 					}
 				},
 				"required": [
-					"map"
+					"level",
+					"visible"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "level.open_level",
-			"undoable": false
+			"name": "level.set_level_visibility",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The level package and its requested state. Fails if no streaming level matches (the known ones are listed).",
+						"properties":
+						{
+							"level":
+							{
+								"description": "Package of the streaming level.",
+								"type": "string"
+							},
+							"should_be_loaded":
+							{
+								"type": "boolean"
+							},
+							"should_be_visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "LevelToolStateChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Unloads a streaming level or level instance. Undoable (undo loads it back).\nReturns: The level package and its requested state. Fails if no streaming level matches (the known ones are listed).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blocking":
+					{
+						"default": false,
+						"description": "Flush streaming now instead of over the next frames.",
+						"type": "boolean"
+					},
+					"level":
+					{
+						"description": "Short name or package from list_levels, e.g. \"Sandbox\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"level"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.unload_level",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The level package and its requested state. Fails if no streaming level matches (the known ones are listed).",
+						"properties":
+						{
+							"level":
+							{
+								"description": "Package of the streaming level.",
+								"type": "string"
+							},
+							"should_be_loaded":
+							{
+								"type": "boolean"
+							},
+							"should_be_visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "LevelToolStateChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

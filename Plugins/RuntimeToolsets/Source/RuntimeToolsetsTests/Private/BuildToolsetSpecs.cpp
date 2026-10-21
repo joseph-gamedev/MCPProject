@@ -151,6 +151,62 @@ void FBuildToolsetSpec::Define()
 		TestEqual(TEXT("imported all four"), static_cast<int32>(I->GetNumberField(TEXT("nodes"))), 4);
 	});
 
+	It("serves the guide and the material list, and rejects unknown arguments", [this]()
+	{
+		const FToolResult G = H->Call(TEXT("build.get_guide"));
+		FString Guide;
+		TestTrue(TEXT("guide at the top level (builder skill reads it)"), G.IsOk() && G.Payload->TryGetStringField(TEXT("guide"), Guide) && Guide.Contains(TEXT("QUALITY BAR")));
+		H->CallFails(TEXT("build.get_guide"), TEXT("{\"bogus\":1}"), ERuntimeToolError::InvalidArguments);
+		const TSharedRef<FJsonObject> L = H->CallOk(TEXT("build.list_materials"));
+		TArray<FString> Presets;
+		L->TryGetStringArrayField(TEXT("presets"), Presets);
+		TestTrue(TEXT("presets"), Presets.Contains(TEXT("sandstone")));
+		TestTrue(TEXT("styles"), L->GetArrayField(TEXT("styles")).Num() > 3);
+		H->CallFails(TEXT("build.list_materials"), TEXT("{\"bogus\":1}"), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("snaps new objects to the ground and returns id, name and path", [this]()
+	{
+		Prim(TEXT("{\"shape\":\"box\",\"size\":[2000,2000,20],\"location\":[0,0,-20],\"name\":\"ground\"}"));
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("build.create_primitive"), TEXT("{\"shape\":\"box\",\"size\":[100,100,100],\"location\":[0,0,700],\"name\":\"crate\",\"snap_to_ground\":true}"));
+		TestTrue(TEXT("snapped"), R->GetBoolField(TEXT("snapped_to_ground")));
+		TestEqual(TEXT("name"), R->GetStringField(TEXT("name")), FString(TEXT("crate")));
+		TestEqual(TEXT("path"), R->GetStringField(TEXT("path")), FString(TEXT("crate")));
+		TestTrue(TEXT("resting on the ground"), FMath::IsNearlyEqual(BuildBox(BuildNodeActor(*H, R->GetStringField(TEXT("id")))).Min.Z, 0.0, 1.0));
+		const TSharedRef<FJsonObject> A = H->CallOk(TEXT("build.create_assembly"),
+			TEXT(R"({"parts":[{"shape":"box","size":[100,100,50]}],"location":[500,0,900],"snap_to_ground":true})"));
+		TestTrue(TEXT("assembly snapped"), FMath::IsNearlyEqual(BuildBox(BuildNodeActor(*H, A->GetStringField(TEXT("id")))).Min.Z, 0.0, 1.0));
+		H->CallFails(TEXT("build.create_primitive"), TEXT("{\"shape\":\"box\",\"parent\":\"n999999\"}"), ERuntimeToolError::NotFound);
+	});
+
+	It("sets every material field and rejects empty or invalid changes", [this]()
+	{
+		const FString A = Prim(TEXT("{\"shape\":\"box\",\"material\":\"stone\"}"));
+		H->CallOk(TEXT("build.set_material"), FString::Printf(TEXT("{\"targets\":[\"%s\"],\"roughness\":0.2,\"style\":\"blocks\",\"tile\":60}"), *A));
+		const FString Source = H->GetGraph()->Find(A)->Source;
+		TestTrue(TEXT("fields recorded"), Source.Contains(TEXT("\"style\":\"blocks\"")) && Source.Contains(TEXT("\"tile\":60")) && Source.Contains(TEXT("stone")));
+		H->CallFails(TEXT("build.set_material"), FString::Printf(TEXT("{\"targets\":[\"%s\"]}"), *A), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.set_material"), FString::Printf(TEXT("{\"targets\":[\"%s\"],\"style\":\"polka\"}"), *A), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.set_material"), FString::Printf(TEXT("{\"targets\":[\"%s\"],\"color\":[1,0,0]}"), *H->SpawnCube()), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("fails clearly for every tool", [this]()
+	{
+		const FString Group = H->CallOk(TEXT("scene.create_group"), TEXT("{\"name\":\"g\"}"))->GetStringField(TEXT("id"));
+		const FString Box = Prim(TEXT("{\"shape\":\"box\"}"));
+		H->CallFails(TEXT("build.create_assembly"), TEXT("{\"parts\":[]}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.create_assembly"), TEXT("{\"parts\":[5]}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.create_profile_solid"), TEXT("{\"kind\":\"sweep\",\"profile\":[[0,0],[1,0],[0,1]]}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.boolean_op"), FString::Printf(TEXT("{\"target\":\"%s\",\"tool\":\"n999999\"}"), *Box), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("build.array"), FString::Printf(TEXT("{\"target\":\"%s\",\"count\":1}"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.array"), FString::Printf(TEXT("{\"target\":\"%s\",\"mode\":\"grid\",\"counts\":[20,20,20]}"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.mirror"), FString::Printf(TEXT("{\"target\":\"%s\"}"), *Group), ERuntimeToolError::Unsupported);
+		H->CallFails(TEXT("build.measure"), FString::Printf(TEXT("{\"a\":\"%s\",\"b\":\"n999999\"}"), *Box), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("build.check_overlaps"), TEXT("{\"under\":\"n999999\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("build.get_build_stats"), TEXT("{\"under\":\"n999999\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("build.capture_view"), TEXT("{\"size\":10}"), ERuntimeToolError::InvalidArguments);
+	});
+
 	It("captures an ortho contact sheet, or reports unsupported without rendering", [this]()
 	{
 		Prim(TEXT("{\"shape\":\"pyramid\",\"size\":[300,300,200]}"));

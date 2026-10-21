@@ -1,21 +1,25 @@
-#include "GameToolset.h"
-#include "InputToolset.h"
-#include "LevelToolset.h"
-#include "PhysicsToolset.h"
+#include "RuntimeGameToolset.h"
+#include "RuntimeInputToolset.h"
+#include "RuntimeLevelToolset.h"
+#include "RuntimePhysicsToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
 
-/** Gameplay group: game framework, physics, levels, input (Phase 2). Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Gameplay group: game framework, physics, levels, input. Toolsets are UFUNCTION classes (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsGameplayModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FGameToolset>(), MakeShared<FPhysicsToolset>(), MakeShared<FLevelToolset>(), MakeShared<FInputToolset>()};
-		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
-		{
-			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
-		}
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeGameToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimePhysicsToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeLevelToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeInputToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override

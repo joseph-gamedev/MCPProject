@@ -1,9 +1,284 @@
 {
-	"description": "Line traces, overlaps, simulate physics, impulses, ragdoll",
+	"description": "Physics and collision queries in the running world: traces, overlaps, simulation state, pushes and ragdolls.\nWorkflow: get_collision_channels (which channel names exist) -> line_trace / overlap_test to probe the world ->\nget_physics to inspect a body -> set_simulate (undo puts the object back) -> add_impulse to push it (not undoable) ->\nragdoll for skeletal meshes.",
 	"name": "physics",
 	"tools": [
 		{
-			"description": "Trace a ray; returns hit actor, point, normal, distance.",
+			"description": "Pushes a simulating object. Not undoable (the motion that follows cannot be reverted).\nReturns: The pushed actor and its velocity right after the push. Fails if the target is not simulating physics (call set_simulate first).\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"at":
+					{
+						"description": "Apply at this world point [x,y,z] (adds spin); default the centre of mass. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"impulse":
+					{
+						"description": "[x,y,z]; a velocity change in cm/s with velocity_change, else an impulse in kg*cm/s, e.g. [0,0,500]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Simulating actor or \"actor#Component\", e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"velocity_change":
+					{
+						"default": true,
+						"description": "Treat impulse as a velocity change (ignores mass).",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"target",
+					"impulse"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "physics.add_impulse",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The pushed actor and its velocity right after the push. Fails if the target is not simulating physics (call set_simulate first).",
+						"properties":
+						{
+							"target":
+							{
+								"description": "Reference of the pushed actor.",
+								"type": "string"
+							},
+							"velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "PhysicsToolImpulseResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": false
+		},
+		{
+			"description": "Lists the collision channels (trace channels and object types) and collision profiles of this project, for use with line_trace / overlap_test `channel` (Epic scene.get_collision_channels).\nReturns: {channels:[{name, trace, object_type}] in engine order, profiles:[names] sorted}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "physics.get_collision_channels",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{channels:[{name, trace, object_type}] in engine order, profiles:[names] sorted}.",
+						"properties":
+						{
+							"channels":
+							{
+								"description": "Trace channels and object types, in engine channel order.",
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"description": "Channel name as configured in the project, e.g. \"Visibility\", \"WorldStatic\", \"Pawn\". Pass it as `channel`.",
+											"type": "string"
+										},
+										"object_type":
+										{
+											"description": "An object type (WorldStatic, WorldDynamic, Pawn, PhysicsBody, ...).",
+											"type": "boolean"
+										},
+										"trace":
+										{
+											"description": "Usable as a trace channel (Visibility, Camera, custom trace channels).",
+											"type": "boolean"
+										}
+									},
+									"title": "PhysicsToolChannelInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"profiles":
+							{
+								"description": "Collision profile names (BlockAll, OverlapAll, Pawn, Ragdoll, ...), sorted.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "PhysicsToolCollisionChannels",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the simulation state, mass, velocity, collision and mobility of a body; for skeletal meshes also every bone body.\nReturns: {component, simulating, gravity, collision_profile, collision, mobility, mass_kg, velocity, angular_velocity, bodies:[{bone, simulating, mass_kg}]}. Fails if the target has no primitive component.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor (its first primitive component, usually the root) or \"actor#Component\", e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "physics.get_physics",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{component, simulating, gravity, collision_profile, collision, mobility, mass_kg, velocity, angular_velocity, bodies:[{bone, simulating, mass_kg}]}. Fails if the target has no primitive component.",
+						"properties":
+						{
+							"angular_velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"bodies":
+							{
+								"description": "Per-bone bodies of a skeletal mesh (empty for other components).",
+								"items":
+								{
+									"properties":
+									{
+										"bone":
+										{
+											"description": "Bone the body belongs to.",
+											"type": "string"
+										},
+										"mass_kg":
+										{
+											"description": "Mass in kg.",
+											"type": "number"
+										},
+										"simulating":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "PhysicsToolBodyInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"collision":
+							{
+								"description": "Whether collision is enabled at all.",
+								"type": "boolean"
+							},
+							"collision_profile":
+							{
+								"description": "Collision profile name, e.g. \"BlockAll\".",
+								"type": "string"
+							},
+							"component":
+							{
+								"description": "The inspected primitive component.",
+								"type": "string"
+							},
+							"gravity":
+							{
+								"type": "boolean"
+							},
+							"mass_kg":
+							{
+								"description": "Mass in kg (0 without a physics body).",
+								"type": "number"
+							},
+							"mobility":
+							{
+								"description": "Static, Stationary or Movable. Only Movable components simulate.",
+								"type": "string"
+							},
+							"simulating":
+							{
+								"type": "boolean"
+							},
+							"velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "PhysicsToolState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Traces a ray through the world and returns what it hits.\nReturns: {hit, hits:[{actor, component, location, normal, distance}]} nearest first. Fails if neither end nor a non-zero direction is given, or the channel name is unknown (the channels are listed).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,25 +286,19 @@
 				{
 					"channel":
 					{
-						"default": "visibility",
-						"description": "Trace channel",
-						"enum": [
-							"visibility",
-							"camera",
-							"world_static",
-							"pawn"
-						],
+						"default": "Visibility",
+						"description": "Trace channel or object type name from get_collision_channels, e.g. \"Visibility\", \"Camera\", \"WorldStatic\", \"Pawn\".",
 						"type": "string"
 					},
 					"complex":
 					{
 						"default": false,
-						"description": "Trace complex (per-triangle) collision",
+						"description": "Trace per-triangle collision instead of simple shapes.",
 						"type": "boolean"
 					},
 					"direction":
 					{
-						"description": "Or a direction",
+						"description": "Ray direction, e.g. [0,0,-1] (used when end is omitted). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -41,13 +310,12 @@
 					"distance":
 					{
 						"default": 100000,
-						"description": "Length with direction cm",
-						"minimum": 1,
+						"description": "Ray length in cm when using direction.",
 						"type": "number"
 					},
 					"end":
 					{
-						"description": "End [x,y,z]",
+						"description": "Ray end [x,y,z]; or give direction (+ distance) instead. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -58,31 +326,29 @@
 					},
 					"ignore":
 					{
-						"description": "Targets to ignore",
+						"description": "Actors the ray passes through (node ids, paths, actor:Name).",
 						"items":
 						{
-							"maxLength": 256,
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 							"type": "string"
 						},
-						"maxItems": 64,
 						"type": "array"
 					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 0,
+						"description": "Maximum hits with multi (0 = default list limit).",
 						"type": "integer"
 					},
 					"multi":
 					{
 						"default": false,
-						"description": "Return every hit",
+						"description": "Return every hit along the ray instead of the first blocking one.",
 						"type": "boolean"
 					},
 					"start":
 					{
-						"description": "Start [x,y,z]",
+						"description": "Ray start [x,y,z] in cm, e.g. [0,0,500]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -97,10 +363,83 @@
 				],
 				"type": "object"
 			},
-			"name": "physics.line_trace"
+			"name": "physics.line_trace",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{hit, hits:[{actor, component, location, normal, distance}]} nearest first. Fails if neither end nor a non-zero direction is given, or the channel name is unknown (the channels are listed).",
+						"properties":
+						{
+							"hit":
+							{
+								"type": "boolean"
+							},
+							"hits":
+							{
+								"description": "Hits nearest first (one entry unless multi).",
+								"items":
+								{
+									"properties":
+									{
+										"actor":
+										{
+											"description": "Reference of the hit actor (node id, else actor:Name).",
+											"type": "string"
+										},
+										"component":
+										{
+											"description": "Name of the hit component.",
+											"type": "string"
+										},
+										"distance":
+										{
+											"description": "Distance from the start in cm.",
+											"type": "number"
+										},
+										"location":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"normal":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										}
+									},
+									"title": "PhysicsToolHit",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "PhysicsToolTraceResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Actors overlapping a sphere or box.",
+			"description": "Finds actors overlapping a sphere or box.\nReturns: {total, truncated, actors:[refs]} in query order. Fails if a box has no positive size, the radius is not positive, or the channel name is unknown.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -108,7 +447,7 @@
 				{
 					"center":
 					{
-						"description": "Centre [x,y,z]",
+						"description": "Shape centre [x,y,z] in cm, e.g. [0,0,100]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -117,33 +456,37 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"channel":
+					{
+						"default": "",
+						"description": "Only bodies that overlap or block this channel (empty = every object type), e.g. \"Pawn\".",
+						"type": "string"
+					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 0,
+						"description": "Maximum actors returned (0 = default list limit).",
 						"type": "integer"
 					},
 					"radius":
 					{
 						"default": 100,
-						"description": "Sphere radius cm",
-						"minimum": 0.10000000000000001,
+						"description": "Sphere radius in cm.",
 						"type": "number"
 					},
 					"shape":
 					{
-						"default": "sphere",
-						"description": "Shape",
+						"default": "Sphere",
+						"description": "Sphere or Box.",
 						"enum": [
-							"sphere",
-							"box"
+							"Sphere",
+							"Box"
 						],
 						"type": "string"
 					},
 					"size":
 					{
-						"description": "Box size [x,y,z] cm",
+						"description": "Box size [x,y,z] in cm (shape Box). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -158,31 +501,48 @@
 				],
 				"type": "object"
 			},
-			"name": "physics.overlap_test"
-		},
-		{
-			"description": "Simulation state, mass, velocity and collision of a target.",
-			"input_schema":
+			"name": "physics.overlap_test",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"target":
+					"returnValue":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
+						"description": "{total, truncated, actors:[refs]} in query order. Fails if a box has no positive size, the radius is not positive, or the channel name is unknown.",
+						"properties":
+						{
+							"actors":
+							{
+								"description": "References of the overlapping actors (node ids, else actor:Name).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Overlapping actors before the limit.",
+								"type": "integer"
+							},
+							"truncated":
+							{
+								"description": "True when actors were cut off by the limit.",
+								"type": "boolean"
+							}
+						},
+						"title": "PhysicsToolOverlapResult",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target"
+					"returnValue"
 				],
 				"type": "object"
-			},
-			"name": "physics.get_physics"
+			}
 		},
 		{
-			"description": "Turn physics simulation on/off. Undo puts the object back.",
+			"description": "Switches a skeletal mesh to ragdoll physics (or back). Undoable.\nReturns: {target, ragdoll, bodies}. Fails if the actor has no skeletal mesh with a physics asset.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -191,94 +551,12 @@
 					"enabled":
 					{
 						"default": true,
-						"description": "Simulate",
+						"description": "true for ragdoll, false to stop simulating the bodies.",
 						"type": "boolean"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "physics.set_simulate",
-			"undoable": true
-		},
-		{
-			"description": "Push a simulating object. velocity_change ignores mass. Not undoable.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"at":
-					{
-						"description": "Apply at this world point (adds spin)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"impulse":
-					{
-						"description": "[x,y,z] (cm/s with velocity_change)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"velocity_change":
-					{
-						"default": true,
-						"description": "Treat impulse as a velocity change",
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"target",
-					"impulse"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "physics.add_impulse",
-			"undoable": false
-		},
-		{
-			"description": "Switch a skeletal mesh to ragdoll physics (or back).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"enabled":
-					{
-						"default": true,
-						"description": "Ragdoll on",
-						"type": "boolean"
-					},
-					"target":
-					{
-						"description": "Actor with a skeletal mesh",
-						"maxLength": 1024,
+						"description": "Actor with a skeletal mesh that has a physics asset, e.g. \"pawn\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -289,8 +567,107 @@
 			},
 			"mutating": true,
 			"name": "physics.ragdoll",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{target, ragdoll, bodies}. Fails if the actor has no skeletal mesh with a physics asset.",
+						"properties":
+						{
+							"bodies":
+							{
+								"description": "Physics bodies of the skeletal mesh.",
+								"type": "integer"
+							},
+							"ragdoll":
+							{
+								"type": "boolean"
+							},
+							"target":
+							{
+								"description": "Reference of the actor.",
+								"type": "string"
+							}
+						},
+						"title": "PhysicsToolRagdollResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Turns physics simulation on or off. A Static or Stationary component is switched to Movable first (reported in the result). Undoable: undo stops simulating and puts the object back where it was (re-attached).\nReturns: {target, simulating, mobility_changed, note}. Fails if the component has no collision (physics cannot simulate without it).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "true to simulate, false to stop.",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Actor or \"actor#Component\", e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "physics.set_simulate",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{target, simulating, mobility_changed, note}. Fails if the component has no collision (physics cannot simulate without it).",
+						"properties":
+						{
+							"mobility_changed":
+							{
+								"description": "True when the component was Static/Stationary and was switched to Movable to simulate (undo restores it).",
+								"type": "boolean"
+							},
+							"note":
+							{
+								"description": "Extra information (e.g. what changed besides simulation).",
+								"type": "string"
+							},
+							"simulating":
+							{
+								"type": "boolean"
+							},
+							"target":
+							{
+								"description": "Reference of the owning actor.",
+								"type": "string"
+							}
+						},
+						"title": "PhysicsToolSimulateResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

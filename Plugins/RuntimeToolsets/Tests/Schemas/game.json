@@ -1,9 +1,9 @@
 {
-	"description": "Game state, players, teleport, pause, time dilation",
+	"description": "The running game: map, game mode, players, pause and time scale; move players or actors around.\nWorkflow: get_game_state / list_players to see what is running -> teleport (optionally snap_to_ground) ->\nset_pause / set_time_dilation to freeze or slow the action while inspecting (tools keep working while paused).\nEvery change is undoable with history.undo.",
 	"name": "game",
 	"tools": [
 		{
-			"description": "Map, game mode, time, pause, time dilation, player count.",
+			"description": "Returns a summary of the running game: map, game mode, game state, time, pause, time dilation and player count.\nReturns: {map, time_seconds, real_time_seconds, paused, time_dilation, game_mode, default_pawn, game_state, player_states, players}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -12,67 +12,187 @@
 				},
 				"type": "object"
 			},
-			"name": "game.get_game_state"
-		},
-		{
-			"description": "Player controllers with their pawns and locations.",
-			"input_schema":
+			"name": "game.get_game_state",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-				},
-				"type": "object"
-			},
-			"name": "game.list_players"
-		},
-		{
-			"description": "Move an actor (default: the player pawn) to a location, optionally turning it.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"location":
+					"returnValue":
 					{
-						"description": "[x,y,z] cm",
-						"items":
+						"description": "{map, time_seconds, real_time_seconds, paused, time_dilation, game_mode, default_pawn, game_state, player_states, players}.",
+						"properties":
 						{
-							"type": "number"
+							"default_pawn":
+							{
+								"description": "Pawn class the game mode spawns for players.",
+								"type": "string"
+							},
+							"game_mode":
+							{
+								"description": "Game mode class (empty on clients or worlds without one).",
+								"type": "string"
+							},
+							"game_state":
+							{
+								"description": "Game state class.",
+								"type": "string"
+							},
+							"map":
+							{
+								"description": "Loaded map name (without the streaming prefix).",
+								"type": "string"
+							},
+							"paused":
+							{
+								"type": "boolean"
+							},
+							"player_states":
+							{
+								"description": "Player states known to the game state.",
+								"type": "integer"
+							},
+							"players":
+							{
+								"description": "Player controllers in the world.",
+								"type": "integer"
+							},
+							"real_time_seconds":
+							{
+								"description": "Real time since the world started, in seconds.",
+								"type": "number"
+							},
+							"time_dilation":
+							{
+								"description": "Global time dilation (1 = normal speed).",
+								"type": "number"
+							},
+							"time_seconds":
+							{
+								"description": "Game time in seconds (affected by pause and time dilation).",
+								"type": "number"
+							}
 						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"target":
-					{
-						"description": "Actor or pawn (default: player pawn)",
-						"maxLength": 1024,
-						"type": "string"
+						"title": "GameToolGameState",
+						"type": "object"
 					}
 				},
 				"required": [
-					"location"
+					"returnValue"
 				],
 				"type": "object"
-			},
-			"mutating": true,
-			"name": "game.teleport",
-			"undoable": true
+			}
 		},
 		{
-			"description": "Pause or unpause the game. Tools keep working while paused.",
+			"description": "Lists player controllers with their pawns, locations and view rotations.\nReturns: One entry per player controller, in the world's controller order (the first is the local player in single-player games).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "game.list_players",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "One entry per player controller, in the world's controller order (the first is the local player in single-player games).",
+						"items":
+						{
+							"properties":
+							{
+								"controller":
+								{
+									"description": "The player controller. (PlayerController (null if none))",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"local":
+								{
+									"description": "Whether the controller is local (has a viewport and input).",
+									"type": "boolean"
+								},
+								"location":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"name":
+								{
+									"description": "Player name from the player state (empty without one).",
+									"type": "string"
+								},
+								"pawn":
+								{
+									"description": "The possessed pawn (null when the player has none). (Pawn (null if none))",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"rotation":
+								{
+									"description": "[pitch, yaw, roll] (degrees)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								}
+							},
+							"title": "GameToolPlayerInfo",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Pauses or unpauses the game. Tools keep working while paused. Undoable.\nReturns: The requested state and whether the world reports itself paused. Fails if the world has no player controller (pausing goes through one).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -80,7 +200,7 @@
 				{
 					"paused":
 					{
-						"description": "Paused",
+						"description": "true to pause, false to resume.",
 						"type": "boolean"
 					}
 				},
@@ -91,10 +211,39 @@
 			},
 			"mutating": true,
 			"name": "game.set_pause",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The requested state and whether the world reports itself paused. Fails if the world has no player controller (pausing goes through one).",
+						"properties":
+						{
+							"paused":
+							{
+								"description": "The requested pause state.",
+								"type": "boolean"
+							},
+							"world_paused":
+							{
+								"description": "Whether the world reports itself paused now.",
+								"type": "boolean"
+							}
+						},
+						"title": "GameToolPauseResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Slow down or speed up game time (1 = normal).",
+			"description": "Slows down or speeds up game time. Undoable.\nReturns: The time dilation now in effect (engine-clamped) and the previous one. Fails if the value is out of range.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -102,9 +251,7 @@
 				{
 					"value":
 					{
-						"description": "Time scale",
-						"maximum": 20,
-						"minimum": 0.0001,
+						"description": "Time scale between 0.0001 and 20, e.g. 0.25 for slow motion (1 = normal).",
 						"type": "number"
 					}
 				},
@@ -115,8 +262,132 @@
 			},
 			"mutating": true,
 			"name": "game.set_time_dilation",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The time dilation now in effect (engine-clamped) and the previous one. Fails if the value is out of range.",
+						"properties":
+						{
+							"previous":
+							{
+								"description": "Time dilation before the call.",
+								"type": "number"
+							},
+							"time_dilation":
+							{
+								"description": "Time dilation now in effect (the engine clamps to its global min/max).",
+								"type": "number"
+							}
+						},
+						"title": "GameToolTimeDilationResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Moves an actor (default: the first player's pawn) to a location, optionally turning it. For pawns the controller's view rotation turns too. Undoable.\nReturns: The moved actor's reference and name, its final location and whether it was snapped to the ground. Fails if no target is given and there is no player pawn.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "Destination [x,y,z] in cm, e.g. [0,0,200]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "Optional new rotation [pitch,yaw,roll], e.g. [0,90,0]. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"snap_to_ground":
+					{
+						"default": false,
+						"description": "Drop the actor so the bottom of its bounds rests on the ground below the location (Epic snap_to_ground).",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Actor or pawn to move (node id, path, actor:Name, \"pawn\"); default the player pawn. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "game.teleport",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The moved actor's reference and name, its final location and whether it was snapped to the ground. Fails if no target is given and there is no player pawn.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Name of the moved actor.",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "True when snap_to_ground found ground and moved the actor onto it.",
+								"type": "boolean"
+							},
+							"teleported":
+							{
+								"description": "Reference of the moved actor (node id, else actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "GameToolTeleportResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }
