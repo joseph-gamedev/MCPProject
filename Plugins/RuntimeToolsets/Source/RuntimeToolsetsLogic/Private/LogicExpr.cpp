@@ -1039,7 +1039,7 @@ namespace LogicExpr
 		static const TArray<FString> Names = {TEXT("len"), TEXT("abs"), TEXT("floor"), TEXT("ceil"), TEXT("round"), TEXT("sqrt"), TEXT("min"), TEXT("max"),
 			TEXT("rand"), TEXT("rand_int"), TEXT("str"), TEXT("num"), TEXT("list"), TEXT("range"), TEXT("contains"), TEXT("index_of"), TEXT("count"),
 			TEXT("indices"), TEXT("pick"), TEXT("sum"), TEXT("join"), TEXT("set"), TEXT("keys"), TEXT("upper"), TEXT("lower"), TEXT("grid_lines"),
-			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move"), TEXT("dist"), TEXT("pos"), TEXT("hp"), TEXT("alive"), TEXT("nodes")};
+			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move"), TEXT("dist"), TEXT("pos"), TEXT("hp"), TEXT("alive"), TEXT("nodes"), TEXT("has")};
 		return Names;
 	}
 

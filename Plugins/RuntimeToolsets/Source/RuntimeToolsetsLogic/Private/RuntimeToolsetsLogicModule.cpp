@@ -1,5 +1,6 @@
 #include "LogicRuntime.h"
 #include "LogicToolset.h"
+#include "LogicTuning.h"
 #include "RuntimeToolsetsCore.h"
 #include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
@@ -12,6 +13,7 @@ public:
 	{
 		Toolset = MakeShared<FLogicToolset>();
 		IRuntimeToolsetsCore::Get().RegisterToolset(Toolset.ToSharedRef());
+		LogicTuning::LoadConfig();
 		FLogicManager::Get().Startup();
 	}
 

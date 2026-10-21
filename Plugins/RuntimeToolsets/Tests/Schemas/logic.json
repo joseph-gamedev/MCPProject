@@ -206,6 +206,313 @@
 			"undoable": true
 		},
 		{
+			"description": "Every internal constant of the game runtime with its value, default, meaning and where it comes from.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.get_tuning"
+		},
+		{
+			"description": "Change internal constants at runtime (see get_tuning).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"reset":
+					{
+						"default": false,
+						"description": "Back to defaults + config first",
+						"type": "boolean"
+					},
+					"values":
+					{
+						"description": "{name: number}",
+						"type": "object"
+					}
+				},
+				"type": "object"
+			},
+			"name": "logic.set_tuning"
+		},
+		{
+			"description": "Spawn pooled enemies over time or in waves, at points or around the player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"around_player":
+					{
+						"description": "{radius: n or [min,max], height: n or [min,max]}",
+						"type": "object"
+					},
+					"autostart":
+					{
+						"description": "Start with the game (default true)",
+						"type": "boolean"
+					},
+					"face_player":
+					{
+						"description": "Spawn facing the player (default true)",
+						"type": "boolean"
+					},
+					"interval":
+					{
+						"description": "Seconds between spawns, or [min,max]"
+					},
+					"max_alive":
+					{
+						"description": "At most this many alive",
+						"maximum": 500,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"name":
+					{
+						"description": "Spawner name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"points":
+					{
+						"description": "Spawn points [x,y,z]",
+						"items":
+						{
+							"description": "",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"maxItems": 100,
+						"type": "array"
+					},
+					"pool":
+					{
+						"description": "Pool to take enemies from",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"start_delay":
+					{
+						"description": "Seconds before the first spawn",
+						"maximum": 600,
+						"minimum": 0,
+						"type": "number"
+					},
+					"total":
+					{
+						"description": "Stop after this many (no waves)",
+						"maximum": 100000,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"wave_gap":
+					{
+						"description": "Seconds between waves",
+						"maximum": 600,
+						"minimum": 0,
+						"type": "number"
+					},
+					"waves":
+					{
+						"description": "Waves: {count, interval, max_alive}",
+						"items":
+						{
+							"description": "Wave",
+							"type": "object"
+						},
+						"maxItems": 100,
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"pool"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_spawner",
+			"undoable": true
+		},
+		{
+			"description": "Weighted loot table of pooled pickups.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"count":
+					{
+						"description": "Drops: n or [min,max] (default 1)"
+					},
+					"entries":
+					{
+						"description": "{pool, weight}; pool \"none\" = chance of nothing",
+						"items":
+						{
+							"description": "Entry",
+							"type": "object"
+						},
+						"maxItems": 50,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Loot table name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"scatter":
+					{
+						"description": "Spread radius cm (default 120)",
+						"minimum": 0,
+						"type": "number"
+					}
+				},
+				"required": [
+					"name",
+					"entries"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_loot",
+			"undoable": true
+		},
+		{
+			"description": "Doors, switches, chests, terminals: a key prompt near the player and an 'interact' event.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"cooldown":
+					{
+						"description": "Seconds between uses",
+						"minimum": 0,
+						"type": "number"
+					},
+					"key":
+					{
+						"description": "Key (default E)",
+						"maxLength": 32,
+						"type": "string"
+					},
+					"locked_prompt":
+					{
+						"description": "Prompt while the condition is false (fires interact_denied)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"once":
+					{
+						"description": "Only once",
+						"type": "boolean"
+					},
+					"prompt":
+					{
+						"description": "Prompt text",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"radius":
+					{
+						"description": "Reach cm (default 250)",
+						"minimum": 1,
+						"type": "number"
+					},
+					"requires":
+					{
+						"description": "Condition, e.g. has('red_key')",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 100,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_interactable",
+			"undoable": true
+		},
+		{
+			"description": "Save variables to a slot on disk (Saved/RuntimeToolsets/Saves).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"slot":
+					{
+						"description": "Slot name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"vars":
+					{
+						"description": "Variables (default all)",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 200,
+						"type": "array"
+					}
+				},
+				"required": [
+					"slot"
+				],
+				"type": "object"
+			},
+			"name": "logic.save"
+		},
+		{
+			"description": "Load variables from a save slot.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"slot":
+					{
+						"description": "Slot name",
+						"maxLength": 64,
+						"type": "string"
+					}
+				},
+				"required": [
+					"slot"
+				],
+				"type": "object"
+			},
+			"name": "logic.load"
+		},
+		{
 			"description": "AI brain as a state machine: states with movement, facing, firing and an icon; transitions by expressions (sees, heard, distance, time_in_state...).",
 			"input_schema":
 			{
@@ -218,6 +525,11 @@
 						"maximum": 10,
 						"minimum": 0,
 						"type": "number"
+					},
+					"flight":
+					{
+						"description": "3D flying brain: {speed, turn_rate, min_altitude, orbit_radius}",
+						"type": "object"
 					},
 					"hearing":
 					{
@@ -352,6 +664,12 @@
 						"default": true,
 						"description": "Pulsing red edges under 30% health",
 						"type": "boolean"
+					},
+					"markers":
+					{
+						"default": false,
+						"description": "Target brackets with distance, missile lock and flight gun reticle",
+						"type": "boolean"
 					}
 				},
 				"type": "object"
@@ -464,6 +782,12 @@
 						"maximum": 60,
 						"minimum": 0,
 						"type": "number"
+					},
+					"loot":
+					{
+						"description": "Loot table dropped on death",
+						"maxLength": 64,
+						"type": "string"
 					},
 					"max":
 					{
@@ -652,6 +976,13 @@
 						"maxLength": 128,
 						"type": "string"
 					},
+					"homing":
+					{
+						"description": "Missile turn rate deg/s (0 = straight)",
+						"maximum": 3600,
+						"minimum": 0,
+						"type": "number"
+					},
 					"knockback":
 					{
 						"description": "Push on hit (cm/s)",
@@ -663,6 +994,19 @@
 						"description": "Projectile seconds (default 1.5)",
 						"maximum": 60,
 						"minimum": 0.01,
+						"type": "number"
+					},
+					"lock_angle":
+					{
+						"description": "Lock-on cone degrees (default 25)",
+						"maximum": 180,
+						"minimum": 0,
+						"type": "number"
+					},
+					"lock_range":
+					{
+						"description": "Lock-on range cm (default 12000)",
+						"minimum": 0,
 						"type": "number"
 					},
 					"magazine":
@@ -858,6 +1202,11 @@
 						"minimum": 0,
 						"type": "number"
 					},
+					"auto_spawn":
+					{
+						"description": "Spawn on start (default true); false = spawn with {\"player\":\"spawn\"}",
+						"type": "boolean"
+					},
 					"body":
 					{
 						"description": "Optional model node (feet at z=0, facing +X); default: a hero",
@@ -892,6 +1241,17 @@
 						"minimum": -89,
 						"type": "number"
 					},
+					"crash_damage":
+					{
+						"description": "Flight: damage when hitting the ground (default lethal)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"dash":
+					{
+						"description": "{speed, duration, cooldown, key, invulnerable}",
+						"type": "object"
+					},
 					"fov":
 					{
 						"description": "Field of view (default 55)",
@@ -904,6 +1264,12 @@
 						"description": "Gravity scale (default 2.8)",
 						"maximum": 10,
 						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"grid":
+					{
+						"description": "Top-down: move cell by cell (cell size cm)",
+						"minimum": 1,
 						"type": "number"
 					},
 					"height":
@@ -943,14 +1309,34 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"max_speed":
+					{
+						"description": "Flight: boost cm/s",
+						"minimum": 0,
+						"type": "number"
+					},
+					"min_speed":
+					{
+						"description": "Flight: slowest cm/s",
+						"minimum": 0,
+						"type": "number"
+					},
 					"mode":
 					{
-						"description": "side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse",
+						"description": "side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse; flight: arcade jet",
 						"enum": [
 							"side",
-							"topdown"
+							"topdown",
+							"flight"
 						],
 						"type": "string"
+					},
+					"mouse_sensitivity":
+					{
+						"description": "Flight: mouse steering scale (default 1)",
+						"maximum": 20,
+						"minimum": 0.01,
+						"type": "number"
 					},
 					"radius":
 					{
@@ -965,11 +1351,43 @@
 						"maxLength": 32,
 						"type": "string"
 					},
+					"roll_rate":
+					{
+						"description": "Flight: roll deg/s (default 160)",
+						"maximum": 1440,
+						"minimum": 1,
+						"type": "number"
+					},
+					"secondary":
+					{
+						"description": "Weapon fired with right mouse / left trigger / G",
+						"maxLength": 64,
+						"type": "string"
+					},
 					"speed":
 					{
 						"description": "Run speed cm/s (default 650)",
 						"maximum": 5000,
 						"minimum": 50,
+						"type": "number"
+					},
+					"step_time":
+					{
+						"description": "Grid: seconds per step (default 0.14)",
+						"maximum": 5,
+						"minimum": 0.01,
+						"type": "number"
+					},
+					"turn":
+					{
+						"description": "Flight: pitch/yaw deg/s (default 70)",
+						"maximum": 720,
+						"minimum": 1,
+						"type": "number"
+					},
+					"yaw":
+					{
+						"description": "Start heading degrees",
 						"type": "number"
 					}
 				},
@@ -1191,6 +1609,12 @@
 				"additionalProperties": false,
 				"properties":
 				{
+					"replace":
+					{
+						"default": false,
+						"description": "Remove all other rules first",
+						"type": "boolean"
+					},
 					"rules":
 					{
 						"description": "Rules: {name, on, target, key, filter, condition, actions:[...], enabled}",
@@ -1298,6 +1722,12 @@
 						},
 						"maxItems": 64,
 						"type": "array"
+					},
+					"replace":
+					{
+						"default": false,
+						"description": "Remove all other items first",
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -1426,7 +1856,9 @@
 							"timer",
 							"event",
 							"touch",
-							"fall"
+							"fall",
+							"interact",
+							"crash"
 						],
 						"type": "string"
 					},

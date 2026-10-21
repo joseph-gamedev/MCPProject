@@ -1,5 +1,6 @@
 // In-world HUD painter (enemy health bars, alert icons, floating numbers, hit flash) and feedback presets.
 #include "LogicHud.h"
+#include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -101,10 +102,10 @@ int32 SLogicHud::OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSl
 	if (Flag(Hud, TEXT("hit_flash"), true) && W->HitFlash > 0.0)
 	{
 		FLinearColor C = W->FlashColor;
-		C.A = static_cast<float>(0.35 * W->HitFlash);
+		C.A = static_cast<float>(LogicTuning::Get(TEXT("hud.flash_alpha")) * W->HitFlash);
 		Box(FVector2f::ZeroVector, Size, C, White);
 	}
-	if (const FLogicWorld::FHealthState* PH = W->Healths.Find(TEXT("player")); PH && !PH->bDead && PH->Current / PH->Max <= 0.3 && Flag(Hud, TEXT("low_health"), true))
+	if (const FLogicWorld::FHealthState* PH = W->Healths.Find(TEXT("player")); PH && !PH->bDead && PH->Current / PH->Max <= LogicTuning::Get(TEXT("hud.low_health")) && Flag(Hud, TEXT("low_health"), true))
 	{
 		const float A = 0.12f + 0.12f * FMath::Sin(static_cast<float>(FPlatformTime::Seconds()) * 6.f);
 		const float E = 70.f;
@@ -133,7 +134,7 @@ int32 SLogicHud::OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSl
 		FVector2f S;
 		if (B.IsValid && Project(FVector(B.GetCenter().X, B.GetCenter().Y, B.Max.Z + 35.0), S))
 		{
-			const FVector2f BarSize(62.f, 9.f);
+			const FVector2f BarSize(static_cast<float>(LogicTuning::Get(TEXT("hud.enemy_bar_width"))), static_cast<float>(LogicTuning::Get(TEXT("hud.enemy_bar_height"))));
 			const float Frac = static_cast<float>(FMath::Clamp(P.Value.Current / P.Value.Max, 0.0, 1.0));
 			Box(S - BarSize * 0.5f - FVector2f(2, 2), BarSize + FVector2f(4, 4), FLinearColor(0, 0, 0, 0.7f), Round);
 			Box(S - BarSize * 0.5f, FVector2f(BarSize.X * Frac, BarSize.Y), FMath::Lerp(FLinearColor(0.95f, 0.1f, 0.05f), FLinearColor(0.2f, 0.9f, 0.25f), Frac), Round);
@@ -164,13 +165,104 @@ int32 SLogicHud::OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSl
 		}
 	}
 
+	// Interaction prompt.
+	if (!W->CurrentInteract.IsEmpty())
+	{
+		const FRuntimeSceneNode* N = G ? G->Find(W->CurrentInteract) : nullptr;
+		FVector2f S;
+		if (N && N->Actor.IsValid())
+		{
+			const FBox B = FLogicWorld::GameBox(N->Actor.Get());
+			if (B.IsValid && Project(FVector(B.GetCenter().X, B.GetCenter().Y, B.Max.Z + 40.0), S))
+			{
+				FString Prompt = TEXT("Interact"), Key = TEXT("E");
+				for (const TPair<FString, TSharedPtr<FJsonObject>>& P : W->InteractDefs)
+				{
+					if (FLogicWorld::DirectMatch(*N, P.Key, *G) || W->NodeMatches(N->Id, P.Key))
+					{
+						P.Value->TryGetStringField(TEXT("prompt"), Prompt);
+						P.Value->TryGetStringField(TEXT("key"), Key);
+						const FString Req = P.Value->HasField(TEXT("requires")) ? P.Value->GetStringField(TEXT("requires")) : FString();
+						if (!Req.IsEmpty() && P.Value->HasField(TEXT("locked_prompt")))
+						{
+							FLogicWorld::FFrame Frame;
+							Frame.Locals.Add(TEXT("self"), FLogicValue::MakeString(N->Id));
+							FLogicScope Scope = W->MakeScope(Frame);
+							if (!LogicExpr::Evaluate(Req, Scope).Truthy())
+							{
+								Prompt = P.Value->GetStringField(TEXT("locked_prompt"));
+							}
+						}
+						break;
+					}
+				}
+				const FString Label = FString::Printf(TEXT("[%s]  %s"), *Key, *Prompt);
+				FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", 16);
+				const FVector2f TS = FVector2f(Measure->Measure(Label, Font));
+				Box(S - TS * 0.5f - FVector2f(12, 6), TS + FVector2f(24, 12), FLinearColor(0.02f, 0.03f, 0.05f, 0.75f), Round);
+				Text(S, Label, 16, FLinearColor(1.f, 0.95f, 0.7f));
+			}
+		}
+	}
+
+	// Enemy markers and missile lock (flight / shooters).
+	if (Flag(Hud, TEXT("markers"), false))
+	{
+		FString Lock;
+		if (TSharedPtr<FJsonObject> PJ = W->PlayerJson(); PJ->HasField(TEXT("lock")))
+		{
+			Lock = PJ->GetStringField(TEXT("lock"));
+		}
+		ACharacter* PC2 = W->GetPlayer();
+		for (const TPair<FString, FLogicWorld::FHealthState>& P : W->Healths)
+		{
+			FBox B;
+			if (P.Key == TEXT("player") || P.Value.bDead || !W->VictimBox(P.Key, B))
+			{
+				continue;
+			}
+			FVector2f S;
+			if (!Project(B.GetCenter(), S))
+			{
+				continue;
+			}
+			const bool bLocked = P.Key == Lock;
+			const float Half = bLocked ? 26.f : 16.f;
+			const FLinearColor C = bLocked ? FLinearColor(1.f, 0.15f, 0.1f) : FLinearColor(1.f, 0.45f, 0.2f, 0.9f);
+			const float T = 2.f, L = Half * 0.6f;
+			for (const FVector2f& Corner : {FVector2f(-1, -1), FVector2f(1, -1), FVector2f(-1, 1), FVector2f(1, 1)})
+			{
+				const FVector2f O = S + Corner * Half;
+				Box(FVector2f(Corner.X < 0 ? O.X : O.X - L, O.Y - T * 0.5f), FVector2f(L, T), C, White);
+				Box(FVector2f(O.X - T * 0.5f, Corner.Y < 0 ? O.Y : O.Y - L), FVector2f(T, L), C, White);
+			}
+			if (PC2)
+			{
+				const double Meters = FVector::Dist(PC2->GetActorLocation(), B.GetCenter()) / 100.0;
+				Text(S + FVector2f(0, Half + 12), bLocked ? FString::Printf(TEXT("LOCK  %dm"), FMath::RoundToInt(Meters)) : FString::Printf(TEXT("%dm"), FMath::RoundToInt(Meters)), 12, C);
+			}
+		}
+		if (PC2 && W->IsFlight())
+		{
+			FVector2f S;
+			if (Project(PC2->GetActorLocation() + PC2->GetActorForwardVector() * 6000.0, S))
+			{
+				const FLinearColor C(0.4f, 1.f, 0.5f, 0.9f);
+				Box(S - FVector2f(14, 1), FVector2f(10, 2), C, White);
+				Box(S + FVector2f(4, -1), FVector2f(10, 2), C, White);
+				Box(S - FVector2f(1, 14), FVector2f(2, 10), C, White);
+				Box(S + FVector2f(-1, 4), FVector2f(2, 10), C, White);
+			}
+		}
+	}
+
 	// Floating numbers.
 	if (Flag(Hud, TEXT("damage_numbers"), true))
 	{
 		for (const FLogicWorld::FFloatText& F : W->FloatTexts)
 		{
 			FVector2f S;
-			if (Project(F.World + FVector(0, 0, F.Age * 140.0), S))
+			if (Project(F.World + FVector(0, 0, F.Age * LogicTuning::Get(TEXT("hud.number_rise"))), S))
 			{
 				FLinearColor C = F.Color;
 				C.A = static_cast<float>(FMath::Clamp(1.0 - (F.Age - 0.45) / 0.45, 0.0, 1.0));

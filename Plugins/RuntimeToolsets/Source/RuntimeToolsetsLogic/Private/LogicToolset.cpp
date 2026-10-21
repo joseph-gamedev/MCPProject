@@ -1,5 +1,6 @@
 #include "LogicToolset.h"
 #include "LogicRuntime.h"
+#include "LogicTuning.h"
 #include "RuntimeCommand.h"
 #include "RuntimeObjectResolver.h"
 #include "RuntimeSceneGraph.h"
@@ -86,7 +87,30 @@ GAME HUD: logic.set_hud {enemy_bars, alert_icons, damage_numbers, hit_flash, low
 FEEDBACK (juice): logic.define_feedback {name, steps:[{type: shake|flash|freeze|slowmo|text|tween|spawn|emit, delay,
    duration, intensity, scale, color, text, pool, ...tween fields}]}; play with {"feedback":"name"} or attach
    hit_feedback/death_feedback to define_health and feedback to define_weapon.
-)GUIDE" R"GUIDE(TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
+)GUIDE" R"GUIDE(FLIGHT / DOGFIGHT: logic.spawn_player {mode:"flight", location, yaw, speed (cruise), min_speed, max_speed (boost), turn,
+   roll_rate, body:"<jet model node>" (nose +X), secondary:"<missile weapon>", camera_distance, camera_height, fov,
+   auto_spawn:false (spawn later with {"player":"spawn"})}. Mouse/arrows steer, A/D roll, W/S throttle, Shift boost,
+   LMB guns, RMB missiles. Crashing fires on:"crash" and deals crash_damage. player.speed/altitude/throttle/lock.
+   Weapons: homing (deg/s turn), lock_range, lock_angle make missiles. Shots inherit the shooter's speed.
+   Enemy jets: define_brain {..., flight:{speed, turn_rate, min_altitude, orbit_radius}} — move patrol=orbit,
+   chase=lead pursuit with break-off, flee=evade; fire when the player is within fire_angle / fire_range.
+   set_hud {markers:true} draws target brackets, distance, the missile lock and a gun reticle.
+   Change the player at runtime: {"player":"set","fields":{"body":"=jets[sel].body","speed":"=..."}} (new body
+   respawns), {"player":"spawn"} / {"player":"remove"}, {"health":"'player'","max":"...","value":"..."},
+   {"weapon":"guns","set":{"damage":"=..."}}.
+SPAWNERS / WAVES: logic.define_spawner {name, pool, points:[[x,y,z]] or around_player:{radius:[a,b], height:[a,b]},
+   interval (s or [min,max]), max_alive, total, waves:[{count, interval, max_alive}], wave_gap, start_delay, autostart,
+   face_player}. Events wave_start / wave_cleared / waves_complete / spawned (filter: spawner). Action
+   {"spawner":"name","op":"start|stop|reset"}. Spawned pool members get fresh health and brains; use on_death:"release".
+LOOT: logic.define_loot {name, entries:[{pool, weight}], count:[min,max], scatter}; define_health {loot:"name"} drops
+   on death; action {"drop_loot":"name","at":"..."}.
+INTERACT: logic.define_interactable {targets, prompt:"Open door", key:"E", radius, once, cooldown, requires:"has('key')",
+   locked_prompt:"Locked"} -> on:"interact" / "interact_denied" with target. Inventory: {"give":"'key'","amount":"1"},
+   {"take":...}, has('key'), inventory.key. Teleport: {"player":"teleport","value":"[x,y,z]"}.
+SAVES: {"save":"slot","vars":["credits","upgrades"]}, {"load":"slot"} (missing slot = nothing happens).
+ABILITIES: spawn_player {dash:{speed, duration, cooldown, key, invulnerable}} (on:"dash"), grid:<cell cm> + step_time
+   for cell-by-cell movement in top-down mode.
+TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
    fields: location|move (relative), rotation|rotate (relative), scale (number or [x,y,z]), color [r,g,b], duration, delay,
    ease (linear in_quad out_quad in_out_quad in_cubic out_cubic in_out_cubic in_sine out_sine in_out_sine in_back out_back
    in_out_back out_elastic in_bounce out_bounce), loop (once|yoyo|loop|pingpong), repeat, then (hide|show|release),
@@ -472,6 +496,18 @@ static void FireEvent(FToolInvocation& Inv)
 	{
 		E.On = On;
 		E.Name = Inv.GetString(On == TEXT("key") ? TEXT("key") : TEXT("name"));
+		if (Inv.Has(TEXT("target")))
+		{
+			FResolvedTarget T;
+			if (!Inv.ResolveTarget(TEXT("target"), T))
+			{
+				return;
+			}
+			if (T.Node)
+			{
+				E.Target = T.Node->Id;
+			}
+		}
 		if (const TSharedPtr<FJsonObject> Data = Inv.GetObject(TEXT("data")))
 		{
 			E.Data = FLogicValue::FromJson(MakeShared<FJsonValueObject>(Data));
@@ -835,12 +871,154 @@ static void PlayFeedbackTool(FToolInvocation& Inv)
 	Inv.Succeed();
 }
 
+static void DefineNamed(FToolInvocation& Inv, const TCHAR* Label, TMap<FString, TSharedPtr<FJsonObject>> FLogicWorld::* Map,
+	TFunction<bool(FLogicWorld&, const TSharedRef<FJsonObject>&, FString&)> Check)
+{
+	const FString Name = Inv.GetString(TEXT("name"));
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("name")});
+	if (EditDefinitions(Inv, Label, [&](FLogicWorld& L, FString& Err)
+	{
+		if (Check && !Check(L, Def, Err))
+		{
+			return false;
+		}
+		(L.*Map).Add(Name, Def);
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void DefineSpawner(FToolInvocation& Inv)
+{
+	DefineNamed(Inv, TEXT("define spawner"), &FLogicWorld::SpawnerDefs, [](FLogicWorld& L, const TSharedRef<FJsonObject>& D, FString& Err)
+	{
+		if (!L.Pools.Contains(D->GetStringField(TEXT("pool"))))
+		{
+			Err = TEXT("spawner needs an existing pool (logic.define_pool)");
+			return false;
+		}
+		if (!D->HasField(TEXT("points")) && !D->HasField(TEXT("around_player")))
+		{
+			Err = TEXT("spawner needs points:[[x,y,z],...] or around_player:{radius, height}");
+			return false;
+		}
+		return true;
+	});
+}
+
+static void DefineLoot(FToolInvocation& Inv)
+{
+	DefineNamed(Inv, TEXT("define loot"), &FLogicWorld::LootDefs, [](FLogicWorld& L, const TSharedRef<FJsonObject>& D, FString& Err)
+	{
+		for (const TSharedPtr<FJsonValue>& V : D->GetArrayField(TEXT("entries")))
+		{
+			const TSharedPtr<FJsonObject> E = V->AsObject();
+			FString Pool;
+			if (!E.IsValid() || !E->TryGetStringField(TEXT("pool"), Pool) || (Pool != TEXT("none") && !L.Pools.Contains(Pool)))
+			{
+				Err = TEXT("each loot entry needs pool (an existing pool, or \"none\" for a no-drop chance) and weight");
+				return false;
+			}
+		}
+		return true;
+	});
+}
+
+static void DefineInteractable(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = TargetsArg(Inv);
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("targets")});
+	if (EditDefinitions(Inv, TEXT("define interactable"), [&](FLogicWorld& L, FString& Err)
+	{
+		FString Req;
+		if (Def->TryGetStringField(TEXT("requires"), Req))
+		{
+			FString E;
+			if (!LogicExpr::Parse(Req, E))
+			{
+				Err = TEXT("requires: ") + E;
+				return false;
+			}
+		}
+		for (const FString& T : Targets)
+		{
+			TArray<FString> Ids;
+			if (!L.ResolveNodes({T}, Ids, Err))
+			{
+				return false;
+			}
+			L.InteractDefs.Add(T, Def);
+		}
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void SaveTool(FToolInvocation& Inv)
+{
+	FString Err;
+	if (!Logic(Inv)->SaveSlot(Inv.GetString(TEXT("slot")), Inv.GetStringArray(TEXT("vars")), Err))
+	{
+		Inv.Fail(ERuntimeToolError::InvalidArguments, Err);
+		return;
+	}
+	Inv.Succeed();
+}
+
+static void LoadTool(FToolInvocation& Inv)
+{
+	FString Err;
+	if (!Logic(Inv)->LoadSlot(Inv.GetString(TEXT("slot")), Err))
+	{
+		Inv.Fail(ERuntimeToolError::NotFound, Err);
+		return;
+	}
+	TSharedRef<FJsonObject> Out = Obj();
+	Out->SetObjectField(TEXT("vars"), VarsJson(Logic(Inv)->Vars));
+	Inv.Succeed(Out);
+}
+
+static void GetTuning(FToolInvocation& Inv)
+{
+	TSharedRef<FJsonObject> Out = Obj();
+	Out->SetObjectField(TEXT("tuning"), LogicTuning::ToJson());
+	Out->SetStringField(TEXT("note"), TEXT("Internal constants. Override in DefaultGame.ini [RuntimeToolsets.Tuning] name=value or with logic.set_tuning. Gameplay parameters belong to define_* tools."));
+	Inv.Succeed(Out);
+}
+
+static void SetTuning(FToolInvocation& Inv)
+{
+	const TSharedPtr<FJsonObject> Values = Inv.GetObject(TEXT("values"));
+	if (Inv.GetBool(TEXT("reset")))
+	{
+		LogicTuning::Reset();
+	}
+	if (Values.IsValid())
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : Values->Values)
+		{
+			FString Err;
+			if (P.Value->Type != EJson::Number || !LogicTuning::Set(P.Key, P.Value->AsNumber(), Err))
+			{
+				Inv.Fail(ERuntimeToolError::InvalidArguments, Err.IsEmpty() ? P.Key + TEXT(" must be a number") : Err);
+				return;
+			}
+		}
+	}
+	GetTuning(Inv);
+}
+
 static TSharedPtr<FJsonObject> PlayerDefFromArgs(FToolInvocation& Inv)
 {
 	TSharedRef<FJsonObject> Def = Obj();
 	for (const TCHAR* F : {TEXT("location"), TEXT("radius"), TEXT("height"), TEXT("speed"), TEXT("jump"), TEXT("jump_hold"), TEXT("gravity"),
 			 TEXT("air_control"), TEXT("body"), TEXT("camera_distance"), TEXT("camera_height"), TEXT("camera_lead"), TEXT("camera_pitch"), TEXT("fov"),
-			 TEXT("kill_z"), TEXT("mode"), TEXT("reload_key")})
+			 TEXT("kill_z"), TEXT("mode"), TEXT("reload_key"), TEXT("yaw"), TEXT("min_speed"), TEXT("max_speed"), TEXT("turn"),
+			 TEXT("roll_rate"), TEXT("mouse_sensitivity"), TEXT("crash_damage"), TEXT("secondary"), TEXT("auto_spawn"), TEXT("dash"), TEXT("grid"), TEXT("step_time")})
 	{
 		if (Inv.Has(F))
 		{
@@ -913,7 +1091,10 @@ static void SpawnPlayerTool(FToolInvocation& Inv)
 	if (EditDefinitions(Inv, TEXT("spawn player"), [&](FLogicWorld& L, FString& Err)
 	{
 		L.PlayerDef = Def;
-		return L.SpawnPlayer(Err);
+		L.PlayerLive = nullptr;
+		bool bAuto = true;
+		Def->TryGetBoolField(TEXT("auto_spawn"), bAuto);
+		return bAuto ? L.SpawnPlayer(Err) : true;
 	}))
 	{
 		TSharedRef<FJsonObject> Out = Logic(Inv)->PlayerJson();
@@ -1065,6 +1246,67 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		.Undoable().RequiresWorld()
 		.Handle(&DefinePool);
 
+	B.Tool(TEXT("get_tuning"), TEXT("Every internal constant of the game runtime with its value, default, meaning and where it comes from."))
+		.Args(FToolSchema())
+		.Handle(&GetTuning);
+
+	B.Tool(TEXT("set_tuning"), TEXT("Change internal constants at runtime (see get_tuning)."))
+		.Args(FToolSchema()
+			.Add(TEXT("values"), FToolParam::Object(TEXT("{name: number}")))
+			.Add(TEXT("reset"), FToolParam::Boolean(TEXT("Back to defaults + config first")).Default(false)))
+		.Handle(&SetTuning);
+
+	B.Tool(TEXT("define_spawner"), TEXT("Spawn pooled enemies over time or in waves, at points or around the player."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Spawner name"), 64).Required())
+			.Add(TEXT("pool"), FToolParam::String(TEXT("Pool to take enemies from"), 64).Required())
+			.Add(TEXT("points"), FToolParam::Array(TEXT("Spawn points [x,y,z]"), FToolParam::Vec3(FString()), 100))
+			.Add(TEXT("around_player"), FToolParam::Object(TEXT("{radius: n or [min,max], height: n or [min,max]}")))
+			.Add(TEXT("interval"), FToolParam::Any(TEXT("Seconds between spawns, or [min,max]")))
+			.Add(TEXT("max_alive"), FToolParam::Integer(TEXT("At most this many alive"), 1, 500))
+			.Add(TEXT("total"), FToolParam::Integer(TEXT("Stop after this many (no waves)"), 0, 100000))
+			.Add(TEXT("waves"), FToolParam::Array(TEXT("Waves: {count, interval, max_alive}"), FToolParam::Object(TEXT("Wave")), 100))
+			.Add(TEXT("wave_gap"), FToolParam::Number(TEXT("Seconds between waves"), 0.0, 600.0))
+			.Add(TEXT("start_delay"), FToolParam::Number(TEXT("Seconds before the first spawn"), 0.0, 600.0))
+			.Add(TEXT("autostart"), FToolParam::Boolean(TEXT("Start with the game (default true)")))
+			.Add(TEXT("face_player"), FToolParam::Boolean(TEXT("Spawn facing the player (default true)"))))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineSpawner);
+
+	B.Tool(TEXT("define_loot"), TEXT("Weighted loot table of pooled pickups."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Loot table name"), 64).Required())
+			.Add(TEXT("entries"), FToolParam::Array(TEXT("{pool, weight}; pool \"none\" = chance of nothing"), FToolParam::Object(TEXT("Entry")), 50).Required())
+			.Add(TEXT("count"), FToolParam::Any(TEXT("Drops: n or [min,max] (default 1)")))
+			.Add(TEXT("scatter"), FToolParam::Number(TEXT("Spread radius cm (default 120)"), 0.0)))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineLoot);
+
+	B.Tool(TEXT("define_interactable"), TEXT("Doors, switches, chests, terminals: a key prompt near the player and an 'interact' event."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 100).Required())
+			.Add(TEXT("prompt"), FToolParam::String(TEXT("Prompt text"), 128))
+			.Add(TEXT("key"), FToolParam::String(TEXT("Key (default E)"), 32))
+			.Add(TEXT("radius"), FToolParam::Number(TEXT("Reach cm (default 250)"), 1.0))
+			.Add(TEXT("once"), FToolParam::Boolean(TEXT("Only once")))
+			.Add(TEXT("cooldown"), FToolParam::Number(TEXT("Seconds between uses"), 0.0))
+			.Add(TEXT("requires"), FToolParam::String(TEXT("Condition, e.g. has('red_key')"), 512))
+			.Add(TEXT("locked_prompt"), FToolParam::String(TEXT("Prompt while the condition is false (fires interact_denied)"), 128)))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineInteractable);
+
+	B.Tool(TEXT("save"), TEXT("Save variables to a slot on disk (Saved/RuntimeToolsets/Saves)."))
+		.Args(FToolSchema()
+			.Add(TEXT("slot"), FToolParam::String(TEXT("Slot name"), 64).Required())
+			.Add(TEXT("vars"), FToolParam::StringArray(TEXT("Variables (default all)"), 200)))
+		.RequiresWorld()
+		.Handle(&SaveTool);
+
+	B.Tool(TEXT("load"), TEXT("Load variables from a save slot."))
+		.Args(FToolSchema().Add(TEXT("slot"), FToolParam::String(TEXT("Slot name"), 64).Required()))
+		.RequiresWorld()
+		.Handle(&LoadTool);
+
 	B.Tool(TEXT("define_brain"), TEXT("AI brain as a state machine: states with movement, facing, firing and an icon; transitions by expressions (sees, heard, distance, time_in_state...)."))
 		.Args(FToolSchema()
 			.Add(TEXT("name"), FToolParam::String(TEXT("Brain name"), 64).Required())
@@ -1072,6 +1314,7 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 				FToolParam::Object(TEXT("State")), 32).Required())
 			.Add(TEXT("start"), FToolParam::String(TEXT("Start state (default: first)"), 64))
 			.Add(TEXT("vision"), FToolParam::Object(TEXT("{radius (cm), angle (deg), eye_height, near (always notice within), show_cone, opacity}")))
+			.Add(TEXT("flight"), FToolParam::Object(TEXT("3D flying brain: {speed, turn_rate, min_altitude, orbit_radius}")))
 			.Add(TEXT("hearing"), FToolParam::Object(TEXT("{radius}: hears the player's shots within this distance")))
 			.Add(TEXT("turn_speed"), FToolParam::Number(TEXT("Degrees per second (default 300)"), 1.0, 5000.0))
 			.Add(TEXT("decide_every"), FToolParam::Number(TEXT("Seconds between decisions (default 0.15)"), 0.0, 10.0)))
@@ -1093,7 +1336,8 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("alert_icons"), FToolParam::Boolean(TEXT("Brain state icons")).Default(true))
 			.Add(TEXT("damage_numbers"), FToolParam::Boolean(TEXT("Floating damage numbers")).Default(true))
 			.Add(TEXT("hit_flash"), FToolParam::Boolean(TEXT("Red screen flash when the player is hurt")).Default(true))
-			.Add(TEXT("low_health"), FToolParam::Boolean(TEXT("Pulsing red edges under 30% health")).Default(true)))
+			.Add(TEXT("low_health"), FToolParam::Boolean(TEXT("Pulsing red edges under 30% health")).Default(true))
+			.Add(TEXT("markers"), FToolParam::Boolean(TEXT("Target brackets with distance, missile lock and flight gun reticle")).Default(false)))
 		.Undoable().RequiresWorld()
 		.Handle(&SetHud);
 
@@ -1123,7 +1367,8 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("points_var"), FToolParam::String(TEXT("Variable that gets 'points' on death"), 64))
 			.Add(TEXT("points"), FToolParam::Number(TEXT("Points on death")))
 			.Add(TEXT("hit_feedback"), FToolParam::String(TEXT("Feedback preset played when hurt"), 64))
-			.Add(TEXT("death_feedback"), FToolParam::String(TEXT("Feedback preset played on death"), 64)))
+			.Add(TEXT("death_feedback"), FToolParam::String(TEXT("Feedback preset played on death"), 64))
+			.Add(TEXT("loot"), FToolParam::String(TEXT("Loot table dropped on death"), 64)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineHealth);
 
@@ -1168,7 +1413,10 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("pool_size"), FToolParam::Integer(TEXT("Default bullet pool size"), 1, 500))
 			.Add(TEXT("bullet"), FToolParam::Object(TEXT("Default bullet look {size, color}")))
 			.Add(TEXT("feedback"), FToolParam::String(TEXT("Feedback preset played on each shot"), 64))
-			.Add(TEXT("noise"), FToolParam::Number(TEXT("How far brains hear the player's shots (default 1600)"), 0.0)))
+			.Add(TEXT("noise"), FToolParam::Number(TEXT("How far brains hear the player's shots (default 1600)"), 0.0))
+			.Add(TEXT("homing"), FToolParam::Number(TEXT("Missile turn rate deg/s (0 = straight)"), 0.0, 3600.0))
+			.Add(TEXT("lock_range"), FToolParam::Number(TEXT("Lock-on range cm (default 12000)"), 0.0))
+			.Add(TEXT("lock_angle"), FToolParam::Number(TEXT("Lock-on cone degrees (default 25)"), 0.0, 180.0)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineWeapon);
 
@@ -1190,7 +1438,19 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("spawn_player"), TEXT("Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y."))
 		.Args(FToolSchema()
 			.Add(TEXT("location"), FToolParam::Vec3(TEXT("Start point (feet) [x,0,z]")).Required())
-			.Add(TEXT("mode"), FToolParam::Enum(TEXT("side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse"), {TEXT("side"), TEXT("topdown")}))
+			.Add(TEXT("mode"), FToolParam::Enum(TEXT("side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse; flight: arcade jet"), {TEXT("side"), TEXT("topdown"), TEXT("flight")}))
+			.Add(TEXT("yaw"), FToolParam::Number(TEXT("Start heading degrees")))
+			.Add(TEXT("min_speed"), FToolParam::Number(TEXT("Flight: slowest cm/s"), 0.0))
+			.Add(TEXT("max_speed"), FToolParam::Number(TEXT("Flight: boost cm/s"), 0.0))
+			.Add(TEXT("turn"), FToolParam::Number(TEXT("Flight: pitch/yaw deg/s (default 70)"), 1.0, 720.0))
+			.Add(TEXT("roll_rate"), FToolParam::Number(TEXT("Flight: roll deg/s (default 160)"), 1.0, 1440.0))
+			.Add(TEXT("mouse_sensitivity"), FToolParam::Number(TEXT("Flight: mouse steering scale (default 1)"), 0.01, 20.0))
+			.Add(TEXT("crash_damage"), FToolParam::Number(TEXT("Flight: damage when hitting the ground (default lethal)"), 0.0))
+			.Add(TEXT("secondary"), FToolParam::String(TEXT("Weapon fired with right mouse / left trigger / G"), 64))
+			.Add(TEXT("auto_spawn"), FToolParam::Boolean(TEXT("Spawn on start (default true); false = spawn with {\"player\":\"spawn\"}")))
+			.Add(TEXT("dash"), FToolParam::Object(TEXT("{speed, duration, cooldown, key, invulnerable}")))
+			.Add(TEXT("grid"), FToolParam::Number(TEXT("Top-down: move cell by cell (cell size cm)"), 1.0))
+			.Add(TEXT("step_time"), FToolParam::Number(TEXT("Grid: seconds per step (default 0.14)"), 0.01, 5.0))
 			.Add(TEXT("reload_key"), FToolParam::String(TEXT("Key that reloads (optional, e.g. Q)"), 32))
 			.Add(TEXT("body"), FToolParam::Target(TEXT("Optional model node (feet at z=0, facing +X); default: a hero")))
 			.Add(TEXT("radius"), FToolParam::Number(TEXT("Collision radius cm"), 10.0, 300.0))
@@ -1313,7 +1573,7 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 
 	B.Tool(TEXT("fire_event"), TEXT("Simulate player input to test the game: a click on a node, a key, a button press or a custom event."))
 		.Args(FToolSchema()
-			.Add(TEXT("on"), FToolParam::Enum(TEXT("Event"), {TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"), TEXT("event"), TEXT("touch"), TEXT("fall")}).Required())
+			.Add(TEXT("on"), FToolParam::Enum(TEXT("Event"), {TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"), TEXT("event"), TEXT("touch"), TEXT("fall"), TEXT("interact"), TEXT("crash")}).Required())
 			.Add(TEXT("target"), FToolParam::Target(TEXT("click/touch: the node")))
 			.Add(TEXT("key"), FToolParam::String(TEXT("key: key name"), 64))
 			.Add(TEXT("name"), FToolParam::String(TEXT("button/timer/event name"), 128))

@@ -1,4 +1,5 @@
 // Tweens (move/rotate/scale/color with easing and loops), actor pools, and the player's procedural animation.
+#include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -443,6 +444,18 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 	{
 		return;
 	}
+	if (IsFlight())
+	{
+		Invulnerable = FMath::Max(0.0, Invulnerable - Dt);
+		const bool bShowJet = Invulnerable <= 0.0 || FMath::Fmod(Invulnerable, 0.16) < 0.08;
+		TArray<AActor*> Parts = {Body};
+		Body->GetAttachedActors(Parts, false, true);
+		for (AActor* P : Parts)
+		{
+			P->SetActorHiddenInGame(!bShowJet);
+		}
+		return;
+	}
 	const double Half = C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	const double S = Half / 90.0;
 	const FVector Vel = C->GetVelocity();
@@ -452,7 +465,7 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 	if (bGround && Speed > 30.0 && !bFrozen)
 	{
 		AnimPhase += Dt * Speed * 0.02;
-		Amp = FMath::Min(1.0, Speed / 450.0);
+		Amp = FMath::Min(1.0, Speed / LogicTuning::Get(TEXT("anim.run_speed_ref")));
 	}
 	if (bGround && !bWasGrounded)
 	{
@@ -465,7 +478,7 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 	bWasGrounded = bGround;
 	Squash = FMath::FInterpTo(Squash, 0.0, Dt, 9.0);
 	const double Bob = bGround ? FMath::Abs(FMath::Sin(AnimPhase)) * 5.0 * S * Amp : 0.0;
-	const double Lean = bGround ? -7.0 * Amp : -4.0;
+	const double Lean = bGround ? -LogicTuning::Get(TEXT("anim.lean")) * Amp : -4.0;
 	Body->SetActorRelativeLocation(FVector(0, 0, -Half + Bob));
 	Body->SetActorRelativeRotation(FRotator(Lean, 0, 0));
 	Body->SetActorRelativeScale3D(FVector(1.0 + 0.12 * Squash, 1.0 + 0.12 * Squash, 1.0 - 0.2 * Squash));
@@ -524,10 +537,10 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 		double Target = 0.0;
 		switch (L.Kind)
 		{
-		case 0: Target = bGround ? Swing * 42.0 * Amp : 38.0; break;    // left leg
-		case 1: Target = bGround ? -Swing * 42.0 * Amp : -22.0; break;  // right leg
-		case 2: Target = bArmed ? 72.0 - 10.0 * Recoil : (bGround ? -Swing * 36.0 * Amp : 155.0); break; // left arm (supports the gun / raised in the air)
-		case 3: Target = bArmed ? 90.0 - 22.0 * Recoil : (bGround ? Swing * 36.0 * Amp : 25.0); break;   // right arm (aims / swings)
+		case 0: Target = bGround ? Swing * LogicTuning::Get(TEXT("anim.leg_swing")) * Amp : 38.0; break;    // left leg
+		case 1: Target = bGround ? -Swing * LogicTuning::Get(TEXT("anim.leg_swing")) * Amp : -22.0; break;  // right leg
+		case 2: Target = bArmed ? 72.0 - 10.0 * Recoil : (bGround ? -Swing * LogicTuning::Get(TEXT("anim.arm_swing")) * Amp : 155.0); break; // left arm (supports the gun / raised in the air)
+		case 3: Target = bArmed ? 90.0 - LogicTuning::Get(TEXT("anim.recoil")) * Recoil : (bGround ? Swing * LogicTuning::Get(TEXT("anim.arm_swing")) * Amp : 25.0); break;   // right arm (aims / swings)
 		}
 		L.Pitch = FMath::FInterpTo(L.Pitch, Target, Dt, bArmed && L.Kind >= 2 ? 30.0 : 18.0);
 		// Arms holding the gun turn slightly inward so both hands meet in front.

@@ -1,4 +1,5 @@
 // Health and damage, hit zones, weapons (projectile / hitscan) and projectiles.
+#include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -71,7 +72,7 @@ namespace
 
 bool FLogicWorld::IsTopDown() const
 {
-	return PlayerDef.IsValid() && Str(PlayerDef, TEXT("mode")) == TEXT("topdown");
+	return PD().IsValid() && Str(PD(), TEXT("mode")) == TEXT("topdown");
 }
 
 // ------------------------------------------------------------------ health
@@ -135,7 +136,7 @@ bool FLogicWorld::ApplyDamage(const FString& Victim, double Amount, const FStrin
 		return false;
 	}
 	H->Current = FMath::Max(0.0, H->Current - Amount);
-	const double Invuln = Num(H->Def, TEXT("invulnerable"), Victim == TEXT("player") ? 1.0 : 0.0);
+	const double Invuln = Num(H->Def, TEXT("invulnerable"), Victim == TEXT("player") ? LogicTuning::Get(TEXT("combat.player_invulnerable")) : 0.0);
 	H->InvulnUntil = PlayTime + Invuln;
 	if (Victim == TEXT("player"))
 	{
@@ -174,8 +175,8 @@ bool FLogicWorld::ApplyDamage(const FString& Victim, double Amount, const FStrin
 					S = N->Actor->GetActorScale3D();
 				}
 			}
-			Punch->SetField(TEXT("scale"), RuntimeJson::Vec(S * 1.15));
-			Punch->SetNumberField(TEXT("duration"), 0.05);
+			Punch->SetField(TEXT("scale"), RuntimeJson::Vec(S * LogicTuning::Get(TEXT("combat.hit_punch_scale"))));
+			Punch->SetNumberField(TEXT("duration"), LogicTuning::Get(TEXT("combat.hit_punch_time")));
 			Punch->SetStringField(TEXT("loop"), TEXT("yoyo"));
 			Punch->SetBoolField(TEXT("add"), true);
 			FString Err;
@@ -234,6 +235,14 @@ bool FLogicWorld::ApplyDamage(const FString& Victim, double Amount, const FStrin
 		{
 			HideNode(Victim, true);
 		}
+		if (const FString Loot = Str(H->Def, TEXT("loot")); !Loot.IsEmpty() && Victim != TEXT("player"))
+		{
+			FVector At;
+			if (OwnerLocation(Victim, At))
+			{
+				DropLoot(Loot, At);
+			}
+		}
 		else if (OnDeath == TEXT("release"))
 		{
 			ReleaseToPool(Victim);
@@ -249,8 +258,8 @@ bool FLogicWorld::ApplyDamage(const FString& Victim, double Amount, const FStrin
 					S = N->Actor->GetActorScale3D();
 				}
 			}
-			T->SetField(TEXT("scale"), RuntimeJson::Vec(FVector(S.X * 1.4, S.Y * 1.4, S.Z * 0.15)));
-			T->SetNumberField(TEXT("duration"), 0.25);
+			T->SetField(TEXT("scale"), RuntimeJson::Vec(FVector(S.X * LogicTuning::Get(TEXT("combat.squash_xy")), S.Y * LogicTuning::Get(TEXT("combat.squash_xy")), S.Z * LogicTuning::Get(TEXT("combat.squash_z")))));
+			T->SetNumberField(TEXT("duration"), LogicTuning::Get(TEXT("combat.squash_time")));
 			T->SetStringField(TEXT("ease"), TEXT("out_back"));
 			T->SetStringField(TEXT("then"), TEXT("hide"));
 			FString Err;
@@ -387,6 +396,13 @@ int32 FLogicWorld::CallWorldFunction(const FString& Name, TArray<FLogicValue>& A
 		}
 		return 1;
 	}
+	if (Name == TEXT("has"))
+	{
+		const FLogicValue* Inv = Vars.Find(TEXT("inventory"));
+		Out = FLogicValue::MakeBool(A.Num() == 1 && Inv && Inv->Type == FLogicValue::EType::Map && Inv->M->Contains(A[0].ToText())
+			&& Inv->M->FindRef(A[0].ToText()).N > 0.0);
+		return 1;
+	}
 	if (Name == TEXT("nodes"))
 	{
 		if (A.Num() != 1)
@@ -498,7 +514,8 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 		OutError = FString::Printf(TEXT("no shooter '%s'"), *Owner);
 		return false;
 	}
-	FWeaponState& S = WeaponStates.FindOrAdd(Owner);
+	const FString StateKey = (WeaponName.IsEmpty() || WeaponName == EquippedWeapon(Owner)) ? Owner : Owner + TEXT("#") + Name;
+	FWeaponState& S = WeaponStates.FindOrAdd(StateKey);
 	const int32 Magazine = static_cast<int32>(Num(W, TEXT("magazine"), 0));
 	if (S.Mag < 0)
 	{
@@ -510,7 +527,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	}
 	if (Magazine > 0 && S.Mag <= 0)
 	{
-		StartReload(Owner, W, S);
+		StartReload(StateKey, W, S);
 		return false;
 	}
 	FVector Aim;
@@ -520,7 +537,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	}
 	else if (Owner == TEXT("player"))
 	{
-		Aim = IsTopDown() ? AimPoint : From + FVector(Facing * 1000.0, 0, 0);
+		Aim = IsTopDown() ? AimPoint : IsFlight() && Player.IsValid() ? From + Player->GetActorForwardVector() * 8000.0 : From + FVector(Facing * 1000.0, 0, 0);
 	}
 	else
 	{
@@ -528,7 +545,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 		const FRuntimeSceneNode* N = G ? G->Find(Owner) : nullptr;
 		Aim = From + (N && N->Actor.IsValid() ? N->Actor->GetActorForwardVector() : FVector::ForwardVector) * 1000.0;
 	}
-	if (IsTopDown() || Owner != TEXT("player"))
+	if (IsTopDown())
 	{
 		Aim.Z = From.Z; // shots travel level with the shooter in top-down games
 	}
@@ -548,7 +565,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	}
 	else if (!IsTweening(Owner))
 	{
-		FVector Back = -Dir * 14.0;
+		FVector Back = -Dir * LogicTuning::Get(TEXT("combat.fire_kick"));
 		TSharedRef<FJsonObject> Kick = MakeShared<FJsonObject>();
 		Kick->SetField(TEXT("move"), RuntimeJson::Vec(Back));
 		Kick->SetNumberField(TEXT("duration"), 0.05);
@@ -575,7 +592,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 		W->TryGetBoolField(TEXT("auto_reload"), bAuto);
 		if (S.Mag == 0 && bAuto)
 		{
-			StartReload(Owner, W, S);
+			StartReload(StateKey, W, S);
 		}
 	}
 	FLogicEvent E;
@@ -677,6 +694,20 @@ void FLogicWorld::SpawnShots(const FString& Owner, const TSharedPtr<FJsonObject>
 		P.Type = Str(W, TEXT("type"));
 		P.Owner = Owner;
 		P.Hits = Str(W, TEXT("hits"));
+		// Shots inherit the shooter's flight speed; homing missiles lock the best target in front.
+		if (Owner == TEXT("player") && IsFlight())
+		{
+			P.Speed += FlightSpeed;
+		}
+		else if (const FBrainAgent* Ag = Agents.Find(Owner))
+		{
+			P.Speed += Ag->Speed;
+		}
+		P.Homing = Num(W, TEXT("homing"), 0.0);
+		if (P.Homing > 0.0)
+		{
+			P.Target = LockTarget(Owner, Muzzle, D, Num(W, TEXT("lock_range"), 12000.0), Num(W, TEXT("lock_angle"), 25.0), P.Hits);
+		}
 		if (!Pool.IsEmpty())
 		{
 			FString Err;
@@ -696,7 +727,11 @@ void FLogicWorld::TickWeapons()
 	for (TPair<FString, FWeaponState>& P : WeaponStates)
 	{
 		FWeaponState& S = P.Value;
-		const FString Name = EquippedWeapon(P.Key);
+		FString OwnerKey = P.Key, Name;
+		if (!P.Key.Split(TEXT("#"), &OwnerKey, &Name))
+		{
+			Name = EquippedWeapon(P.Key);
+		}
 		const TSharedPtr<FJsonObject>* W = WeaponDefs.Find(Name);
 		if (S.ReloadUntil > 0.0 && PlayTime >= S.ReloadUntil)
 		{
@@ -706,22 +741,22 @@ void FLogicWorld::TickWeapons()
 			FLogicEvent E;
 			E.On = TEXT("reloaded");
 			E.Name = Name;
-			E.Target = P.Key == TEXT("player") ? FString() : P.Key;
-			E.Data.M->Add(TEXT("shooter"), FLogicValue::MakeString(P.Key));
+			E.Target = OwnerKey == TEXT("player") ? FString() : OwnerKey;
+			E.Data.M->Add(TEXT("shooter"), FLogicValue::MakeString(OwnerKey));
 			Queue.Add(E);
 		}
 		if (S.BurstLeft > 0 && PlayTime >= S.NextBurst && W)
 		{
 			FVector From;
-			if (OwnerLocation(P.Key, From))
+			if (OwnerLocation(OwnerKey, From))
 			{
 				FVector Aim = S.BurstAim;
-				if (IsTopDown() || P.Key != TEXT("player"))
+				if (IsTopDown())
 				{
 					Aim.Z = From.Z;
 				}
 				const FVector Dir = (Aim - From).GetSafeNormal();
-				SpawnShots(P.Key, *W, From + Dir * Num(*W, TEXT("muzzle"), 60.0), Dir.IsNearlyZero() ? FVector::ForwardVector : Dir);
+				SpawnShots(OwnerKey, *W, From + Dir * Num(*W, TEXT("muzzle"), 60.0), Dir.IsNearlyZero() ? FVector::ForwardVector : Dir);
 			}
 			--S.BurstLeft;
 			S.NextBurst = PlayTime + Num(*W, TEXT("burst_gap"), 0.08);
@@ -736,6 +771,22 @@ void FLogicWorld::TickProjectiles(double Dt)
 	for (int32 i = Projectiles.Num() - 1; i >= 0; --i)
 	{
 		FProjectile& P = Projectiles[i];
+		if (P.Homing > 0.0 && !P.Target.IsEmpty())
+		{
+			FBox TB;
+			const FHealthState* TH = Healths.Find(P.Target);
+			if (TH && !TH->bDead && VictimBox(P.Target, TB))
+			{
+				const FVector Want = (TB.GetCenter() - P.Pos).GetSafeNormal();
+				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(P.Dir, Want), -1.0, 1.0)));
+				const double Max = P.Homing * Dt;
+				P.Dir = Angle <= Max ? Want : FQuat::Slerp(FQuat::Identity, FQuat::FindBetweenNormals(P.Dir, Want), Max / Angle).RotateVector(P.Dir).GetSafeNormal();
+			}
+			if (const FRuntimeSceneNode* PN = G ? G->Find(P.Node) : nullptr; PN && PN->Actor.IsValid())
+			{
+				PN->Actor->SetActorRotation(P.Dir.Rotation());
+			}
+		}
 		const FVector Old = P.Pos;
 		const FVector New = Old + P.Dir * P.Speed * Dt;
 		P.Life -= Dt;

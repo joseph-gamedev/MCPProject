@@ -76,6 +76,13 @@ public:
 	bool bLockCamera = false;
 	/** Platformer player (spawn_player args); null when there is none. */
 	TSharedPtr<FJsonObject> PlayerDef;
+	/** Runtime copy of PlayerDef that rules can change ({"player":"set"}); reset on start. */
+	TSharedPtr<FJsonObject> PlayerLive;
+	const TSharedPtr<FJsonObject>& PD() const { return PlayerLive.IsValid() ? PlayerLive : PlayerDef; }
+	/** Spawners, loot tables and interactables. */
+	TMap<FString, TSharedPtr<FJsonObject>> SpawnerDefs;
+	TMap<FString, TSharedPtr<FJsonObject>> LootDefs;
+	TMap<FString, TSharedPtr<FJsonObject>> InteractDefs;
 	/** Node id -> motion {type, axis, distance, speed, points, loop, spin, amplitude, period, face, origin, origin_rot}. */
 	TMap<FString, TSharedPtr<FJsonObject>> Motions;
 	/** Node id -> blocks movement. */
@@ -146,6 +153,19 @@ public:
 	FLogicValue AmmoMap() const;
 	FString EquippedWeapon(const FString& OwnerKey) const;
 	bool IsTopDown() const;
+	bool IsFlight() const;
+	bool IsGrid() const;
+	/** Best target for a homing weapon in front of Owner (within range and angle). */
+	FString LockTarget(const FString& Owner, const FVector& From, const FVector& Dir, double Range, double AngleDeg, const FString& Hits) const;
+	void ResetAgentAt(const FString& Id, const FVector& At, const FRotator& Rot);
+	void ResetHealth(const FString& Id);
+	void DropLoot(const FString& Name, const FVector& At);
+	bool SaveSlot(const FString& Slot, const TArray<FString>& Names, FString& OutError) const;
+	bool LoadSlot(const FString& Slot, FString& OutError);
+	void SetSpawnerActive(const FString& Name, bool bActive, bool bReset);
+	FString CurrentInteract;
+	FVector FlightVelocity = FVector::ZeroVector;
+	double FlightSpeed = 0.0;
 	int32 NumProjectiles() const { return Projectiles.Num(); }
 
 	// ---- AI brains and game feel
@@ -189,6 +209,10 @@ public:
 		FString Cone;
 		FString Icon;
 		FLinearColor ConeColor = FLinearColor::Black;
+		FQuat Rot = FQuat::Identity;
+		double Speed = 0.0;
+		double Bank = 0.0;
+		double OrbitPhase = 0.0;
 	};
 	const TMap<FString, FBrainAgent>& GetAgents() const { return Agents; }
 	void PlayFeedback(const FString& Name, const FVector& At, const FString& Target);
@@ -255,6 +279,7 @@ private:
 	void ClearPlayObjects();
 	void AddLog(const FLogicEvent& Event, const TArray<FString>& RulesRun, const TArray<FString>& Errors);
 	FLogicValue FindNodeData(const FString& NodeId) const;
+	friend class FLogicHudAccess;
 	void TickPlay(double Dt);
 	void TickPlayerInput(APlayerController* PC);
 	void ApplyPlayerInputMode(APlayerController* PC);
@@ -319,11 +344,41 @@ private:
 		FString Type;
 		FString Owner;
 		FString Hits;
+		double Homing = 0.0;
+		FString Target;
 	};
 	void TickCombat(double Dt);
 	void TickProjectiles(double Dt);
 	void TickHitZones();
 	void TickWeapons();
+	void TickFlight(double Dt);
+	void TickFlightAgent(FBrainAgent& Ag, AActor* A, const TSharedPtr<FJsonObject>& Brain, const TSharedPtr<FJsonObject>& St, double Dt,
+		const FVector& PlayerLoc, bool bPlayerAlive);
+	void TickSpawners(double Dt);
+	void TickInteract();
+	void ResetExtras();
+	struct FSpawnerState
+	{
+		bool bActive = false;
+		int32 Wave = 0;
+		int32 SpawnedInWave = 0;
+		int32 SpawnedTotal = 0;
+		double Next = 0.0;
+		bool bWaitingNextWave = false;
+		TArray<FString> Alive;
+	};
+	TMap<FString, FSpawnerState> Spawners;
+	TSet<FString> InteractUsed;
+	TMap<FString, double> InteractCooldown;
+	// flight input (set by PollInput, integrated in TickFlight)
+	double FlightPitchIn = 0.0, FlightYawIn = 0.0, FlightRollIn = 0.0, FlightThrottle = 0.6;
+	bool bFlightBoost = false;
+	// dash and grid
+	double DashReadyAt = 0.0;
+	double DashUntil = 0.0;
+	FVector GridFrom = FVector::ZeroVector, GridTo = FVector::ZeroVector;
+	double GridT = 1.0;
+	double GridNextInput = 0.0;
 	void TickBrains(double Dt);
 	void TickFeel(double Dt);
 	void ChangeBrainState(FBrainAgent& Agent, const FString& To);

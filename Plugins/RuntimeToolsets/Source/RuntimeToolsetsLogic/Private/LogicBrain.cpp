@@ -1,4 +1,5 @@
 // AI brains: data-driven state machines with vision cones, hearing, steering movement and shooting.
+#include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -271,6 +272,7 @@ void FLogicWorld::ResetBrains()
 			Ag.Brain = BrainName;
 			Ag.Home = N->Actor->GetActorLocation();
 			Ag.Yaw = N->Actor->GetActorRotation().Yaw;
+			Ag.Rot = N->Actor->GetActorQuat();
 			const TSharedPtr<FJsonObject> Patrol = Obj(P.Value, TEXT("patrol"));
 			Ag.Patrol.Add(Ag.Home);
 			const TArray<TSharedPtr<FJsonValue>>* Points = nullptr;
@@ -379,7 +381,7 @@ bool FLogicWorld::BrainSteer(FBrainAgent& Ag, AActor* A, const FVector& Goal, do
 	{
 		const FVector D = Dir.RotateAngleAxis(Turn, FVector::UpVector);
 		FHitResult Hit;
-		if (!W || !W->SweepSingleByChannel(Hit, Eye, Eye + D * 110.0, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(35.f), Q))
+		if (!W || !W->SweepSingleByChannel(Hit, Eye, Eye + D * LogicTuning::Get(TEXT("brain.steer_probe")), FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(static_cast<float>(LogicTuning::Get(TEXT("brain.steer_radius")))), Q))
 		{
 			Chosen = D;
 			break;
@@ -430,16 +432,18 @@ void FLogicWorld::TickBrains(double Dt)
 		Ag.NextPerceive -= Dt;
 		if (Ag.NextPerceive <= 0.0)
 		{
-			Ag.NextPerceive = 0.1;
+			Ag.NextPerceive = LogicTuning::Get(TEXT("brain.perceive_interval"));
 			bool bSees = false;
 			if (bPlayerAlive && Vision.IsValid())
 			{
 				const FVector Eye = A->GetActorLocation() + FVector(0, 0, Num(Vision, TEXT("eye_height"), 100.0));
 				const FVector To = PlayerLoc - Eye;
-				const double Dist2D = FVector(To.X, To.Y, 0).Size();
-				const FVector Forward = FRotator(0, Ag.Yaw, 0).Vector();
-				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Forward, FVector(To.X, To.Y, 0).GetSafeNormal()), -1.0, 1.0)));
-				const bool bClose = Dist2D < Num(Vision, TEXT("near"), 180.0);
+				const bool bFly = Obj(Brain, TEXT("flight")).IsValid();
+				const double Dist2D = bFly ? To.Size() : FVector(To.X, To.Y, 0).Size();
+				const FVector Forward = bFly ? Ag.Rot.GetForwardVector() : FRotator(0, Ag.Yaw, 0).Vector();
+				const FVector ToDir = bFly ? To.GetSafeNormal() : FVector(To.X, To.Y, 0).GetSafeNormal();
+				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Forward, ToDir), -1.0, 1.0)));
+				const bool bClose = Dist2D < Num(Vision, TEXT("near"), LogicTuning::Get(TEXT("brain.near_notice")));
 				if (bClose || (Dist2D <= Num(Vision, TEXT("radius"), 1200.0) && Angle <= Num(Vision, TEXT("angle"), 90.0) / 2.0))
 				{
 					FCollisionQueryParams Q(SCENE_QUERY_STAT(LogicVision), false);
@@ -468,7 +472,7 @@ void FLogicWorld::TickBrains(double Dt)
 		Ag.NextDecide -= Dt;
 		if (Ag.NextDecide <= 0.0 && St.IsValid())
 		{
-			Ag.NextDecide = Num(Brain, TEXT("decide_every"), 0.15);
+			Ag.NextDecide = Num(Brain, TEXT("decide_every"), LogicTuning::Get(TEXT("brain.decide_interval")));
 			const TArray<TSharedPtr<FJsonValue>>* Trans = nullptr;
 			if (St->TryGetArrayField(TEXT("transitions"), Trans))
 			{
@@ -481,7 +485,7 @@ void FLogicWorld::TickBrains(double Dt)
 				Frame.Locals.Add(TEXT("time_in_state"), FLogicValue::MakeNumber(Ag.TimeInState));
 				Frame.Locals.Add(TEXT("since_seen"), FLogicValue::MakeNumber(Ag.SinceSeen));
 				Frame.Locals.Add(TEXT("at_goal"), FLogicValue::MakeBool(Ag.bAtGoal));
-				Frame.Locals.Add(TEXT("at_home"), FLogicValue::MakeBool(FVector::Dist2D(Loc, Ag.Home) < 60.0));
+				Frame.Locals.Add(TEXT("at_home"), FLogicValue::MakeBool(FVector::Dist2D(Loc, Ag.Home) < LogicTuning::Get(TEXT("brain.home_reach"))));
 				Frame.Locals.Add(TEXT("has_last_known"), FLogicValue::MakeBool(Ag.bHasLastKnown));
 				Frame.Locals.Add(TEXT("health"), FLogicValue::MakeNumber(H ? H->Current : 0.0));
 				Frame.Locals.Add(TEXT("health_pct"), FLogicValue::MakeNumber(H && H->Max > 0 ? H->Current / H->Max : 1.0));
@@ -504,6 +508,11 @@ void FLogicWorld::TickBrains(double Dt)
 		{
 			continue;
 		}
+		if (Obj(Brain, TEXT("flight")).IsValid())
+		{
+			TickFlightAgent(Ag, A, Brain, St, Dt, PlayerLoc, bPlayerAlive);
+			continue;
+		}
 
 		// ---- movement
 		const FString Move = Str(St, TEXT("move"), TEXT("stop"));
@@ -514,7 +523,7 @@ void FLogicWorld::TickBrains(double Dt)
 		{
 			Goal = Ag.Patrol[Ag.PatrolIndex];
 			bHasGoal = true;
-			if (FVector::Dist2D(A->GetActorLocation(), Goal) < 40.0)
+			if (FVector::Dist2D(A->GetActorLocation(), Goal) < LogicTuning::Get(TEXT("brain.waypoint_reach")))
 			{
 				if (Ag.PatrolIndex + Ag.PatrolDir >= Ag.Patrol.Num() || Ag.PatrolIndex + Ag.PatrolDir < 0)
 				{
@@ -549,7 +558,7 @@ void FLogicWorld::TickBrains(double Dt)
 		{
 			Goal = Ag.LastKnown;
 			bHasGoal = true;
-			Ag.bAtGoal = FVector::Dist2D(A->GetActorLocation(), Goal) < 70.0;
+			Ag.bAtGoal = FVector::Dist2D(A->GetActorLocation(), Goal) < LogicTuning::Get(TEXT("brain.goal_reach"));
 		}
 		else if (Move == TEXT("home"))
 		{
@@ -590,14 +599,14 @@ void FLogicWorld::TickBrains(double Dt)
 		{
 			WantYaw = Moved.Rotation().Yaw;
 		}
-		const double Turn = Num(Brain, TEXT("turn_speed"), 300.0) * Dt;
+		const double Turn = Num(Brain, TEXT("turn_speed"), LogicTuning::Get(TEXT("brain.turn_speed"))) * Dt;
 		Ag.Yaw += FMath::Clamp(FRotator::NormalizeAxis(WantYaw - Ag.Yaw), -Turn, Turn);
 		if (Ag.bMoving)
 		{
 			Ag.Phase += Dt * Speed * 0.035;
 		}
-		Ag.Roll = FMath::FInterpTo(Ag.Roll, Ag.bMoving ? FMath::Sin(Ag.Phase) * 7.0 : 0.0, Dt, 12.0);
-		const double Bob = Ag.bMoving ? FMath::Abs(FMath::Sin(Ag.Phase)) * 5.0 : 0.0;
+		Ag.Roll = FMath::FInterpTo(Ag.Roll, Ag.bMoving ? FMath::Sin(Ag.Phase) * LogicTuning::Get(TEXT("brain.waddle_roll")) : 0.0, Dt, 12.0);
+		const double Bob = Ag.bMoving ? FMath::Abs(FMath::Sin(Ag.Phase)) * LogicTuning::Get(TEXT("brain.waddle_bob")) : 0.0;
 		FVector L = A->GetActorLocation();
 		L.Z = Ag.Home.Z + Bob;
 		A->SetActorLocationAndRotation(L, FRotator(0, Ag.Yaw, Ag.Roll));
@@ -648,7 +657,7 @@ void FLogicWorld::TickFeel(double Dt)
 	for (int32 i = FloatTexts.Num() - 1; i >= 0; --i)
 	{
 		FloatTexts[i].Age += Dt;
-		if (FloatTexts[i].Age > 0.9)
+		if (FloatTexts[i].Age > LogicTuning::Get(TEXT("hud.number_life")))
 		{
 			FloatTexts.RemoveAt(i);
 		}

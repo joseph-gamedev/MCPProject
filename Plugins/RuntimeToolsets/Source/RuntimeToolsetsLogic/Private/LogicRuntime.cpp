@@ -28,14 +28,16 @@ namespace
 	const TArray<FString>& EventNames()
 	{
 		static const TArray<FString> Names = {TEXT("start"), TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"),
-			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded"), TEXT("state")};
+			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded"), TEXT("state"), TEXT("crash"),
+			TEXT("wave_start"), TEXT("wave_cleared"), TEXT("waves_complete"), TEXT("spawned"), TEXT("interact"), TEXT("interact_denied"), TEXT("dash")};
 		return Names;
 	}
 
 	const TArray<FString>& ActionNames()
 	{
 		static const TArray<FString> Names = {TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
-			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback")};
+			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback"), TEXT("spawner"), TEXT("drop_loot"), TEXT("give"), TEXT("take"),
+			TEXT("save"), TEXT("load"), TEXT("health"), TEXT("weapon")};
 		return Names;
 	}
 
@@ -254,7 +256,8 @@ namespace
 			}
 			if (Kind == TEXT("player"))
 			{
-				static const TArray<FString> Ops = {TEXT("respawn"), TEXT("bounce"), TEXT("freeze"), TEXT("unfreeze"), TEXT("checkpoint"), TEXT("launch")};
+				static const TArray<FString> Ops = {TEXT("respawn"), TEXT("bounce"), TEXT("freeze"), TEXT("unfreeze"), TEXT("checkpoint"), TEXT("launch"),
+					TEXT("set"), TEXT("spawn"), TEXT("remove"), TEXT("teleport")};
 				if (!Ops.Contains(ReadString(*A, TEXT("player"))))
 				{
 					OutError = At + TEXT(": 'player' must be one of ") + FString::Join(Ops, TEXT(", "));
@@ -522,6 +525,9 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 	Section(TEXT("brains"), BrainDefs);
 	Section(TEXT("brain_assign"), BrainAssign);
 	Section(TEXT("feedbacks"), FeedbackDefs);
+	Section(TEXT("spawners"), SpawnerDefs);
+	Section(TEXT("loot"), LootDefs);
+	Section(TEXT("interactables"), InteractDefs);
 	if (HudDef.IsValid())
 	{
 		J->SetObjectField(TEXT("hud"), HudDef);
@@ -653,6 +659,10 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 	ReadSection(TEXT("brains"), BrainDefs);
 	ReadSection(TEXT("brain_assign"), BrainAssign);
 	ReadSection(TEXT("feedbacks"), FeedbackDefs);
+	ReadSection(TEXT("spawners"), SpawnerDefs);
+	ReadSection(TEXT("loot"), LootDefs);
+	ReadSection(TEXT("interactables"), InteractDefs);
+	PlayerLive = nullptr;
 	const TSharedPtr<FJsonObject>* HudJ = nullptr;
 	HudDef = J->TryGetObjectField(TEXT("hud"), HudJ) ? *HudJ : nullptr;
 	EquipDefs.Reset();
@@ -928,6 +938,18 @@ bool FLogicWorld::Matches(const FLogicRule& Rule, const FLogicEvent& E) const
 	if (E.On == TEXT("fall"))
 	{
 		return true;
+	}
+	if (E.On == TEXT("crash") || E.On == TEXT("dash"))
+	{
+		return true;
+	}
+	if (E.On == TEXT("wave_start") || E.On == TEXT("wave_cleared") || E.On == TEXT("waves_complete") || E.On == TEXT("spawned"))
+	{
+		return (Rule.Filter.IsEmpty() || Rule.Filter == E.Name) && (Rule.Target.IsEmpty() || (!E.Target.IsEmpty() && NodeMatches(E.Target, Rule.Target)));
+	}
+	if (E.On == TEXT("interact") || E.On == TEXT("interact_denied"))
+	{
+		return Rule.Target.IsEmpty() || NodeMatches(E.Target, Rule.Target);
 	}
 	if (E.On == TEXT("state"))
 	{
@@ -1640,6 +1662,230 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 		PlayFeedback(Name, At, Target);
 		return true;
 	}
+	if (A->TryGetStringField(TEXT("player"), Name) && (Name == TEXT("set") || Name == TEXT("spawn") || Name == TEXT("remove")))
+	{
+		if (!PlayerDef.IsValid())
+		{
+			OutError = TEXT("no player definition (logic.spawn_player)");
+			return false;
+		}
+		if (!PlayerLive.IsValid())
+		{
+			PlayerLive = RuntimeJson::Parse(RuntimeJson::Write(PlayerDef.ToSharedRef()));
+		}
+		if (Name == TEXT("remove"))
+		{
+			RemovePlayer();
+			return true;
+		}
+		bool bRespawn = Name == TEXT("spawn");
+		if (const TSharedPtr<FJsonValue> Fields = A->TryGetField(TEXT("fields")))
+		{
+			const TSharedPtr<FJsonValue> T = Template(Fields, Frame, OutError);
+			if (!OutError.IsEmpty() || !T.IsValid() || T->Type != EJson::Object)
+			{
+				OutError = OutError.IsEmpty() ? TEXT("fields must be an object") : OutError;
+				return false;
+			}
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& F : T->AsObject()->Values)
+			{
+				const FString Old = PlayerLive->HasField(F.Key) ? RuntimeJson::Write(MakeShared<FJsonObject>()) : FString();
+				if ((F.Key == TEXT("body") || F.Key == TEXT("mode") || F.Key == TEXT("radius") || F.Key == TEXT("height"))
+					&& (!PlayerLive->HasField(F.Key) || PlayerLive->GetField<EJson::None>(F.Key)->AsString() != F.Value->AsString()))
+				{
+					bRespawn = true;
+				}
+				PlayerLive->SetField(F.Key, F.Value);
+			}
+		}
+		if (bRespawn)
+		{
+			FString Err;
+			if (!SpawnPlayer(Err))
+			{
+				OutError = Err;
+				return false;
+			}
+			if (ACharacter* NewC = GetPlayer())
+			{
+				if (UWorld* Wd = World.Get())
+				{
+					if (APlayerController* PC = Wd->GetFirstPlayerController(); PC && PC->GetPawn() != NewC)
+					{
+						PC->Possess(NewC);
+					}
+				}
+			}
+			if (FHealthState* H = Healths.Find(TEXT("player")))
+			{
+				H->bDead = false;
+			}
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("player"), Name) && Name == TEXT("teleport"))
+	{
+		FLogicValue V;
+		FVector L;
+		if (!EvalField(A, TEXT("value"), Frame, V, OutError) || !RuntimeJson::ToVector(V.ToJson(), L))
+		{
+			OutError = OutError.IsEmpty() ? TEXT("teleport value must be [x,y,z]") : OutError;
+			return false;
+		}
+		if (ACharacter* C = GetPlayer())
+		{
+			C->SetActorLocation(L + (IsFlight() ? FVector::ZeroVector : FVector(0, 0, C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 2.0)), false, nullptr,
+				ETeleportType::TeleportPhysics);
+			TickCamera(0.0, true);
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("spawner"), Name))
+	{
+		if (!SpawnerDefs.Contains(Name))
+		{
+			OutError = FString::Printf(TEXT("no spawner '%s'"), *Name);
+			return false;
+		}
+		FString Op = TEXT("start");
+		A->TryGetStringField(TEXT("op"), Op);
+		SetSpawnerActive(Name, Op != TEXT("stop"), Op == TEXT("reset") || Op == TEXT("start"));
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("drop_loot"), Name))
+	{
+		FLogicValue At;
+		FVector L = FVector::ZeroVector;
+		if (A->HasField(TEXT("at")))
+		{
+			if (!EvalField(A, TEXT("at"), Frame, At, OutError))
+			{
+				return false;
+			}
+			RuntimeJson::ToVector(At.ToJson(), L);
+		}
+		else if (const FLogicValue* EL = Frame.EventValue.M->Find(TEXT("location")))
+		{
+			RuntimeJson::ToVector(EL->ToJson(), L);
+		}
+		if (!LootDefs.Contains(Name))
+		{
+			OutError = FString::Printf(TEXT("no loot table '%s'"), *Name);
+			return false;
+		}
+		DropLoot(Name, L);
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("give"), Name) || A->TryGetStringField(TEXT("take"), Name))
+	{
+		const bool bGive = A->HasField(TEXT("give"));
+		FLogicScope Scope = MakeScope(Frame);
+		const FString Item = LogicExpr::Evaluate(Name, Scope).ToText();
+		FLogicValue Amount = FLogicValue::MakeNumber(1.0);
+		if (!Scope.Error.IsEmpty() || (A->HasField(TEXT("amount")) && !EvalField(A, TEXT("amount"), Frame, Amount, OutError)))
+		{
+			OutError = OutError.IsEmpty() ? Scope.Error : OutError;
+			return false;
+		}
+		FLogicValue Inv = Vars.Contains(TEXT("inventory")) ? Vars[TEXT("inventory")].DeepCopy() : FLogicValue::MakeMap();
+		if (Inv.Type != FLogicValue::EType::Map)
+		{
+			Inv = FLogicValue::MakeMap();
+		}
+		const double Have = Inv.M->Contains(Item) ? Inv.M->FindRef(Item).N : 0.0;
+		const double Now = FMath::Max(0.0, Have + (bGive ? Amount.N : -Amount.N));
+		if (Now <= 0.0)
+		{
+			Inv.M->Remove(Item);
+		}
+		else
+		{
+			Inv.M->Add(Item, FLogicValue::MakeNumber(Now));
+		}
+		SetVar(TEXT("inventory"), Inv, true);
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("save"), Name) || A->TryGetStringField(TEXT("load"), Name))
+	{
+		if (A->HasField(TEXT("save")))
+		{
+			TArray<FString> Names;
+			const TArray<TSharedPtr<FJsonValue>>* List = nullptr;
+			if (A->TryGetArrayField(TEXT("vars"), List))
+			{
+				for (const TSharedPtr<FJsonValue>& V : *List)
+				{
+					Names.Add(V->AsString());
+				}
+			}
+			return SaveSlot(Name, Names, OutError);
+		}
+		FString Err;
+		LoadSlot(Name, Err); // a missing slot is not an error (first run)
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("health"), Name))
+	{
+		FLogicScope Scope = MakeScope(Frame);
+		const FLogicValue V = LogicExpr::Evaluate(Name, Scope);
+		const FString K = V.Type == FLogicValue::EType::Map && V.M->Contains(TEXT("id")) ? V.M->FindRef(TEXT("id")).ToText() : V.ToText();
+		FHealthState* H = Healths.Find(K);
+		if (!H)
+		{
+			OutError = FString::Printf(TEXT("'%s' has no health (logic.define_health)"), *K);
+			return false;
+		}
+		FLogicValue X;
+		if (A->HasField(TEXT("max")))
+		{
+			if (!EvalField(A, TEXT("max"), Frame, X, OutError))
+			{
+				return false;
+			}
+			H->Max = FMath::Max(0.001, X.N);
+		}
+		if (A->HasField(TEXT("value")))
+		{
+			if (!EvalField(A, TEXT("value"), Frame, X, OutError))
+			{
+				return false;
+			}
+			H->Current = FMath::Clamp(X.N, 0.0, H->Max);
+			H->bDead = H->Current <= 0.0;
+		}
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("weapon"), Name))
+	{
+		TSharedPtr<FJsonObject>* W = WeaponDefs.Find(Name);
+		if (!W)
+		{
+			OutError = FString::Printf(TEXT("no weapon '%s'"), *Name);
+			return false;
+		}
+		if (const TSharedPtr<FJsonValue> Set = A->TryGetField(TEXT("set")))
+		{
+			const TSharedPtr<FJsonValue> T = Template(Set, Frame, OutError);
+			if (!OutError.IsEmpty() || !T.IsValid() || T->Type != EJson::Object)
+			{
+				OutError = OutError.IsEmpty() ? TEXT("set must be an object") : OutError;
+				return false;
+			}
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& F : T->AsObject()->Values)
+			{
+				(*W)->SetField(F.Key, F.Value);
+			}
+			// A new magazine size takes effect on the next reload; refill now for upgrades.
+			for (TPair<FString, FWeaponState>& S : WeaponStates)
+			{
+				if (S.Key.EndsWith(TEXT("#") + Name) || EquippedWeapon(S.Key) == Name)
+				{
+					S.Value.Mag = static_cast<int32>((*W)->HasField(TEXT("magazine")) ? (*W)->GetNumberField(TEXT("magazine")) : S.Value.Mag);
+				}
+			}
+		}
+		return true;
+	}
 	if (A->TryGetStringField(TEXT("player"), Name))
 	{
 		ACharacter* C = GetPlayer();
@@ -1963,6 +2209,24 @@ TSharedRef<FJsonObject> FLogicWorld::GetState(int32 LogLimit) const
 	J->SetArrayField(TEXT("hidden"), HiddenList);
 	J->SetNumberField(TEXT("tweens"), Tweens.Num());
 	J->SetNumberField(TEXT("projectiles"), Projectiles.Num());
+	if (Spawners.Num() > 0)
+	{
+		TSharedRef<FJsonObject> Sp = MakeShared<FJsonObject>();
+		for (const TPair<FString, FSpawnerState>& P : Spawners)
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetBoolField(TEXT("active"), P.Value.bActive);
+			O->SetNumberField(TEXT("wave"), P.Value.Wave + 1);
+			O->SetNumberField(TEXT("alive"), P.Value.Alive.Num());
+			O->SetNumberField(TEXT("spawned"), P.Value.SpawnedTotal);
+			Sp->SetObjectField(P.Key, O);
+		}
+		J->SetObjectField(TEXT("spawners"), Sp);
+	}
+	if (!CurrentInteract.IsEmpty())
+	{
+		J->SetStringField(TEXT("interact"), CurrentInteract);
+	}
 	if (Agents.Num() > 0)
 	{
 		TSharedRef<FJsonObject> B = MakeShared<FJsonObject>();

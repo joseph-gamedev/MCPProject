@@ -349,6 +349,90 @@ void FLogicToolsetSpec::Define()
 		H->CallFails(TEXT("logic.define_ui"), TEXT(R"J({"items":[{"name":"hp2","kind":"bar","text":"HP"}]})J"), ERuntimeToolError::InvalidArguments);
 	});
 
+	It("spawns waves from a pool and reports cleared and complete", [this]()
+	{
+		const FString Tpl = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[60,60,60],"location":[0,0,-5000],"name":"bot","tags":["enemy"]})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.define_pool"), FString::Printf(TEXT(R"J({"name":"bots","template":"%s","size":4})J"), *Tpl));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["tag:enemy"],"max":1,"on_death":"release"})J"));
+		H->CallOk(TEXT("logic.define_spawner"), TEXT(R"J({"name":"s","pool":"bots","points":[[0,0,0],[300,0,0]],"interval":0.1,"start_delay":0,"wave_gap":0.5,
+			"waves":[{"count":2},{"count":1}]})J"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"cleared":0,"done":false}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[
+			{"name":"c","on":"wave_cleared","filter":"s","actions":[{"set":"cleared","value":"cleared + 1"}]},
+			{"name":"d","on":"waves_complete","actions":[{"set":"done","value":"true"}]},
+			{"name":"k","on":"button","filter":"kill","actions":[{"damage":"nodes('tag:enemy')","amount":"5"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.5})J"));
+		TestEqual(TEXT("wave 1 alive"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("spawners"))->GetObjectField(TEXT("s"))->GetNumberField(TEXT("alive"))), 2);
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"kill"})J"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.3})J"));
+		TestEqual(TEXT("wave 1 cleared"), static_cast<int32>(Vars()->GetNumberField(TEXT("cleared"))), 1);
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":1.0})J"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"kill"})J"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.3})J"));
+		TestTrue(TEXT("all waves done"), Vars()->GetBoolField(TEXT("done")));
+		H->CallFails(TEXT("logic.define_spawner"), TEXT(R"J({"name":"x","pool":"nope","points":[[0,0,0]]})J"), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("drops loot, gives items, gates interactables, saves and loads, exposes tuning", [this]()
+	{
+		const FString Coin = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"sphere","size":[30,30,30],"name":"coin_tpl"})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.define_pool"), FString::Printf(TEXT(R"J({"name":"coins","template":"%s","size":5})J"), *Coin));
+		H->CallOk(TEXT("logic.define_loot"), TEXT(R"J({"name":"drop","entries":[{"pool":"coins","weight":1}],"count":3})J"));
+		const FString Door = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[100,20,200],"name":"door"})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.define_interactable"), FString::Printf(TEXT(R"J({"targets":["%s"],"prompt":"Open","requires":"has('key')"})J"), *Door));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"inventory":{},"opened":false,"credits":50}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[
+			{"name":"loot","on":"button","filter":"loot","actions":[{"drop_loot":"drop","at":"[0,0,0]"}]},
+			{"name":"give","on":"button","filter":"give","actions":[{"give":"'key'"},{"give":"'gem'","amount":"3"},{"take":"'gem'"}]},
+			{"name":"open","on":"interact","target":"door","condition":"has('key')","actions":[{"set":"opened","value":"true"}]},
+			{"name":"save","on":"button","filter":"save","actions":[{"save":"unit_test","vars":["credits"]}]},
+			{"name":"load","on":"button","filter":"load","actions":[{"load":"unit_test"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"loot"})J"));
+		TestEqual(TEXT("3 dropped"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("pools_free"))->GetNumberField(TEXT("coins"))), 2);
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"give"})J"));
+		TestEqual(TEXT("gems"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"inventory.gem"})J"))->GetNumberField(TEXT("value")), 2.0);
+		H->CallOk(TEXT("logic.fire_event"), FString::Printf(TEXT(R"J({"on":"interact","target":"%s"})J"), *Door));
+		TestTrue(TEXT("door opened with the key"), Vars()->GetBoolField(TEXT("opened")));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"save"})J"));
+		H->CallOk(TEXT("logic.set_var"), TEXT(R"J({"name":"credits","value":0})J"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"load"})J"));
+		TestEqual(TEXT("credits restored"), static_cast<int32>(Vars()->GetNumberField(TEXT("credits"))), 50);
+		const TSharedRef<FJsonObject> Tun = H->CallOk(TEXT("logic.get_tuning"));
+		TestTrue(TEXT("tuning listed with basis"), Tun->GetObjectField(TEXT("tuning"))->GetObjectField(TEXT("brain.perceive_interval"))->HasField(TEXT("basis")));
+		H->CallFails(TEXT("logic.set_tuning"), TEXT(R"J({"values":{"nope.value":1}})J"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("logic.set_tuning"), TEXT(R"J({"values":{"hud.flash_alpha":0.5}})J"));
+		H->CallOk(TEXT("logic.set_tuning"), TEXT(R"J({"reset":true})J"));
+	});
+
+	It("flies a jet, crashes into terrain, and homing missiles curve onto targets", [this]()
+	{
+		H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[200,4000,4000],"location":[6000,0,-1000],"name":"cliff"})J"));
+		H->CallOk(TEXT("logic.spawn_player"), TEXT(R"J({"location":[0,0,1000],"mode":"flight","speed":4000,"radius":150})J"));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["player"],"max":10})J"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"crashed":false}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[{"name":"c","on":"crash","actions":[{"set":"crashed","value":"true"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.5})J"));
+		const double X = H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("player"))->GetArrayField(TEXT("location"))[0]->AsNumber();
+		TestTrue(FString::Printf(TEXT("flies forward (%f)"), X), X > 1000.0);
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":2.0})J"));
+		TestTrue(TEXT("crashed into the cliff"), Vars()->GetBoolField(TEXT("crashed")));
+		H->CallOk(TEXT("logic.remove_player"));
+
+		H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[60,60,60],"location":[0,0,0],"name":"launcher","tags":["launcher"]})J"));
+		const FString Target = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[120,120,120],"location":[2000,1100,0],"pivot":"center","name":"drone","tags":["drone"]})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.set_solid"), TEXT(R"J({"targets":["tag:launcher","tag:drone"],"solid":false})J"));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["tag:drone"],"max":5})J"));
+		H->CallOk(TEXT("logic.define_weapon"), TEXT(R"J({"name":"missile","damage":5,"rate":1,"speed":2000,"homing":180,"lock_angle":45,"lock_range":5000,"lifetime":4,"hits":"tag:drone"})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"replace":true,"rules":[{"name":"m","on":"button","filter":"m","actions":[{"fire":"nodes('tag:launcher')","weapon":"missile","at":"[1000,0,0]"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"m"})J"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":2.5})J"));
+		TestFalse(TEXT("missile curved and destroyed the drone"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"alive('%s')"})J"), *Target))->GetBoolField(TEXT("value")));
+	});
+
 	It("detects a draw", [this]()
 	{
 		BuildTicTacToe();

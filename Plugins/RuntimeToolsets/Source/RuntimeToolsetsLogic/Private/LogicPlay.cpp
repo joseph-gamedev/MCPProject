@@ -1,4 +1,5 @@
 // Platformer play: a playable character with a side camera, touch events, moving objects, hide/show and solidity.
+#include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -22,6 +23,16 @@ namespace
 		if (J.IsValid())
 		{
 			J->TryGetNumberField(Field, V);
+		}
+		return V;
+	}
+
+	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
+	{
+		FString V = Default;
+		if (J.IsValid())
+		{
+			J->TryGetStringField(Field, V);
 		}
 		return V;
 	}
@@ -237,16 +248,16 @@ void FLogicWorld::ApplySolid()
 bool FLogicWorld::SpawnPlayer(FString& OutError)
 {
 	UWorld* W = World.Get();
-	if (!W || !PlayerDef.IsValid())
+	if (!W || !PD().IsValid())
 	{
 		OutError = TEXT("no player definition");
 		return false;
 	}
 	RemovePlayer();
-	const double Radius = Num(PlayerDef, TEXT("radius"), 38.0);
-	const double Height = Num(PlayerDef, TEXT("height"), 180.0);
+	const double Radius = Num(PD(), TEXT("radius"), 38.0);
+	const double Height = Num(PD(), TEXT("height"), 180.0);
 	const double Half = Height / 2.0;
-	SpawnPoint = Vec(PlayerDef, TEXT("location"), FVector::ZeroVector);
+	SpawnPoint = Vec(PD(), TEXT("location"), FVector::ZeroVector);
 	Checkpoint = SpawnPoint;
 
 	FActorSpawnParameters Params;
@@ -261,10 +272,10 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	C->GetCapsuleComponent()->SetCapsuleSize(Radius, Half);
 	C->bUseControllerRotationYaw = false;
 	UCharacterMovementComponent* M = C->GetCharacterMovement();
-	M->MaxWalkSpeed = Num(PlayerDef, TEXT("speed"), 650.0);
-	M->JumpZVelocity = Num(PlayerDef, TEXT("jump"), 1250.0);
-	M->GravityScale = Num(PlayerDef, TEXT("gravity"), 2.8);
-	M->AirControl = Num(PlayerDef, TEXT("air_control"), 0.85);
+	M->MaxWalkSpeed = Num(PD(), TEXT("speed"), 650.0);
+	M->JumpZVelocity = Num(PD(), TEXT("jump"), 1250.0);
+	M->GravityScale = Num(PD(), TEXT("gravity"), 2.8);
+	M->AirControl = Num(PD(), TEXT("air_control"), 0.85);
 	M->BrakingDecelerationWalking = 2600.f;
 	M->GroundFriction = 9.f;
 	M->MaxAcceleration = 3200.f;
@@ -274,15 +285,23 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	M->RotationRate = FRotator(0.f, 1500.f, 0.f);
 	M->SetPlaneConstraintEnabled(!bTop);
 	M->SetPlaneConstraintNormal(FVector(0.f, 1.f, 0.f));
-	C->JumpMaxHoldTime = Num(PlayerDef, TEXT("jump_hold"), 0.22);
-	C->SetActorRotation(FRotator(0.f, 0.f, 0.f));
+	C->JumpMaxHoldTime = Num(PD(), TEXT("jump_hold"), 0.22);
+	C->SetActorRotation(FRotator(0.f, Num(PD(), TEXT("yaw"), 0.0), 0.f));
+	if (IsFlight())
+	{
+		C->GetCapsuleComponent()->SetCapsuleSize(Radius, Radius);
+		M->SetMovementMode(MOVE_None);
+		M->GravityScale = 0.f;
+		C->SetActorLocation(SpawnPoint);
+		FlightSpeed = 0.0;
+	}
 	Player = C;
 	Facing = 1.f;
 
 	// Body: the agent's node, or a default hero.
 	FRuntimeSceneGraph* Graph = GraphOf(W);
 	FString BodyRef;
-	PlayerDef->TryGetStringField(TEXT("body"), BodyRef);
+	PD()->TryGetStringField(TEXT("body"), BodyRef);
 	AActor* Body = nullptr;
 	if (!BodyRef.IsEmpty() && Graph)
 	{
@@ -336,8 +355,14 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	if (Body)
 	{
 		Body->SetActorEnableCollision(false);
+		TArray<AActor*> Shown = {Body};
+		Body->GetAttachedActors(Shown, false, true);
+		for (AActor* X : Shown)
+		{
+			X->SetActorHiddenInGame(false);
+		}
 		Body->AttachToActor(C, FAttachmentTransformRules::KeepWorldTransform);
-		Body->SetActorRelativeLocation(FVector(0, 0, -Half));
+		Body->SetActorRelativeLocation(IsFlight() ? FVector::ZeroVector : FVector(0, 0, -Half));
 		Body->SetActorRelativeRotation(FRotator::ZeroRotator);
 		PlayerBody = Body;
 	}
@@ -345,7 +370,7 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	ACameraActor* Cam = W->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform(SpawnPoint), Params);
 	if (Cam)
 	{
-		Cam->GetCameraComponent()->SetFieldOfView(static_cast<float>(Num(PlayerDef, TEXT("fov"), 55.0)));
+		Cam->GetCameraComponent()->SetFieldOfView(static_cast<float>(Num(PD(), TEXT("fov"), 55.0)));
 		Cam->GetCameraComponent()->bConstrainAspectRatio = false;
 		PlayerCamera = Cam;
 	}
@@ -383,7 +408,21 @@ void FLogicWorld::RemovePlayer()
 		if (AActor* Body = PlayerBody.Get())
 		{
 			Body->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-			Body->SetActorEnableCollision(true);
+			if (!bOwnBody)
+			{
+				// A level model used as the body: hide it again (it is shown when attached).
+				TArray<AActor*> Parts = {Body};
+				Body->GetAttachedActors(Parts, false, true);
+				for (AActor* X : Parts)
+				{
+					X->SetActorHiddenInGame(true);
+				}
+				Body->SetActorRelativeScale3D(FVector::OneVector);
+			}
+			else
+			{
+				Body->SetActorEnableCollision(true);
+			}
 		}
 		C->Destroy();
 	}
@@ -421,17 +460,28 @@ void FLogicWorld::RespawnPlayer()
 	}
 	const double Half = C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	C->GetCharacterMovement()->StopMovementImmediately();
-	C->SetActorLocation(Checkpoint + FVector(0, 0, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
-	C->SetActorRotation(FRotator::ZeroRotator);
-	C->GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+	if (IsFlight())
+	{
+		C->SetActorLocationAndRotation(Checkpoint, FRotator(0, Num(PD(), TEXT("yaw"), 0.0), 0), false, nullptr, ETeleportType::TeleportPhysics);
+		FlightSpeed = 0.0;
+		FlightVelocity = FVector::ZeroVector;
+	}
+	else
+	{
+		C->SetActorLocation(Checkpoint + FVector(0, 0, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
+		C->SetActorRotation(FRotator::ZeroRotator);
+		C->GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+	}
 	Facing = 1.f;
 	bFell = false;
-	Invulnerable = bRunning ? 1.5 : 0.0;
+	Invulnerable = bRunning ? LogicTuning::Get(TEXT("combat.respawn_invulnerable")) : 0.0;
 	TickCamera(0.0, true);
 }
 
 void FLogicWorld::ResetPlay()
 {
+	PlayerLive = PlayerDef.IsValid() ? RuntimeJson::Parse(RuntimeJson::Write(PlayerDef.ToSharedRef())) : nullptr;
+	ResetExtras();
 	ResetTweens();
 	ResetPools();
 	ResetCombat();
@@ -471,7 +521,16 @@ void FLogicWorld::ResetPlay()
 	}
 	ApplySolid();
 	ResetBrains();
-	if (PlayerDef.IsValid())
+	bool bAutoSpawn = true;
+	if (PD().IsValid())
+	{
+		PD()->TryGetBoolField(TEXT("auto_spawn"), bAutoSpawn);
+	}
+	if (PD().IsValid() && !bAutoSpawn)
+	{
+		RemovePlayer();
+	}
+	else if (PD().IsValid())
 	{
 		FString Err;
 		if (!Player.IsValid())
@@ -544,12 +603,73 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 			FireWeapon(TEXT("player"), FString(), nullptr, Err);
 		}
 		FString ReloadKey;
-		PlayerDef->TryGetStringField(TEXT("reload_key"), ReloadKey);
+		PD()->TryGetStringField(TEXT("reload_key"), ReloadKey);
 		if (!ReloadKey.IsEmpty() && PC->WasInputKeyJustPressed(FKey(*ReloadKey)) && W)
 		{
 			StartReload(TEXT("player"), *W, WeaponStates.FindOrAdd(TEXT("player")));
 		}
 	}
+	// Secondary weapon (missiles): right mouse / left trigger.
+	if (const FString Secondary = Str(PD(), TEXT("secondary")); !Secondary.IsEmpty())
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftTrigger) || PC->WasInputKeyJustPressed(EKeys::G))
+		{
+			FString Err;
+			FireWeapon(TEXT("player"), Secondary, nullptr, Err);
+		}
+	}
+	if (IsFlight())
+	{
+		float MX = 0.f, MY = 0.f;
+		PC->GetInputMouseDelta(MX, MY);
+		const double Sens = Num(PD(), TEXT("mouse_sensitivity"), 1.0);
+		FlightPitchIn = MY * LogicTuning::Get(TEXT("flight.mouse_scale")) * Sens;
+		FlightYawIn = MX * LogicTuning::Get(TEXT("flight.mouse_scale")) * Sens;
+		if (PC->IsInputKeyDown(EKeys::Up)) FlightPitchIn += 1.0;
+		if (PC->IsInputKeyDown(EKeys::Down)) FlightPitchIn -= 1.0;
+		if (PC->IsInputKeyDown(EKeys::Left) || PC->IsInputKeyDown(EKeys::Q)) FlightYawIn -= 1.0;
+		if (PC->IsInputKeyDown(EKeys::Right) || PC->IsInputKeyDown(EKeys::E)) FlightYawIn += 1.0;
+		FlightRollIn = 0.0;
+		if (PC->IsInputKeyDown(EKeys::D)) FlightRollIn += 1.0;
+		if (PC->IsInputKeyDown(EKeys::A)) FlightRollIn -= 1.0;
+		const float LX = PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftX), LY = PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+		const float RX = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX);
+		if (FMath::Abs(LX) > 0.15f) FlightRollIn = LX;
+		if (FMath::Abs(LY) > 0.15f) FlightPitchIn = -LY;
+		if (FMath::Abs(RX) > 0.15f) FlightYawIn = RX;
+		const double ThrottleStep = LogicTuning::Get(TEXT("flight.throttle_rate")) * FMath::Max(0.001, static_cast<double>(PC->GetWorld()->GetDeltaSeconds()));
+		if (PC->IsInputKeyDown(EKeys::W)) FlightThrottle = FMath::Min(1.0, FlightThrottle + ThrottleStep);
+		if (PC->IsInputKeyDown(EKeys::S)) FlightThrottle = FMath::Max(0.0, FlightThrottle - ThrottleStep);
+		bFlightBoost = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder);
+		return;
+	}
+	const TSharedPtr<FJsonObject>* DashDef = nullptr;
+	const bool bHasDash = PD()->TryGetObjectField(TEXT("dash"), DashDef);
+	auto TryDash = [&](FVector Dir)
+	{
+		if (!bHasDash || PlayTime < DashReadyAt || Dir.IsNearlyZero())
+		{
+			return;
+		}
+		const FKey Key(*Str(*DashDef, TEXT("key"), IsTopDown() ? TEXT("SpaceBar") : TEXT("LeftControl")));
+		if (!PC->WasInputKeyJustPressed(Key) && !PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right))
+		{
+			return;
+		}
+		const double Dur = Num(*DashDef, TEXT("duration"), 0.18);
+		C->LaunchCharacter(Dir.GetSafeNormal() * Num(*DashDef, TEXT("speed"), 2200.0), true, false);
+		DashUntil = PlayTime + Dur;
+		DashReadyAt = PlayTime + Num(*DashDef, TEXT("cooldown"), 0.8);
+		bool bInv = true;
+		(*DashDef)->TryGetBoolField(TEXT("invulnerable"), bInv);
+		if (bInv)
+		{
+			Invulnerable = FMath::Max(Invulnerable, Dur);
+		}
+		FLogicEvent E;
+		E.On = TEXT("dash");
+		Queue.Add(E);
+	};
 	if (IsTopDown())
 	{
 		FVector Move = FVector::ZeroVector;
@@ -562,7 +682,35 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 		{
 			Move = FVector(LY, LX, 0);
 		}
-		C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PlayerDef, TEXT("speed"), 650.0) * (bRunKey ? 1.5 : 1.0));
+		C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PD(), TEXT("speed"), 650.0) * (bRunKey ? 1.5 : 1.0));
+		TryDash(Move.IsNearlyZero() ? AimDir : Move);
+		if (IsGrid())
+		{
+			// Cell-by-cell movement: one step per press (repeats while held), blocked by walls.
+			const double Cell = Num(PD(), TEXT("grid"), 100.0);
+			if (GridT >= 1.0 && !Move.IsNearlyZero() && PlayTime >= GridNextInput)
+			{
+				const FVector Dir = FMath::Abs(Move.X) >= FMath::Abs(Move.Y) ? FVector(FMath::Sign(Move.X), 0, 0) : FVector(0, FMath::Sign(Move.Y), 0);
+				FVector From = C->GetActorLocation();
+				From.X = SpawnPoint.X + FMath::RoundToDouble((From.X - SpawnPoint.X) / Cell) * Cell;
+				From.Y = SpawnPoint.Y + FMath::RoundToDouble((From.Y - SpawnPoint.Y) / Cell) * Cell;
+				const FVector To = From + Dir * Cell;
+				FCollisionQueryParams Q(SCENE_QUERY_STAT(LogicGrid), false, C);
+				TArray<AActor*> Ignore;
+				C->GetAttachedActors(Ignore, false, true);
+				Q.AddIgnoredActors(Ignore);
+				UWorld* Wd = C->GetWorld();
+				if (!Wd || !Wd->SweepTestByChannel(From, To, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(static_cast<float>(Cell * 0.3)), Q))
+				{
+					GridFrom = From;
+					GridTo = To;
+					GridT = 0.0;
+					GridNextInput = PlayTime + Num(PD(), TEXT("step_time"), 0.14);
+					C->SetActorRotation(FRotator(0.0, Dir.Rotation().Yaw, 0.0));
+				}
+			}
+			return;
+		}
 		if (!Move.IsNearlyZero())
 		{
 			C->AddMovementInput(Move.GetClampedToMaxSize(1.0), 1.f, true);
@@ -590,6 +738,7 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 		}
 		return;
 	}
+	TryDash(FVector(Facing, 0, 0));
 	float Axis = 0.f;
 	if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Right))
 	{
@@ -605,7 +754,7 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 		Axis = FMath::Clamp(Axis + Stick, -1.f, 1.f);
 	}
 	const bool bRun = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Left);
-	C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PlayerDef, TEXT("speed"), 650.0) * (bRun ? 1.6 : 1.0));
+	C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PD(), TEXT("speed"), 650.0) * (bRun ? 1.6 : 1.0));
 	if (Axis != 0.f)
 	{
 		Facing = Axis > 0.f ? 1.f : -1.f;
@@ -800,13 +949,13 @@ void FLogicWorld::TickTouch()
 		{
 			continue;
 		}
-		if (const double* Last = LastTouch.Find(N.Id); Last && PlayTime - *Last < 0.35)
+		if (const double* Last = LastTouch.Find(N.Id); Last && PlayTime - *Last < LogicTuning::Get(TEXT("touch.retouch_cooldown")))
 		{
 			continue;
 		}
 		LastTouch.Add(N.Id, PlayTime);
 		// Above: the feet were over the top last frame (fast falls), or are in its top part while not rising.
-		const bool bAbove = (PrevFeetZ >= NB.Max.Z - 12.0 && Vz <= 200.0) || (PB.Min.Z >= NB.Max.Z - 0.4 * H && Vz <= 60.0);
+		const bool bAbove = (PrevFeetZ >= NB.Max.Z - LogicTuning::Get(TEXT("touch.stomp_tolerance")) && Vz <= 200.0) || (PB.Min.Z >= NB.Max.Z - 0.4 * H && Vz <= 60.0);
 		const bool bBelow = !bAbove && PB.Max.Z <= NB.Min.Z + 0.4 * H && Vz >= -60.0;
 		FLogicEvent E;
 		if (MakeTouchEvent(N.Id, bAbove, bBelow, E))
@@ -827,18 +976,32 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		return;
 	}
 	const FVector P = C->GetActorLocation();
+	if (IsFlight())
+	{
+		const FQuat Q = C->GetActorQuat();
+		const double Dist = Num(PD(), TEXT("camera_distance"), 1300.0);
+		const double Up = Num(PD(), TEXT("camera_height"), 330.0);
+		const FVector Goal = P - Q.GetForwardVector() * Dist + Q.GetUpVector() * Up;
+		CamPos = bSnap || Dt <= 0.0 ? Goal : FMath::VInterpTo(CamPos, Goal, Dt, 7.0);
+		FRotator CR = (P + Q.GetForwardVector() * 1500.0 - CamPos).Rotation();
+		CR.Roll = Q.Rotator().Roll * 0.35;
+		Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), CR);
+		const double BaseFov = Num(PD(), TEXT("fov"), 70.0);
+		Cam->GetCameraComponent()->SetFieldOfView(static_cast<float>(FMath::FInterpTo(Cam->GetCameraComponent()->FieldOfView, BaseFov + (bFlightBoost ? LogicTuning::Get(TEXT("flight.boost_fov")) : 0.0), Dt, 3.0)));
+		return;
+	}
 	if (IsTopDown())
 	{
-		const double Pitch = -FMath::Abs(Num(PlayerDef, TEXT("camera_pitch"), 60.0));
-		const double Dist = Num(PlayerDef, TEXT("camera_distance"), 1500.0);
-		const FVector Lead = AimDir * Num(PlayerDef, TEXT("camera_lead"), 150.0);
+		const double Pitch = -FMath::Abs(Num(PD(), TEXT("camera_pitch"), 60.0));
+		const double Dist = Num(PD(), TEXT("camera_distance"), 1500.0);
+		const FVector Lead = AimDir * Num(PD(), TEXT("camera_lead"), 150.0);
 		const FVector Goal = P + Lead + FVector(-Dist * FMath::Cos(FMath::DegreesToRadians(-Pitch)), 0.0, Dist * FMath::Sin(FMath::DegreesToRadians(-Pitch)));
 		CamPos = bSnap || Dt <= 0.0 ? Goal : FMath::VInterpTo(CamPos, Goal, Dt, 6.0);
 		Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Pitch, 0.0, 0.0));
 		return;
 	}
-	const FVector Target = P + FVector(Facing * Num(PlayerDef, TEXT("camera_lead"), 200.0), Num(PlayerDef, TEXT("camera_distance"), 1700.0),
-		Num(PlayerDef, TEXT("camera_height"), 250.0));
+	const FVector Target = P + FVector(Facing * Num(PD(), TEXT("camera_lead"), 200.0), Num(PD(), TEXT("camera_distance"), 1700.0),
+		Num(PD(), TEXT("camera_height"), 250.0));
 	if (bSnap || Dt <= 0.0)
 	{
 		CamPos = Target;
@@ -849,20 +1012,33 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		CamPos.Y = Target.Y;
 		CamPos.Z = FMath::FInterpTo(CamPos.Z, Target.Z, Dt, 3.0);
 	}
-	Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Num(PlayerDef, TEXT("camera_pitch"), -6.0), -90.0, 0.0));
+	Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Num(PD(), TEXT("camera_pitch"), -6.0), -90.0, 0.0));
 }
 
 void FLogicWorld::TickPlay(double Dt)
 {
 	PlayTime += Dt;
 	TickTweens(Dt);
+	TickFlight(Dt);
+	if (IsGrid() && GridT < 1.0)
+	{
+		GridT = FMath::Min(1.0, GridT + Dt / FMath::Max(0.01, Num(PD(), TEXT("step_time"), 0.14)));
+		if (ACharacter* GC = Player.Get())
+		{
+			const FVector L = FMath::Lerp(GridFrom, GridTo, GridT);
+			GC->SetActorLocation(FVector(L.X, L.Y, GC->GetActorLocation().Z), false, nullptr, ETeleportType::TeleportPhysics);
+			AnimPhase += Dt * 12.0;
+		}
+	}
 	TickMotion();
+	TickSpawners(Dt);
+	TickInteract();
 	TickBrains(Dt);
 	TickCombat(Dt);
 	TickFeel(Dt);
 	if (ACharacter* C = Player.Get())
 	{
-		const double KillZ = Num(PlayerDef, TEXT("kill_z"), SpawnPoint.Z - 1500.0);
+		const double KillZ = Num(PD(), TEXT("kill_z"), SpawnPoint.Z - 1500.0);
 		if (!bFell && C->GetActorLocation().Z < KillZ)
 		{
 			bFell = true;
@@ -896,6 +1072,20 @@ TSharedRef<FJsonObject> FLogicWorld::PlayerJson() const
 		J->SetBoolField(TEXT("grounded"), C->GetCharacterMovement()->IsMovingOnGround());
 		J->SetBoolField(TEXT("frozen"), bFrozen);
 		J->SetBoolField(TEXT("invulnerable"), Invulnerable > 0.0);
+		J->SetNumberField(TEXT("speed"), RuntimeJson::Round(IsFlight() ? FlightSpeed : C->GetVelocity().Size()));
+		J->SetNumberField(TEXT("altitude"), RuntimeJson::Round(C->GetActorLocation().Z));
+		J->SetNumberField(TEXT("throttle"), RuntimeJson::Round(FlightThrottle));
+		J->SetBoolField(TEXT("boost"), bFlightBoost);
+		J->SetBoolField(TEXT("dash_ready"), PlayTime >= DashReadyAt);
+		if (const FString Secondary = Str(PD(), TEXT("secondary")); !Secondary.IsEmpty())
+		{
+			if (const TSharedPtr<FJsonObject>* W = WeaponDefs.Find(Secondary); W && Num(*W, TEXT("homing"), 0.0) > 0.0)
+			{
+				const FVector Fwd = IsFlight() ? C->GetActorForwardVector() : AimDir;
+				J->SetStringField(TEXT("lock"), LockTarget(TEXT("player"), C->GetActorLocation(), Fwd, Num(*W, TEXT("lock_range"), 12000.0),
+					Num(*W, TEXT("lock_angle"), 25.0), Str(*W, TEXT("hits"))));
+			}
+		}
 		J->SetField(TEXT("checkpoint"), RuntimeJson::Vec(Checkpoint));
 		UWorld* W = World.Get();
 		APlayerController* PC = W ? W->GetFirstPlayerController() : nullptr;
