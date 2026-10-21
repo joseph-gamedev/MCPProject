@@ -18,7 +18,7 @@
 
 namespace
 {
-	double Percentile(const TArray<double>& Sorted, double P)
+	double ProfilingPercentile(const TArray<double>& Sorted, double P)
 	{
 		if (Sorted.Num() == 0)
 		{
@@ -28,12 +28,12 @@ namespace
 		return Sorted[Index];
 	}
 
-	float R3(double V)
+	float ProfilingR3(double V)
 	{
 		return static_cast<float>(RuntimeJson::Round(V));
 	}
 
-	bool CheckWindow(float Seconds, float HitchMs)
+	bool ProfilingCheckWindow(float Seconds, float HitchMs)
 	{
 		if (Seconds < 0.1f || Seconds > 60.f || HitchMs <= 0.f)
 		{
@@ -49,7 +49,7 @@ namespace
 	 * Completes through the async result; cancelling stops sampling.
 	 */
 	template <typename TResult>
-	void SampleFrames(TResult* Result, double Duration, TFunction<void(TResult&, const TArray<double>&, const TArray<double>&)> Done)
+	void ProfilingSampleFrames(TResult* Result, double Duration, TFunction<void(TResult&, const TArray<double>&, const TArray<double>&)> Done)
 	{
 		struct FState
 		{
@@ -88,12 +88,12 @@ namespace
 
 UProfilingToolFrameTimingAsyncResult* URuntimeProfilingToolset::FrameTiming(float Seconds, float HitchMs)
 {
-	if (!CheckWindow(Seconds, HitchMs))
+	if (!ProfilingCheckWindow(Seconds, HitchMs))
 	{
 		return nullptr;
 	}
 	UProfilingToolFrameTimingAsyncResult* Result = NewObject<UProfilingToolFrameTimingAsyncResult>();
-	SampleFrames<UProfilingToolFrameTimingAsyncResult>(Result, Seconds,
+	ProfilingSampleFrames<UProfilingToolFrameTimingAsyncResult>(Result, Seconds,
 		[HitchMs](UProfilingToolFrameTimingAsyncResult& R, const TArray<double>& Frames, const TArray<double>&)
 		{
 			TArray<double> Sorted = Frames;
@@ -108,19 +108,19 @@ UProfilingToolFrameTimingAsyncResult* URuntimeProfilingToolset::FrameTiming(floa
 			const double Avg = Frames.Num() ? Sum / Frames.Num() : 0.0;
 			FProfilingToolFrameTiming V;
 			V.Frames = Frames.Num();
-			V.AvgMs = R3(Avg);
-			V.Fps = R3(Avg > 0.0 ? 1000.0 / Avg : 0.0);
-			V.MinMs = R3(Percentile(Sorted, 0.0));
-			V.P50Ms = R3(Percentile(Sorted, 0.5));
-			V.P95Ms = R3(Percentile(Sorted, 0.95));
-			V.P99Ms = R3(Percentile(Sorted, 0.99));
-			V.MaxMs = R3(Sorted.Num() ? Sorted.Last() : 0.0);
+			V.AvgMs = ProfilingR3(Avg);
+			V.Fps = ProfilingR3(Avg > 0.0 ? 1000.0 / Avg : 0.0);
+			V.MinMs = ProfilingR3(ProfilingPercentile(Sorted, 0.0));
+			V.P50Ms = ProfilingR3(ProfilingPercentile(Sorted, 0.5));
+			V.P95Ms = ProfilingR3(ProfilingPercentile(Sorted, 0.95));
+			V.P99Ms = ProfilingR3(ProfilingPercentile(Sorted, 0.99));
+			V.MaxMs = ProfilingR3(Sorted.Num() ? Sorted.Last() : 0.0);
 			V.Hitches = Hitches;
 			// Thread breakdown of the most recent frame (zero without rendering).
-			V.LastFrame.GameMs = R3(FPlatformTime::ToMilliseconds(GGameThreadTime));
-			V.LastFrame.RenderMs = R3(FPlatformTime::ToMilliseconds(GRenderThreadTime));
-			V.LastFrame.RhiMs = R3(FPlatformTime::ToMilliseconds(GRHIThreadTime));
-			V.LastFrame.GpuMs = R3(FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles()));
+			V.LastFrame.GameMs = ProfilingR3(FPlatformTime::ToMilliseconds(GGameThreadTime));
+			V.LastFrame.RenderMs = ProfilingR3(FPlatformTime::ToMilliseconds(GRenderThreadTime));
+			V.LastFrame.RhiMs = ProfilingR3(FPlatformTime::ToMilliseconds(GRHIThreadTime));
+			V.LastFrame.GpuMs = ProfilingR3(FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles()));
 			R.SetValue(V);
 		});
 	return Result;
@@ -128,13 +128,13 @@ UProfilingToolFrameTimingAsyncResult* URuntimeProfilingToolset::FrameTiming(floa
 
 UProfilingToolHitchesAsyncResult* URuntimeProfilingToolset::FindHitches(float Seconds, float HitchMs, int32 Limit)
 {
-	if (!CheckWindow(Seconds, HitchMs))
+	if (!ProfilingCheckWindow(Seconds, HitchMs))
 	{
 		return nullptr;
 	}
 	const int32 Max = URuntimeToolsetsSettings::Get().ClampLimit(Limit);
 	UProfilingToolHitchesAsyncResult* Result = NewObject<UProfilingToolHitchesAsyncResult>();
-	SampleFrames<UProfilingToolHitchesAsyncResult>(Result, Seconds,
+	ProfilingSampleFrames<UProfilingToolHitchesAsyncResult>(Result, Seconds,
 		[HitchMs, Max](UProfilingToolHitchesAsyncResult& R, const TArray<double>& Frames, const TArray<double>& Offsets)
 		{
 			TArray<int32> Indices;
@@ -152,8 +152,8 @@ UProfilingToolHitchesAsyncResult* URuntimeProfilingToolset::FindHitches(float Se
 			for (int32 i = 0; i < Indices.Num() && i < Max; ++i)
 			{
 				FProfilingToolHitch& H = V.Worst.AddDefaulted_GetRef();
-				H.AtS = R3(Offsets[Indices[i]]);
-				H.Ms = R3(Frames[Indices[i]]);
+				H.AtS = ProfilingR3(Offsets[Indices[i]]);
+				H.Ms = ProfilingR3(Frames[Indices[i]]);
 			}
 			R.SetValue(V);
 		});
@@ -170,10 +170,10 @@ FProfilingToolMemoryReport URuntimeProfilingToolset::MemoryReport(int32 TopClass
 	}
 	const FPlatformMemoryStats Mem = FPlatformMemory::GetStats();
 	constexpr double MB = 1024.0 * 1024.0;
-	Out.UsedPhysicalMb = R3(Mem.UsedPhysical / MB);
-	Out.PeakPhysicalMb = R3(Mem.PeakUsedPhysical / MB);
-	Out.UsedVirtualMb = R3(Mem.UsedVirtual / MB);
-	Out.AvailablePhysicalMb = R3(Mem.AvailablePhysical / MB);
+	Out.UsedPhysicalMb = ProfilingR3(Mem.UsedPhysical / MB);
+	Out.PeakPhysicalMb = ProfilingR3(Mem.PeakUsedPhysical / MB);
+	Out.UsedVirtualMb = ProfilingR3(Mem.UsedVirtual / MB);
+	Out.AvailablePhysicalMb = ProfilingR3(Mem.AvailablePhysical / MB);
 	Out.Uobjects = GUObjectArray.GetObjectArrayNumMinusAvailable();
 	if (TopClasses > 0)
 	{
@@ -202,14 +202,14 @@ FProfilingToolGpuStats URuntimeProfilingToolset::GpuStats()
 	FProfilingToolGpuStats Out;
 	Out.Rhi = GDynamicRHI ? FString(GDynamicRHI->GetName()) : FString(TEXT("none"));
 	Out.Adapter = GRHIAdapterName;
-	Out.GpuMs = R3(FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles()));
+	Out.GpuMs = ProfilingR3(FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles()));
 	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
 	{
 		Out.Viewport = GEngine->GameViewport->Viewport->GetSizeXY();
 	}
 	if (IConsoleVariable* SP = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage")))
 	{
-		Out.ScreenPercentage = R3(SP->GetFloat());
+		Out.ScreenPercentage = ProfilingR3(SP->GetFloat());
 	}
 	if (IConsoleVariable* VSync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync")))
 	{

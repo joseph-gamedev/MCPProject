@@ -11,12 +11,12 @@
 
 namespace
 {
-	const TCHAR* MobilityName(EComponentMobility::Type M)
+	const TCHAR* PhysicsMobilityName(EComponentMobility::Type M)
 	{
 		return M == EComponentMobility::Static ? TEXT("Static") : M == EComponentMobility::Stationary ? TEXT("Stationary") : TEXT("Movable");
 	}
 
-	FString Normalize(const FString& In)
+	FString PhysicsNormalize(const FString& In)
 	{
 		FString Out = In.ToLower().Replace(TEXT("_"), TEXT("")).Replace(TEXT(" "), TEXT(""));
 		Out.RemoveFromStart(TEXT("ecc"));
@@ -24,7 +24,7 @@ namespace
 	}
 
 	/** Channels that are configured as trace types or object types (unused custom channels are skipped). */
-	TArray<FPhysicsToolChannelInfo> KnownChannels(TArray<ECollisionChannel>* OutChannels = nullptr)
+	TArray<FPhysicsToolChannelInfo> PhysicsKnownChannels(TArray<ECollisionChannel>* OutChannels = nullptr)
 	{
 		TArray<FPhysicsToolChannelInfo> Out;
 		const UCollisionProfile* Profile = UCollisionProfile::Get();
@@ -50,15 +50,15 @@ namespace
 	}
 
 	/** Resolves a channel name ("Visibility", "world_static", "ECC_Pawn"); fails the call with the known names. */
-	bool ResolveChannel(const FString& Name, ECollisionChannel& Out)
+	bool PhysicsResolveChannel(const FString& Name, ECollisionChannel& Out)
 	{
 		TArray<ECollisionChannel> Channels;
-		const TArray<FPhysicsToolChannelInfo> Infos = KnownChannels(&Channels);
-		const FString Want = Normalize(Name);
+		const TArray<FPhysicsToolChannelInfo> Infos = PhysicsKnownChannels(&Channels);
+		const FString Want = PhysicsNormalize(Name);
 		TArray<FString> Names;
 		for (int32 i = 0; i < Infos.Num(); ++i)
 		{
-			if (Normalize(Infos[i].Name) == Want)
+			if (PhysicsNormalize(Infos[i].Name) == Want)
 			{
 				Out = Channels[i];
 				return true;
@@ -70,7 +70,7 @@ namespace
 		return false;
 	}
 
-	FPhysicsToolHit MakeHit(const FHitResult& Hit)
+	FPhysicsToolHit PhysicsMakeHit(const FHitResult& Hit)
 	{
 		FPhysicsToolHit J;
 		if (AActor* A = Hit.GetActor())
@@ -87,7 +87,7 @@ namespace
 		return J;
 	}
 
-	FString OwnerRef(const UPrimitiveComponent* P)
+	FString PhysicsOwnerRef(const UPrimitiveComponent* P)
 	{
 		return RuntimeToolCall::MakeReference(P->GetOwner() ? static_cast<const UObject*>(P->GetOwner()) : P);
 	}
@@ -205,7 +205,7 @@ namespace
 FPhysicsToolCollisionChannels URuntimePhysicsToolset::GetCollisionChannels()
 {
 	FPhysicsToolCollisionChannels Out;
-	Out.Channels = KnownChannels();
+	Out.Channels = PhysicsKnownChannels();
 	TArray<TSharedPtr<FName>> Names;
 	UCollisionProfile::GetProfileNames(Names);
 	for (const TSharedPtr<FName>& N : Names)
@@ -236,7 +236,7 @@ FPhysicsToolTraceResult URuntimePhysicsToolset::LineTrace(const FVector& Start, 
 		To = Start + Direction.GetSafeNormal() * Distance;
 	}
 	ECollisionChannel C = ECC_Visibility;
-	if (!Channel.IsEmpty() && !ResolveChannel(Channel, C))
+	if (!Channel.IsEmpty() && !PhysicsResolveChannel(Channel, C))
 	{
 		return Out;
 	}
@@ -260,7 +260,7 @@ FPhysicsToolTraceResult URuntimePhysicsToolset::LineTrace(const FVector& Start, 
 			{
 				break;
 			}
-			Out.Hits.Add(MakeHit(H));
+			Out.Hits.Add(PhysicsMakeHit(H));
 		}
 	}
 	else
@@ -268,7 +268,7 @@ FPhysicsToolTraceResult URuntimePhysicsToolset::LineTrace(const FVector& Start, 
 		FHitResult Hit;
 		if (World->LineTraceSingleByChannel(Hit, Start, To, C, Params))
 		{
-			Out.Hits.Add(MakeHit(Hit));
+			Out.Hits.Add(PhysicsMakeHit(Hit));
 		}
 	}
 	Out.bHit = Out.Hits.Num() > 0;
@@ -308,7 +308,7 @@ FPhysicsToolOverlapResult URuntimePhysicsToolset::OverlapTest(const FVector& Cen
 	else
 	{
 		ECollisionChannel C = ECC_Visibility;
-		if (!ResolveChannel(Channel, C))
+		if (!PhysicsResolveChannel(Channel, C))
 		{
 			return Out;
 		}
@@ -347,7 +347,7 @@ FPhysicsToolState URuntimePhysicsToolset::GetPhysics(UPrimitiveComponent* Target
 	Out.bGravity = P->IsGravityEnabled();
 	Out.CollisionProfile = P->GetCollisionProfileName().ToString();
 	Out.bCollision = P->IsCollisionEnabled();
-	Out.Mobility = MobilityName(P->Mobility);
+	Out.Mobility = PhysicsMobilityName(P->Mobility);
 	if (const FBodyInstance* Body = P->GetBodyInstance(); Body && Body->IsValidBodyInstance())
 	{
 		Out.MassKg = static_cast<float>(RuntimeJson::Round(Body->GetBodyMass()));
@@ -390,7 +390,7 @@ FPhysicsToolSimulateResult URuntimePhysicsToolset::SetSimulate(UPrimitiveCompone
 		return Out;
 	}
 	const EComponentMobility::Type OldMobility = Target->Mobility;
-	const FString Ref = OwnerRef(Target);
+	const FString Ref = PhysicsOwnerRef(Target);
 	if (RuntimeToolCall::RunCommand(MakeUnique<FSimulateCommand>(Target, bEnabled, Ref)))
 	{
 		Out.Target = Ref;
@@ -398,7 +398,7 @@ FPhysicsToolSimulateResult URuntimePhysicsToolset::SetSimulate(UPrimitiveCompone
 		Out.bMobilityChanged = bEnabled && OldMobility != EComponentMobility::Movable;
 		if (Out.bMobilityChanged)
 		{
-			Out.Note = FString::Printf(TEXT("mobility changed from %s to Movable so it can simulate; undo restores it"), MobilityName(OldMobility));
+			Out.Note = FString::Printf(TEXT("mobility changed from %s to Movable so it can simulate; undo restores it"), PhysicsMobilityName(OldMobility));
 		}
 	}
 	return Out;
@@ -426,7 +426,7 @@ FPhysicsToolImpulseResult URuntimePhysicsToolset::AddImpulse(UPrimitiveComponent
 	{
 		Target->AddImpulse(Impulse, NAME_None, bVelocityChange);
 	}
-	Out.Target = OwnerRef(Target);
+	Out.Target = PhysicsOwnerRef(Target);
 	RuntimeToolCall::Current()->RecordIrreversible(FString::Printf(TEXT("impulse on %s"), *Out.Target));
 	Out.Velocity = Target->GetPhysicsLinearVelocity();
 	return Out;

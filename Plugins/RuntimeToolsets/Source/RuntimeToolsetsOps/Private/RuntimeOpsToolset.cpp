@@ -16,7 +16,7 @@ namespace
 	// ---- JSON paths ------------------------------------------------------------------------------------------------
 
 	/** Follows "a.b[2].c" through a JSON value. */
-	TSharedPtr<FJsonValue> FollowPath(const TSharedPtr<FJsonValue>& Root, const FString& Path)
+	TSharedPtr<FJsonValue> OpsFollowPath(const TSharedPtr<FJsonValue>& Root, const FString& Path)
 	{
 		TSharedPtr<FJsonValue> Cur = Root;
 		TArray<FString> Parts;
@@ -54,7 +54,7 @@ namespace
 	}
 
 	/** A field of a tool result; reflected tools wrap results in returnValue, so its fields are found directly too. */
-	TSharedPtr<FJsonValue> ResultField(const TSharedPtr<FJsonObject>& Root, const FString& Path)
+	TSharedPtr<FJsonValue> OpsResultField(const TSharedPtr<FJsonObject>& Root, const FString& Path)
 	{
 		if (!Root.IsValid())
 		{
@@ -66,16 +66,16 @@ namespace
 			const TSharedPtr<FJsonValue> RetValue = Root->TryGetField(TEXT("returnValue"));
 			return RetValue.IsValid() ? RetValue : TSharedPtr<FJsonValue>(MakeShared<FJsonValueObject>(Root));
 		}
-		TSharedPtr<FJsonValue> V = FollowPath(MakeShared<FJsonValueObject>(Root), Path);
+		TSharedPtr<FJsonValue> V = OpsFollowPath(MakeShared<FJsonValueObject>(Root), Path);
 		const TSharedPtr<FJsonObject>* Ret = nullptr;
 		if ((!V.IsValid() || V->IsNull()) && Root->TryGetObjectField(TEXT("returnValue"), Ret))
 		{
-			V = FollowPath(MakeShared<FJsonValueObject>(*Ret), Path);
+			V = OpsFollowPath(MakeShared<FJsonValueObject>(*Ret), Path);
 		}
 		return V;
 	}
 
-	bool Compare(const TSharedPtr<FJsonValue>& Actual, EOpsToolCompareOp Op, const TSharedPtr<FJsonValue>& Expected)
+	bool OpsCompare(const TSharedPtr<FJsonValue>& Actual, EOpsToolCompareOp Op, const TSharedPtr<FJsonValue>& Expected)
 	{
 		const bool bExists = Actual.IsValid() && !Actual->IsNull();
 		if (Op == EOpsToolCompareOp::Exists) return bExists;
@@ -133,7 +133,7 @@ namespace
 	// ---- run_batch -------------------------------------------------------------------------------------------------
 
 	/** "$3.id" -> (3, "id"). False for plain strings and "$$" escapes. */
-	bool ParseReference(const FString& S, int32& OutIndex, FString& OutPath)
+	bool OpsParseReference(const FString& S, int32& OutIndex, FString& OutPath)
 	{
 		if (S.Len() < 2 || S[0] != TEXT('$') || !FChar::IsDigit(S[1]))
 		{
@@ -155,7 +155,7 @@ namespace
 	}
 
 	/** Checks that every reference in Value points to an earlier call. */
-	bool CheckReferences(const TSharedPtr<FJsonValue>& Value, int32 CallIndex, FString& OutError)
+	bool OpsCheckReferences(const TSharedPtr<FJsonValue>& Value, int32 CallIndex, FString& OutError)
 	{
 		if (!Value.IsValid())
 		{
@@ -163,7 +163,7 @@ namespace
 		}
 		int32 N = 0;
 		FString Path;
-		if (Value->Type == EJson::String && ParseReference(Value->AsString(), N, Path) && N >= CallIndex)
+		if (Value->Type == EJson::String && OpsParseReference(Value->AsString(), N, Path) && N >= CallIndex)
 		{
 			OutError = FString::Printf(TEXT("calls[%d]: '%s' refers to call %d, which does not run before it"), CallIndex, *Value->AsString(), N);
 			return false;
@@ -172,7 +172,7 @@ namespace
 		{
 			for (const TSharedPtr<FJsonValue>& V : Value->AsArray())
 			{
-				if (!CheckReferences(V, CallIndex, OutError))
+				if (!OpsCheckReferences(V, CallIndex, OutError))
 				{
 					return false;
 				}
@@ -182,7 +182,7 @@ namespace
 		{
 			for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : Value->AsObject()->Values)
 			{
-				if (!CheckReferences(KV.Value, CallIndex, OutError))
+				if (!OpsCheckReferences(KV.Value, CallIndex, OutError))
 				{
 					return false;
 				}
@@ -191,15 +191,15 @@ namespace
 		return true;
 	}
 
-	struct FBatchCall
+	struct FOpsBatchCall
 	{
 		FString Tool;
 		TSharedPtr<FJsonObject> Arguments;
 	};
 
-	struct FBatchState
+	struct FOpsBatchState
 	{
-		TArray<FBatchCall> Calls;
+		TArray<FOpsBatchCall> Calls;
 		int32 Next = 0;
 		bool bAtomic = false;
 		bool bStopOnError = true;
@@ -217,7 +217,7 @@ namespace
 	};
 
 	/** Replaces "$N.path" strings with values from earlier results ("$$" -> "$"). */
-	TSharedPtr<FJsonValue> Substitute(const TSharedPtr<FJsonValue>& Value, const FBatchState& S, FString& OutError)
+	TSharedPtr<FJsonValue> OpsSubstitute(const TSharedPtr<FJsonValue>& Value, const FOpsBatchState& S, FString& OutError)
 	{
 		if (!Value.IsValid() || !OutError.IsEmpty())
 		{
@@ -232,7 +232,7 @@ namespace
 			}
 			int32 N = 0;
 			FString Path;
-			if (!ParseReference(Str, N, Path))
+			if (!OpsParseReference(Str, N, Path))
 			{
 				return Value;
 			}
@@ -241,7 +241,7 @@ namespace
 				OutError = FString::Printf(TEXT("'%s' refers to call %d, which %s"), *Str, N, S.Succeeded.IsValidIndex(N) ? TEXT("failed") : TEXT("has not run"));
 				return Value;
 			}
-			const TSharedPtr<FJsonValue> Found = ResultField(S.Payloads[N], Path);
+			const TSharedPtr<FJsonValue> Found = OpsResultField(S.Payloads[N], Path);
 			if (!Found.IsValid())
 			{
 				TArray<FString> Keys = RuntimeJson::Keys(S.Payloads[N]);
@@ -261,7 +261,7 @@ namespace
 			TArray<TSharedPtr<FJsonValue>> Out;
 			for (const TSharedPtr<FJsonValue>& V : Value->AsArray())
 			{
-				Out.Add(Substitute(V, S, OutError));
+				Out.Add(OpsSubstitute(V, S, OutError));
 			}
 			return MakeShared<FJsonValueArray>(Out);
 		}
@@ -270,14 +270,14 @@ namespace
 			TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
 			for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : Value->AsObject()->Values)
 			{
-				Out->SetField(KV.Key, Substitute(KV.Value, S, OutError));
+				Out->SetField(KV.Key, OpsSubstitute(KV.Value, S, OutError));
 			}
 			return MakeShared<FJsonValueObject>(Out);
 		}
 		return Value;
 	}
 
-	void FinishBatch(const TSharedRef<FBatchState>& S)
+	void OpsFinishBatch(const TSharedRef<FOpsBatchState>& S)
 	{
 		if (S->bDone)
 		{
@@ -318,9 +318,9 @@ namespace
 		Result->SetValue(S->Value);
 	}
 
-	void RunStep(const TSharedRef<FBatchState>& S);
+	void OpsRunStep(const TSharedRef<FOpsBatchState>& S);
 
-	void OnCallDone(const TSharedRef<FBatchState>& S, int32 Index, const FToolResult& R)
+	void OpsOnCallDone(const TSharedRef<FOpsBatchState>& S, int32 Index, const FToolResult& R)
 	{
 		if (S->bDone)
 		{
@@ -346,10 +346,10 @@ namespace
 			S->Failure = R;
 			S->bStopped = S->bStopOnError;
 		}
-		RunStep(S);
+		OpsRunStep(S);
 	}
 
-	void RunStep(const TSharedRef<FBatchState>& S)
+	void OpsRunStep(const TSharedRef<FOpsBatchState>& S)
 	{
 		if (S->bDone || !S->Inv.IsValid())
 		{
@@ -357,21 +357,21 @@ namespace
 		}
 		if (S->bStopped || S->Next >= S->Calls.Num())
 		{
-			FinishBatch(S);
+			OpsFinishBatch(S);
 			return;
 		}
 		const int32 Index = S->Next++;
 		const FString Tool = S->Calls[Index].Tool;
 		FString RefError;
-		const TSharedPtr<FJsonValue> Args = Substitute(MakeShared<FJsonValueObject>(S->Calls[Index].Arguments), *S, RefError);
+		const TSharedPtr<FJsonValue> Args = OpsSubstitute(MakeShared<FJsonValueObject>(S->Calls[Index].Arguments), *S, RefError);
 		if (!RefError.IsEmpty())
 		{
-			OnCallDone(S, Index, FToolResult::Fail(ERuntimeToolError::InvalidArguments, RefError, TEXT("Reference earlier calls that succeed, e.g. \"$0.id\"")));
+			OpsOnCallDone(S, Index, FToolResult::Fail(ERuntimeToolError::InvalidArguments, RefError, TEXT("Reference earlier calls that succeed, e.g. \"$0.id\"")));
 			return;
 		}
 		S->Inv->ReportProgress(static_cast<float>(Index) / S->Calls.Num(), Tool);
 		TFunction<void()> Cancel = IRuntimeToolsetsCore::Get().ExecuteNested(Tool, Args->AsObject(), S->Inv->GetCaller(), S->Inv->GetDepth() + 1,
-			[S, Index](const FToolResult& R) { OnCallDone(S, Index, R); });
+			[S, Index](const FToolResult& R) { OpsOnCallDone(S, Index, R); });
 		if (!S->bDone && S->Value.Results.Num() <= Index)
 		{
 			S->CancelCurrent = MoveTemp(Cancel); // still running (async tool)
@@ -380,7 +380,7 @@ namespace
 
 	// ---- wait_for_condition ----------------------------------------------------------------------------------------
 
-	struct FWaitState
+	struct FOpsWaitState
 	{
 		FString Tool;
 		TSharedPtr<FJsonObject> Arguments;
@@ -401,13 +401,13 @@ namespace
 		TWeakObjectPtr<UOpsToolConditionAsyncResult> Result;
 	};
 
-	bool IsHardError(ERuntimeToolError E)
+	bool OpsIsHardError(ERuntimeToolError E)
 	{
 		return E == ERuntimeToolError::UnknownTool || E == ERuntimeToolError::InvalidArguments || E == ERuntimeToolError::NotAllowed
 			|| E == ERuntimeToolError::ToolsetDisabled;
 	}
 
-	void Poll(const TSharedRef<FWaitState>& S)
+	void OpsPoll(const TSharedRef<FOpsWaitState>& S)
 	{
 		S->bPolling = true;
 		++S->Polls;
@@ -419,7 +419,7 @@ namespace
 			{
 				return;
 			}
-			if (!R.IsOk() && IsHardError(R.Error))
+			if (!R.IsOk() && OpsIsHardError(R.Error))
 			{
 				S->bDone = true;
 				Result->SetError(FString::Printf(TEXT("polled tool failed: %s%s%s"), *R.Message, R.Hint.IsEmpty() ? TEXT("") : TEXT(". Hint: "), *R.Hint), R.Error);
@@ -427,8 +427,8 @@ namespace
 			}
 			// Soft errors (not_found, ...) mean "not yet": the path is evaluated on the error result.
 			const TSharedRef<FJsonObject> Root = R.ToJson();
-			S->LastValue = S->Path.IsEmpty() ? TSharedPtr<FJsonValue>(MakeShared<FJsonValueObject>(Root)) : ResultField(Root, S->Path);
-			if (Compare(S->LastValue, S->Op, S->Expected))
+			S->LastValue = S->Path.IsEmpty() ? TSharedPtr<FJsonValue>(MakeShared<FJsonValueObject>(Root)) : OpsResultField(Root, S->Path);
+			if (OpsCompare(S->LastValue, S->Op, S->Expected))
 			{
 				S->bDone = true;
 				FOpsToolConditionResult V;
@@ -450,7 +450,7 @@ namespace
 
 	// ---- tests -----------------------------------------------------------------------------------------------------
 
-	bool ParseFilter(const FString& Text, FOpsTestFilter& Out)
+	bool OpsParseFilter(const FString& Text, FOpsTestFilter& Out)
 	{
 		FString Err;
 		if (!Out.Parse(Text, Err))
@@ -504,7 +504,7 @@ namespace
 		return S;
 	}
 
-	bool AnyRunInProgress()
+	bool OpsAnyRunInProgress()
 	{
 		return FRuntimeTestRunner::Get().IsRunning() || FOpsTestRunner::Get().IsRunning();
 	}
@@ -521,10 +521,10 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 			Calls.Num() == 0 ? TEXT("Pass [{\"tool\": \"...\", \"arguments\": {...}}]") : TEXT("Split the work into several batches"));
 		return nullptr;
 	}
-	TSharedRef<FBatchState> S = MakeShared<FBatchState>();
+	TSharedRef<FOpsBatchState> S = MakeShared<FOpsBatchState>();
 	for (int32 i = 0; i < Calls.Num(); ++i)
 	{
-		FBatchCall Call;
+		FOpsBatchCall Call;
 		Call.Tool = Calls[i].Tool.TrimStartAndEnd();
 		if (Call.Tool.IsEmpty())
 		{
@@ -543,7 +543,7 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 		}
 		Call.Arguments = Calls[i].Arguments.IsSet() ? Calls[i].Arguments.AsObject() : MakeShared<FJsonObject>();
 		FString RefError;
-		if (!CheckReferences(MakeShared<FJsonValueObject>(Call.Arguments), i, RefError))
+		if (!OpsCheckReferences(MakeShared<FJsonValueObject>(Call.Arguments), i, RefError))
 		{
 			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, RefError, TEXT("\"$N\" can only refer to calls before this one (0-based)"));
 			return nullptr;
@@ -581,7 +581,7 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 		S->Inv.Reset();
 	};
 	RuntimeToolCall::SetTimeout(600.0);
-	RunStep(S);
+	OpsRunStep(S);
 	return Result;
 }
 
@@ -615,7 +615,7 @@ UOpsToolConditionAsyncResult* URuntimeOpsToolset::WaitForCondition(const FString
 		return nullptr;
 	}
 	FToolInvocation* Inv = RuntimeToolCall::Current();
-	TSharedRef<FWaitState> S = MakeShared<FWaitState>();
+	TSharedRef<FOpsWaitState> S = MakeShared<FOpsWaitState>();
 	S->Tool = Tool;
 	S->Arguments = Arguments.IsSet() ? Arguments.AsObject() : MakeShared<FJsonObject>();
 	S->Path = Path;
@@ -629,7 +629,7 @@ UOpsToolConditionAsyncResult* URuntimeOpsToolset::WaitForCondition(const FString
 	UOpsToolConditionAsyncResult* Result = NewObject<UOpsToolConditionAsyncResult>();
 	S->Result = Result;
 	RuntimeToolCall::SetTimeout(TimeoutS + 5.0);
-	Poll(S); // first check right away
+	OpsPoll(S); // first check right away
 	if (S->bDone)
 	{
 		return Result;
@@ -645,7 +645,7 @@ UOpsToolConditionAsyncResult* URuntimeOpsToolset::WaitForCondition(const FString
 		if (!S->bPolling && Now >= S->NextPoll)
 		{
 			S->NextPoll = Now + S->Interval;
-			Poll(S);
+			OpsPoll(S);
 		}
 		return !S->bDone;
 	}));
@@ -695,7 +695,7 @@ FOpsToolTestList URuntimeOpsToolset::ListTests(const FString& Filter, int32 Limi
 {
 	FOpsToolTestList Out;
 	FOpsTestFilter F;
-	if (!ParseFilter(Filter, F))
+	if (!OpsParseFilter(Filter, F))
 	{
 		return Out;
 	}
@@ -711,13 +711,13 @@ FOpsToolTestList URuntimeOpsToolset::ListTests(const FString& Filter, int32 Limi
 
 FOpsToolTestStatus URuntimeOpsToolset::RunAutomationTest(const FString& Filter)
 {
-	if (AnyRunInProgress())
+	if (OpsAnyRunInProgress())
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::Busy, TEXT("a test run is already in progress"), TEXT("Poll ops.get_test_status, or call ops.stop_tests"));
 		return {};
 	}
 	FOpsTestFilter F;
-	if (!ParseFilter(Filter, F))
+	if (!OpsParseFilter(Filter, F))
 	{
 		return {};
 	}
@@ -760,7 +760,7 @@ FOpsToolTestResults URuntimeOpsToolset::GetTestResults(const FString& Filter, in
 {
 	FOpsToolTestResults Out;
 	FOpsTestFilter F;
-	if (!ParseFilter(Filter, F))
+	if (!OpsParseFilter(Filter, F))
 	{
 		return Out;
 	}

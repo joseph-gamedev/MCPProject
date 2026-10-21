@@ -369,7 +369,8 @@ struct FBuildToolMaterialList
  * get_build_stats to verify -> refine.
  * Material fields (on every create tool, per assembly part and in set_material): material (preset from list_materials or
  * an allowed material path), color [r,g,b] linear 0-1, roughness, metallic, emissive [r,g,b], emissive_strength, opacity,
- * variation, style, tile (pattern cm), relief (bump cm).
+ * variation, style, tile (pattern cm), relief (bump cm). Numeric material and generator fields left at -1 (or 0 for counts)
+ * keep the preset's or the shape's own value.
  */
 UCLASS()
 class URuntimeBuildToolset : public URuntimeToolsetDefinition
@@ -441,10 +442,10 @@ public:
 	static FBuildToolNodeResult CreatePrimitive(EBuildToolShape Shape, const FVector& Size, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
 		const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, const FVector2D& Opening, const FString& Name = TEXT(""),
 		AActor* Parent = nullptr, EBuildToolDetail Detail = EBuildToolDetail::Medium, EBuildToolPivot Pivot = EBuildToolPivot::Base,
-		const FString& Material = TEXT(""), float Roughness = 0.5f, float Metallic = 0.f, float EmissiveStrength = 0.f, float Opacity = 0.3f,
-		float Variation = 0.f, const FString& Style = TEXT(""), float Tile = 100.f, float Relief = 0.f, float Bevel = 0.f, float TopRatio = 0.f,
-		float Thickness = 10.f, int32 Levels = 6, float Taper = 1.f, float Beam = 10.f, bool bBracing = true, int32 Count = 8, int32 Rows = 3, int32 Cols = 5,
-		bool bArched = false, float Margin = 0.f, bool bSnapToGround = false);
+		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
+		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = 0.f, float TopRatio = -1.f,
+		float Thickness = -1.f, int32 Levels = 0, float Taper = -1.f, float Beam = -1.f, bool bBracing = true, int32 Count = 0, int32 Rows = 0, int32 Cols = 0,
+		bool bArched = false, float Margin = -1.f, bool bSnapToGround = false);
 
 	/**
 	 * Creates a solid from a 2D profile: lathe (domes, columns, vases), extrude (walls, floor plans), sweep (rails, pipes).
@@ -480,10 +481,10 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Path,Location,Rotation,Scale,Tags,Color,Emissive"), Category = "Build|Create")
 	static FBuildToolNodeResult CreateProfileSolid(EBuildToolSolidKind Kind, const TArray<FVector2D>& Profile, const TArray<FVector>& Path, const FVector& Location,
-		const FRotator& Rotation, const FVector& Scale, const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, float Height = 100.f,
-		float Angle = 360.f, bool bClosed = false, const FString& Name = TEXT(""), AActor* Parent = nullptr, EBuildToolDetail Detail = EBuildToolDetail::Medium,
-		const FString& Material = TEXT(""), float Roughness = 0.5f, float Metallic = 0.f, float EmissiveStrength = 0.f, float Opacity = 0.3f,
-		float Variation = 0.f, const FString& Style = TEXT(""), float Tile = 100.f, float Relief = 0.f, float Bevel = 0.f, bool bSnapToGround = false);
+		const FRotator& Rotation, const FVector& Scale, const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, float Height = -1.f,
+		float Angle = -1.f, bool bClosed = false, const FString& Name = TEXT(""), AActor* Parent = nullptr, EBuildToolDetail Detail = EBuildToolDetail::Medium,
+		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
+		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = 0.f, bool bSnapToGround = false);
 
 	/**
 	 * Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape
@@ -515,8 +516,8 @@ public:
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Rotation,Scale,Tags,Color,Emissive"), Category = "Build|Create")
 	static FBuildToolAssemblyResult CreateAssembly(const TArray<FRuntimeToolJson>& Parts, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
 		const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, const FString& Name = TEXT("Assembly"), AActor* Parent = nullptr,
-		const FString& Material = TEXT(""), float Roughness = 0.5f, float Metallic = 0.f, float EmissiveStrength = 0.f, float Opacity = 0.3f,
-		float Variation = 0.f, const FString& Style = TEXT(""), float Tile = 100.f, float Relief = 0.f, bool bRepairCoplanar = true, bool bSnapToGround = false);
+		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
+		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, bool bRepairCoplanar = true, bool bSnapToGround = false);
 
 	/**
 	 * Cuts, joins or intersects two builder objects. The result is recorded in the target's recipe (rebuildable); the tool
@@ -582,8 +583,8 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Color,Emissive"), Category = "Build|Modify")
 	static FBuildToolMaterialResult SetMaterial(const TArray<AActor*>& Targets, const FVector& Color, const FVector& Emissive, const FString& Material = TEXT(""),
-		float Roughness = 0.5f, float Metallic = 0.f, float EmissiveStrength = 0.f, float Opacity = 0.3f, float Variation = 0.f, const FString& Style = TEXT(""),
-		float Tile = 100.f, float Relief = 0.f);
+		float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f, float Variation = -1.f, const FString& Style = TEXT(""),
+		float Tile = -1.f, float Relief = -1.f);
 
 	/**
 	 * Measures distance, gap and sizes between two objects' bounds (children included).

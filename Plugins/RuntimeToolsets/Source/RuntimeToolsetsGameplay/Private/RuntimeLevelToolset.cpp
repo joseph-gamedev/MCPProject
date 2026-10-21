@@ -35,7 +35,7 @@ namespace
 	}
 
 	/** Finds a streaming level by package name or short name; fails the call with the known levels. */
-	ULevelStreaming* FindStreaming(UWorld* World, const FString& Name)
+	ULevelStreaming* LevelFindStreaming(UWorld* World, const FString& Name)
 	{
 		for (ULevelStreaming* L : World->GetStreamingLevels())
 		{
@@ -72,20 +72,20 @@ namespace
 		return I;
 	}
 
-	ELevelToolDataLayerState ToState(EDataLayerRuntimeState State)
+	ELevelToolDataLayerState LevelToState(EDataLayerRuntimeState State)
 	{
 		return State == EDataLayerRuntimeState::Activated ? ELevelToolDataLayerState::Activated
 			: State == EDataLayerRuntimeState::Loaded ? ELevelToolDataLayerState::Loaded : ELevelToolDataLayerState::Unloaded;
 	}
 
-	EDataLayerRuntimeState FromState(ELevelToolDataLayerState State)
+	EDataLayerRuntimeState LevelFromState(ELevelToolDataLayerState State)
 	{
 		return State == ELevelToolDataLayerState::Activated ? EDataLayerRuntimeState::Activated
 			: State == ELevelToolDataLayerState::Loaded ? EDataLayerRuntimeState::Loaded : EDataLayerRuntimeState::Unloaded;
 	}
 
 	/** Validates a map path like /Game/Maps/Sandbox (an object path is accepted too). */
-	bool ReadMap(const FString& Map, FString& OutPackage)
+	bool LevelReadMap(const FString& Map, FString& OutPackage)
 	{
 		OutPackage = Map;
 		if (OutPackage.Contains(TEXT(".")))
@@ -187,7 +187,7 @@ namespace
 	{
 		FLevelToolStateChange Change;
 		UWorld* World = RuntimeToolCall::GetWorld();
-		ULevelStreaming* Level = FindStreaming(World, LevelName);
+		ULevelStreaming* Level = LevelFindStreaming(World, LevelName);
 		if (!Level)
 		{
 			return Change;
@@ -253,7 +253,7 @@ FLevelToolLevels URuntimeLevelToolset::ListLevels()
 		{
 			if (Layer)
 			{
-				Out.DataLayers.Add(Layer->GetDataLayerShortName(), ToState(Manager->GetDataLayerInstanceRuntimeState(Layer)));
+				Out.DataLayers.Add(Layer->GetDataLayerShortName(), LevelToState(Manager->GetDataLayerInstanceRuntimeState(Layer)));
 			}
 		}
 	}
@@ -342,7 +342,7 @@ URuntimeLevelToolLoadAsyncResult* URuntimeLevelToolset::LoadLevelInstance(const 
 	const FString& Name, bool bBlocking)
 {
 	FString Package;
-	if (!ReadMap(Map, Package))
+	if (!LevelReadMap(Map, Package))
 	{
 		return nullptr;
 	}
@@ -433,7 +433,7 @@ FLevelToolDataLayerChange URuntimeLevelToolset::SetDataLayer(const FString& Name
 			Names.Num() ? TEXT("Data layers: ") + FString::Join(Names, TEXT(", ")) : TEXT("This world has no data layers"));
 		return Change;
 	}
-	const EDataLayerRuntimeState New = FromState(State);
+	const EDataLayerRuntimeState New = LevelFromState(State);
 	const EDataLayerRuntimeState Old = Manager->GetDataLayerInstanceRuntimeState(Layer);
 	TWeakObjectPtr<UDataLayerManager> WeakManager = Manager;
 	TWeakObjectPtr<const UDataLayerInstance> WeakLayer = Layer;
@@ -458,7 +458,7 @@ FLevelToolDataLayerChange URuntimeLevelToolset::SetDataLayer(const FString& Name
 	{
 		Change.DataLayer = Layer->GetDataLayerShortName();
 		Change.State = State;
-		Change.Previous = ToState(Old);
+		Change.Previous = LevelToState(Old);
 	}
 	return Change;
 }
@@ -467,7 +467,7 @@ FLevelToolTravelInfo URuntimeLevelToolset::OpenLevel(const FString& Map, const F
 {
 	FLevelToolTravelInfo Out;
 	FString Package;
-	if (!ReadMap(Map, Package))
+	if (!LevelReadMap(Map, Package))
 	{
 		return Out;
 	}

@@ -1,10 +1,10 @@
 {
-	"description": "Frame timing, hitches, memory, GPU info, Insights traces",
+	"description": "Performance profiling of the running game: frame timing percentiles, hitches, memory, GPU info and Unreal Insights traces.\nWorkflow: frame_timing for an overview -> find_hitches to locate spikes -> memory_report / gpu_stats for the cause ->\nstart_trace, reproduce, stop_trace, then open the .utrace in Unreal Insights for detail.",
 	"name": "profiling",
 	"tools": [
 		{
 			"async": true,
-			"description": "Sample frame times for a few seconds: avg, p50/p95/p99, max, fps, hitches.",
+			"description": "Samples frames and lists the worst hitches with their time offsets.\nReturns: {frames, hitch_count, worst:[{at_s, ms}]} with the slowest frames first. Fails if seconds is outside 0.1 - 60 or hitch_ms is not positive.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -13,60 +13,252 @@
 					"hitch_ms":
 					{
 						"default": 50,
-						"description": "Frames at or above this count as hitches",
-						"minimum": 1,
-						"type": "number"
-					},
-					"seconds":
-					{
-						"default": 2,
-						"description": "Sample window",
-						"maximum": 60,
-						"minimum": 0.10000000000000001,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"name": "profiling.frame_timing"
-		},
-		{
-			"async": true,
-			"description": "Sample frames and list the worst hitches with their time offsets.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"hitch_ms":
-					{
-						"default": 50,
-						"description": "Threshold ms",
-						"minimum": 1,
+						"description": "Threshold in ms, e.g. 33.",
 						"type": "number"
 					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 0,
+						"description": "Maximum hitches listed (0 = default limit).",
 						"type": "integer"
 					},
 					"seconds":
 					{
 						"default": 5,
-						"description": "Sample window",
-						"maximum": 60,
-						"minimum": 0.10000000000000001,
+						"description": "Sample window (0.1 - 60), e.g. 5.",
 						"type": "number"
 					}
 				},
 				"type": "object"
 			},
-			"name": "profiling.find_hitches"
+			"name": "profiling.find_hitches",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"frames":
+							{
+								"description": "Frames sampled.",
+								"type": "integer"
+							},
+							"hitch_count":
+							{
+								"description": "Frames at or above hitch_ms.",
+								"type": "integer"
+							},
+							"worst":
+							{
+								"description": "Worst hitches first (at most `limit`).",
+								"items":
+								{
+									"properties":
+									{
+										"at_s":
+										{
+											"description": "Seconds from the start of sampling.",
+											"type": "number"
+										},
+										"ms":
+										{
+											"description": "Frame time in ms.",
+											"type": "number"
+										}
+									},
+									"title": "ProfilingToolHitch",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "ProfilingToolHitches",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Process memory, UObject count and the most common object classes.",
+			"async": true,
+			"description": "Samples real frame times for a few seconds.\nReturns: {frames, avg_ms, fps, min_ms, p50_ms, p95_ms, p99_ms, max_ms, hitches, last_frame:{game_ms, render_ms, rhi_ms, gpu_ms}}. Fails if seconds is outside 0.1 - 60 or hitch_ms is not positive.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hitch_ms":
+					{
+						"default": 50,
+						"description": "Frames at or above this many ms count as hitches, e.g. 50.",
+						"type": "number"
+					},
+					"seconds":
+					{
+						"default": 2,
+						"description": "Sample window (0.1 - 60), e.g. 2.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "profiling.frame_timing",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"avg_ms":
+							{
+								"type": "number"
+							},
+							"fps":
+							{
+								"type": "number"
+							},
+							"frames":
+							{
+								"description": "Frames sampled.",
+								"type": "integer"
+							},
+							"hitches":
+							{
+								"description": "Frames at or above hitch_ms.",
+								"type": "integer"
+							},
+							"last_frame":
+							{
+								"description": "Thread breakdown of the most recent frame.",
+								"properties":
+								{
+									"game_ms":
+									{
+										"description": "Game thread time of the most recent frame (0 without rendering).",
+										"type": "number"
+									},
+									"gpu_ms":
+									{
+										"type": "number"
+									},
+									"render_ms":
+									{
+										"type": "number"
+									},
+									"rhi_ms":
+									{
+										"type": "number"
+									}
+								},
+								"title": "ProfilingToolThreadTimes",
+								"type": "object"
+							},
+							"max_ms":
+							{
+								"type": "number"
+							},
+							"min_ms":
+							{
+								"type": "number"
+							},
+							"p50_ms":
+							{
+								"type": "number"
+							},
+							"p95_ms":
+							{
+								"type": "number"
+							},
+							"p99_ms":
+							{
+								"type": "number"
+							}
+						},
+						"title": "ProfilingToolFrameTiming",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "RHI, GPU adapter, GPU frame time, viewport size, screen percentage and vsync.\nReturns: {rhi, adapter, gpu_ms, viewport:[w,h], screen_percentage, vsync}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "profiling.gpu_stats",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{rhi, adapter, gpu_ms, viewport:[w,h], screen_percentage, vsync}.",
+						"properties":
+						{
+							"adapter":
+							{
+								"description": "GPU adapter name.",
+								"type": "string"
+							},
+							"gpu_ms":
+							{
+								"description": "GPU time of the last frame.",
+								"type": "number"
+							},
+							"rhi":
+							{
+								"description": "RHI name, e.g. \"D3D12\" (\"none\" without rendering).",
+								"type": "string"
+							},
+							"screen_percentage":
+							{
+								"description": "r.ScreenPercentage.",
+								"type": "number"
+							},
+							"viewport":
+							{
+								"description": "[x, y] integers",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 2,
+								"minItems": 2,
+								"type": "array"
+							},
+							"vsync":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "ProfilingToolGpuStats",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Process memory, UObject count and the most common object classes.\nReturns: {used_physical_mb, peak_physical_mb, used_virtual_mb, available_physical_mb, uobjects, top_classes:[{class, count}]}. Fails if top_classes is outside 0 - 100.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -75,30 +267,79 @@
 					"top_classes":
 					{
 						"default": 10,
-						"description": "How many classes to list (0 = skip)",
-						"maximum": 100,
-						"minimum": 0,
+						"description": "How many classes to list (0 - 100; 0 skips the object scan).",
 						"type": "integer"
 					}
 				},
 				"type": "object"
 			},
-			"name": "profiling.memory_report"
-		},
-		{
-			"description": "RHI, GPU adapter, GPU frame time, viewport size, screen percentage, vsync.",
-			"input_schema":
+			"name": "profiling.memory_report",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
+					"returnValue":
+					{
+						"description": "{used_physical_mb, peak_physical_mb, used_virtual_mb, available_physical_mb, uobjects, top_classes:[{class, count}]}. Fails if top_classes is outside 0 - 100.",
+						"properties":
+						{
+							"available_physical_mb":
+							{
+								"type": "number"
+							},
+							"peak_physical_mb":
+							{
+								"type": "number"
+							},
+							"top_classes":
+							{
+								"description": "Most common object classes, most objects first (empty when top_classes is 0).",
+								"items":
+								{
+									"properties":
+									{
+										"class":
+										{
+											"description": "Class name, e.g. \"StaticMeshComponent\".",
+											"type": "string"
+										},
+										"count":
+										{
+											"description": "Live objects of exactly this class.",
+											"type": "integer"
+										}
+									},
+									"title": "ProfilingToolClassCount",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"uobjects":
+							{
+								"description": "Live UObjects.",
+								"type": "integer"
+							},
+							"used_physical_mb":
+							{
+								"type": "number"
+							},
+							"used_virtual_mb":
+							{
+								"type": "number"
+							}
+						},
+						"title": "ProfilingToolMemoryReport",
+						"type": "object"
+					}
 				},
+				"required": [
+					"returnValue"
+				],
 				"type": "object"
-			},
-			"name": "profiling.gpu_stats"
+			}
 		},
 		{
-			"description": "Start an Unreal Insights trace to a file in the Profiling folder.",
+			"description": "Starts an Unreal Insights trace to a file in the project's Profiling folder (an existing file is never overwritten: a numbered name is picked).\nReturns: {file, channels}. Fails with wrong_state if a trace is already running, not_allowed if file is a path, unsupported if tracing is not compiled into this build.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -107,14 +348,13 @@
 					"channels":
 					{
 						"default": "default",
-						"description": "Trace channels, e.g. default,memory or cpu,gpu,frame",
-						"maxLength": 256,
+						"description": "Trace channels, e.g. \"default,memory\" or \"cpu,gpu,frame\".",
 						"type": "string"
 					},
 					"file":
 					{
-						"description": "File name (default: timestamped)",
-						"maxLength": 128,
+						"default": "",
+						"description": "Plain file name, e.g. \"boss_fight\" (default: timestamped).",
 						"type": "string"
 					}
 				},
@@ -122,10 +362,44 @@
 			},
 			"mutating": true,
 			"name": "profiling.start_trace",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{file, channels}. Fails with wrong_state if a trace is already running, not_allowed if file is a path, unsupported if tracing is not compiled into this build.",
+						"properties":
+						{
+							"channels":
+							{
+								"description": "Trace channels enabled (start_trace).",
+								"type": "string"
+							},
+							"file":
+							{
+								"description": "Absolute path of the .utrace file.",
+								"type": "string"
+							},
+							"open_with":
+							{
+								"description": "Program that opens the file (stop_trace).",
+								"type": "string"
+							}
+						},
+						"title": "ProfilingToolTrace",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": false
 		},
 		{
-			"description": "Stop the running trace; returns the .utrace path.",
+			"description": "Stops the running trace.\nReturns: {file, open_with}: the .utrace path and the program to open it with. Fails with wrong_state if no trace is running.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -136,8 +410,42 @@
 			},
 			"mutating": true,
 			"name": "profiling.stop_trace",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{file, open_with}: the .utrace path and the program to open it with. Fails with wrong_state if no trace is running.",
+						"properties":
+						{
+							"channels":
+							{
+								"description": "Trace channels enabled (start_trace).",
+								"type": "string"
+							},
+							"file":
+							{
+								"description": "Absolute path of the .utrace file.",
+								"type": "string"
+							},
+							"open_with":
+							{
+								"description": "Program that opens the file (stop_trace).",
+								"type": "string"
+							}
+						},
+						"title": "ProfilingToolTrace",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": false
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

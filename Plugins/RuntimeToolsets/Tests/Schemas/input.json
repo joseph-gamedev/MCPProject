@@ -1,92 +1,9 @@
 {
-	"description": "Inject keys and Enhanced Input actions; add/remove mapping contexts",
+	"description": "Simulated player input for the local player: raw keys/buttons/axes and Enhanced Input actions and mapping contexts.\nWorkflow: inject_key for keys the game binds directly (W, SpaceBar, LeftMouseButton, Gamepad_FaceButton_Bottom);\ninject_action to trigger an Enhanced Input action by asset path regardless of bindings; add_mapping_context /\nremove_mapping_context to switch control schemes. Injected input cannot be undone; mapping changes can.\nNeeds a local player controller (a running game or PIE).",
 	"name": "input",
 	"tools": [
 		{
-			"description": "Simulate a key/button for the local player: tap (press+release), press, release or axis.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"duration":
-					{
-						"default": 0.10000000000000001,
-						"description": "Seconds to hold for tap",
-						"maximum": 30,
-						"minimum": 0,
-						"type": "number"
-					},
-					"event":
-					{
-						"default": "tap",
-						"description": "Event",
-						"enum": [
-							"tap",
-							"press",
-							"release",
-							"axis"
-						],
-						"type": "string"
-					},
-					"key":
-					{
-						"description": "UE key name: W, SpaceBar, LeftMouseButton, Gamepad_FaceButton_Bottom",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"value":
-					{
-						"description": "Axis value for event=axis",
-						"type": "number"
-					}
-				},
-				"required": [
-					"key"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "input.inject_key",
-			"undoable": false
-		},
-		{
-			"description": "Trigger an Enhanced Input action with a value, optionally held for a duration.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"action":
-					{
-						"description": "Input action path, e.g. /Game/Input/IA_Jump.IA_Jump",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"duration":
-					{
-						"default": 0,
-						"description": "Seconds to keep injecting",
-						"maximum": 30,
-						"minimum": 0,
-						"type": "number"
-					},
-					"value":
-					{
-						"description": "true, a number, [x,y] or [x,y,z] (default true)"
-					}
-				},
-				"required": [
-					"action"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "input.inject_action",
-			"undoable": false
-		},
-		{
-			"description": "Apply an Enhanced Input mapping context to the local player.",
+			"description": "Applies an Enhanced Input mapping context to the local player. Undoable.\nReturns: The context path and whether it is applied. Fails if there is no local player, Enhanced Input is not active or the context is not found.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -94,16 +11,13 @@
 				{
 					"context":
 					{
-						"description": "Mapping context path",
-						"maxLength": 512,
+						"description": "Mapping context asset path, e.g. \"/Game/Input/IMC_Vehicle.IMC_Vehicle\".",
 						"type": "string"
 					},
 					"priority":
 					{
 						"default": 0,
-						"description": "Priority",
-						"maximum": 1000,
-						"minimum": -1000,
+						"description": "Higher priority contexts win conflicting keys (-1000..1000).",
 						"type": "integer"
 					}
 				},
@@ -114,10 +28,185 @@
 			},
 			"mutating": true,
 			"name": "input.add_mapping_context",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The context path and whether it is applied. Fails if there is no local player, Enhanced Input is not active or the context is not found.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "Whether the context is applied to the local player now.",
+								"type": "boolean"
+							},
+							"context":
+							{
+								"description": "Path of the mapping context.",
+								"type": "string"
+							}
+						},
+						"title": "InputToolMappingResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Remove an Enhanced Input mapping context from the local player.",
+			"async": true,
+			"description": "Triggers an Enhanced Input action with a value, re-injected every frame for the duration (one frame by default).\nReturns: The action path and how many frames it was injected on. Fails if there is no local player, Enhanced Input is not active, the action is not found (cooked?) or the value has the wrong shape.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"action":
+					{
+						"description": "Input action asset path, e.g. \"/Game/Input/IA_Jump.IA_Jump\".",
+						"type": "string"
+					},
+					"duration":
+					{
+						"default": 0,
+						"description": "Seconds to keep injecting (0..30), e.g. 1.5 to hold a move action.",
+						"type": "number"
+					},
+					"value":
+					{
+						"description": "true, a number, [x,y] or [x,y,z] matching the action's value type (default true). (Any JSON value)"
+					}
+				},
+				"required": [
+					"action"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.inject_action",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"action":
+							{
+								"description": "Path of the triggered input action.",
+								"type": "string"
+							},
+							"frames":
+							{
+								"description": "Frames the action value was injected on.",
+								"type": "integer"
+							}
+						},
+						"title": "InputToolActionResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": false
+		},
+		{
+			"async": true,
+			"description": "Simulates a key, button or axis for the local player: tap (press, wait, release), press, release or axis. Completes after the release for taps.\nReturns: The canonical key name, the event and whether the input stack handled it. Fails if there is no local player or the key name is unknown.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"duration":
+					{
+						"default": 0.10000000149011612,
+						"description": "Seconds to hold for Tap (0..30, at least one frame), e.g. 0.5.",
+						"type": "number"
+					},
+					"event":
+					{
+						"default": "Tap",
+						"description": "Tap, Press, Release or Axis.",
+						"enum": [
+							"Tap",
+							"Press",
+							"Release",
+							"Axis"
+						],
+						"type": "string"
+					},
+					"key":
+					{
+						"description": "UE key name, e.g. \"W\", \"SpaceBar\", \"LeftMouseButton\", \"Gamepad_FaceButton_Bottom\", \"MouseX\".",
+						"type": "string"
+					},
+					"value":
+					{
+						"default": 1,
+						"description": "Axis value for Event = Axis, e.g. -1.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"key"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.inject_key",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"event":
+							{
+								"enum": [
+									"Tap",
+									"Press",
+									"Release",
+									"Axis"
+								],
+								"type": "string"
+							},
+							"handled":
+							{
+								"description": "Whether the player's input stack consumed the (first) event.",
+								"type": "boolean"
+							},
+							"key":
+							{
+								"description": "Canonical key name, e.g. \"SpaceBar\".",
+								"type": "string"
+							}
+						},
+						"title": "InputToolKeyResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": false
+		},
+		{
+			"description": "Removes an Enhanced Input mapping context from the local player. Undoable.\nReturns: The context path and applied = false. Fails if there is no local player or the context is not applied.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -125,8 +214,7 @@
 				{
 					"context":
 					{
-						"description": "Mapping context path",
-						"maxLength": 512,
+						"description": "Mapping context asset path, e.g. \"/Game/Input/IMC_Vehicle.IMC_Vehicle\".",
 						"type": "string"
 					}
 				},
@@ -137,8 +225,37 @@
 			},
 			"mutating": true,
 			"name": "input.remove_mapping_context",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The context path and applied = false. Fails if there is no local player or the context is not applied.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "Whether the context is applied to the local player now.",
+								"type": "boolean"
+							},
+							"context":
+							{
+								"description": "Path of the mapping context.",
+								"type": "string"
+							}
+						},
+						"title": "InputToolMappingResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

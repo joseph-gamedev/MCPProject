@@ -1,165 +1,9 @@
 {
-	"description": "run_batch, wait_for_condition, wait, and in-process automation tests",
+	"description": "Orchestration and testing: run many tool calls in one request (optionally atomic, one undo step), wait for game state,\nand run automation tests inside the running game (also packaged Development builds).\n\nBatching workflow: run_batch with calls [{tool, arguments}]; later calls can use earlier results with \"$N.path\"\n(e.g. {\"parent\": \"$0.id\"}). wait_for_condition polls any tool until a field of its result meets a condition.\n\nTesting workflow (like Epic's AutomationTestToolset):\n  1. list_tests to find tests (filter syntax below).\n  2. run_automation_test with a filter; tests run over the next frames.\n  3. get_test_status (counts, failures) and get_test_results (per test state, duration, errors, warnings) to monitor.\n  4. stop_tests to abort.\nFilter syntax (several expressions joined by '+', a test matching any of them is selected):\n  \"StartsWith:RuntimeToolsets.Core\" or \"^RuntimeToolsets.Core\"  prefix of the full test path\n  \"Undo$\"                                                        suffix\n  \"Schema\"                                                       substring anywhere in the path\n  \"Group:Smoke\"                                                  a group from the AutomationControllerSettings Groups config",
 	"name": "ops",
 	"tools": [
 		{
-			"description": "Run several tool calls in order in one request. atomic = all-or-nothing, one undo step.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"atomic":
-					{
-						"default": false,
-						"description": "Roll everything back if a call fails; one undo step on success",
-						"type": "boolean"
-					},
-					"calls":
-					{
-						"description": "[{tool, arguments}]",
-						"items":
-						{
-							"additionalProperties": false,
-							"properties":
-							{
-								"arguments":
-								{
-									"description": "Arguments",
-									"type": "object"
-								},
-								"tool":
-								{
-									"description": "Tool name",
-									"maxLength": 128,
-									"type": "string"
-								}
-							},
-							"required": [
-								"tool"
-							],
-							"type": "object"
-						},
-						"maxItems": 100,
-						"type": "array"
-					},
-					"label":
-					{
-						"description": "History label for atomic batches",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"stop_on_error":
-					{
-						"default": true,
-						"description": "Stop at the first failure (always true when atomic)",
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"calls"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "ops.run_batch",
-			"undoable": true
-		},
-		{
-			"description": "Poll a tool until a field of its result meets a condition (or time out).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"arguments":
-					{
-						"description": "Arguments for the polled tool",
-						"type": "object"
-					},
-					"interval_s":
-					{
-						"default": 0.25,
-						"description": "Seconds between polls",
-						"maximum": 10,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"op":
-					{
-						"default": "truthy",
-						"description": "Comparison",
-						"enum": [
-							"truthy",
-							"exists",
-							"not_exists",
-							"equals",
-							"not_equals",
-							"gt",
-							"gte",
-							"lt",
-							"lte",
-							"contains"
-						],
-						"type": "string"
-					},
-					"path":
-					{
-						"description": "Field in the result, e.g. location[2] or level.visible (empty = whole result)",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"timeout_s":
-					{
-						"default": 10,
-						"description": "Give up after",
-						"maximum": 300,
-						"minimum": 0.050000000000000003,
-						"type": "number"
-					},
-					"tool":
-					{
-						"description": "Tool to poll, e.g. scene.get_node",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"value":
-					{
-						"description": "Value to compare with"
-					}
-				},
-				"required": [
-					"tool"
-				],
-				"type": "object"
-			},
-			"name": "ops.wait_for_condition"
-		},
-		{
-			"async": true,
-			"description": "Let the game run for a number of seconds (real time).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"seconds":
-					{
-						"description": "Seconds",
-						"maximum": 120,
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"required": [
-					"seconds"
-				],
-				"type": "object"
-			},
-			"name": "ops.wait"
-		},
-		{
-			"description": "Automation tests available in this build (filter by path prefix).",
+			"description": "Per-test results of the current or last run started with run_automation_test.\nReturns: {run_filter, results:[{test, state, duration_s, errors, warnings}]} in run order. Fails if the filter names an unknown group.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -167,24 +11,193 @@
 				{
 					"filter":
 					{
-						"description": "Path prefix, e.g. RuntimeToolsets.",
-						"maxLength": 256,
+						"default": "",
+						"description": "Only tests matching this filter expression, e.g. \"Undo$\"; empty = all.",
 						"type": "string"
 					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 0,
+						"description": "Maximum number of results (0 = default limit).",
 						"type": "integer"
 					}
 				},
 				"type": "object"
 			},
-			"name": "ops.list_tests"
+			"name": "ops.get_test_results",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{run_filter, results:[{test, state, duration_s, errors, warnings}]} in run order. Fails if the filter names an unknown group.",
+						"properties":
+						{
+							"results":
+							{
+								"description": "Per-test results in run order (only tests that started, plus skipped ones after a stop).",
+								"items":
+								{
+									"properties":
+									{
+										"duration_s":
+										{
+											"description": "Seconds the test ran.",
+											"type": "number"
+										},
+										"errors":
+										{
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"state":
+										{
+											"enum": [
+												"Running",
+												"Passed",
+												"Failed",
+												"Stopped",
+												"Skipped"
+											],
+											"type": "string"
+										},
+										"test":
+										{
+											"description": "Full test path.",
+											"type": "string"
+										},
+										"warnings":
+										{
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										}
+									},
+									"title": "OpsToolTestResult",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"run_filter":
+							{
+								"description": "Filter of the run these results belong to.",
+								"type": "string"
+							}
+						},
+						"title": "OpsToolTestResults",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Start automation tests in-process (also in packaged builds). Poll get_test_status.",
+			"description": "Progress and failures of the current or last test run.\nReturns: {running, filter, total, completed, passed, failed, current, failures:[{test, errors}]}. Fails if max_failures is outside 0 - 200.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_failures":
+					{
+						"default": 20,
+						"description": "Failures to include (0 - 200).",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ops.get_test_status",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{running, filter, total, completed, passed, failed, current, failures:[{test, errors}]}. Fails if max_failures is outside 0 - 200.",
+						"properties":
+						{
+							"completed":
+							{
+								"type": "integer"
+							},
+							"current":
+							{
+								"description": "Test running now (empty when idle).",
+								"type": "string"
+							},
+							"failed":
+							{
+								"type": "integer"
+							},
+							"failures":
+							{
+								"description": "Failed tests in run order (at most max_failures).",
+								"items":
+								{
+									"properties":
+									{
+										"errors":
+										{
+											"description": "First error messages (at most 5).",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"test":
+										{
+											"description": "Full test path.",
+											"type": "string"
+										}
+									},
+									"title": "OpsToolTestFailure",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"filter":
+							{
+								"description": "Filter of the current or last run.",
+								"type": "string"
+							},
+							"passed":
+							{
+								"type": "integer"
+							},
+							"running":
+							{
+								"description": "A run is in progress.",
+								"type": "boolean"
+							},
+							"total":
+							{
+								"description": "Tests in the run.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolTestStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the automation tests available in this build.\nReturns: {total, tests} with full test paths sorted alphabetically. Fails if the filter names an unknown group.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -192,8 +205,64 @@
 				{
 					"filter":
 					{
-						"description": "Path prefix, e.g. RuntimeToolsets.Toolsets.Actors",
-						"maxLength": 256,
+						"default": "",
+						"description": "Filter expression (see the toolset description), e.g. \"^RuntimeToolsets.Toolsets+Group:Smoke\"; empty = all.",
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 0,
+						"description": "Maximum number of paths returned (0 = default limit).",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ops.list_tests",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{total, tests} with full test paths sorted alphabetically. Fails if the filter names an unknown group.",
+						"properties":
+						{
+							"tests":
+							{
+								"description": "Full test paths, sorted (at most `limit`).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Tests matching the filter.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolTestList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Starts automation tests in-process (also in packaged builds). They run over the next frames, one per frame: poll get_test_status / get_test_results and avoid other world changes meanwhile.\nReturns: The run status right after starting. Fails with busy if a run is in progress, with not_found if no test matches.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"description": "Filter expression (see the toolset description), e.g. \"^RuntimeToolsets.Toolsets.Actors\".",
 						"type": "string"
 					}
 				},
@@ -204,28 +273,429 @@
 			},
 			"mutating": true,
 			"name": "ops.run_automation_test",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The run status right after starting. Fails with busy if a run is in progress, with not_found if no test matches.",
+						"properties":
+						{
+							"completed":
+							{
+								"type": "integer"
+							},
+							"current":
+							{
+								"description": "Test running now (empty when idle).",
+								"type": "string"
+							},
+							"failed":
+							{
+								"type": "integer"
+							},
+							"failures":
+							{
+								"description": "Failed tests in run order (at most max_failures).",
+								"items":
+								{
+									"properties":
+									{
+										"errors":
+										{
+											"description": "First error messages (at most 5).",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"test":
+										{
+											"description": "Full test path.",
+											"type": "string"
+										}
+									},
+									"title": "OpsToolTestFailure",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"filter":
+							{
+								"description": "Filter of the current or last run.",
+								"type": "string"
+							},
+							"passed":
+							{
+								"type": "integer"
+							},
+							"running":
+							{
+								"description": "A run is in progress.",
+								"type": "boolean"
+							},
+							"total":
+							{
+								"description": "Tests in the run.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolTestStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": false
 		},
 		{
-			"description": "Progress and failures of the current/last test run.",
+			"async": true,
+			"description": "Runs several tool calls in order in one request. Later calls can reference earlier results: a string argument that is exactly \"$N\" or \"$N.path\" becomes that value of call N's result, e.g. {\"tool\": \"actors.spawn_actor\", \"arguments\": {\"parent\": \"$0.id\"}} after a scene.create_group call (\"$$\" writes a literal \"$\"). With atomic, everything is one undo step and a failure rolls the whole batch back.\nReturns: {completed, total, failed_at (-1 = none), history_id (-1 unless atomic), results:[{i, tool, ok, ...}]} in call order. Fails if calls is empty or longer than 100, contains ops.run_batch, or references a call that does not run before it; an atomic batch fails with the failing call's error.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"max_failures":
+					"atomic":
 					{
-						"default": 20,
-						"description": "Failures to include",
-						"maximum": 200,
-						"minimum": 0,
-						"type": "integer"
+						"default": false,
+						"description": "All or nothing: roll every change back if a call fails; one undo step on success.",
+						"type": "boolean"
+					},
+					"calls":
+					{
+						"description": "Up to 100 calls [{tool, arguments}], e.g. [{\"tool\": \"scene.create_group\", \"arguments\": {\"name\": \"g\"}}].",
+						"items":
+						{
+							"properties":
+							{
+								"arguments":
+								{
+									"description": "Arguments object for the tool. A string value \"$N\" or \"$N.path\" is replaced by call N's result (e.g. \"$0.id\"). (Any JSON value)"
+								},
+								"tool":
+								{
+									"description": "Qualified tool name, e.g. \"actors.spawn_actor\" (\"actors_spawn_actor\" works too).",
+									"type": "string"
+								}
+							},
+							"title": "OpsToolBatchCall",
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"label":
+					{
+						"default": "batch",
+						"description": "History label of an atomic batch, e.g. \"build village\".",
+						"type": "string"
+					},
+					"stop_on_error":
+					{
+						"default": true,
+						"description": "Stop at the first failure (always true when atomic).",
+						"type": "boolean"
 					}
+				},
+				"required": [
+					"calls"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ops.run_batch",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"completed":
+							{
+								"description": "Calls that ran (including a failed one).",
+								"type": "integer"
+							},
+							"failed_at":
+							{
+								"description": "Index of the first failed call, -1 if none failed.",
+								"type": "integer"
+							},
+							"history_id":
+							{
+								"description": "History entry of an atomic batch (undo it with history.undo), -1 otherwise.",
+								"type": "integer"
+							},
+							"results":
+							{
+								"description": "One result per call that ran, in order: {i, tool, ok, ...result} or {i, tool, ok:false, error:{code, message, hint}}.",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Calls in the batch.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolBatchResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Stops the running test run: the current test is stopped and the queued ones are skipped.\nReturns: The status after stopping. Fails if no run started by run_automation_test is in progress.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
 				},
 				"type": "object"
 			},
-			"name": "ops.get_test_status"
+			"mutating": true,
+			"name": "ops.stop_tests",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The status after stopping. Fails if no run started by run_automation_test is in progress.",
+						"properties":
+						{
+							"completed":
+							{
+								"type": "integer"
+							},
+							"current":
+							{
+								"description": "Test running now (empty when idle).",
+								"type": "string"
+							},
+							"failed":
+							{
+								"type": "integer"
+							},
+							"failures":
+							{
+								"description": "Failed tests in run order (at most max_failures).",
+								"items":
+								{
+									"properties":
+									{
+										"errors":
+										{
+											"description": "First error messages (at most 5).",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"test":
+										{
+											"description": "Full test path.",
+											"type": "string"
+										}
+									},
+									"title": "OpsToolTestFailure",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"filter":
+							{
+								"description": "Filter of the current or last run.",
+								"type": "string"
+							},
+							"passed":
+							{
+								"type": "integer"
+							},
+							"running":
+							{
+								"description": "A run is in progress.",
+								"type": "boolean"
+							},
+							"total":
+							{
+								"description": "Tests in the run.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolTestStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": false
+		},
+		{
+			"async": true,
+			"description": "Lets the game run for a number of seconds (real time), e.g. after starting physics or an animation.\nReturns: {waited_s}. Fails if seconds is outside 0 - 120.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"seconds":
+					{
+						"description": "Seconds to wait (0 - 120), e.g. 1.5.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"seconds"
+				],
+				"type": "object"
+			},
+			"name": "ops.wait",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"waited_s":
+							{
+								"description": "Seconds waited (real time).",
+								"type": "number"
+							}
+						},
+						"title": "OpsToolWaitResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"async": true,
+			"description": "Polls a tool until a field of its result meets a condition, or times out. Soft errors of the polled tool (e.g. not_found while an object does not exist yet) count as \"not yet\"; the path is then evaluated on the error result.\nReturns: {met, polls, waited_s, value}. Fails with timeout if the condition is not met in time, with the polled tool's error if it fails with unknown_tool, invalid_arguments, not_allowed or toolset_disabled, and with invalid_arguments if the op needs a value and none is given.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"arguments":
+					{
+						"description": "Arguments for the polled tool, e.g. {\"target\": \"n12\"}. (Any JSON value)"
+					},
+					"interval_s":
+					{
+						"default": 0.25,
+						"description": "Seconds between polls (0.01 - 10).",
+						"type": "number"
+					},
+					"op":
+					{
+						"default": "Truthy",
+						"description": "Comparison.",
+						"enum": [
+							"Truthy",
+							"Exists",
+							"NotExists",
+							"Equals",
+							"NotEquals",
+							"Gt",
+							"Gte",
+							"Lt",
+							"Lte",
+							"Contains"
+						],
+						"type": "string"
+					},
+					"path":
+					{
+						"default": "",
+						"description": "Field of the result, e.g. \"location[2]\" or \"level.visible\"; empty = the whole result. Fields of a returnValue are found directly too.",
+						"type": "string"
+					},
+					"timeout_s":
+					{
+						"default": 10,
+						"description": "Give up after this many seconds (0.05 - 300).",
+						"type": "number"
+					},
+					"tool":
+					{
+						"description": "Tool to poll, e.g. \"scene.get_node\".",
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Value to compare with (needed by every op except truthy, exists, not_exists), e.g. 200. (Any JSON value)"
+					}
+				},
+				"required": [
+					"tool"
+				],
+				"type": "object"
+			},
+			"name": "ops.wait_for_condition",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"met":
+							{
+								"description": "Always true (a condition that is never met fails the call with a timeout).",
+								"type": "boolean"
+							},
+							"polls":
+							{
+								"description": "How many times the tool was called.",
+								"type": "integer"
+							},
+							"value":
+							{
+								"description": "The value found at `path` when the condition was met. (Any JSON value)"
+							},
+							"waited_s":
+							{
+								"description": "Seconds from the first poll to the one that met the condition.",
+								"type": "number"
+							}
+						},
+						"title": "OpsToolConditionResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

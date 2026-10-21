@@ -42,7 +42,7 @@ namespace
 	}
 
 	template <typename T>
-	T* LoadInputAsset(const FString& Path, const TCHAR* What)
+	T* InputLoadAsset(const FString& Path, const TCHAR* What)
 	{
 		const URuntimeToolsetsSettings& S = URuntimeToolsetsSettings::Get();
 		bool bAllowed = S.AllowedObjectRoots.Num() == 0;
@@ -68,13 +68,13 @@ namespace
 		return Asset;
 	}
 
-	bool PressKey(APlayerController* PC, const FKey& Key, EInputEvent Event, double Value = 1.0)
+	bool InputPressKey(APlayerController* PC, const FKey& Key, EInputEvent Event, double Value = 1.0)
 	{
 		return PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, Event, static_cast<float>(Value)));
 	}
 
 	/** Reads a bool / number / [x,y] / [x,y,z] into an action value. */
-	bool ReadActionValue(const TSharedPtr<FJsonValue>& V, FInputActionValue& Out)
+	bool InputReadActionValue(const TSharedPtr<FJsonValue>& V, FInputActionValue& Out)
 	{
 		if (!V.IsValid() || V->IsNull())
 		{
@@ -114,7 +114,7 @@ namespace
 	 * Runs Each() every tick for Duration seconds, then Finish() and Complete(). If the call is cancelled or times out,
 	 * Finish() still runs (never leave a key held down).
 	 */
-	void HoldFor(URuntimeToolAsyncResult* Result, double Duration, TFunction<void()> Each, TFunction<void()> Finish, TFunction<void()> Complete)
+	void InputHoldFor(URuntimeToolAsyncResult* Result, double Duration, TFunction<void()> Each, TFunction<void()> Finish, TFunction<void()> Complete)
 	{
 		TWeakObjectPtr<URuntimeToolAsyncResult> Weak = Result;
 		const double End = FPlatformTime::Seconds() + Duration;
@@ -159,7 +159,7 @@ namespace
 		{
 			return Result;
 		}
-		UInputMappingContext* Context = LoadInputAsset<UInputMappingContext>(Path, TEXT("mapping context"));
+		UInputMappingContext* Context = InputLoadAsset<UInputMappingContext>(Path, TEXT("mapping context"));
 		if (!Context)
 		{
 			return Result;
@@ -237,27 +237,27 @@ URuntimeInputToolKeyAsyncResult* URuntimeInputToolset::InjectKey(const FString& 
 	switch (Event)
 	{
 	case EInputToolKeyEvent::Axis:
-		Out.bHandled = PressKey(PC, InputKey, IE_Axis, Value);
+		Out.bHandled = InputPressKey(PC, InputKey, IE_Axis, Value);
 		Result->SetValue(Out);
 		return Result;
 	case EInputToolKeyEvent::Press:
 	case EInputToolKeyEvent::Release:
-		Out.bHandled = PressKey(PC, InputKey, Event == EInputToolKeyEvent::Press ? IE_Pressed : IE_Released);
+		Out.bHandled = InputPressKey(PC, InputKey, Event == EInputToolKeyEvent::Press ? IE_Pressed : IE_Released);
 		Result->SetValue(Out);
 		return Result;
 	default:
 		break;
 	}
 	// Tap: press now, release after the duration (at least one frame so the game sees it).
-	Out.bHandled = PressKey(PC, InputKey, IE_Pressed);
+	Out.bHandled = InputPressKey(PC, InputKey, IE_Pressed);
 	TWeakObjectPtr<APlayerController> WeakPC = PC;
 	TWeakObjectPtr<URuntimeInputToolKeyAsyncResult> WeakResult = Result;
-	HoldFor(Result, FMath::Max(0.03, static_cast<double>(Duration)), nullptr,
+	InputHoldFor(Result, FMath::Max(0.03, static_cast<double>(Duration)), nullptr,
 		[WeakPC, InputKey]()
 		{
 			if (WeakPC.IsValid())
 			{
-				PressKey(WeakPC.Get(), InputKey, IE_Released);
+				InputPressKey(WeakPC.Get(), InputKey, IE_Released);
 			}
 		},
 		[WeakResult, Out]()
@@ -282,13 +282,13 @@ URuntimeInputToolActionAsyncResult* URuntimeInputToolset::InjectAction(const FSt
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("duration %g is out of range"), Duration), TEXT("Use 0 .. 30 seconds"));
 		return nullptr;
 	}
-	UInputAction* InputAction = LoadInputAsset<UInputAction>(Action, TEXT("input action"));
+	UInputAction* InputAction = InputLoadAsset<UInputAction>(Action, TEXT("input action"));
 	if (!InputAction)
 	{
 		return nullptr;
 	}
 	FInputActionValue ActionValue;
-	if (!ReadActionValue(Value.Value, ActionValue))
+	if (!InputReadActionValue(Value.Value, ActionValue))
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("value must be true/false, a number, [x,y] or [x,y,z]"),
 			FString::Printf(TEXT("%s expects a %s value"), *InputAction->GetName(), *UEnum::GetValueAsString(InputAction->ValueType)));
@@ -316,7 +316,7 @@ URuntimeInputToolActionAsyncResult* URuntimeInputToolset::InjectAction(const FSt
 		return Result;
 	}
 	TWeakObjectPtr<URuntimeInputToolActionAsyncResult> WeakResult = Result;
-	HoldFor(Result, Duration, Inject, nullptr,
+	InputHoldFor(Result, Duration, Inject, nullptr,
 		[WeakResult, Out]()
 		{
 			if (WeakResult.IsValid())

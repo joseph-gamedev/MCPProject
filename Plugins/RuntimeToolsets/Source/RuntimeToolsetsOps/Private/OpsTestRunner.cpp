@@ -4,20 +4,20 @@
 
 namespace
 {
-	const TCHAR* GroupsSection = TEXT("/Script/AutomationController.AutomationControllerSettings");
+	const TCHAR* OpsGroupsSection = TEXT("/Script/AutomationController.AutomationControllerSettings");
 
 	/** Raw "+Groups=(Name=\"Smoke\",Filters=((Contains=\"X\",MatchFromStart=True),...))" config lines. */
-	TArray<FString> GroupLines()
+	TArray<FString> OpsGroupLines()
 	{
 		TArray<FString> Lines;
 		if (GConfig)
 		{
-			GConfig->GetArray(GroupsSection, TEXT("Groups"), Lines, GEngineIni);
+			GConfig->GetArray(OpsGroupsSection, TEXT("Groups"), Lines, GEngineIni);
 		}
 		return Lines;
 	}
 
-	FString GroupName(const FString& Line)
+	FString OpsGroupName(const FString& Line)
 	{
 		const FRegexPattern Pattern(TEXT("Name\\s*=\\s*\"([^\"]*)\""));
 		FRegexMatcher M(Pattern, Line);
@@ -28,9 +28,9 @@ namespace
 TArray<FString> FOpsTestFilter::GroupNames()
 {
 	TArray<FString> Names;
-	for (const FString& Line : GroupLines())
+	for (const FString& Line : OpsGroupLines())
 	{
-		const FString N = GroupName(Line);
+		const FString N = OpsGroupName(Line);
 		if (!N.IsEmpty())
 		{
 			Names.AddUnique(N);
@@ -56,9 +56,9 @@ bool FOpsTestFilter::Parse(const FString& Expression, FString& OutError)
 		{
 			const FString Name = Part.Mid(6).TrimStartAndEnd();
 			bool bFound = false;
-			for (const FString& Line : GroupLines())
+			for (const FString& Line : OpsGroupLines())
 			{
-				if (!GroupName(Line).Equals(Name, ESearchCase::IgnoreCase))
+				if (!OpsGroupName(Line).Equals(Name, ESearchCase::IgnoreCase))
 				{
 					continue;
 				}

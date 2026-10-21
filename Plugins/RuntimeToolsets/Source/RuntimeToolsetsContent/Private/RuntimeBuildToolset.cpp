@@ -17,22 +17,22 @@ using namespace RuntimeTools;
 
 namespace
 {
-	constexpr int32 MaxCopies = 1000;
-	constexpr int32 MaxParts = 512;
+	constexpr int32 BuildMaxCopies = 1000;
+	constexpr int32 BuildMaxParts = 512;
 
-	FToolInvocation& Call()
+	FToolInvocation& BuildCall()
 	{
 		return *RuntimeToolCall::Current();
 	}
 
 	template <typename TEnum>
-	FString EnumText(TEnum Value)
+	FString BuildEnumText(TEnum Value)
 	{
 		return StaticEnum<TEnum>()->GetNameStringByValue(static_cast<int64>(Value)).ToLower();
 	}
 
 	/** The scene node of an actor; fails the call when it is not one. */
-	FRuntimeSceneNode* RequireNode(AActor* Actor, const TCHAR* Arg)
+	FRuntimeSceneNode* BuildRequireNode(AActor* Actor, const TCHAR* Arg)
 	{
 		FRuntimeSceneNode* Node = Actor ? RuntimeToolCall::GetGraph()->FindByActor(Actor) : nullptr;
 		if (!Node)
@@ -44,9 +44,9 @@ namespace
 	}
 
 	/** A builder (prim:) node and its recipe; fails the call otherwise. */
-	FRuntimeSceneNode* RequirePrim(AActor* Actor, const TCHAR* Arg, TSharedPtr<FJsonObject>& OutRecipe)
+	FRuntimeSceneNode* BuildRequirePrim(AActor* Actor, const TCHAR* Arg, TSharedPtr<FJsonObject>& OutRecipe)
 	{
-		FRuntimeSceneNode* Node = RequireNode(Actor, Arg);
+		FRuntimeSceneNode* Node = BuildRequireNode(Actor, Arg);
 		if (!Node)
 		{
 			return nullptr;
@@ -87,43 +87,48 @@ namespace
 	}
 
 	/**
-	 * Copies recipe fields the caller passed. The typed parameters define the schema and validate the values; the recipe
-	 * keeps the exact JSON the caller sent (the recipe format predates the reflected tools and scripts depend on it).
+	 * Copies a recipe field when bSet (the typed value is not the "unset" default). The typed parameters define the schema
+	 * and validate the values; the recipe keeps the exact JSON the caller sent (the recipe format predates the reflected
+	 * tools and scripts depend on it). Struct and array fields without a default are only present when passed.
 	 */
-	void CopyArgs(const TSharedRef<FJsonObject>& Recipe, std::initializer_list<const TCHAR*> Fields)
+	void BuildCopyArg(const TSharedRef<FJsonObject>& Recipe, const TCHAR* Field, bool bSet = true)
 	{
-		for (const TCHAR* Field : Fields)
+		const TSharedPtr<FJsonValue> V = BuildCall().GetValue(Field);
+		if (bSet && V.IsValid() && !V->IsNull())
 		{
-			if (Call().Has(Field))
-			{
-				Recipe->SetField(Field, Call().GetValue(Field));
-			}
+			Recipe->SetField(Field, V);
 		}
 	}
 
-	void CopyMaterialArgs(const TSharedRef<FJsonObject>& Recipe)
+	/** Material fields shared by every create tool and set_material (-1 / "" = keep the preset value). */
+	void BuildCopyMaterialArgs(const TSharedRef<FJsonObject>& Recipe, const FString& Material, float Roughness, float Metallic, float EmissiveStrength,
+		float Opacity, float Variation, const FString& Style, float Tile, float Relief)
 	{
-		for (const FString& Field : RuntimePrimitives::MaterialFieldNames())
-		{
-			if (Call().Has(*Field))
-			{
-				Recipe->SetField(Field, Call().GetValue(*Field));
-			}
-		}
+		BuildCopyArg(Recipe, TEXT("material"), !Material.IsEmpty());
+		BuildCopyArg(Recipe, TEXT("color"));
+		BuildCopyArg(Recipe, TEXT("emissive"));
+		BuildCopyArg(Recipe, TEXT("roughness"), Roughness >= 0.f);
+		BuildCopyArg(Recipe, TEXT("metallic"), Metallic >= 0.f);
+		BuildCopyArg(Recipe, TEXT("emissive_strength"), EmissiveStrength >= 0.f);
+		BuildCopyArg(Recipe, TEXT("opacity"), Opacity >= 0.f);
+		BuildCopyArg(Recipe, TEXT("variation"), Variation >= 0.f);
+		BuildCopyArg(Recipe, TEXT("style"), !Style.IsEmpty());
+		BuildCopyArg(Recipe, TEXT("tile"), Tile >= 0.f);
+		BuildCopyArg(Recipe, TEXT("relief"), Relief >= 0.f);
 	}
 
-	FTransform ArgTransform(const FVector& Location, const FRotator& Rotation, const FVector& Scale)
+	FTransform BuildArgTransform(const FVector& Location, const FRotator& Rotation, const FVector& Scale)
 	{
 		FTransform T = FTransform::Identity;
-		if (Call().Has(TEXT("location")))
+		if (BuildCall().Has(TEXT("location")))
 		{
 			T.SetLocation(Location);
 		}
-		if (Call().Has(TEXT("rotation")))
+		if (BuildCall().Has(TEXT("rotation")))
 		{
 			T.SetRotation(Rotation.Quaternion());
 		}
-		if (Call().Has(TEXT("scale")))
+		if (BuildCall().Has(TEXT("scale")))
 		{
 			T.SetScale3D(Scale);
 		}
@@ -131,7 +136,7 @@ namespace
 	}
 
 	/** Moves Relative so the bottom of LocalBox rests on the ground below (the parent's transform taken into account). */
-	bool SnapToGround(const FBox& LocalBox, const AActor* ParentActor, FTransform& Relative)
+	bool BuildSnapToGround(const FBox& LocalBox, const AActor* ParentActor, FTransform& Relative)
 	{
 		UWorld* World = RuntimeToolCall::GetWorld();
 		if (!World || !LocalBox.IsValid)
@@ -161,7 +166,7 @@ namespace
 		FString ParentId;
 		if (Parent)
 		{
-			const FRuntimeSceneNode* P = RequireNode(Parent, TEXT("parent"));
+			const FRuntimeSceneNode* P = BuildRequireNode(Parent, TEXT("parent"));
 			if (!P)
 			{
 				return false;
@@ -187,7 +192,7 @@ namespace
 					Local = FBox(FVector(B.Min), FVector(B.Max));
 				}
 			});
-			Out.bSnappedToGround = SnapToGround(Local, Parent, Transform);
+			Out.bSnappedToGround = BuildSnapToGround(Local, Parent, Transform);
 		}
 		const FString Source = RuntimePrimitives::ToSource(Recipe);
 		auto Spawn = [Source, Transform, Name](FRuntimeCommandContext& Ctx, FString& Err) { return RuntimePrimitives::SpawnFromSource(Ctx.World, Source, Transform, Name, Err); };
@@ -279,21 +284,21 @@ namespace
 		return Out;
 	}
 
-	FTransform RelativeOf(const AActor* Actor)
+	FTransform BuildRelativeOf(const AActor* Actor)
 	{
 		const USceneComponent* Root = Actor->GetRootComponent();
 		return Root ? Root->GetRelativeTransform() : Actor->GetActorTransform();
 	}
 
 	/** Live, non-group nodes below Under (or all). Fails the call when Under is not a node. */
-	TArray<FRuntimeSceneNode*> ScopeNodes(AActor* Under, bool& bOk)
+	TArray<FRuntimeSceneNode*> BuildScopeNodes(AActor* Under, bool& bOk)
 	{
 		bOk = true;
 		FRuntimeSceneGraph& Graph = *RuntimeToolCall::GetGraph();
 		TArray<FString> Ids;
 		if (Under)
 		{
-			const FRuntimeSceneNode* Root = RequireNode(Under, TEXT("under"));
+			const FRuntimeSceneNode* Root = BuildRequireNode(Under, TEXT("under"));
 			if (!Root)
 			{
 				bOk = false;
@@ -390,21 +395,33 @@ FBuildToolNodeResult URuntimeBuildToolset::CreatePrimitive(EBuildToolShape Shape
 	float Beam, bool bBracing, int32 Count, int32 Rows, int32 Cols, bool bArched, float Margin, bool bSnapToGround)
 {
 	TSharedRef<FJsonObject> Recipe = Obj();
-	const FString ShapeName = EnumText(Shape);
+	const FString ShapeName = BuildEnumText(Shape);
 	Recipe->SetStringField(TEXT("shape"), ShapeName);
-	if (Call().Has(TEXT("detail")))
+	if (Detail != EBuildToolDetail::Medium)
 	{
-		Recipe->SetStringField(TEXT("detail"), EnumText(Detail));
+		Recipe->SetStringField(TEXT("detail"), BuildEnumText(Detail));
 	}
-	if (Call().Has(TEXT("pivot")))
+	if (Pivot != EBuildToolPivot::Base)
 	{
-		Recipe->SetStringField(TEXT("pivot"), EnumText(Pivot));
+		Recipe->SetStringField(TEXT("pivot"), BuildEnumText(Pivot));
 	}
-	CopyArgs(Recipe, {TEXT("size"), TEXT("top_ratio"), TEXT("thickness"), TEXT("bevel"), TEXT("count"), TEXT("taper"), TEXT("beam"), TEXT("levels"),
-		TEXT("bracing"), TEXT("rows"), TEXT("cols"), TEXT("opening"), TEXT("arched"), TEXT("margin")});
-	CopyMaterialArgs(Recipe);
+	BuildCopyArg(Recipe, TEXT("size"));
+	BuildCopyArg(Recipe, TEXT("opening"));
+	BuildCopyArg(Recipe, TEXT("top_ratio"), TopRatio >= 0.f);
+	BuildCopyArg(Recipe, TEXT("thickness"), Thickness >= 0.f);
+	BuildCopyArg(Recipe, TEXT("bevel"), Bevel > 0.f);
+	BuildCopyArg(Recipe, TEXT("count"), Count > 0);
+	BuildCopyArg(Recipe, TEXT("taper"), Taper >= 0.f);
+	BuildCopyArg(Recipe, TEXT("beam"), Beam >= 0.f);
+	BuildCopyArg(Recipe, TEXT("levels"), Levels > 0);
+	BuildCopyArg(Recipe, TEXT("bracing"), !bBracing);
+	BuildCopyArg(Recipe, TEXT("rows"), Rows > 0);
+	BuildCopyArg(Recipe, TEXT("cols"), Cols > 0);
+	BuildCopyArg(Recipe, TEXT("arched"), bArched);
+	BuildCopyArg(Recipe, TEXT("margin"), Margin >= 0.f);
+	BuildCopyMaterialArgs(Recipe, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
 	FBuildToolAssemblyResult Out;
-	CreateFromRecipe(Recipe, Name.IsEmpty() ? ShapeName : Name, Parent, ArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
+	CreateFromRecipe(Recipe, Name.IsEmpty() ? ShapeName : Name, Parent, BuildArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
 	return ToNodeResult(Out);
 }
 
@@ -413,7 +430,7 @@ FBuildToolNodeResult URuntimeBuildToolset::CreateProfileSolid(EBuildToolSolidKin
 	float Height, float Angle, bool bClosed, const FString& Name, AActor* Parent, EBuildToolDetail Detail, const FString& Material, float Roughness,
 	float Metallic, float EmissiveStrength, float Opacity, float Variation, const FString& Style, float Tile, float Relief, float Bevel, bool bSnapToGround)
 {
-	const FString KindName = EnumText(Kind);
+	const FString KindName = BuildEnumText(Kind);
 	const int32 MinPoints = Kind == EBuildToolSolidKind::Lathe ? 2 : 3;
 	if (Profile.Num() < MinPoints)
 	{
@@ -428,14 +445,19 @@ FBuildToolNodeResult URuntimeBuildToolset::CreateProfileSolid(EBuildToolSolidKin
 	}
 	TSharedRef<FJsonObject> Recipe = Obj();
 	Recipe->SetStringField(TEXT("shape"), KindName);
-	if (Call().Has(TEXT("detail")))
+	if (Detail != EBuildToolDetail::Medium)
 	{
-		Recipe->SetStringField(TEXT("detail"), EnumText(Detail));
+		Recipe->SetStringField(TEXT("detail"), BuildEnumText(Detail));
 	}
-	CopyArgs(Recipe, {TEXT("profile"), TEXT("path"), TEXT("height"), TEXT("angle"), TEXT("closed"), TEXT("bevel")});
-	CopyMaterialArgs(Recipe);
+	BuildCopyArg(Recipe, TEXT("profile"));
+	BuildCopyArg(Recipe, TEXT("path"));
+	BuildCopyArg(Recipe, TEXT("height"), Height >= 0.f);
+	BuildCopyArg(Recipe, TEXT("angle"), Angle >= 0.f);
+	BuildCopyArg(Recipe, TEXT("closed"), bClosed);
+	BuildCopyArg(Recipe, TEXT("bevel"), Bevel > 0.f);
+	BuildCopyMaterialArgs(Recipe, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
 	FBuildToolAssemblyResult Out;
-	CreateFromRecipe(Recipe, Name.IsEmpty() ? KindName : Name, Parent, ArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
+	CreateFromRecipe(Recipe, Name.IsEmpty() ? KindName : Name, Parent, BuildArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
 	return ToNodeResult(Out);
 }
 
@@ -445,9 +467,9 @@ FBuildToolAssemblyResult URuntimeBuildToolset::CreateAssembly(const TArray<FRunt
 	float Relief, bool bRepairCoplanar, bool bSnapToGround)
 {
 	FBuildToolAssemblyResult Out;
-	if (Parts.Num() == 0 || Parts.Num() > MaxParts)
+	if (Parts.Num() == 0 || Parts.Num() > BuildMaxParts)
 	{
-		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("parts needs 1-%d entries (got %d)"), MaxParts, Parts.Num()),
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("parts needs 1-%d entries (got %d)"), BuildMaxParts, Parts.Num()),
 			TEXT("Split big builds into several assemblies under one group"));
 		return Out;
 	}
@@ -461,13 +483,13 @@ FBuildToolAssemblyResult URuntimeBuildToolset::CreateAssembly(const TArray<FRunt
 	}
 	TSharedRef<FJsonObject> Recipe = Obj();
 	Recipe->SetStringField(TEXT("shape"), TEXT("assembly"));
-	CopyArgs(Recipe, {TEXT("parts")});
-	CopyMaterialArgs(Recipe);
-	if (Call().Has(TEXT("repair_coplanar")))
+	BuildCopyArg(Recipe, TEXT("parts"));
+	BuildCopyMaterialArgs(Recipe, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
+	if (!bRepairCoplanar)
 	{
-		Recipe->SetBoolField(TEXT("repair_coplanar"), bRepairCoplanar);
+		Recipe->SetBoolField(TEXT("repair_coplanar"), false);
 	}
-	CreateFromRecipe(Recipe, Name.IsEmpty() ? TEXT("Assembly") : Name, Parent, ArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
+	CreateFromRecipe(Recipe, Name.IsEmpty() ? TEXT("Assembly") : Name, Parent, BuildArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
 	return Out;
 }
 
@@ -477,8 +499,8 @@ FBuildToolBooleanResult URuntimeBuildToolset::BooleanOp(AActor* Target, AActor* 
 {
 	FBuildToolBooleanResult Out;
 	TSharedPtr<FJsonObject> TargetRecipe, ToolRecipe;
-	FRuntimeSceneNode* TargetNode = RequirePrim(Target, TEXT("target"), TargetRecipe);
-	FRuntimeSceneNode* ToolNode = TargetNode ? RequirePrim(Tool, TEXT("tool"), ToolRecipe) : nullptr;
+	FRuntimeSceneNode* TargetNode = BuildRequirePrim(Target, TEXT("target"), TargetRecipe);
+	FRuntimeSceneNode* ToolNode = TargetNode ? BuildRequirePrim(Tool, TEXT("tool"), ToolRecipe) : nullptr;
 	if (!TargetNode || !ToolNode)
 	{
 		return Out;
@@ -491,7 +513,7 @@ FBuildToolBooleanResult URuntimeBuildToolset::BooleanOp(AActor* Target, AActor* 
 	// The tool is recorded in the target's mesh space so the recipe replays exactly.
 	const FTransform Rel = Tool->GetActorTransform().GetRelativeTransform(Target->GetActorTransform());
 	TSharedRef<FJsonObject> OpJson = Obj();
-	OpJson->SetStringField(TEXT("op"), EnumText(Op));
+	OpJson->SetStringField(TEXT("op"), BuildEnumText(Op));
 	TSharedRef<FJsonObject> ToolCopy = RuntimeJson::Parse(RuntimeJson::Write(ToolRecipe.ToSharedRef())).ToSharedRef();
 	ToolCopy->RemoveField(TEXT("material"));
 	ToolCopy->RemoveField(TEXT("color"));
@@ -511,7 +533,7 @@ FBuildToolBooleanResult URuntimeBuildToolset::BooleanOp(AActor* Target, AActor* 
 	NewRecipe->SetArrayField(TEXT("ops"), Ops);
 
 	Out.Target = TargetNode->Id;
-	Out.Op = EnumText(Op);
+	Out.Op = BuildEnumText(Op);
 	Out.Ops = Ops.Num();
 	TSharedRef<FJsonObject> Delta = Obj();
 	Delta->SetStringField(TEXT("target"), Out.Target);
@@ -533,21 +555,21 @@ FBuildToolBooleanResult URuntimeBuildToolset::BooleanOp(AActor* Target, AActor* 
 FBuildToolCopiesResult URuntimeBuildToolset::Array(AActor* Target, const FVector& Offset, const FVector& Center, const FVector& Axis, const FIntVector& Counts,
 	const FVector& Spacing, EBuildToolArrayMode Mode, int32 Count, float Angle)
 {
-	FRuntimeSceneNode* Node = RequireNode(Target, TEXT("target"));
+	FRuntimeSceneNode* Node = BuildRequireNode(Target, TEXT("target"));
 	if (!Node)
 	{
 		return {};
 	}
-	const FTransform Base = RelativeOf(Target);
+	const FTransform Base = BuildRelativeOf(Target);
 	TArray<FTransform> Relatives;
 	if (Mode == EBuildToolArrayMode::Grid)
 	{
-		const FIntVector N = Call().Has(TEXT("counts")) ? Counts : FIntVector(2, 2, 1);
-		const FVector Step = Call().Has(TEXT("spacing")) ? Spacing : ActorBox(Target).GetSize();
+		const FIntVector N = BuildCall().Has(TEXT("counts")) ? Counts : FIntVector(2, 2, 1);
+		const FVector Step = BuildCall().Has(TEXT("spacing")) ? Spacing : ActorBox(Target).GetSize();
 		const int32 NX = FMath::Max(1, N.X), NY = FMath::Max(1, N.Y), NZ = FMath::Max(1, N.Z);
-		if (static_cast<int64>(NX) * NY * NZ - 1 > MaxCopies)
+		if (static_cast<int64>(NX) * NY * NZ - 1 > BuildMaxCopies)
 		{
-			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("too many copies: %d x %d x %d (max %d)"), NX, NY, NZ, MaxCopies + 1),
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("too many copies: %d x %d x %d (max %d)"), NX, NY, NZ, BuildMaxCopies + 1),
 				TEXT("Use several arrays or pcg.scatter for large counts"));
 			return {};
 		}
@@ -570,15 +592,15 @@ FBuildToolCopiesResult URuntimeBuildToolset::Array(AActor* Target, const FVector
 	}
 	else
 	{
-		if (Count < 2 || Count - 1 > MaxCopies)
+		if (Count < 2 || Count - 1 > BuildMaxCopies)
 		{
-			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("count must be 2..%d (includes the original), got %d"), MaxCopies + 1, Count));
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("count must be 2..%d (includes the original), got %d"), BuildMaxCopies + 1, Count));
 			return {};
 		}
 		if (Mode == EBuildToolArrayMode::Radial)
 		{
-			const FVector C = Call().Has(TEXT("center")) ? Center : FVector::ZeroVector; // parent space
-			const FVector A = (Call().Has(TEXT("axis")) ? Axis : FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+			const FVector C = BuildCall().Has(TEXT("center")) ? Center : FVector::ZeroVector; // parent space
+			const FVector A = (BuildCall().Has(TEXT("axis")) ? Axis : FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 			const int32 Divisions = FMath::IsNearlyEqual(Angle, 360.f) ? Count : Count - 1;
 			for (int32 i = 1; i < Count; ++i)
 			{
@@ -591,7 +613,7 @@ FBuildToolCopiesResult URuntimeBuildToolset::Array(AActor* Target, const FVector
 		}
 		else
 		{
-			const FVector Step = Call().Has(TEXT("offset")) ? Offset : FVector(100, 0, 0);
+			const FVector Step = BuildCall().Has(TEXT("offset")) ? Offset : FVector(100, 0, 0);
 			for (int32 i = 1; i < Count; ++i)
 			{
 				FTransform T = Base;
@@ -600,21 +622,21 @@ FBuildToolCopiesResult URuntimeBuildToolset::Array(AActor* Target, const FVector
 			}
 		}
 	}
-	return SpawnCopies(*Node, Relatives, FString::Printf(TEXT("%s array of %s"), *EnumText(Mode), *Node->Name));
+	return SpawnCopies(*Node, Relatives, FString::Printf(TEXT("%s array of %s"), *BuildEnumText(Mode), *Node->Name));
 }
 
 FBuildToolCopiesResult URuntimeBuildToolset::Mirror(AActor* Target, const FVector& Point, EBuildToolAxis Axis)
 {
-	FRuntimeSceneNode* Node = RequireNode(Target, TEXT("target"));
+	FRuntimeSceneNode* Node = BuildRequireNode(Target, TEXT("target"));
 	if (!Node)
 	{
 		return {};
 	}
-	const FVector P = Call().Has(TEXT("point")) ? Point : FVector::ZeroVector; // parent space
+	const FVector P = BuildCall().Has(TEXT("point")) ? Point : FVector::ZeroVector; // parent space
 	FVector S(1.0);
 	S[static_cast<int32>(Axis)] = -1.0;
 	// Reflect through the plane: M' = M * T(-P) * S * T(P). FTransform keeps the reflection as a negative scale.
-	const FMatrix Mirrored = RelativeOf(Target).ToMatrixWithScale() * FTranslationMatrix(-P) * FScaleMatrix(S) * FTranslationMatrix(P);
+	const FMatrix Mirrored = BuildRelativeOf(Target).ToMatrixWithScale() * FTranslationMatrix(-P) * FScaleMatrix(S) * FTranslationMatrix(P);
 	return SpawnCopies(*Node, {FTransform(Mirrored)}, FString::Printf(TEXT("mirror %s"), *Node->Name));
 }
 
@@ -629,7 +651,7 @@ FBuildToolMaterialResult URuntimeBuildToolset::SetMaterial(const TArray<AActor*>
 		return Out;
 	}
 	TSharedRef<FJsonObject> Fields = Obj();
-	CopyMaterialArgs(Fields);
+	BuildCopyMaterialArgs(Fields, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
 	if (Fields->Values.Num() == 0)
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("nothing to change"),
@@ -699,7 +721,7 @@ FBuildToolOverlapReport URuntimeBuildToolset::CheckOverlaps(AActor* Under, float
 {
 	FBuildToolOverlapReport Out;
 	bool bOk = true;
-	TArray<FRuntimeSceneNode*> Nodes = ScopeNodes(Under, bOk);
+	TArray<FRuntimeSceneNode*> Nodes = BuildScopeNodes(Under, bOk);
 	if (!bOk)
 	{
 		return Out;
@@ -753,7 +775,7 @@ FBuildToolStats URuntimeBuildToolset::GetBuildStats(AActor* Under)
 {
 	FBuildToolStats Out;
 	bool bOk = true;
-	TArray<FRuntimeSceneNode*> Nodes = ScopeNodes(Under, bOk);
+	TArray<FRuntimeSceneNode*> Nodes = BuildScopeNodes(Under, bOk);
 	if (!bOk)
 	{
 		return Out;
@@ -802,21 +824,21 @@ FBuildToolCaptureResult URuntimeBuildToolset::CaptureView(const TArray<EBuildToo
 	float Padding, EBuildToolImageFormat Format)
 {
 	FBuildToolCaptureResult Out;
-	if (!FApp::CanEverRender())
-	{
-		RuntimeToolCall::Fail(ERuntimeToolError::Unsupported, TEXT("rendering is disabled (null RHI)"), TEXT("Run the game with rendering to capture views"));
-		return Out;
-	}
 	if (Size < 64 || Size > 1024 || Padding < 1.f || Padding > 3.f)
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("size must be 64-1024 (got %d) and padding 1-3 (got %.2f)"), Size, Padding));
+		return Out;
+	}
+	if (!FApp::CanEverRender())
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::Unsupported, TEXT("rendering is disabled (null RHI)"), TEXT("Run the game with rendering to capture views"));
 		return Out;
 	}
 	TArray<AActor*> Framed = Targets;
 	if (Framed.Num() == 0)
 	{
 		bool bOk = true;
-		for (FRuntimeSceneNode* N : ScopeNodes(Under, bOk))
+		for (FRuntimeSceneNode* N : BuildScopeNodes(Under, bOk))
 		{
 			Framed.Add(N->Actor.Get());
 		}
@@ -898,14 +920,14 @@ FBuildToolCaptureResult URuntimeBuildToolset::CaptureView(const TArray<EBuildToo
 		{
 			FMemory::Memcpy(&Sheet[(OY + Y) * Columns * Size + OX], &Pixels[Y * W], FMath::Min(W, Size) * sizeof(FColor));
 		}
-		Out.Layout.Add(FString::Printf(TEXT("%s(row %d, col %d)"), *EnumText(View), v / Columns, v % Columns));
+		Out.Layout.Add(FString::Printf(TEXT("%s(row %d, col %d)"), *BuildEnumText(View), v / Columns, v % Columns));
 	}
 	Capture->Destroy();
 	RT->ReleaseResource();
 
 	FToolAttachment Image;
 	FString Error;
-	if (!RuntimeImage::Encode(MoveTemp(Sheet), Columns * Size, Rows * Size, Columns * Size, EnumText(Format), 85, Image, Error))
+	if (!RuntimeImage::Encode(MoveTemp(Sheet), Columns * Size, Rows * Size, Columns * Size, BuildEnumText(Format), 85, Image, Error))
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::Internal, Error);
 		return Out;
@@ -913,6 +935,6 @@ FBuildToolCaptureResult URuntimeBuildToolset::CaptureView(const TArray<EBuildToo
 	Out.BoundsSize = Box.GetSize();
 	Out.W = Image.Width;
 	Out.H = Image.Height;
-	Call().AddAttachment(MoveTemp(Image));
+	BuildCall().AddAttachment(MoveTemp(Image));
 	return Out;
 }
