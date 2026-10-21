@@ -26,7 +26,7 @@ namespace
 		return Node;
 	}
 
-	bool NameMatches(const FString& Name, const FString& Filter)
+	bool SceneNameMatches(const FString& Name, const FString& Filter)
 	{
 		if (Filter.IsEmpty())
 		{
@@ -296,7 +296,7 @@ FRuntimeNodeList URuntimeSceneToolset::FindNodes(const FString& Pattern, const F
 	for (const FString& Id : Scope)
 	{
 		const FRuntimeSceneNode& N = *Graph.Find(Id);
-		if (!NameMatches(N.Name, Pattern) || (!TagName.IsNone() && !N.Tags.Contains(TagName)))
+		if (!SceneNameMatches(N.Name, Pattern) || (!TagName.IsNone() && !N.Tags.Contains(TagName)))
 		{
 			continue;
 		}
