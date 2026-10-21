@@ -9,7 +9,7 @@ public class RuntimeToolsetsGameplay : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"InputCore", "EnhancedInput", "PhysicsCore"
+			"InputCore", "EnhancedInput", "PhysicsCore", "AssetRegistry", "Projects"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

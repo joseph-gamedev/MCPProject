@@ -1,23 +1,27 @@
-#include "OpsToolset.h"
-#include "ProfilingToolset.h"
+#include "OpsTestRunner.h"
+#include "RuntimeOpsToolset.h"
+#include "RuntimeProfilingToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
 
-/** Ops group: profiling and orchestration/testing (Phase 2). Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Ops group: profiling and orchestration/testing. Toolsets are UFUNCTION classes (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsOpsModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FProfilingToolset>(), MakeShared<FOpsToolset>()};
-		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
-		{
-			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
-		}
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeProfilingToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeOpsToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FOpsTestRunner::Get().Stop();
 		if (IRuntimeToolsetsCore::IsAvailable())
 		{
 			for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)

@@ -19,7 +19,8 @@ namespace
 
 	FString GroupName(const FString& Line)
 	{
-		FRegexMatcher M(FRegexPattern(TEXT("Name\\s*=\\s*\"([^\"]*)\"")), Line);
+		const FRegexPattern Pattern(TEXT("Name\\s*=\\s*\"([^\"]*)\""));
+		FRegexMatcher M(Pattern, Line);
 		return M.FindNext() ? M.GetCaptureGroup(1) : FString();
 	}
 }
@@ -62,7 +63,8 @@ bool FOpsTestFilter::Parse(const FString& Expression, FString& OutError)
 					continue;
 				}
 				bFound = true;
-				FRegexMatcher M(FRegexPattern(TEXT("\\(\\s*Contains\\s*=\\s*\"([^\"]*)\"([^)]*)\\)")), Line);
+				const FRegexPattern Pattern(TEXT("\\(\\s*Contains\\s*=\\s*\"([^\"]*)\"([^)]*)\\)"));
+				FRegexMatcher M(Pattern, Line);
 				while (M.FindNext())
 				{
 					FTerm T;
