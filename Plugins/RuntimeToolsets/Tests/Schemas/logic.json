@@ -1,589 +1,9 @@
 {
-	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer or top-down player, health, damage zones, weapons, AI brains, game HUD, feedback, tweens, pools, start/restart",
+	"description": "Game logic without code: turns a built scene into a playable game with variables, event rules (when click / key /\nbutton / timer / touch / start ... and a condition, run actions), on-screen UI, a playable character (side-scroller,\ntop-down or flight), health, damage zones, weapons, AI brains (state machines with vision and hearing), game HUD,\nfeedback presets, tweens, object pools, spawners, loot, interactables and saves.\nWorkflow: get_guide (read it first) -> build the scene with build/actors tools -> set_data on clickable nodes ->\ndefine_vars -> define_rules -> define_ui -> set_input_mode or spawn_player -> start -> test with fire_event / step and\nread get_state (vars, event log, errors) -> fix rules until a full game works -> export to keep it.\nDefinitions are undoable (history.undo) and stored as the JSON passed to the define_* tools (what export returns).",
 	"name": "logic",
 	"tools": [
 		{
-			"description": "Animate nodes smoothly: move/rotate/scale/color with easing, delay, yoyo/loop, and hide/show/release at the end.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"add":
-					{
-						"description": "Run alongside other tweens on the node instead of replacing them",
-						"type": "boolean"
-					},
-					"color":
-					{
-						"description": "End base color [r,g,b] (builder materials)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"delay":
-					{
-						"description": "Seconds before starting",
-						"maximum": 600,
-						"minimum": 0,
-						"type": "number"
-					},
-					"duration":
-					{
-						"default": 0.29999999999999999,
-						"description": "Seconds per cycle",
-						"maximum": 600,
-						"minimum": 0.001,
-						"type": "number"
-					},
-					"ease":
-					{
-						"default": "out_quad",
-						"description": "Easing curve",
-						"enum": [
-							"linear",
-							"in_quad",
-							"out_quad",
-							"in_out_quad",
-							"in_cubic",
-							"out_cubic",
-							"in_out_cubic",
-							"in_sine",
-							"out_sine",
-							"in_out_sine",
-							"in_back",
-							"out_back",
-							"in_out_back",
-							"out_elastic",
-							"in_bounce",
-							"out_bounce"
-						],
-						"type": "string"
-					},
-					"emit":
-					{
-						"description": "Custom event fired at the end (rules on:event)",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"location":
-					{
-						"description": "Absolute end location",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"loop":
-					{
-						"default": "once",
-						"description": "once, yoyo (there and back), loop (restart), pingpong (forever)",
-						"enum": [
-							"once",
-							"yoyo",
-							"loop",
-							"pingpong"
-						],
-						"type": "string"
-					},
-					"move":
-					{
-						"description": "Relative offset",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"repeat":
-					{
-						"description": "Cycles for yoyo/loop (-1 = forever for loop)",
-						"maximum": 10000,
-						"minimum": -1,
-						"type": "number"
-					},
-					"rotate":
-					{
-						"description": "Relative rotation (can exceed 360)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"rotation":
-					{
-						"description": "Absolute end rotation",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"scale":
-					{
-						"description": "End scale: number or [x,y,z]"
-					},
-					"targets":
-					{
-						"description": "Node ids/paths/names or tag:x",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
-						"type": "array"
-					},
-					"then":
-					{
-						"description": "At the end",
-						"enum": [
-							"none",
-							"hide",
-							"show",
-							"release"
-						],
-						"type": "string"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"name": "logic.tween"
-		},
-		{
-			"description": "Actor pool: pre-made hidden copies of a template node that rules spawn/release instead of creating objects.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"name":
-					{
-						"description": "Pool name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"size":
-					{
-						"default": 8,
-						"description": "Copies",
-						"maximum": 500,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"template":
-					{
-						"description": "Node to copy (it gets hidden)",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"name",
-					"template"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_pool",
-			"undoable": true
-		},
-		{
-			"description": "Every internal constant of the game runtime with its value, default, meaning and where it comes from.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "logic.get_tuning"
-		},
-		{
-			"description": "Change internal constants at runtime (see get_tuning).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"reset":
-					{
-						"default": false,
-						"description": "Back to defaults + config first",
-						"type": "boolean"
-					},
-					"values":
-					{
-						"description": "{name: number}",
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"name": "logic.set_tuning"
-		},
-		{
-			"description": "Spawn pooled enemies over time or in waves, at points or around the player.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"around_player":
-					{
-						"description": "{radius: n or [min,max], height: n or [min,max]}",
-						"type": "object"
-					},
-					"autostart":
-					{
-						"description": "Start with the game (default true)",
-						"type": "boolean"
-					},
-					"face_player":
-					{
-						"description": "Spawn facing the player (default true)",
-						"type": "boolean"
-					},
-					"interval":
-					{
-						"description": "Seconds between spawns, or [min,max]"
-					},
-					"max_alive":
-					{
-						"description": "At most this many alive",
-						"maximum": 500,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"name":
-					{
-						"description": "Spawner name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"points":
-					{
-						"description": "Spawn points [x,y,z]",
-						"items":
-						{
-							"description": "",
-							"items":
-							{
-								"type": "number"
-							},
-							"maxItems": 3,
-							"minItems": 3,
-							"type": "array"
-						},
-						"maxItems": 100,
-						"type": "array"
-					},
-					"pool":
-					{
-						"description": "Pool to take enemies from",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"start_delay":
-					{
-						"description": "Seconds before the first spawn",
-						"maximum": 600,
-						"minimum": 0,
-						"type": "number"
-					},
-					"total":
-					{
-						"description": "Stop after this many (no waves)",
-						"maximum": 100000,
-						"minimum": 0,
-						"type": "integer"
-					},
-					"wave_gap":
-					{
-						"description": "Seconds between waves",
-						"maximum": 600,
-						"minimum": 0,
-						"type": "number"
-					},
-					"waves":
-					{
-						"description": "Waves: {count, interval, max_alive}",
-						"items":
-						{
-							"description": "Wave",
-							"type": "object"
-						},
-						"maxItems": 100,
-						"type": "array"
-					}
-				},
-				"required": [
-					"name",
-					"pool"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_spawner",
-			"undoable": true
-		},
-		{
-			"description": "Weighted loot table of pooled pickups.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"count":
-					{
-						"description": "Drops: n or [min,max] (default 1)"
-					},
-					"entries":
-					{
-						"description": "{pool, weight}; pool \"none\" = chance of nothing",
-						"items":
-						{
-							"description": "Entry",
-							"type": "object"
-						},
-						"maxItems": 50,
-						"type": "array"
-					},
-					"name":
-					{
-						"description": "Loot table name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"scatter":
-					{
-						"description": "Spread radius cm (default 120)",
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"required": [
-					"name",
-					"entries"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_loot",
-			"undoable": true
-		},
-		{
-			"description": "Doors, switches, chests, terminals: a key prompt near the player and an 'interact' event.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"cooldown":
-					{
-						"description": "Seconds between uses",
-						"minimum": 0,
-						"type": "number"
-					},
-					"key":
-					{
-						"description": "Key (default E)",
-						"maxLength": 32,
-						"type": "string"
-					},
-					"locked_prompt":
-					{
-						"description": "Prompt while the condition is false (fires interact_denied)",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"once":
-					{
-						"description": "Only once",
-						"type": "boolean"
-					},
-					"prompt":
-					{
-						"description": "Prompt text",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"radius":
-					{
-						"description": "Reach cm (default 250)",
-						"minimum": 1,
-						"type": "number"
-					},
-					"requires":
-					{
-						"description": "Condition, e.g. has('red_key')",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"targets":
-					{
-						"description": "Node ids/paths/names or tag:x",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 100,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_interactable",
-			"undoable": true
-		},
-		{
-			"description": "Save variables to a slot on disk (Saved/RuntimeToolsets/Saves).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"slot":
-					{
-						"description": "Slot name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"vars":
-					{
-						"description": "Variables (default all)",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 200,
-						"type": "array"
-					}
-				},
-				"required": [
-					"slot"
-				],
-				"type": "object"
-			},
-			"name": "logic.save"
-		},
-		{
-			"description": "Load variables from a save slot.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"slot":
-					{
-						"description": "Slot name",
-						"maxLength": 64,
-						"type": "string"
-					}
-				},
-				"required": [
-					"slot"
-				],
-				"type": "object"
-			},
-			"name": "logic.load"
-		},
-		{
-			"description": "AI brain as a state machine: states with movement, facing, firing and an icon; transitions by expressions (sees, heard, distance, time_in_state...).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"decide_every":
-					{
-						"description": "Seconds between decisions (default 0.15)",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					},
-					"flight":
-					{
-						"description": "3D flying brain: {speed, turn_rate, min_altitude, orbit_radius}",
-						"type": "object"
-					},
-					"hearing":
-					{
-						"description": "{radius}: hears the player's shots within this distance",
-						"type": "object"
-					},
-					"name":
-					{
-						"description": "Brain name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"start":
-					{
-						"description": "Start state (default: first)",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"states":
-					{
-						"description": "States: {name, move, speed, keep_distance, radius, face, fire, fire_angle, weapon, icon, transitions:[{when, to}]}",
-						"items":
-						{
-							"description": "State",
-							"type": "object"
-						},
-						"maxItems": 32,
-						"type": "array"
-					},
-					"turn_speed":
-					{
-						"description": "Degrees per second (default 300)",
-						"maximum": 5000,
-						"minimum": 1,
-						"type": "number"
-					},
-					"vision":
-					{
-						"description": "{radius (cm), angle (deg), eye_height, near (always notice within), show_cone, opacity}",
-						"type": "object"
-					}
-				},
-				"required": [
-					"name",
-					"states"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_brain",
-			"undoable": true
-		},
-		{
-			"description": "Give nodes an AI brain (with a patrol route) and draw their vision cones.",
+			"description": "Gives nodes an AI brain (with a patrol route) and draws their vision cones. Rules on \"state\" (filter: state name) react to state changes. Undoable.\nReturns: Number of agents. Fails if the brain is not defined (the error lists the brains) or a target matches no node.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -591,24 +11,57 @@
 				{
 					"brain":
 					{
-						"description": "Brain name",
-						"maxLength": 64,
+						"description": "Brain name (define_brain).",
 						"type": "string"
 					},
 					"patrol":
 					{
-						"description": "{axis:[1,0,0], distance} or {points:[[dx,dy,0],...]} relative to the start",
+						"description": "Route relative to the start: {axis:[1,0,0], distance} or {points:[[dx,dy,0],...]}.",
+						"properties":
+						{
+							"axis":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"distance":
+							{
+								"description": "Distance along the axis in cm.",
+								"type": "number"
+							},
+							"points":
+							{
+								"description": "Waypoints [dx,dy,dz] relative to the start (overrides axis/distance).",
+								"items":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LogicPatrolRoute",
 						"type": "object"
 					},
 					"targets":
 					{
-						"description": "Node ids/paths/names or tag:x",
+						"description": "Node ids, paths, names or \"tag:x\", e.g. [\"tag:guard\"].",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 100,
 						"type": "array"
 					}
 				},
@@ -620,66 +73,285 @@
 			},
 			"mutating": true,
 			"name": "logic.assign_brain",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of agents. Fails if the brain is not defined (the error lists the brains) or a target matches no node.",
+						"properties":
+						{
+							"agents":
+							{
+								"description": "Nodes that got the brain.",
+								"type": "integer"
+							}
+						},
+						"title": "LogicAssignBrainResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "World HUD effects: health bars over damaged enemies, ! / ? alert icons, floating damage numbers, red hit flash, low-health pulse.",
+			"description": "Stops moving these nodes (set_motion). Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"alert_icons":
+					"targets":
 					{
-						"default": true,
-						"description": "Brain state icons",
-						"type": "boolean"
-					},
-					"always_bars":
-					{
-						"default": false,
-						"description": "Show bars even at full health",
-						"type": "boolean"
-					},
-					"damage_numbers":
-					{
-						"default": true,
-						"description": "Floating damage numbers",
-						"type": "boolean"
-					},
-					"enemy_bars":
-					{
-						"default": true,
-						"description": "Health bars over hurt enemies",
-						"type": "boolean"
-					},
-					"hit_flash":
-					{
-						"default": true,
-						"description": "Red screen flash when the player is hurt",
-						"type": "boolean"
-					},
-					"low_health":
-					{
-						"default": true,
-						"description": "Pulsing red edges under 30% health",
-						"type": "boolean"
-					},
-					"markers":
-					{
-						"default": false,
-						"description": "Target brackets with distance, missile lock and flight gun reticle",
-						"type": "boolean"
+						"description": "Node ids, paths, names or \"tag:x\". Fails if a target matches no node.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
+				"required": [
+					"targets"
+				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "logic.set_hud",
+			"name": "logic.clear_motion",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "A named game-feel preset: steps of shake, flash, freeze-frame, slow motion, floating text, tween, pooled effect or event, each with a delay.",
+			"description": "Damages the player or a node now, as a hit would (testing).\nReturns: Whether it applied and everyone's health. Fails if the target matches no node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"amount":
+					{
+						"default": 1,
+						"description": "Damage.",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "\"player\" or a node, e.g. \"n12\".",
+						"type": "string"
+					},
+					"type":
+					{
+						"default": "",
+						"description": "Damage type for resistances.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "logic.damage",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether it applied and everyone's health. Fails if the target matches no node.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "False when the target was invulnerable, dead or has no health.",
+								"type": "boolean"
+							},
+							"health":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "\"player\" or node id -> current health.",
+								"type": "object"
+							}
+						},
+						"title": "LogicDamageResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Defines an AI brain: a state machine whose states set movement, facing, firing and an icon, with transitions by expressions (sees, heard, distance, time_in_state, since_seen, at_goal, at_home, has_last_known, health, health_pct, player_alive, self and all variables). Assign it with assign_brain. Undoable.\nReturns: The brain name. Fails if a state, move mode or transition target is invalid.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"decide_every":
+					{
+						"description": "Seconds between transition checks (default: the brain.decide_interval tuning value).",
+						"type": "number"
+					},
+					"flight":
+					{
+						"description": "Make it a flying brain (enemy jets): patrol orbits, chase pursues, flee evades.",
+						"properties":
+						{
+							"min_altitude":
+							{
+								"description": "Pull up below this height in cm (default: 2500 below the start).",
+								"type": "number"
+							},
+							"orbit_radius":
+							{
+								"description": "Radius of the patrol orbit in cm.",
+								"type": "number"
+							},
+							"speed":
+							{
+								"description": "Cruise speed in cm/s (a state's speed overrides it).",
+								"type": "number"
+							},
+							"turn_rate":
+							{
+								"description": "Turn rate in degrees per second (a state's turn_rate overrides it).",
+								"type": "number"
+							}
+						},
+						"title": "LogicBrainFlight",
+						"type": "object"
+					},
+					"hearing":
+					{
+						"description": "What it hears.",
+						"properties":
+						{
+							"radius":
+							{
+								"description": "Hears the player's shots within this distance in cm (0 = deaf).",
+								"type": "number"
+							}
+						},
+						"title": "LogicBrainHearing",
+						"type": "object"
+					},
+					"name":
+					{
+						"description": "Brain name, e.g. \"guard\".",
+						"type": "string"
+					},
+					"start":
+					{
+						"default": "",
+						"description": "Start state (default: the first).",
+						"type": "string"
+					},
+					"states":
+					{
+						"description": "States: {name, move: stop|patrol|chase|strafe|flee|to_last_known|home|wander, speed, keep_distance, radius, face: move|target|look_around, fire, fire_angle, fire_range, weapon, icon, turn_rate, transitions:[{when, to}]}, e.g. {\"name\":\"patrol\",\"move\":\"patrol\",\"transitions\":[{\"when\":\"sees\",\"to\":\"attack\"}]}.",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"turn_speed":
+					{
+						"description": "Degrees per second (default: the brain.turn_speed tuning value).",
+						"type": "number"
+					},
+					"vision":
+					{
+						"description": "What it sees; without vision the brain is blind.",
+						"properties":
+						{
+							"angle":
+							{
+								"description": "Cone angle in degrees (total, not half).",
+								"type": "number"
+							},
+							"eye_height":
+							{
+								"description": "Eye height above the pivot in cm.",
+								"type": "number"
+							},
+							"near":
+							{
+								"description": "Always notice the player within this distance in cm, whatever the cone (default: the brain.near_notice tuning value).",
+								"type": "number"
+							},
+							"opacity":
+							{
+								"description": "Cone opacity.",
+								"type": "number"
+							},
+							"radius":
+							{
+								"description": "View distance in cm.",
+								"type": "number"
+							},
+							"show_cone":
+							{
+								"description": "Draw the vision cone (yellow calm, orange searching, red seeing the player).",
+								"type": "boolean"
+							}
+						},
+						"title": "LogicBrainVision",
+						"type": "object"
+					}
+				},
+				"required": [
+					"name",
+					"states"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_brain",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The brain name. Fails if a state, move mode or transition target is invalid.",
+						"properties":
+						{
+							"brain":
+							{
+								"type": "string"
+							}
+						},
+						"title": "LogicBrainResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Defines a named game-feel preset: steps of camera shake, screen flash, freeze-frame, slow motion, floating text, tween, pooled effect or event, each with a delay. Play it with the {\"feedback\": name} action or attach it to define_health / define_weapon. Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -687,19 +359,16 @@
 				{
 					"name":
 					{
-						"description": "Feedback name",
-						"maxLength": 64,
+						"description": "Preset name, e.g. \"hit\".",
 						"type": "string"
 					},
 					"steps":
 					{
-						"description": "Steps: {type, delay, duration, intensity, scale, color, text, pool, name, ...tween fields}",
+						"description": "Steps: {type: shake|flash|freeze|slowmo|text|tween|spawn|emit, delay, duration, intensity, scale, color, text, pool, name, ...tween fields}, e.g. [{\"type\":\"shake\",\"duration\":0.2},{\"type\":\"flash\",\"intensity\":0.6}]. Fails if a step type is unknown or a spawn step names a missing pool.",
 						"items":
 						{
-							"description": "Step",
-							"type": "object"
+							"description": "Any JSON value"
 						},
-						"maxItems": 32,
 						"type": "array"
 					}
 				},
@@ -711,48 +380,17 @@
 			},
 			"mutating": true,
 			"name": "logic.define_feedback",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Play a feedback preset now (testing).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"at":
-					{
-						"description": "World location (default: the player)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"name":
-					{
-						"description": "Feedback name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Node for tween steps",
-						"maxLength": 256,
-						"type": "string"
-					}
-				},
-				"required": [
-					"name"
-				],
-				"type": "object"
-			},
-			"name": "logic.play_feedback"
-		},
-		{
-			"description": "Give 'player' or nodes health: max, invulnerability after hits, resistances by damage type, what happens on death.",
+			"description": "Gives the player or nodes health: max, immunity after hits, resistances by damage type, what happens at 0. Rules on \"damaged\" / \"died\" (target \"player\" or \"tag:x\") react to it. Undoable.\nReturns: Current health of everything that has health. Fails if a target matches no node.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -760,79 +398,79 @@
 				{
 					"death_feedback":
 					{
-						"description": "Feedback preset played on death",
-						"maxLength": 64,
+						"default": "",
+						"description": "Feedback preset played on death.",
 						"type": "string"
 					},
 					"hit_feedback":
 					{
-						"description": "Feedback preset played when hurt",
-						"maxLength": 64,
+						"default": "",
+						"description": "Feedback preset played when hurt (define_feedback).",
 						"type": "string"
 					},
 					"initial":
 					{
-						"description": "Starting health (default max)",
-						"minimum": 0,
+						"description": "Starting health (default: max).",
 						"type": "number"
 					},
 					"invulnerable":
 					{
-						"description": "Seconds immune after a hit (player default 1)",
-						"maximum": 60,
-						"minimum": 0,
+						"description": "Seconds immune after a hit (default: player 1, nodes 0).",
 						"type": "number"
 					},
 					"loot":
 					{
-						"description": "Loot table dropped on death",
-						"maxLength": 64,
+						"default": "",
+						"description": "Loot table dropped on death (define_loot).",
 						"type": "string"
 					},
 					"max":
 					{
-						"description": "Max health (default 10)",
-						"minimum": 0.001,
+						"default": 10,
+						"description": "Max health.",
 						"type": "number"
 					},
 					"on_death":
 					{
-						"description": "What happens at 0",
+						"description": "What happens at 0 (default: player respawn, nodes hide).",
 						"enum": [
-							"hide",
-							"squash",
-							"release",
-							"respawn",
-							"freeze",
-							"none"
+							"Hide",
+							"Squash",
+							"Release",
+							"Respawn",
+							"Freeze",
+							"None"
 						],
 						"type": "string"
 					},
 					"points":
 					{
-						"description": "Points on death",
+						"default": 0,
+						"description": "Points added to points_var on death.",
 						"type": "number"
 					},
 					"points_var":
 					{
-						"description": "Variable that gets 'points' on death",
-						"maxLength": 64,
+						"default": "",
+						"description": "Variable that gets `points` on death, e.g. \"score\".",
 						"type": "string"
 					},
 					"resistances":
 					{
-						"description": "{damage type: multiplier}, e.g. {fire: 0.5, explosion: 2}",
+						"additionalProperties":
+						{
+							"type": "number"
+						},
+						"description": "{damage type: multiplier}, e.g. {\"fire\": 0.5, \"explosion\": 2}.",
 						"type": "object"
 					},
 					"targets":
 					{
-						"description": "'player', node ids/paths/names or tag:x",
+						"description": "\"player\", node ids, paths, names or \"tag:x\", e.g. [\"tag:enemy\"].",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 100,
 						"type": "array"
 					}
 				},
@@ -843,10 +481,38 @@
 			},
 			"mutating": true,
 			"name": "logic.define_health",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Current health of everything that has health. Fails if a target matches no node.",
+						"properties":
+						{
+							"health":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "\"player\" or node id -> current health.",
+								"type": "object"
+							}
+						},
+						"title": "LogicHealthResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Nodes that damage what overlaps them (spikes, lava, explosions, melee areas): on enter or every interval while inside.",
+			"description": "Makes nodes damage what overlaps them (spikes, lava, explosions, melee areas): once on entry or every interval while inside. Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -854,57 +520,56 @@
 				{
 					"affects":
 					{
-						"description": "'player', 'any' or tag:x (default any)",
-						"maxLength": 128,
+						"default": "any",
+						"description": "\"player\", \"any\" or \"tag:x\".",
 						"type": "string"
 					},
 					"damage":
 					{
-						"description": "Damage (default 1)",
+						"default": 1,
+						"description": "Damage per hit.",
 						"type": "number"
 					},
 					"damage_max":
 					{
-						"description": "Random damage up to this",
+						"description": "Random damage between damage and this (default: always damage).",
 						"type": "number"
 					},
 					"interval":
 					{
-						"description": "Seconds between hits in stay mode",
-						"maximum": 60,
-						"minimum": 0.050000000000000003,
+						"default": 0.5,
+						"description": "Seconds between hits in stay mode.",
 						"type": "number"
 					},
 					"knockback":
 					{
-						"description": "Push the player away (cm/s)",
-						"minimum": 0,
+						"default": 0,
+						"description": "Push the victim away (cm/s). Fails if a target matches no node.",
 						"type": "number"
 					},
 					"mode":
 					{
-						"description": "enter: once per entry; stay: every interval",
+						"default": "Enter",
+						"description": "enter: once per entry; stay: every interval.",
 						"enum": [
-							"enter",
-							"stay"
+							"Enter",
+							"Stay"
 						],
 						"type": "string"
 					},
 					"targets":
 					{
-						"description": "Zone nodes: ids/paths/names or tag:x",
+						"description": "Zone nodes: ids, paths, names or \"tag:x\", e.g. [\"tag:lava\"].",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 100,
 						"type": "array"
 					},
 					"type":
 					{
-						"description": "Damage type (for resistances)",
-						"maxLength": 32,
+						"default": "",
+						"description": "Damage type for resistances, e.g. \"fire\".",
 						"type": "string"
 					}
 				},
@@ -915,555 +580,71 @@
 			},
 			"mutating": true,
 			"name": "logic.define_hitzone",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "A projectile or hitscan weapon: damage, fire rate, burst, magazine/reload/ammo, shots per trigger, spread, bullets from a pool.",
+			"description": "Makes nodes interactable (doors, switches, chests, terminals): a key prompt near the player and an \"interact\" event (or \"interact_denied\" while requires is false). Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"ammo_var":
+					"cooldown":
 					{
-						"description": "Variable holding reserve ammo",
-						"maxLength": 64,
+						"default": 0.30000001192092896,
+						"description": "Seconds between uses.",
+						"type": "number"
+					},
+					"key":
+					{
+						"default": "E",
+						"description": "Key name.",
 						"type": "string"
 					},
-					"auto":
+					"locked_prompt":
 					{
-						"description": "Hold to keep firing (player)",
+						"default": "",
+						"description": "Prompt while the condition is false. Fails if requires does not parse or a target matches no node.",
+						"type": "string"
+					},
+					"once":
+					{
+						"default": false,
+						"description": "Only once per game.",
 						"type": "boolean"
 					},
-					"auto_reload":
+					"prompt":
 					{
-						"description": "Reload when empty (default true)",
-						"type": "boolean"
-					},
-					"bullet":
-					{
-						"description": "Default bullet look {size, color}",
-						"type": "object"
-					},
-					"burst":
-					{
-						"description": "Shots per trigger pull",
-						"maximum": 50,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"burst_gap":
-					{
-						"description": "Seconds between burst shots",
-						"maximum": 5,
-						"minimum": 0,
-						"type": "number"
-					},
-					"damage":
-					{
-						"description": "Per hit (default 1)",
-						"type": "number"
-					},
-					"feedback":
-					{
-						"description": "Feedback preset played on each shot",
-						"maxLength": 64,
+						"default": "",
+						"description": "Prompt text, e.g. \"Open door\".",
 						"type": "string"
-					},
-					"hits":
-					{
-						"description": "What it can damage: tag:enemy, player or any (default any but the shooter)",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"homing":
-					{
-						"description": "Missile turn rate deg/s (0 = straight)",
-						"maximum": 3600,
-						"minimum": 0,
-						"type": "number"
-					},
-					"knockback":
-					{
-						"description": "Push on hit (cm/s)",
-						"minimum": 0,
-						"type": "number"
-					},
-					"lifetime":
-					{
-						"description": "Projectile seconds (default 1.5)",
-						"maximum": 60,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"lock_angle":
-					{
-						"description": "Lock-on cone degrees (default 25)",
-						"maximum": 180,
-						"minimum": 0,
-						"type": "number"
-					},
-					"lock_range":
-					{
-						"description": "Lock-on range cm (default 12000)",
-						"minimum": 0,
-						"type": "number"
-					},
-					"magazine":
-					{
-						"description": "Rounds per magazine (0 = unlimited)",
-						"maximum": 10000,
-						"minimum": 0,
-						"type": "integer"
-					},
-					"mode":
-					{
-						"description": "projectile or hitscan",
-						"enum": [
-							"projectile",
-							"hitscan"
-						],
-						"type": "string"
-					},
-					"muzzle":
-					{
-						"description": "Spawn distance in front of the shooter (default 60)",
-						"type": "number"
-					},
-					"name":
-					{
-						"description": "Weapon name",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"noise":
-					{
-						"description": "How far brains hear the player's shots (default 1600)",
-						"minimum": 0,
-						"type": "number"
-					},
-					"per_shot":
-					{
-						"description": "Projectiles per shot (shotgun)",
-						"maximum": 64,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"pool":
-					{
-						"description": "Pool of bullet objects (default: a glowing bullet)",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"pool_size":
-					{
-						"description": "Default bullet pool size",
-						"maximum": 500,
-						"minimum": 1,
-						"type": "integer"
 					},
 					"radius":
 					{
-						"description": "Projectile hit radius cm (default 12)",
-						"minimum": 0,
+						"default": 250,
+						"description": "Reach in cm.",
 						"type": "number"
 					},
-					"range":
+					"requires":
 					{
-						"description": "Hitscan range cm (default 3000)",
-						"minimum": 1,
-						"type": "number"
-					},
-					"rate":
-					{
-						"description": "Shots per second (default 4)",
-						"maximum": 100,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"reload":
-					{
-						"description": "Reload seconds",
-						"maximum": 60,
-						"minimum": 0,
-						"type": "number"
-					},
-					"speed":
-					{
-						"description": "Projectile speed cm/s (default 2500)",
-						"minimum": 1,
-						"type": "number"
-					},
-					"spread":
-					{
-						"description": "Degrees either side",
-						"maximum": 180,
-						"minimum": 0,
-						"type": "number"
-					},
-					"spread_mode":
-					{
-						"description": "random or even fan",
-						"enum": [
-							"random",
-							"fan"
-						],
+						"default": "",
+						"description": "Condition, e.g. \"has('red_key')\".",
 						"type": "string"
-					},
-					"type":
-					{
-						"description": "Damage type",
-						"maxLength": 32,
-						"type": "string"
-					}
-				},
-				"required": [
-					"name"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.define_weapon",
-			"undoable": true
-		},
-		{
-			"description": "Give 'player' or nodes (tag:x) a weapon (empty weapon removes it).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"owner":
-					{
-						"description": "'player', node or tag:x",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"weapon":
-					{
-						"description": "Weapon name",
-						"maxLength": 64,
-						"type": "string"
-					}
-				},
-				"required": [
-					"owner"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.equip",
-			"undoable": true
-		},
-		{
-			"description": "Damage 'player' or a node now (testing).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"amount":
-					{
-						"default": 1,
-						"description": "Damage",
-						"type": "number"
-					},
-					"target":
-					{
-						"description": "'player' or node",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"type":
-					{
-						"description": "Damage type",
-						"maxLength": 32,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"name": "logic.damage"
-		},
-		{
-			"description": "Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"air_control":
-					{
-						"description": "0-1 (default 0.85)",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"auto_spawn":
-					{
-						"description": "Spawn on start (default true); false = spawn with {\"player\":\"spawn\"}",
-						"type": "boolean"
-					},
-					"body":
-					{
-						"description": "Optional model node (feet at z=0, facing +X); default: a hero",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"camera_distance":
-					{
-						"description": "cm (default 1700)",
-						"maximum": 20000,
-						"minimum": 100,
-						"type": "number"
-					},
-					"camera_height":
-					{
-						"description": "cm above the player (default 250)",
-						"maximum": 5000,
-						"minimum": -5000,
-						"type": "number"
-					},
-					"camera_lead":
-					{
-						"description": "cm ahead in the facing direction (default 200)",
-						"maximum": 5000,
-						"minimum": 0,
-						"type": "number"
-					},
-					"camera_pitch":
-					{
-						"description": "degrees (side default -6, top-down default 60 looking down)",
-						"maximum": 89,
-						"minimum": -89,
-						"type": "number"
-					},
-					"crash_damage":
-					{
-						"description": "Flight: damage when hitting the ground (default lethal)",
-						"minimum": 0,
-						"type": "number"
-					},
-					"dash":
-					{
-						"description": "{speed, duration, cooldown, key, invulnerable}",
-						"type": "object"
-					},
-					"fov":
-					{
-						"description": "Field of view (default 55)",
-						"maximum": 120,
-						"minimum": 10,
-						"type": "number"
-					},
-					"gravity":
-					{
-						"description": "Gravity scale (default 2.8)",
-						"maximum": 10,
-						"minimum": 0.10000000000000001,
-						"type": "number"
-					},
-					"grid":
-					{
-						"description": "Top-down: move cell by cell (cell size cm)",
-						"minimum": 1,
-						"type": "number"
-					},
-					"height":
-					{
-						"description": "Height cm",
-						"maximum": 600,
-						"minimum": 40,
-						"type": "number"
-					},
-					"jump":
-					{
-						"description": "Jump velocity cm/s (default 1250)",
-						"maximum": 10000,
-						"minimum": 100,
-						"type": "number"
-					},
-					"jump_hold":
-					{
-						"description": "Seconds holding jump adds height (default 0.22)",
-						"maximum": 2,
-						"minimum": 0,
-						"type": "number"
-					},
-					"kill_z":
-					{
-						"description": "Falling below this fires 'fall' (default start z - 1500)",
-						"type": "number"
-					},
-					"location":
-					{
-						"description": "Start point (feet) [x,0,z]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"max_speed":
-					{
-						"description": "Flight: boost cm/s",
-						"minimum": 0,
-						"type": "number"
-					},
-					"min_speed":
-					{
-						"description": "Flight: slowest cm/s",
-						"minimum": 0,
-						"type": "number"
-					},
-					"mode":
-					{
-						"description": "side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse; flight: arcade jet",
-						"enum": [
-							"side",
-							"topdown",
-							"flight"
-						],
-						"type": "string"
-					},
-					"mouse_sensitivity":
-					{
-						"description": "Flight: mouse steering scale (default 1)",
-						"maximum": 20,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"radius":
-					{
-						"description": "Collision radius cm",
-						"maximum": 100000,
-						"minimum": 1,
-						"type": "number"
-					},
-					"reload_key":
-					{
-						"description": "Key that reloads (optional, e.g. Q)",
-						"maxLength": 32,
-						"type": "string"
-					},
-					"roll_rate":
-					{
-						"description": "Flight: roll deg/s (default 160)",
-						"maximum": 1440,
-						"minimum": 1,
-						"type": "number"
-					},
-					"secondary":
-					{
-						"description": "Weapon fired with right mouse / left trigger / G",
-						"maxLength": 64,
-						"type": "string"
-					},
-					"speed":
-					{
-						"description": "Run speed cm/s (default 650)",
-						"maximum": 5000,
-						"minimum": 50,
-						"type": "number"
-					},
-					"step_time":
-					{
-						"description": "Grid: seconds per step (default 0.14)",
-						"maximum": 5,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"turn":
-					{
-						"description": "Flight: pitch/yaw deg/s (default 70)",
-						"maximum": 720,
-						"minimum": 1,
-						"type": "number"
-					},
-					"yaw":
-					{
-						"description": "Start heading degrees",
-						"type": "number"
-					}
-				},
-				"required": [
-					"location"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.spawn_player",
-			"undoable": true
-		},
-		{
-			"description": "Remove the playable character and give the view back.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.remove_player",
-			"undoable": true
-		},
-		{
-			"description": "Make nodes move while the game runs: patrol back and forth, follow a path, bob, and/or spin. Reset on restart.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"motion":
-					{
-						"description": "{type: patrol|path|bob|none, axis:[1,0,0], distance, speed, points:[[dx,dy,dz]..], loop, amplitude, period, spin:[p,y,r] deg/s, face, offset}",
-						"type": "object"
 					},
 					"targets":
 					{
-						"description": "Node ids/paths/names or tag:x",
+						"description": "Node ids, paths, names or \"tag:x\".",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 500,
-						"type": "array"
-					}
-				},
-				"required": [
-					"targets",
-					"motion"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "logic.set_motion",
-			"undoable": true
-		},
-		{
-			"description": "Stop moving these nodes.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"targets":
-					{
-						"description": "Node ids/paths/names or tag:x",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 500,
 						"type": "array"
 					}
 				},
@@ -1473,137 +654,143 @@
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "logic.clear_motion",
+			"name": "logic.define_interactable",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Whether nodes block the player (pickups and enemies: false; they still fire touch).",
+			"description": "Defines a weighted loot table of pooled pickups, dropped on death (define_health loot) or with {\"drop_loot\": name}. Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"solid":
+					"count":
 					{
-						"description": "Blocks movement",
-						"type": "boolean"
+						"description": "Drops: n or [min,max] (default 1). (Any JSON value)"
 					},
-					"targets":
+					"entries":
 					{
-						"description": "Node ids/paths/names or tag:x",
+						"description": "{pool, weight}; pool \"none\" = a chance of nothing, e.g. [{\"pool\":\"coins\",\"weight\":3},{\"pool\":\"none\",\"weight\":1}].",
 						"items":
 						{
-							"maxLength": 256,
-							"type": "string"
+							"properties":
+							{
+								"pool":
+								{
+									"description": "Pool to drop from, or \"none\" for a chance of no drop.",
+									"type": "string"
+								},
+								"weight":
+								{
+									"description": "Relative chance.",
+									"type": "number"
+								}
+							},
+							"title": "LogicLootEntry",
+							"type": "object"
 						},
-						"maxItems": 500,
 						"type": "array"
+					},
+					"name":
+					{
+						"description": "Table name, e.g. \"crate\".",
+						"type": "string"
+					},
+					"scatter":
+					{
+						"default": 120,
+						"description": "Spread radius cm. Fails if an entry's pool does not exist (the error lists the pools).",
+						"type": "number"
 					}
 				},
 				"required": [
-					"targets",
-					"solid"
+					"name",
+					"entries"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "logic.set_solid",
-			"undoable": true
-		},
-		{
-			"description": "READ FIRST: how to turn a scene into a playable game with variables, rules, UI and start/restart.",
-			"input_schema":
+			"name": "logic.define_loot",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
 				},
 				"type": "object"
 			},
-			"name": "logic.get_guide"
+			"undoable": true
 		},
 		{
-			"description": "Define game variables and their starting values (start/restart resets to these).",
+			"description": "Creates an object pool: hidden copies of a template node that rules spawn ({\"spawn\": pool}) and release instead of creating objects (bullets, coins from blocks, effects, enemies). The template is hidden. Undoable.\nReturns: The pool and its free copies. Fails if the template is not a scene node.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"replace":
+					"name":
 					{
-						"default": false,
-						"description": "Remove all other variables",
-						"type": "boolean"
+						"description": "Pool name, e.g. \"coins\".",
+						"type": "string"
 					},
-					"vars":
+					"size":
 					{
-						"description": "{name: starting value} (number, text, bool, list, map)",
+						"default": 8,
+						"description": "Copies, 1-500.",
+						"type": "integer"
+					},
+					"template":
+					{
+						"description": "Node to copy, e.g. \"Level/coin\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"template"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_pool",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The pool and its free copies. Fails if the template is not a scene node.",
+						"properties":
+						{
+							"free":
+							{
+								"description": "Copies ready to spawn.",
+								"type": "integer"
+							},
+							"pool":
+							{
+								"type": "string"
+							}
+						},
+						"title": "LogicPoolResult",
 						"type": "object"
 					}
 				},
 				"required": [
-					"vars"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "logic.define_vars",
 			"undoable": true
 		},
 		{
-			"description": "Change a variable while the game runs (fires var_changed rules).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"expr":
-					{
-						"description": "Or an expression to evaluate",
-						"maxLength": 4000,
-						"type": "string"
-					},
-					"name":
-					{
-						"description": "Variable",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"value":
-					{
-						"description": "New value (JSON)"
-					}
-				},
-				"required": [
-					"name"
-				],
-				"type": "object"
-			},
-			"name": "logic.set_var"
-		},
-		{
-			"description": "Evaluate an expression against the current variables (test conditions and functions).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"expr":
-					{
-						"description": "Expression",
-						"maxLength": 4000,
-						"type": "string"
-					}
-				},
-				"required": [
-					"expr"
-				],
-				"type": "object"
-			},
-			"name": "logic.eval"
-		},
-		{
-			"description": "Add or replace rules (by name): when <on> [target/key/filter] and <condition> then <actions>.",
+			"description": "Adds or replaces rules (by name): when <on> [target / key / filter] and <condition>, run <actions>. Undoable. Every expression and action is checked before anything changes.\nReturns: The rule names defined and the total number of rules. Fails on the first invalid rule (nothing changes).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1612,18 +799,16 @@
 					"replace":
 					{
 						"default": false,
-						"description": "Remove all other rules first",
+						"description": "Remove all other rules first.",
 						"type": "boolean"
 					},
 					"rules":
 					{
-						"description": "Rules: {name, on, target, key, filter, condition, actions:[...], enabled}",
+						"description": "Rules: {name, on, target, key, filter, condition, actions:[...], enabled}, e.g. {\"name\":\"place\",\"on\":\"click\",\"target\":\"tag:cell\",\"condition\":\"board[event.data.index] == ''\", \"actions\":[{\"set_item\":\"board\",\"index\":\"event.data.index\",\"value\":\"turn\"}]}. See get_guide for events and actions.",
 						"items":
 						{
-							"description": "Rule",
-							"type": "object"
+							"description": "Any JSON value"
 						},
-						"maxItems": 200,
 						"type": "array"
 					}
 				},
@@ -1634,10 +819,1372 @@
 			},
 			"mutating": true,
 			"name": "logic.define_rules",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The rule names defined and the total number of rules. Fails on the first invalid rule (nothing changes).",
+						"properties":
+						{
+							"defined":
+							{
+								"description": "Names of the rules added or replaced, in the order given.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"rules":
+							{
+								"description": "Number of rules now defined.",
+								"type": "integer"
+							}
+						},
+						"title": "LogicDefineRulesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Remove rules by name.",
+			"description": "Spawns pooled enemies over time or in waves, at points or around the player. Events: wave_start, wave_cleared, waves_complete, spawned (filter: spawner name); action {\"spawner\": name, \"op\": \"start|stop|reset\"}. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"around_player":
+					{
+						"description": "Or around the player: {radius: n or [min,max], height: n or [min,max]}. (Any JSON value)"
+					},
+					"autostart":
+					{
+						"default": true,
+						"description": "Start with the game.",
+						"type": "boolean"
+					},
+					"face_player":
+					{
+						"default": true,
+						"description": "Spawn facing the player. Fails if the pool does not exist or neither points nor around_player is given.",
+						"type": "boolean"
+					},
+					"interval":
+					{
+						"description": "Seconds between spawns: n or [min,max] (default 1.5). (Any JSON value)"
+					},
+					"max_alive":
+					{
+						"default": 5,
+						"description": "At most this many alive.",
+						"type": "integer"
+					},
+					"name":
+					{
+						"description": "Spawner name, e.g. \"bots\".",
+						"type": "string"
+					},
+					"points":
+					{
+						"description": "Spawn points [[x,y,z], ...].",
+						"items":
+						{
+							"description": "[x, y, z] (cm)",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"pool":
+					{
+						"description": "Pool to take enemies from (define_pool).",
+						"type": "string"
+					},
+					"start_delay":
+					{
+						"default": 0.5,
+						"description": "Seconds before the first spawn.",
+						"type": "number"
+					},
+					"total":
+					{
+						"description": "Stop after this many (no waves; default: unlimited).",
+						"type": "integer"
+					},
+					"wave_gap":
+					{
+						"default": 3,
+						"description": "Seconds between waves.",
+						"type": "number"
+					},
+					"waves":
+					{
+						"description": "Waves {count, interval, max_alive}; without waves it spawns up to total.",
+						"items":
+						{
+							"properties":
+							{
+								"count":
+								{
+									"description": "Enemies in the wave.",
+									"type": "integer"
+								},
+								"interval":
+								{
+									"description": "Seconds between spawns in this wave: n or [min, max] (default: the spawner's interval). (Any JSON value)"
+								},
+								"max_alive":
+								{
+									"description": "At most this many alive (default: the spawner's max_alive).",
+									"type": "integer"
+								}
+							},
+							"title": "LogicSpawnerWave",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"pool"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_spawner",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Adds or replaces on-screen text, buttons and bars (by name). Text is a live template (\"Score: {score}\"); buttons fire \"button\" rules. Undoable.\nReturns: Number of items and whether they are drawn on a viewport. Fails on the first invalid item (nothing changes).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"items":
+					{
+						"description": "Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if; bar: value, max, fill, ghost}, e.g. {\"name\":\"status\",\"kind\":\"text\", \"text\":\"{turn} to move\",\"anchor\":[0.5,0.06]}.",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"replace":
+					{
+						"default": false,
+						"description": "Remove all other items first.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_ui",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of items and whether they are drawn on a viewport. Fails on the first invalid item (nothing changes).",
+						"properties":
+						{
+							"items":
+							{
+								"description": "Number of UI items now defined.",
+								"type": "integer"
+							},
+							"on_screen":
+							{
+								"description": "Whether there is a game viewport to draw on (false in headless runs: the items still work in tests).",
+								"type": "boolean"
+							}
+						},
+						"title": "LogicDefineUiResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Defines game variables and their starting values; start and the restart action reset them to these. Undoable.\nReturns: Every defined variable with its starting value. Fails if a name is invalid.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"replace":
+					{
+						"default": false,
+						"description": "Remove all other variables first.",
+						"type": "boolean"
+					},
+					"vars":
+					{
+						"additionalProperties":
+						{
+							"description": "Any JSON value"
+						},
+						"description": "{name: starting value}: number, text, bool, list or map, e.g. {\"board\":[\"\",\"\",\"\"], \"turn\":\"X\", \"moves\":0}. Names start with a letter; \"event\" and \"time\" are reserved.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"vars"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_vars",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Every defined variable with its starting value. Fails if a name is invalid.",
+						"properties":
+						{
+							"vars":
+							{
+								"description": "Variable name -> value. (Any JSON value)"
+							}
+						},
+						"title": "LogicVarsResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Defines a projectile or hitscan weapon: damage, fire rate, burst, magazine / reload / reserve ammo, shots per trigger, spread, bullets from a pool, homing missiles. Give it to the player or nodes with equip; rules fire it with {\"fire\": ...}. Undoable.\nReturns: The weapon and its bullet pool. Fails if the pool does not exist.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"ammo_var":
+					{
+						"default": "",
+						"description": "Variable holding reserve ammo, e.g. \"reserve\".",
+						"type": "string"
+					},
+					"auto":
+					{
+						"default": false,
+						"description": "Player: hold to keep firing.",
+						"type": "boolean"
+					},
+					"auto_reload":
+					{
+						"default": true,
+						"description": "Reload when the magazine is empty.",
+						"type": "boolean"
+					},
+					"bullet":
+					{
+						"description": "Look of the default bullet {size, color} (used when no pool is given).",
+						"properties":
+						{
+							"color":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							},
+							"size":
+							{
+								"description": "Diameter in cm.",
+								"type": "number"
+							}
+						},
+						"title": "LogicBulletLook",
+						"type": "object"
+					},
+					"burst":
+					{
+						"default": 1,
+						"description": "Shots per trigger pull.",
+						"type": "integer"
+					},
+					"burst_gap":
+					{
+						"default": 0.079999998211860657,
+						"description": "Seconds between burst shots.",
+						"type": "number"
+					},
+					"damage":
+					{
+						"default": 1,
+						"description": "Damage per hit.",
+						"type": "number"
+					},
+					"feedback":
+					{
+						"default": "",
+						"description": "Feedback preset played on each shot.",
+						"type": "string"
+					},
+					"hits":
+					{
+						"default": "",
+						"description": "What it can damage: \"tag:enemy\", \"player\" or \"any\" (default: anything but the shooter).",
+						"type": "string"
+					},
+					"homing":
+					{
+						"default": 0,
+						"description": "Missile turn rate deg/s (0 = straight).",
+						"type": "number"
+					},
+					"knockback":
+					{
+						"default": 0,
+						"description": "Push on hit (cm/s).",
+						"type": "number"
+					},
+					"lifetime":
+					{
+						"default": 1.5,
+						"description": "Projectile seconds.",
+						"type": "number"
+					},
+					"lock_angle":
+					{
+						"default": 25,
+						"description": "Lock-on cone degrees.",
+						"type": "number"
+					},
+					"lock_range":
+					{
+						"default": 12000,
+						"description": "Lock-on range cm.",
+						"type": "number"
+					},
+					"magazine":
+					{
+						"default": 0,
+						"description": "Rounds per magazine (0 = unlimited).",
+						"type": "integer"
+					},
+					"mode":
+					{
+						"default": "Projectile",
+						"description": "projectile or hitscan.",
+						"enum": [
+							"Projectile",
+							"Hitscan"
+						],
+						"type": "string"
+					},
+					"muzzle":
+					{
+						"default": 60,
+						"description": "Spawn distance in front of the shooter (cm).",
+						"type": "number"
+					},
+					"name":
+					{
+						"description": "Weapon name, e.g. \"blaster\".",
+						"type": "string"
+					},
+					"noise":
+					{
+						"default": 1600,
+						"description": "How far brains hear the player's shots (cm).",
+						"type": "number"
+					},
+					"per_shot":
+					{
+						"default": 1,
+						"description": "Projectiles per shot (shotgun).",
+						"type": "integer"
+					},
+					"pool":
+					{
+						"default": "",
+						"description": "Pool of bullet objects (define_pool); default: a generated glowing bullet.",
+						"type": "string"
+					},
+					"pool_size":
+					{
+						"default": 40,
+						"description": "Size of the generated bullet pool.",
+						"type": "integer"
+					},
+					"radius":
+					{
+						"default": 12,
+						"description": "Projectile hit radius cm.",
+						"type": "number"
+					},
+					"range":
+					{
+						"default": 3000,
+						"description": "Hitscan range cm.",
+						"type": "number"
+					},
+					"rate":
+					{
+						"default": 4,
+						"description": "Shots per second.",
+						"type": "number"
+					},
+					"reload":
+					{
+						"default": 1.5,
+						"description": "Reload seconds.",
+						"type": "number"
+					},
+					"speed":
+					{
+						"default": 2500,
+						"description": "Projectile speed cm/s.",
+						"type": "number"
+					},
+					"spread":
+					{
+						"default": 0,
+						"description": "Degrees either side.",
+						"type": "number"
+					},
+					"spread_mode":
+					{
+						"default": "Random",
+						"description": "random or fan.",
+						"enum": [
+							"Random",
+							"Fan"
+						],
+						"type": "string"
+					},
+					"type":
+					{
+						"default": "",
+						"description": "Damage type, e.g. \"laser\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_weapon",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The weapon and its bullet pool. Fails if the pool does not exist.",
+						"properties":
+						{
+							"pool":
+							{
+								"description": "Pool the bullets come from (a generated \"bullets_<name>\" pool unless one was given).",
+								"type": "string"
+							},
+							"weapon":
+							{
+								"type": "string"
+							}
+						},
+						"title": "LogicWeaponResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Gives the player or nodes a weapon (an empty weapon takes it away). Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"owner":
+					{
+						"description": "\"player\", a node or \"tag:x\", e.g. \"tag:turret\".",
+						"type": "string"
+					},
+					"weapon":
+					{
+						"default": "",
+						"description": "Weapon name (define_weapon); empty = unequip. Fails if the weapon is not defined (the error lists the weapons) or the owner matches no node.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"owner"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.equip",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Evaluates an expression against the current variables, to test conditions and functions before using them in rules.\nReturns: The value and its type. Fails with the parse or evaluation error.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"expr":
+					{
+						"description": "Expression, e.g. \"winning_move(board, grid_lines(3,3,3), 'O', '')\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"expr"
+				],
+				"type": "object"
+			},
+			"name": "logic.eval",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The value and its type. Fails with the parse or evaluation error.",
+						"properties":
+						{
+							"type":
+							{
+								"description": "number, string, bool, list, map or null.",
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "The value (number, text, bool, list, map or null). (Any JSON value)"
+							}
+						},
+						"title": "LogicEvalResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the whole game definition as JSON (vars, rules, ui, node data, input mode, player, combat, brains, pools, spawners...), to keep it or move it to another level with import.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.export",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"logic":
+							{
+								"description": "The whole definition: vars, rules, ui, node data, input mode, player, combat, brains, pools... (logic.import takes it back). (Any JSON value)"
+							}
+						},
+						"title": "LogicExport",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Simulates player input to test the game: a click on a node, a key, a button press, a timer, a custom event, the player touching a node, falling, interacting or crashing. Runs the matching rules right away.\nReturns: The events processed with the rules that ran, rule errors, log lines and the variables afterwards. Fails if the game is not running or the target is not a scene node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"data":
+					{
+						"description": "Event data (event.data in rules); touch: {\"from_above\": true} or {\"from_below\": true}. (Any JSON value)"
+					},
+					"key":
+					{
+						"default": "",
+						"description": "key: key name, e.g. \"R\", \"SpaceBar\", \"One\".",
+						"type": "string"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "button, timer, event: its name, e.g. \"restart\".",
+						"type": "string"
+					},
+					"on":
+					{
+						"description": "Event kind, e.g. \"click\".",
+						"enum": [
+							"Click",
+							"RightClick",
+							"Key",
+							"Button",
+							"Timer",
+							"Event",
+							"Touch",
+							"Fall",
+							"Interact",
+							"Crash"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "click, right_click, touch, interact: the node, e.g. \"TicTacToe/cell_4\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"on"
+				],
+				"type": "object"
+			},
+			"name": "logic.fire_event",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The events processed with the rules that ran, rule errors, log lines and the variables afterwards. Fails if the game is not running or the target is not a scene node.",
+						"properties":
+						{
+							"errors":
+							{
+								"description": "Rule errors (\"rule: message\"); empty when everything ran.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"events":
+							{
+								"description": "The fired event and every event it caused (emit, var_changed...), in order.",
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"description": "Key, button, timer or custom event name.",
+											"type": "string"
+										},
+										"on":
+										{
+											"type": "string"
+										},
+										"rules":
+										{
+											"description": "Rules whose condition held and that ran.",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"target":
+										{
+											"description": "Node id for click/touch/interact events.",
+											"type": "string"
+										}
+									},
+									"title": "LogicEventReport",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"log":
+							{
+								"description": "Lines written by {\"log\": ...} actions.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"vars":
+							{
+								"description": "Variables after the events. (Any JSON value)"
+							}
+						},
+						"title": "LogicFireReport",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "READ FIRST: how to turn a scene into a playable game: variables, rules and actions, expressions, UI, players, combat, AI, feedback, tweens, pools, spawners and typical rule sets for board games, platformers, shooters and dogfights.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.get_guide",
+			"output_schema":
+			{
+				"properties":
+				{
+					"guide":
+					{
+						"description": "The guide text.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"guide"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the running state: variables, timers, rules, UI, objects made in play, player, AI states, health, ammo, pools, spawners and the recent event log with errors.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"log_limit":
+					{
+						"default": 20,
+						"description": "Log entries to return (newest), 0-100.",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "logic.get_state",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"ammo":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Weapon owner -> rounds left in the magazine.",
+								"type": "object"
+							},
+							"brains":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Agent node id -> \"state\" or \"state (sees)\".",
+								"type": "object"
+							},
+							"health":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "\"player\" or node id -> current health.",
+								"type": "object"
+							},
+							"hidden":
+							{
+								"description": "Node ids hidden by rules (shown again on restart).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"input_mode":
+							{
+								"description": "cursor or game.",
+								"type": "string"
+							},
+							"interact":
+							{
+								"description": "Interactable the player can use now (empty if none).",
+								"type": "string"
+							},
+							"log":
+							{
+								"description": "Recent events, oldest first: {seq, time, on, name, target, rules:[...], errors:[...]} (\"errors\" only when something failed).",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"play_objects":
+							{
+								"description": "Objects created by rules during play (removed on restart).",
+								"type": "integer"
+							},
+							"player":
+							{
+								"description": "The player (exists false without one).",
+								"properties":
+								{
+									"altitude":
+									{
+										"type": "number"
+									},
+									"boost":
+									{
+										"type": "boolean"
+									},
+									"checkpoint":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"controlled":
+									{
+										"description": "Whether the local player controller possesses the character.",
+										"type": "boolean"
+									},
+									"controls":
+									{
+										"description": "How to play, for telling the user.",
+										"type": "string"
+									},
+									"dash_ready":
+									{
+										"type": "boolean"
+									},
+									"exists":
+									{
+										"description": "Whether the character is in the world (false before {\"player\":\"spawn\"} with auto_spawn false, or without a player).",
+										"type": "boolean"
+									},
+									"frozen":
+									{
+										"type": "boolean"
+									},
+									"grounded":
+									{
+										"type": "boolean"
+									},
+									"invulnerable":
+									{
+										"type": "boolean"
+									},
+									"location":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"lock":
+									{
+										"description": "Node the homing secondary weapon is locked on (empty if none).",
+										"type": "string"
+									},
+									"mode":
+									{
+										"description": "side, topdown or flight (empty without a player).",
+										"type": "string"
+									},
+									"speed":
+									{
+										"description": "cm/s (flight: airspeed).",
+										"type": "number"
+									},
+									"throttle":
+									{
+										"description": "Flight throttle 0-1.",
+										"type": "number"
+									},
+									"velocity":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									}
+								},
+								"title": "LogicPlayerState",
+								"type": "object"
+							},
+							"pools_free":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Pool name -> free copies.",
+								"type": "object"
+							},
+							"projectiles":
+							{
+								"description": "Bullets in flight.",
+								"type": "integer"
+							},
+							"rules":
+							{
+								"description": "\"name (on)\" per rule, in run order.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"running":
+							{
+								"type": "boolean"
+							},
+							"spawners":
+							{
+								"additionalProperties":
+								{
+									"properties":
+									{
+										"active":
+										{
+											"type": "boolean"
+										},
+										"alive":
+										{
+											"description": "Spawned enemies still alive.",
+											"type": "integer"
+										},
+										"spawned":
+										{
+											"description": "Spawned since the start.",
+											"type": "integer"
+										},
+										"wave":
+										{
+											"description": "Current wave, from 1.",
+											"type": "integer"
+										}
+									},
+									"title": "LogicSpawnerState",
+									"type": "object"
+								},
+								"description": "Spawner name -> state.",
+								"type": "object"
+							},
+							"time":
+							{
+								"description": "Game time in seconds since start.",
+								"type": "number"
+							},
+							"timers":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"type": "string"
+										},
+										"remaining":
+										{
+											"description": "Seconds until it fires.",
+											"type": "number"
+										},
+										"repeat":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "LogicTimerInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"tweens":
+							{
+								"description": "Running tweens.",
+								"type": "integer"
+							},
+							"ui":
+							{
+								"description": "UI item names.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"vars":
+							{
+								"description": "Variable name -> current value. (Any JSON value)"
+							}
+						},
+						"title": "LogicGameState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists every internal constant of the game runtime (perception rates, steering, animation, HUD sizes) with its value, default, meaning and where it comes from. Gameplay parameters belong to the define_* tools.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.get_tuning",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"note":
+							{
+								"type": "string"
+							},
+							"tuning":
+							{
+								"additionalProperties":
+								{
+									"properties":
+									{
+										"basis":
+										{
+											"description": "Where the default comes from (feel, scale, TDE...).",
+											"type": "string"
+										},
+										"default":
+										{
+											"description": "Built-in default.",
+											"type": "number"
+										},
+										"value":
+										{
+											"description": "Current value.",
+											"type": "number"
+										},
+										"what":
+										{
+											"description": "What it controls.",
+											"type": "string"
+										}
+									},
+									"title": "LogicTuningValue",
+									"type": "object"
+								},
+								"description": "Name -> value, sorted by area.",
+								"type": "object"
+							}
+						},
+						"title": "LogicTuning",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Replaces the game definition with one from export. Undoable.\nReturns: Numbers of rules and variables. Fails if the definition is invalid (nothing changes).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"logic":
+					{
+						"description": "The \"logic\" object returned by export. (Any JSON value)"
+					}
+				},
+				"required": [
+					"logic"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.import",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Numbers of rules and variables. Fails if the definition is invalid (nothing changes).",
+						"properties":
+						{
+							"rules":
+							{
+								"type": "integer"
+							},
+							"vars":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "LogicImportResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Lists all rules with their full definitions.\nReturns: Rules in run order.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.list_rules",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Rules in run order.",
+						"properties":
+						{
+							"rules":
+							{
+								"description": "Rule definitions in run order: {name, on, target, key, filter, condition, actions, enabled}.",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LogicRuleList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Loads variables from a save slot.\nReturns: All variables after loading. Fails if the slot does not exist.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"slot":
+					{
+						"description": "Slot name.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"slot"
+				],
+				"type": "object"
+			},
+			"name": "logic.load",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "All variables after loading. Fails if the slot does not exist.",
+						"properties":
+						{
+							"vars":
+							{
+								"description": "Variable name -> value. (Any JSON value)"
+							}
+						},
+						"title": "LogicVarsResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Plays a feedback preset now (testing).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"at":
+					{
+						"description": "World location [x,y,z] (default: the player). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Preset name (define_feedback).",
+						"type": "string"
+					},
+					"target":
+					{
+						"default": "",
+						"description": "Node for tween steps. Fails if the preset is not defined (the error lists the presets).",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "logic.play_feedback",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes the playable character and gives the view back. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.remove_player",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Removes rules by name. Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1645,13 +2192,11 @@
 				{
 					"names":
 					{
-						"description": "Rule names",
+						"description": "Rule names, e.g. [\"restart_key\"]. Fails if a rule does not exist (the error lists the defined rules).",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 200,
 						"type": "array"
 					}
 				},
@@ -1662,22 +2207,86 @@
 			},
 			"mutating": true,
 			"name": "logic.remove_rules",
-			"undoable": true
-		},
-		{
-			"description": "All rules with their full definitions.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
 				},
 				"type": "object"
 			},
-			"name": "logic.list_rules"
+			"undoable": true
 		},
 		{
-			"description": "Attach data to a node (and its children); click rules read it as event.data.",
+			"description": "Removes on-screen items by name. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Item names, e.g. [\"status\"]. Fails if an item does not exist (the error lists the defined items).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"names"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.remove_ui",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Saves variables to a slot on disk (Saved/RuntimeToolsets/Saves); the {\"save\": ...} action does the same from rules.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"slot":
+					{
+						"description": "Slot name, e.g. \"progress\".",
+						"type": "string"
+					},
+					"vars":
+					{
+						"description": "Variables to save (default: all). Fails if the slot name is invalid, a variable does not exist or the file cannot be written.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"slot"
+				],
+				"type": "object"
+			},
+			"name": "logic.save",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			}
+		},
+		{
+			"description": "Attaches data to a node and its children; click, touch and interact rules read it as event.data. Undoable.\nReturns: The node. Fails if the target is not a scene node or data is not an object.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1685,13 +2294,11 @@
 				{
 					"data":
 					{
-						"description": "e.g. {index: 4}",
-						"type": "object"
+						"description": "Object, e.g. {\"index\": 4, \"pos\": [0,300,40]}. (Any JSON value)"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "The node, e.g. \"n12\" or \"TicTacToe/cell_4\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -1703,72 +2310,102 @@
 			},
 			"mutating": true,
 			"name": "logic.set_data",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node. Fails if the target is not a scene node or data is not an object.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id (n12).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name.",
+								"type": "string"
+							}
+						},
+						"title": "LogicNodeRef",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Add or replace on-screen text and buttons. Text is a live template: 'Score: {score}'. Buttons fire 'button' rules.",
+			"description": "Turns on world HUD effects: health bars over damaged enemies, ! / ? alert icons, floating damage numbers, a red hit flash, a low-health pulse and flight target markers. Undoable.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"items":
+					"alert_icons":
 					{
-						"description": "Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if; bar: value, max, fill, ghost}",
-						"items":
-						{
-							"description": "UI item",
-							"type": "object"
-						},
-						"maxItems": 64,
-						"type": "array"
+						"default": true,
+						"description": "Brain state icons.",
+						"type": "boolean"
 					},
-					"replace":
+					"always_bars":
 					{
 						"default": false,
-						"description": "Remove all other items first",
+						"description": "Show bars even at full health.",
+						"type": "boolean"
+					},
+					"damage_numbers":
+					{
+						"default": true,
+						"description": "Floating damage numbers.",
+						"type": "boolean"
+					},
+					"enemy_bars":
+					{
+						"default": true,
+						"description": "Health bars over hurt enemies.",
+						"type": "boolean"
+					},
+					"hit_flash":
+					{
+						"default": true,
+						"description": "Red screen flash when the player is hurt.",
+						"type": "boolean"
+					},
+					"low_health":
+					{
+						"default": true,
+						"description": "Pulsing red edges under 30% health.",
+						"type": "boolean"
+					},
+					"markers":
+					{
+						"default": false,
+						"description": "Target brackets with distance, missile lock and flight gun reticle.",
 						"type": "boolean"
 					}
 				},
-				"required": [
-					"items"
-				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "logic.define_ui",
-			"undoable": true
-		},
-		{
-			"description": "Remove on-screen items by name.",
-			"input_schema":
+			"name": "logic.set_hud",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"names":
-					{
-						"description": "Item names",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 64,
-						"type": "array"
-					}
 				},
-				"required": [
-					"names"
-				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "logic.remove_ui",
 			"undoable": true
 		},
 		{
-			"description": "cursor: visible mouse cursor, clicks hit objects and buttons (board/puzzle games). game: normal play/fly.",
+			"description": "Sets how the mouse works: cursor (visible cursor, clicks hit objects and buttons: board and puzzle games) or game (normal play). Undoable.\nReturns: The applied mode and whether a player controller exists.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1777,16 +2414,16 @@
 					"lock_camera":
 					{
 						"default": false,
-						"description": "Stop mouse-look and movement (fixed board view)",
+						"description": "Stop mouse-look and movement (a fixed board view; frame it with camera tools).",
 						"type": "boolean"
 					},
 					"mode":
 					{
-						"default": "cursor",
-						"description": "Mode",
+						"default": "Cursor",
+						"description": "cursor or game.",
 						"enum": [
-							"cursor",
-							"game"
+							"Cursor",
+							"Game"
 						],
 						"type": "string"
 					}
@@ -1795,89 +2432,1019 @@
 			},
 			"mutating": true,
 			"name": "logic.set_input_mode",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The applied mode and whether a player controller exists.",
+						"properties":
+						{
+							"has_player":
+							{
+								"description": "Whether a player controller exists to apply the mode to.",
+								"type": "boolean"
+							},
+							"lock_camera":
+							{
+								"type": "boolean"
+							},
+							"mode":
+							{
+								"description": "cursor or game.",
+								"type": "string"
+							}
+						},
+						"title": "LogicInputModeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Start or restart the game: reset variables, remove objects made during play, clear timers, run 'start' rules.",
+			"description": "Makes nodes move while the game runs: patrol back and forth, follow a path, bob, and/or spin. Movement restarts from the original pose on restart. Undoable.\nReturns: Number of nodes. Fails if a target matches no node.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-				},
-				"type": "object"
-			},
-			"name": "logic.start"
-		},
-		{
-			"description": "Stop running rules (definitions are kept).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "logic.stop"
-		},
-		{
-			"description": "Simulate player input to test the game: a click on a node, a key, a button press or a custom event.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"data":
+					"motion":
 					{
-						"description": "event data; touch: {from_above, from_below}",
+						"description": "{type: patrol|path|bob|none, axis, distance, speed, points, loop, amplitude, period, spin, face, offset, waddle}, e.g. {\"type\":\"patrol\",\"axis\":[1,0,0],\"distance\":500,\"speed\":120,\"face\":true}.",
+						"properties":
+						{
+							"amplitude":
+							{
+								"description": "Bob: height in cm.",
+								"type": "number"
+							},
+							"axis":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"distance":
+							{
+								"description": "Patrol: distance in cm.",
+								"type": "number"
+							},
+							"face":
+							{
+								"description": "Turn around (yaw 180) when moving backwards.",
+								"type": "boolean"
+							},
+							"loop":
+							{
+								"description": "Path: loop back to the first point instead of going back and forth.",
+								"type": "boolean"
+							},
+							"offset":
+							{
+								"description": "Time offset in seconds (so a row of enemies does not move in sync).",
+								"type": "number"
+							},
+							"period":
+							{
+								"description": "Bob: seconds per cycle.",
+								"type": "number"
+							},
+							"points":
+							{
+								"description": "Path: points [dx,dy,dz] relative to the start, at least 2.",
+								"items":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"type": "array"
+							},
+							"speed":
+							{
+								"description": "Patrol and path: speed in cm/s.",
+								"type": "number"
+							},
+							"spin":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"type":
+							{
+								"enum": [
+									"None",
+									"Patrol",
+									"Path",
+									"Bob"
+								],
+								"type": "string"
+							},
+							"waddle":
+							{
+								"description": "[x, y]",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 2,
+								"minItems": 2,
+								"type": "array"
+							}
+						},
+						"title": "LogicMotion",
 						"type": "object"
 					},
-					"key":
+					"targets":
 					{
-						"description": "key: key name",
-						"maxLength": 64,
+						"description": "Node ids, paths, names or \"tag:x\", e.g. [\"tag:goomba\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets",
+					"motion"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_motion",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of nodes. Fails if a target matches no node.",
+						"properties":
+						{
+							"nodes":
+							{
+								"description": "Nodes affected.",
+								"type": "integer"
+							}
+						},
+						"title": "LogicNodesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets whether nodes block the player. Pickups and enemies: false (they still fire touch). Undoable.\nReturns: Number of nodes and the value set. Fails if a target matches no node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"solid":
+					{
+						"description": "Blocks movement.",
+						"type": "boolean"
+					},
+					"targets":
+					{
+						"description": "Node ids, paths, names or \"tag:x\", e.g. [\"tag:coin\", \"tag:enemy\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets",
+					"solid"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_solid",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of nodes and the value set. Fails if a target matches no node.",
+						"properties":
+						{
+							"nodes":
+							{
+								"description": "Nodes affected.",
+								"type": "integer"
+							},
+							"solid":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "LogicSolidResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Changes internal constants at runtime (see get_tuning). Defaults can also be set in DefaultGame.ini [RuntimeToolsets.Tuning] name=value.\nReturns: All values after the change. Fails if a name is unknown (see get_tuning).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"reset":
+					{
+						"default": false,
+						"description": "Back to the defaults and config first.",
+						"type": "boolean"
+					},
+					"values":
+					{
+						"additionalProperties":
+						{
+							"type": "number"
+						},
+						"description": "{name: number}, e.g. {\"hud.flash_alpha\": 0.5}.",
+						"type": "object"
+					}
+				},
+				"type": "object"
+			},
+			"name": "logic.set_tuning",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "All values after the change. Fails if a name is unknown (see get_tuning).",
+						"properties":
+						{
+							"note":
+							{
+								"type": "string"
+							},
+							"tuning":
+							{
+								"additionalProperties":
+								{
+									"properties":
+									{
+										"basis":
+										{
+											"description": "Where the default comes from (feel, scale, TDE...).",
+											"type": "string"
+										},
+										"default":
+										{
+											"description": "Built-in default.",
+											"type": "number"
+										},
+										"value":
+										{
+											"description": "Current value.",
+											"type": "number"
+										},
+										"what":
+										{
+											"description": "What it controls.",
+											"type": "string"
+										}
+									},
+									"title": "LogicTuningValue",
+									"type": "object"
+								},
+								"description": "Name -> value, sorted by area.",
+								"type": "object"
+							}
+						},
+						"title": "LogicTuning",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Changes a variable while the game runs and fires its var_changed rules (testing, or steering a running game).\nReturns: The new value. Fails if the variable is not defined or neither value nor expr is given.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"expr":
+					{
+						"description": "Or an expression evaluated against the current variables, e.g. \"score + 5\".",
 						"type": "string"
 					},
 					"name":
 					{
-						"description": "button/timer/event name",
-						"maxLength": 128,
+						"description": "Variable, e.g. \"score\".",
 						"type": "string"
 					},
-					"on":
+					"value":
 					{
-						"description": "Event",
-						"enum": [
-							"click",
-							"right_click",
-							"key",
-							"button",
-							"timer",
-							"event",
-							"touch",
-							"fall",
-							"interact",
-							"crash"
-						],
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "click/touch: the node",
-						"maxLength": 1024,
-						"type": "string"
+						"description": "New value as JSON, e.g. 10 or [\"X\",\"\",\"\"]. (Any JSON value)"
 					}
 				},
 				"required": [
-					"on"
+					"name"
 				],
 				"type": "object"
 			},
-			"name": "logic.fire_event"
+			"name": "logic.set_var",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new value. Fails if the variable is not defined or neither value nor expr is given.",
+						"properties":
+						{
+							"value":
+							{
+								"description": "The value (number, text, bool, list, map or null). (Any JSON value)"
+							}
+						},
+						"title": "LogicValueResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Advance game time for timers and tick rules (testing).",
+			"description": "Spawns the playable character with a follow camera. side: side-scroller (level along +X in the plane Y=0, camera on +Y; A/D run, Space jump). topdown: WASD on the ground, aim with the mouse. flight: arcade jet (mouse steers, A/D roll, W/S throttle, Shift boost). Do not use camera tools while a player exists. Undoable.\nReturns: The player state and its controls. Fails if the body is not a scene node or spawning fails.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"air_control":
+					{
+						"default": 0.85000002384185791,
+						"description": "Steering in the air, 0-1.",
+						"type": "number"
+					},
+					"auto_spawn":
+					{
+						"default": true,
+						"description": "Spawn now and on start; false = wait for the {\"player\":\"spawn\"} action.",
+						"type": "boolean"
+					},
+					"body":
+					{
+						"description": "Your own character model node (feet at z=0, facing +X); default: a cap-and-overalls hero (flight: a jet). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"camera_distance":
+					{
+						"description": "cm (default: side 1700, top-down 1500, flight 1300).",
+						"type": "number"
+					},
+					"camera_height":
+					{
+						"description": "cm above the player (default: side 250, flight 330).",
+						"type": "number"
+					},
+					"camera_lead":
+					{
+						"description": "cm ahead in the facing direction (default: side 200, top-down 150).",
+						"type": "number"
+					},
+					"camera_pitch":
+					{
+						"description": "Degrees (default: side -6, top-down 60 looking down).",
+						"type": "number"
+					},
+					"crash_damage":
+					{
+						"description": "Flight: damage when hitting the ground (default: lethal).",
+						"type": "number"
+					},
+					"dash":
+					{
+						"description": "Dash ability {speed, duration, cooldown, key, invulnerable} (fires \"dash\").",
+						"properties":
+						{
+							"cooldown":
+							{
+								"description": "Seconds before the next dash.",
+								"type": "number"
+							},
+							"duration":
+							{
+								"description": "Seconds the dash lasts.",
+								"type": "number"
+							},
+							"invulnerable":
+							{
+								"description": "Immune to damage while dashing.",
+								"type": "boolean"
+							},
+							"key":
+							{
+								"description": "Key (default: SpaceBar top-down, LeftControl side view).",
+								"type": "string"
+							},
+							"speed":
+							{
+								"description": "Launch speed in cm/s.",
+								"type": "number"
+							}
+						},
+						"title": "LogicDash",
+						"type": "object"
+					},
+					"fov":
+					{
+						"description": "Field of view (default: 55, flight 70).",
+						"type": "number"
+					},
+					"gravity":
+					{
+						"default": 2.7999999523162842,
+						"description": "Gravity scale.",
+						"type": "number"
+					},
+					"grid":
+					{
+						"description": "Top-down: move cell by cell, cell size in cm (default: free movement).",
+						"type": "number"
+					},
+					"height":
+					{
+						"default": 180,
+						"description": "Collision height in cm.",
+						"type": "number"
+					},
+					"jump":
+					{
+						"default": 1250,
+						"description": "Jump velocity cm/s.",
+						"type": "number"
+					},
+					"jump_hold":
+					{
+						"default": 0.2199999988079071,
+						"description": "Seconds holding jump adds height.",
+						"type": "number"
+					},
+					"kill_z":
+					{
+						"description": "Falling below this height fires \"fall\" (default: start height - 1500; without a fall rule the player respawns).",
+						"type": "number"
+					},
+					"location":
+					{
+						"description": "Start point of the feet [x,y,z], e.g. [0,0,100]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"max_speed":
+					{
+						"description": "Flight: boost speed cm/s (default 160% of speed).",
+						"type": "number"
+					},
+					"min_speed":
+					{
+						"description": "Flight: slowest speed cm/s (default 45% of speed).",
+						"type": "number"
+					},
+					"mode":
+					{
+						"default": "Side",
+						"description": "side, topdown or flight.",
+						"enum": [
+							"Side",
+							"Topdown",
+							"Flight"
+						],
+						"type": "string"
+					},
+					"mouse_sensitivity":
+					{
+						"default": 1,
+						"description": "Flight: mouse steering scale.",
+						"type": "number"
+					},
+					"radius":
+					{
+						"default": 38,
+						"description": "Collision radius in cm.",
+						"type": "number"
+					},
+					"reload_key":
+					{
+						"default": "",
+						"description": "Key that reloads, e.g. \"Q\".",
+						"type": "string"
+					},
+					"roll_rate":
+					{
+						"default": 160,
+						"description": "Flight: roll rate in degrees per second.",
+						"type": "number"
+					},
+					"secondary":
+					{
+						"default": "",
+						"description": "Weapon fired with right mouse / left trigger / G (e.g. homing missiles).",
+						"type": "string"
+					},
+					"speed":
+					{
+						"description": "Run speed cm/s (default 650; flight: cruise speed, default 4500).",
+						"type": "number"
+					},
+					"step_time":
+					{
+						"default": 0.14000000059604645,
+						"description": "Grid: seconds per step.",
+						"type": "number"
+					},
+					"turn":
+					{
+						"default": 70,
+						"description": "Flight: pitch/yaw rate in degrees per second.",
+						"type": "number"
+					},
+					"yaw":
+					{
+						"default": 0,
+						"description": "Start heading in degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.spawn_player",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The player state and its controls. Fails if the body is not a scene node or spawning fails.",
+						"properties":
+						{
+							"altitude":
+							{
+								"type": "number"
+							},
+							"boost":
+							{
+								"type": "boolean"
+							},
+							"checkpoint":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controlled":
+							{
+								"description": "Whether the local player controller possesses the character.",
+								"type": "boolean"
+							},
+							"controls":
+							{
+								"description": "How to play, for telling the user.",
+								"type": "string"
+							},
+							"dash_ready":
+							{
+								"type": "boolean"
+							},
+							"exists":
+							{
+								"description": "Whether the character is in the world (false before {\"player\":\"spawn\"} with auto_spawn false, or without a player).",
+								"type": "boolean"
+							},
+							"frozen":
+							{
+								"type": "boolean"
+							},
+							"grounded":
+							{
+								"type": "boolean"
+							},
+							"invulnerable":
+							{
+								"type": "boolean"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"lock":
+							{
+								"description": "Node the homing secondary weapon is locked on (empty if none).",
+								"type": "string"
+							},
+							"mode":
+							{
+								"description": "side, topdown or flight (empty without a player).",
+								"type": "string"
+							},
+							"speed":
+							{
+								"description": "cm/s (flight: airspeed).",
+								"type": "number"
+							},
+							"throttle":
+							{
+								"description": "Flight throttle 0-1.",
+								"type": "number"
+							},
+							"velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "LogicPlayerState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Starts or restarts the game: resets variables, removes objects made during play, shows hidden nodes, clears timers, then runs \"start\" rules.\nReturns: The running state with the last 5 log entries (check them for errors).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.start",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The running state with the last 5 log entries (check them for errors).",
+						"properties":
+						{
+							"ammo":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Weapon owner -> rounds left in the magazine.",
+								"type": "object"
+							},
+							"brains":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Agent node id -> \"state\" or \"state (sees)\".",
+								"type": "object"
+							},
+							"health":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "\"player\" or node id -> current health.",
+								"type": "object"
+							},
+							"hidden":
+							{
+								"description": "Node ids hidden by rules (shown again on restart).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"input_mode":
+							{
+								"description": "cursor or game.",
+								"type": "string"
+							},
+							"interact":
+							{
+								"description": "Interactable the player can use now (empty if none).",
+								"type": "string"
+							},
+							"log":
+							{
+								"description": "Recent events, oldest first: {seq, time, on, name, target, rules:[...], errors:[...]} (\"errors\" only when something failed).",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"play_objects":
+							{
+								"description": "Objects created by rules during play (removed on restart).",
+								"type": "integer"
+							},
+							"player":
+							{
+								"description": "The player (exists false without one).",
+								"properties":
+								{
+									"altitude":
+									{
+										"type": "number"
+									},
+									"boost":
+									{
+										"type": "boolean"
+									},
+									"checkpoint":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"controlled":
+									{
+										"description": "Whether the local player controller possesses the character.",
+										"type": "boolean"
+									},
+									"controls":
+									{
+										"description": "How to play, for telling the user.",
+										"type": "string"
+									},
+									"dash_ready":
+									{
+										"type": "boolean"
+									},
+									"exists":
+									{
+										"description": "Whether the character is in the world (false before {\"player\":\"spawn\"} with auto_spawn false, or without a player).",
+										"type": "boolean"
+									},
+									"frozen":
+									{
+										"type": "boolean"
+									},
+									"grounded":
+									{
+										"type": "boolean"
+									},
+									"invulnerable":
+									{
+										"type": "boolean"
+									},
+									"location":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"lock":
+									{
+										"description": "Node the homing secondary weapon is locked on (empty if none).",
+										"type": "string"
+									},
+									"mode":
+									{
+										"description": "side, topdown or flight (empty without a player).",
+										"type": "string"
+									},
+									"speed":
+									{
+										"description": "cm/s (flight: airspeed).",
+										"type": "number"
+									},
+									"throttle":
+									{
+										"description": "Flight throttle 0-1.",
+										"type": "number"
+									},
+									"velocity":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									}
+								},
+								"title": "LogicPlayerState",
+								"type": "object"
+							},
+							"pools_free":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Pool name -> free copies.",
+								"type": "object"
+							},
+							"projectiles":
+							{
+								"description": "Bullets in flight.",
+								"type": "integer"
+							},
+							"rules":
+							{
+								"description": "\"name (on)\" per rule, in run order.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"running":
+							{
+								"type": "boolean"
+							},
+							"spawners":
+							{
+								"additionalProperties":
+								{
+									"properties":
+									{
+										"active":
+										{
+											"type": "boolean"
+										},
+										"alive":
+										{
+											"description": "Spawned enemies still alive.",
+											"type": "integer"
+										},
+										"spawned":
+										{
+											"description": "Spawned since the start.",
+											"type": "integer"
+										},
+										"wave":
+										{
+											"description": "Current wave, from 1.",
+											"type": "integer"
+										}
+									},
+									"title": "LogicSpawnerState",
+									"type": "object"
+								},
+								"description": "Spawner name -> state.",
+								"type": "object"
+							},
+							"time":
+							{
+								"description": "Game time in seconds since start.",
+								"type": "number"
+							},
+							"timers":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"type": "string"
+										},
+										"remaining":
+										{
+											"description": "Seconds until it fires.",
+											"type": "number"
+										},
+										"repeat":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "LogicTimerInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"tweens":
+							{
+								"description": "Running tweens.",
+								"type": "integer"
+							},
+							"ui":
+							{
+								"description": "UI item names.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"vars":
+							{
+								"description": "Variable name -> current value. (Any JSON value)"
+							}
+						},
+						"title": "LogicGameState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Advances game time in 0.1 s steps: timers, tick rules, movement, physics of the player, AI, projectiles (testing).\nReturns: The running state with the last 10 log entries. Fails if the game is not running.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1886,70 +3453,510 @@
 					"seconds":
 					{
 						"default": 1,
-						"description": "Seconds",
-						"maximum": 600,
-						"minimum": 0,
+						"description": "Seconds to simulate, 0-600, e.g. 1.5.",
 						"type": "number"
 					}
 				},
 				"type": "object"
 			},
-			"name": "logic.step"
-		},
-		{
-			"description": "Running state: variables, timers, rules, UI, objects made in play, and the recent event log with errors.",
-			"input_schema":
+			"name": "logic.step",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"log_limit":
+					"returnValue":
 					{
-						"default": 20,
-						"description": "Log entries",
-						"maximum": 100,
-						"minimum": 0,
-						"type": "integer"
-					}
-				},
-				"type": "object"
-			},
-			"name": "logic.get_state"
-		},
-		{
-			"description": "The whole game definition (vars, rules, ui, node data, input mode) as JSON.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "logic.export"
-		},
-		{
-			"description": "Replace the game definition with one from logic.export.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"logic":
-					{
-						"description": "Definition from logic.export",
+						"description": "The running state with the last 10 log entries. Fails if the game is not running.",
+						"properties":
+						{
+							"ammo":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Weapon owner -> rounds left in the magazine.",
+								"type": "object"
+							},
+							"brains":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Agent node id -> \"state\" or \"state (sees)\".",
+								"type": "object"
+							},
+							"health":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "\"player\" or node id -> current health.",
+								"type": "object"
+							},
+							"hidden":
+							{
+								"description": "Node ids hidden by rules (shown again on restart).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"input_mode":
+							{
+								"description": "cursor or game.",
+								"type": "string"
+							},
+							"interact":
+							{
+								"description": "Interactable the player can use now (empty if none).",
+								"type": "string"
+							},
+							"log":
+							{
+								"description": "Recent events, oldest first: {seq, time, on, name, target, rules:[...], errors:[...]} (\"errors\" only when something failed).",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"play_objects":
+							{
+								"description": "Objects created by rules during play (removed on restart).",
+								"type": "integer"
+							},
+							"player":
+							{
+								"description": "The player (exists false without one).",
+								"properties":
+								{
+									"altitude":
+									{
+										"type": "number"
+									},
+									"boost":
+									{
+										"type": "boolean"
+									},
+									"checkpoint":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"controlled":
+									{
+										"description": "Whether the local player controller possesses the character.",
+										"type": "boolean"
+									},
+									"controls":
+									{
+										"description": "How to play, for telling the user.",
+										"type": "string"
+									},
+									"dash_ready":
+									{
+										"type": "boolean"
+									},
+									"exists":
+									{
+										"description": "Whether the character is in the world (false before {\"player\":\"spawn\"} with auto_spawn false, or without a player).",
+										"type": "boolean"
+									},
+									"frozen":
+									{
+										"type": "boolean"
+									},
+									"grounded":
+									{
+										"type": "boolean"
+									},
+									"invulnerable":
+									{
+										"type": "boolean"
+									},
+									"location":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"lock":
+									{
+										"description": "Node the homing secondary weapon is locked on (empty if none).",
+										"type": "string"
+									},
+									"mode":
+									{
+										"description": "side, topdown or flight (empty without a player).",
+										"type": "string"
+									},
+									"speed":
+									{
+										"description": "cm/s (flight: airspeed).",
+										"type": "number"
+									},
+									"throttle":
+									{
+										"description": "Flight throttle 0-1.",
+										"type": "number"
+									},
+									"velocity":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									}
+								},
+								"title": "LogicPlayerState",
+								"type": "object"
+							},
+							"pools_free":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Pool name -> free copies.",
+								"type": "object"
+							},
+							"projectiles":
+							{
+								"description": "Bullets in flight.",
+								"type": "integer"
+							},
+							"rules":
+							{
+								"description": "\"name (on)\" per rule, in run order.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"running":
+							{
+								"type": "boolean"
+							},
+							"spawners":
+							{
+								"additionalProperties":
+								{
+									"properties":
+									{
+										"active":
+										{
+											"type": "boolean"
+										},
+										"alive":
+										{
+											"description": "Spawned enemies still alive.",
+											"type": "integer"
+										},
+										"spawned":
+										{
+											"description": "Spawned since the start.",
+											"type": "integer"
+										},
+										"wave":
+										{
+											"description": "Current wave, from 1.",
+											"type": "integer"
+										}
+									},
+									"title": "LogicSpawnerState",
+									"type": "object"
+								},
+								"description": "Spawner name -> state.",
+								"type": "object"
+							},
+							"time":
+							{
+								"description": "Game time in seconds since start.",
+								"type": "number"
+							},
+							"timers":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"type": "string"
+										},
+										"remaining":
+										{
+											"description": "Seconds until it fires.",
+											"type": "number"
+										},
+										"repeat":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "LogicTimerInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"tweens":
+							{
+								"description": "Running tweens.",
+								"type": "integer"
+							},
+							"ui":
+							{
+								"description": "UI item names.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"vars":
+							{
+								"description": "Variable name -> current value. (Any JSON value)"
+							}
+						},
+						"title": "LogicGameState",
 						"type": "object"
 					}
 				},
 				"required": [
-					"logic"
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Stops running rules, timers and movement. Definitions are kept; start runs the game again.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "logic.stop",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			}
+		},
+		{
+			"description": "Animates nodes smoothly: move / rotate / scale / color with easing, delay, yoyo or loop, and hide / show / release at the end. Works whether or not the game runs; the {\"tween\": ...} action does the same from rules.\nReturns: Nodes started and tweens running. Fails if no property to animate is given or a target matches no node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"add":
+					{
+						"default": false,
+						"description": "Run alongside other tweens on the node instead of replacing them.",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "End base color (builder materials). ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"delay":
+					{
+						"default": 0,
+						"description": "Seconds before starting.",
+						"type": "number"
+					},
+					"duration":
+					{
+						"default": 0.30000001192092896,
+						"description": "Seconds per cycle.",
+						"type": "number"
+					},
+					"ease":
+					{
+						"default": "OutQuad",
+						"description": "Easing curve.",
+						"enum": [
+							"Linear",
+							"InQuad",
+							"OutQuad",
+							"InOutQuad",
+							"InCubic",
+							"OutCubic",
+							"InOutCubic",
+							"InSine",
+							"OutSine",
+							"InOutSine",
+							"InBack",
+							"OutBack",
+							"InOutBack",
+							"OutElastic",
+							"InBounce",
+							"OutBounce"
+						],
+						"type": "string"
+					},
+					"emit":
+					{
+						"default": "",
+						"description": "Custom event fired at the end (rules on \"event\").",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "Absolute end location. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"loop":
+					{
+						"default": "Once",
+						"description": "once, yoyo (there and back), loop (restart) or pingpong (forever).",
+						"enum": [
+							"Once",
+							"Yoyo",
+							"Loop",
+							"Pingpong"
+						],
+						"type": "string"
+					},
+					"move":
+					{
+						"description": "Relative offset, e.g. [0,0,100]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"repeat":
+					{
+						"default": 1,
+						"description": "Cycles for yoyo / loop (-1 = forever for loop).",
+						"type": "integer"
+					},
+					"rotate":
+					{
+						"description": "Relative rotation (can exceed 360). ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "Absolute end rotation. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "End scale: a number or [x,y,z]. (Any JSON value)"
+					},
+					"targets":
+					{
+						"description": "Node ids, paths, names or \"tag:x\".",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"then":
+					{
+						"default": "None",
+						"description": "At the end: none, hide, show or release (back to its pool).",
+						"enum": [
+							"None",
+							"Hide",
+							"Show",
+							"Release"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"targets"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "logic.import",
-			"undoable": true
+			"name": "logic.tween",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Nodes started and tweens running. Fails if no property to animate is given or a target matches no node.",
+						"properties":
+						{
+							"active_tweens":
+							{
+								"description": "Tweens running in the world.",
+								"type": "integer"
+							},
+							"nodes":
+							{
+								"description": "Nodes that started tweening.",
+								"type": "integer"
+							}
+						},
+						"title": "LogicTweenResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.3.0"
+	"version": "2.0.0"
 }

@@ -520,6 +520,67 @@ void FLogicToolsetSpec::Define()
 		}
 		TestEqual(TEXT("imported game plays"), Vars()->GetStringField(TEXT("winner")), FString(TEXT("X")));
 	});
+
+	It("accepts the old lower-case enum spellings and stores them lower-case", [this]()
+	{
+		const FString Box = H->SpawnCube();
+		H->CallOk(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"move":[0,0,10],"ease":"in_out_back","loop":"pingpong"})"), *Box));
+		H->CallOk(TEXT("logic.tween"), FString::Printf(TEXT(R"({"targets":["%s"],"move":[0,0,10],"ease":"OutQuad","then":"Hide"})"), *Box));
+		TestEqual(TEXT("mode echoed lower-case"), H->CallOk(TEXT("logic.set_input_mode"), TEXT(R"({"mode":"Game"})"))->GetStringField(TEXT("mode")), FString(TEXT("game")));
+		H->CallOk(TEXT("logic.define_health"), FString::Printf(TEXT(R"({"targets":["%s"],"on_death":"Squash"})"), *Box));
+		const TSharedPtr<FJsonObject> Def = H->CallOk(TEXT("logic.export"))->GetObjectField(TEXT("logic"));
+		TestTrue(TEXT("exported on_death is lower-case"), RuntimeJson::Write(Def.ToSharedRef()).Contains(TEXT("\"on_death\":\"squash\"")));
+		H->CallOk(TEXT("logic.define_rules"), FString::Printf(TEXT(R"({"rules":[{"name":"rc","on":"right_click","target":"%s","actions":[{"log":"right"}]}]})"), *Box));
+		H->CallOk(TEXT("logic.start"));
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("logic.fire_event"), FString::Printf(TEXT(R"({"on":"right_click","target":"%s"})"), *Box));
+		TestEqual(TEXT("right_click rule ran"), R->GetArrayField(TEXT("events"))[0]->AsObject()->GetArrayField(TEXT("rules")).Num(), 1);
+		TestEqual(TEXT("guide is a top-level field"), H->Call(TEXT("logic.get_guide")).Payload->GetStringField(TEXT("guide")).StartsWith(TEXT("MAKE A PLAYABLE GAME")), true);
+	});
+
+	It("rejects bad arguments for every logic tool with an actionable error", [this]()
+	{
+		const FString Box = H->SpawnCube();
+		H->CallFails(TEXT("logic.define_vars"), TEXT(R"({"vars":{"9lives":1}})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_var"), TEXT(R"({"name":"nope","value":1})"), ERuntimeToolError::NotFound);
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"({"vars":{"n":0}})"));
+		H->CallFails(TEXT("logic.set_var"), TEXT(R"({"name":"n"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_var"), TEXT(R"({"name":"n","expr":"n +"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.remove_rules"), TEXT(R"({"names":["nope"]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.remove_ui"), TEXT(R"({"names":["nope"]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_data"), TEXT(R"({"target":"no_such_node","data":{"i":1}})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.set_data"), FString::Printf(TEXT(R"({"target":"%s","data":5})"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_input_mode"), TEXT(R"({"mode":"vr"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.fire_event"), TEXT(R"({"on":"key","key":"R"})"), ERuntimeToolError::WrongState);
+		H->CallFails(TEXT("logic.step"), TEXT("{}"), ERuntimeToolError::WrongState);
+		H->CallFails(TEXT("logic.import"), TEXT(R"({"logic":[1]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_health"), TEXT(R"({"targets":["tag:nothing"]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_hitzone"), TEXT(R"({"targets":[]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_weapon"), TEXT(R"({"name":"w","pool":"nope"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.damage"), TEXT(R"({"target":"no_such_node"})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.assign_brain"), FString::Printf(TEXT(R"({"targets":["%s"],"brain":"nope"})"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_hud"), TEXT(R"({"markers":"yes"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_loot"), TEXT(R"({"name":"l","entries":[{"pool":"nope"}]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_interactable"), FString::Printf(TEXT(R"({"targets":["%s"],"requires":"has("})"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.save"), TEXT(R"({"slot":"unit_test","vars":["missing_var"]})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.save"), TEXT(R"({"slot":"bad slot!"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.load"), TEXT(R"({"slot":"no_such_slot_for_tests"})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.define_pool"), TEXT(R"({"name":"p","template":"no_such_node"})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.define_pool"), FString::Printf(TEXT(R"({"name":"p","template":"%s","size":0})"), *Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.spawn_player"), TEXT(R"({"location":[0,0,0],"mode":"swim"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.clear_motion"), TEXT(R"({"targets":["tag:nothing"]})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_solid"), TEXT(R"({"targets":["tag:nothing"],"solid":true})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.tween"), TEXT(R"({"targets":["tag:nothing"],"move":[0,0,1]})"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("logic.define_spawner"), TEXT(R"({"name":"s","pool":"nope"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.set_tuning"), TEXT(R"({"values":{"hud.flash_alpha":"high"}})"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("logic.start"));
+		H->CallFails(TEXT("logic.fire_event"), TEXT(R"({"on":"key"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.fire_event"), TEXT(R"({"on":"click"})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.fire_event"), TEXT(R"({"on":"button","name":"x","data":7})"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.step"), TEXT(R"({"seconds":-1})"), ERuntimeToolError::InvalidArguments);
+		// Errors name the candidates.
+		const FToolResult R = H->Call(TEXT("logic.equip"), TEXT(R"({"owner":"player","weapon":"nope"})"));
+		TestTrue(TEXT("equip error lists weapons"), R.Message.Contains(TEXT("weapons:")));
+	});
 }
 
 #endif

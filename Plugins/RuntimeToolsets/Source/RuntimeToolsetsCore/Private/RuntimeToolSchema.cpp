@@ -337,7 +337,9 @@ namespace RuntimeToolSchema
 				{
 					Allowed.Add(E->AsString());
 				}
-				if (!Allowed.Contains(S))
+				// Case- and underscore-insensitive, like reflected enums ("out_quad" matches "OutQuad").
+				const FString Loose = S.Replace(TEXT("_"), TEXT(""));
+				if (!Allowed.ContainsByPredicate([&Loose](const FString& A) { return A.Replace(TEXT("_"), TEXT("")).Equals(Loose, ESearchCase::IgnoreCase); }))
 				{
 					OutError = FString::Printf(TEXT("%s: '%s' is not one of [%s]"), *Path, *S, *FString::Join(Allowed, TEXT(", ")));
 					return false;

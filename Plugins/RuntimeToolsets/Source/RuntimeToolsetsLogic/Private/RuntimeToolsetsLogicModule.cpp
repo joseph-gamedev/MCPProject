@@ -1,18 +1,21 @@
 #include "LogicRuntime.h"
-#include "LogicToolset.h"
 #include "LogicTuning.h"
+#include "RuntimeLogicToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
-#include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 
-/** Game logic group: variables, rules, events, on-screen UI. Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Game logic group: variables, rules, events, on-screen UI. Toolsets are UFUNCTION classes (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsLogicModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Toolset = MakeShared<FLogicToolset>();
-		IRuntimeToolsetsCore::Get().RegisterToolset(Toolset.ToSharedRef());
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
+		Toolset = RuntimeToolReflection::RegisterToolsetClass(URuntimeLogicToolset::StaticClass());
 		LogicTuning::LoadConfig();
 		FLogicManager::Get().Startup();
 	}
@@ -28,7 +31,7 @@ public:
 	}
 
 private:
-	TSharedPtr<FLogicToolset> Toolset;
+	TSharedPtr<IRuntimeToolset> Toolset;
 };
 
 IMPLEMENT_MODULE(FRuntimeToolsetsLogicModule, RuntimeToolsetsLogic)
