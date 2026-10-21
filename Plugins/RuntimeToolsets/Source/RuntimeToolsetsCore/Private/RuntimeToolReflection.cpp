@@ -198,7 +198,8 @@ namespace RuntimeToolReflection
 			}
 #endif
 			const FString Name = Enum->GetNameStringByIndex(i);
-			if (!Name.EndsWith(TEXT("_MAX")) && !Name.EndsWith(TEXT("MAX")))
+			// Engine sentinels are upper case ("EFoo_MAX", "MAX"); "Max" is a real value.
+			if (!Name.EndsWith(TEXT("_MAX"), ESearchCase::CaseSensitive) && Name != TEXT("MAX"))
 			{
 				Names.Add(Name);
 			}

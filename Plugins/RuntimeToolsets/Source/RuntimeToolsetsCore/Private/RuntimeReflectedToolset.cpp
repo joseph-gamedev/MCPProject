@@ -315,7 +315,10 @@ namespace RuntimeToolReflection
 				if (!JsonToProperty(V, *It, It->ContainerPtrToValuePtr<void>(Parms), Ctx, Err))
 				{
 					// A reference that does not resolve is a missing object, not a malformed argument.
-					const bool bMissing = (bReference && !CastField<FClassProperty>(*It)) || Err.StartsWith(TEXT("no "));
+					// Also arrays/sets of references: their element errors look like "[0]: no Actor 'n9'".
+					const FArrayProperty* AP = CastField<FArrayProperty>(*It);
+					const bool bRefArray = AP && CastField<FObjectPropertyBase>(AP->Inner) && !CastField<FClassProperty>(AP->Inner);
+					const bool bMissing = (bReference && !CastField<FClassProperty>(*It)) || bRefArray || Err.StartsWith(TEXT("no "));
 					Inv.Fail(bMissing ? ERuntimeToolError::NotFound : ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("$.%s: %s"), *Name, *Err));
 					return;
 				}
