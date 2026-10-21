@@ -1,0 +1,296 @@
+{
+	"description": "Line traces, overlaps, simulate physics, impulses, ragdoll",
+	"name": "physics",
+	"tools": [
+		{
+			"description": "Trace a ray; returns hit actor, point, normal, distance.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"channel":
+					{
+						"default": "visibility",
+						"description": "Trace channel",
+						"enum": [
+							"visibility",
+							"camera",
+							"world_static",
+							"pawn"
+						],
+						"type": "string"
+					},
+					"complex":
+					{
+						"default": false,
+						"description": "Trace complex (per-triangle) collision",
+						"type": "boolean"
+					},
+					"direction":
+					{
+						"description": "Or a direction",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"distance":
+					{
+						"default": 100000,
+						"description": "Length with direction cm",
+						"minimum": 1,
+						"type": "number"
+					},
+					"end":
+					{
+						"description": "End [x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"ignore":
+					{
+						"description": "Targets to ignore",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 64,
+						"type": "array"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"multi":
+					{
+						"default": false,
+						"description": "Return every hit",
+						"type": "boolean"
+					},
+					"start":
+					{
+						"description": "Start [x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"start"
+				],
+				"type": "object"
+			},
+			"name": "physics.line_trace"
+		},
+		{
+			"description": "Actors overlapping a sphere or box.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"center":
+					{
+						"description": "Centre [x,y,z]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"limit":
+					{
+						"description": "Max results (default 25)",
+						"maximum": 1000,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"radius":
+					{
+						"default": 100,
+						"description": "Sphere radius cm",
+						"minimum": 0.10000000000000001,
+						"type": "number"
+					},
+					"shape":
+					{
+						"default": "sphere",
+						"description": "Shape",
+						"enum": [
+							"sphere",
+							"box"
+						],
+						"type": "string"
+					},
+					"size":
+					{
+						"description": "Box size [x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"center"
+				],
+				"type": "object"
+			},
+			"name": "physics.overlap_test"
+		},
+		{
+			"description": "Simulation state, mass, velocity and collision of a target.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "physics.get_physics"
+		},
+		{
+			"description": "Turn physics simulation on/off. Undo puts the object back.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "Simulate",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "physics.set_simulate",
+			"undoable": true
+		},
+		{
+			"description": "Push a simulating object. velocity_change ignores mass. Not undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"at":
+					{
+						"description": "Apply at this world point (adds spin)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"impulse":
+					{
+						"description": "[x,y,z] (cm/s with velocity_change)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
+						"maxLength": 1024,
+						"type": "string"
+					},
+					"velocity_change":
+					{
+						"default": true,
+						"description": "Treat impulse as a velocity change",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"target",
+					"impulse"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "physics.add_impulse",
+			"undoable": false
+		},
+		{
+			"description": "Switch a skeletal mesh to ragdoll physics (or back).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "Ragdoll on",
+						"type": "boolean"
+					},
+					"target":
+					{
+						"description": "Actor with a skeletal mesh",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "physics.ragdoll",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

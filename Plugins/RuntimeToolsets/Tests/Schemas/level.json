@@ -1,0 +1,215 @@
+{
+	"description": "List levels, load/unload level instances, visibility, data layers, open map",
+	"name": "level",
+	"tools": [
+		{
+			"description": "Persistent level, streaming levels (loaded/visible) and data layer states.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "level.list_levels"
+		},
+		{
+			"description": "Stream a map in as an instance at a transform. Completes when visible.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blocking":
+					{
+						"default": false,
+						"description": "Finish now (frame hitch) instead of waiting asynchronously",
+						"type": "boolean"
+					},
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"map":
+					{
+						"description": "Map package, e.g. /Game/Maps/Sandbox",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Optional unique instance name",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"map"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.load_level_instance",
+			"undoable": true
+		},
+		{
+			"description": "Unload a streaming level or instance (undo loads it back).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blocking":
+					{
+						"default": false,
+						"description": "Finish now (frame hitch) instead of waiting asynchronously",
+						"type": "boolean"
+					},
+					"level":
+					{
+						"description": "Package or short name from list_levels",
+						"maxLength": 512,
+						"type": "string"
+					}
+				},
+				"required": [
+					"level"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.unload_level",
+			"undoable": true
+		},
+		{
+			"description": "Show or hide a streaming level (showing also loads it).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blocking":
+					{
+						"default": false,
+						"description": "Finish now (frame hitch) instead of waiting asynchronously",
+						"type": "boolean"
+					},
+					"level":
+					{
+						"description": "Package or short name from list_levels",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"visible":
+					{
+						"description": "Visible",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"level",
+					"visible"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.set_level_visibility",
+			"undoable": true
+		},
+		{
+			"description": "Set a World Partition data layer to unloaded, loaded or activated.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Data layer name",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"recursive":
+					{
+						"default": false,
+						"description": "Apply to child layers",
+						"type": "boolean"
+					},
+					"state":
+					{
+						"description": "Runtime state",
+						"enum": [
+							"unloaded",
+							"loaded",
+							"activated"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"state"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.set_data_layer",
+			"undoable": true
+		},
+		{
+			"description": "Travel to another map. Destroys the world and all undo history; needs confirm.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"confirm":
+					{
+						"default": false,
+						"description": "Must be true to proceed",
+						"type": "boolean"
+					},
+					"map":
+					{
+						"description": "Map package, e.g. /Game/Maps/Sandbox",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"options":
+					{
+						"description": "URL options, e.g. ?game=/Script/Engine.GameModeBase",
+						"maxLength": 512,
+						"type": "string"
+					}
+				},
+				"required": [
+					"map"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "level.open_level",
+			"undoable": false
+		}
+	],
+	"version": "1.0.0"
+}

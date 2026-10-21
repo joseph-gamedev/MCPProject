@@ -1,0 +1,144 @@
+{
+	"description": "Inject keys and Enhanced Input actions; add/remove mapping contexts",
+	"name": "input",
+	"tools": [
+		{
+			"description": "Simulate a key/button for the local player: tap (press+release), press, release or axis.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"duration":
+					{
+						"default": 0.10000000000000001,
+						"description": "Seconds to hold for tap",
+						"maximum": 30,
+						"minimum": 0,
+						"type": "number"
+					},
+					"event":
+					{
+						"default": "tap",
+						"description": "Event",
+						"enum": [
+							"tap",
+							"press",
+							"release",
+							"axis"
+						],
+						"type": "string"
+					},
+					"key":
+					{
+						"description": "UE key name: W, SpaceBar, LeftMouseButton, Gamepad_FaceButton_Bottom",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Axis value for event=axis",
+						"type": "number"
+					}
+				},
+				"required": [
+					"key"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.inject_key",
+			"undoable": false
+		},
+		{
+			"description": "Trigger an Enhanced Input action with a value, optionally held for a duration.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"action":
+					{
+						"description": "Input action path, e.g. /Game/Input/IA_Jump.IA_Jump",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"duration":
+					{
+						"default": 0,
+						"description": "Seconds to keep injecting",
+						"maximum": 30,
+						"minimum": 0,
+						"type": "number"
+					},
+					"value":
+					{
+						"description": "true, a number, [x,y] or [x,y,z] (default true)"
+					}
+				},
+				"required": [
+					"action"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.inject_action",
+			"undoable": false
+		},
+		{
+			"description": "Apply an Enhanced Input mapping context to the local player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"context":
+					{
+						"description": "Mapping context path",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"priority":
+					{
+						"default": 0,
+						"description": "Priority",
+						"maximum": 1000,
+						"minimum": -1000,
+						"type": "integer"
+					}
+				},
+				"required": [
+					"context"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.add_mapping_context",
+			"undoable": true
+		},
+		{
+			"description": "Remove an Enhanced Input mapping context from the local player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"context":
+					{
+						"description": "Mapping context path",
+						"maxLength": 512,
+						"type": "string"
+					}
+				},
+				"required": [
+					"context"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "input.remove_mapping_context",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

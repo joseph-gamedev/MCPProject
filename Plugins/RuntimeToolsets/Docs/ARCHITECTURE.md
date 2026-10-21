@@ -12,6 +12,7 @@ RuntimeToolsetsCore ── registry ── MPSC queue ── game-thread pump (F
         ▲
 RuntimeToolsetsCoreTools: session · actors · scene · reflection · console · log · capture · history
 RuntimeToolsetsPresentation: materials · camera      RuntimeToolsetsContent: layout
+RuntimeToolsetsGameplay: game · physics · level · input
 ```
 
 ## Modules
@@ -20,6 +21,7 @@ RuntimeToolsetsPresentation: materials · camera      RuntimeToolsetsContent: la
 |---|---|---|---|
 | RuntimeToolsetsCore | Runtime, PostDefault | Engine, Json, JsonUtilities, DeveloperSettings | API, registry, dispatcher, schema builder and validator, command layer, scene graph, resolver, log capture, settings |
 | RuntimeToolsetsCoreTools | Runtime, PostDefault | Core only (plus engine render/image modules) | The Phase 1 toolsets |
+| RuntimeToolsetsGameplay | Runtime, PostDefault | Core only (plus InputCore, EnhancedInput, PhysicsCore) | game, physics, level, input |
 | RuntimeToolsetsPresentation | Runtime, PostDefault | Core only (plus RenderCore) | materials, camera |
 | RuntimeToolsetsContent | Runtime, PostDefault | Core only | layout |
 | RuntimeToolsetsTests | Runtime, PostEngineInit | Core only | Specs, schema snapshot test, `RuntimeToolsets.RunTests` packaged runner |

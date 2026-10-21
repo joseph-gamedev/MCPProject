@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-10-21
+
+Phase 2, game runtime tools.
+
+- **New module:** `RuntimeToolsetsGameplay`. It depends on Core plus the EnhancedInput plugin.
+- **New toolsets:**
+  - `game` 1.0.0 (5 tools)
+  - `physics` 1.0.0 (6 tools)
+  - `level` 1.0.0 (6 tools)
+  - `input` 1.0.0 (4 tools)
+- **Async tools:** `load_level_instance`, `inject_key` (tap/hold) and `inject_action` (hold) complete asynchronously. They also work when called through `session.call_tool`.
+- **Tests:** 94 automation tests, passing in the editor and in the packaged Development build.
+- **Smoke test:** now covers physics, input injection and async level streaming.
+
 ## 0.2.0 — 2026-10-21
 
 Phase 2, builder tools.

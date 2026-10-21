@@ -20,6 +20,13 @@ The plugin only provides tools. A connector (yours, or the optional `RuntimeTool
 | `camera` | get_camera, set_camera, set_fov, frame_nodes, orbit, reset_camera, possess, set_view_mode |
 | `layout` | align_nodes, distribute_nodes, snap_to_grid, drop_to_ground, arrange_in_row, arrange_in_grid, arrange_in_circle, randomize_transform, find_free_space |
 
+| `game` | get_game_state, list_players, teleport, set_pause, set_time_dilation |
+| `physics` | line_trace, overlap_test, get_physics, set_simulate, add_impulse, ragdoll |
+| `level` | list_levels, load_level_instance, unload_level, set_level_visibility, set_data_layer, open_level |
+| `input` | inject_key, inject_action, add_mapping_context, remove_mapping_context |
+
+`game`, `physics`, `level` and `input` live in `RuntimeToolsetsGameplay` (needs the EnhancedInput plugin). `load_level_instance` waits asynchronously until the level is visible (or pass `blocking:true`). `open_level` needs `confirm:true` because it destroys the world and all undo history. `inject_key` reports `handled:false` when nothing in the game consumed the key.
+
 `materials` and `camera` live in the `RuntimeToolsetsPresentation` module; `layout` lives in `RuntimeToolsetsContent`. Debug view modes (unlit, wireframe…) are only available in cooked builds cooked with `r.ForceDebugViewModes=1`; otherwise `set_view_mode` returns `unsupported` and only `lit` works.
 
 Each toolset's exact names and schemas are in `Tests/Schemas/<toolset>.json`, which is guarded by a snapshot test.

@@ -1,0 +1,122 @@
+{
+	"description": "Game state, players, teleport, pause, time dilation",
+	"name": "game",
+	"tools": [
+		{
+			"description": "Map, game mode, time, pause, time dilation, player count.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "game.get_game_state"
+		},
+		{
+			"description": "Player controllers with their pawns and locations.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "game.list_players"
+		},
+		{
+			"description": "Move an actor (default: the player pawn) to a location, optionally turning it.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x,y,z] cm",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll]",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Actor or pawn (default: player pawn)",
+						"maxLength": 1024,
+						"type": "string"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "game.teleport",
+			"undoable": true
+		},
+		{
+			"description": "Pause or unpause the game. Tools keep working while paused.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"paused":
+					{
+						"description": "Paused",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"paused"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "game.set_pause",
+			"undoable": true
+		},
+		{
+			"description": "Slow down or speed up game time (1 = normal).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"value":
+					{
+						"description": "Time scale",
+						"maximum": 20,
+						"minimum": 0.0001,
+						"type": "number"
+					}
+				},
+				"required": [
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "game.set_time_dilation",
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

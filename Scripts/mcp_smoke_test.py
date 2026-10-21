@@ -160,6 +160,28 @@ def main():
         return f"{payload['w']}x{payload['h']} {images[0]['mimeType']} {len(data)} bytes"
 
     step("capture_screenshot", screenshot)
+    # Phase 2 gameplay tools.
+    step("game_get_game_state", lambda: call("game_get_game_state")[0].get("game_mode"))
+    step("physics_line_trace (floor)", lambda: call("physics_line_trace", {"start": [0, 0, 2000], "direction": [0, 0, -1]})[0]["hits"][0]["location"])
+
+    def physics_drop():
+        cube = call("actors_spawn_actor", {"shape": "cube", "name": "physics_cube", "location": [0, -400, 600]})[0]["id"]
+        call("physics_set_simulate", {"target": cube})
+        call("physics_add_impulse", {"target": cube, "impulse": [0, 0, 300]})
+        return call("physics_get_physics", {"target": cube})[0].get("velocity")
+
+    step("physics_set_simulate + add_impulse", physics_drop)
+    step("input_inject_key (tap SpaceBar)", lambda: call("input_inject_key", {"key": "SpaceBar", "duration": 0.2})[0].get("handled"))
+
+    def level_instance():
+        payload, _ = call("level_load_level_instance", {"map": "/Game/Maps/Sandbox", "location": [0, 0, -20000]})
+        level = payload["level"]
+        if not (level["loaded"] and level["visible"]):
+            raise RuntimeError(json.dumps(payload))
+        call("history_undo")
+        return level["name"]
+
+    step("level_load_level_instance (async) + undo", level_instance)
     step("camera_reset_camera", lambda: call("camera_reset_camera")[0].get("view_target"))
     step("log_tail_log", lambda: len(call("log_tail_log", {"limit": 5})[0]["lines"]))
     step("scene_clear_all", lambda: call("scene_clear_all", {"confirm": True})[0].get("deleted"))
