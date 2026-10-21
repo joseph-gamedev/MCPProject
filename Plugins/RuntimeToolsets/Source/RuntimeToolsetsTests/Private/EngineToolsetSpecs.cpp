@@ -120,7 +120,56 @@ void FReflectionToolsetSpec::Define()
 	It("enforces object policy", [this]()
 	{
 		H->CallFails(TEXT("reflection.list_properties"), TEXT("{\"target\":\"class:/Script/Engine.GameEngine\"}"), ERuntimeToolError::NotAllowed);
+		H->CallFails(TEXT("reflection.list_properties"), TEXT("{\"target\":\"n999999\"}"), ERuntimeToolError::NotFound);
 		H->CallFails(TEXT("reflection.get_subsystem"), TEXT("{\"kind\":\"world\",\"class\":\"NoSuchSubsystem\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("reflection.get_subsystem"), TEXT("{\"kind\":\"galaxy\",\"class\":\"X\"}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("reflection.list_functions"), TEXT("{\"target\":\"n999999\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("reflection.find_class"), TEXT("{\"base\":\"NoSuchBaseClass\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("reflection.set_property"), FString::Printf(TEXT("{\"target\":\"%s\",\"path\":\"NoSuchProp\",\"value\":1}"), *Cube), ERuntimeToolError::NotFound);
+	});
+
+	It("reads and writes properties in batches as one undo step", [this]()
+	{
+		const TSharedRef<FJsonObject> G = H->CallOk(TEXT("reflection.get_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"properties\":[\"Tags\",\"InitialLifeSpan\"]}"), *Cube));
+		TestTrue(TEXT("two values"), G->HasField(TEXT("Tags")) && G->HasField(TEXT("InitialLifeSpan")));
+		const int32 TagsBefore = G->GetArrayField(TEXT("Tags")).Num();
+		const TSharedRef<FJsonObject> S = H->CallOk(TEXT("reflection.set_properties"),
+			FString::Printf(TEXT("{\"target\":\"%s\",\"values\":{\"InitialLifeSpan\":5,\"Tags\":[\"a\",\"b\",\"c\",\"d\",\"e\"]}}"), *Cube));
+		TestEqual(TEXT("read back"), S->GetNumberField(TEXT("InitialLifeSpan")), 5.0);
+		H->CallOk(TEXT("history.undo"));
+		const TSharedRef<FJsonObject> After = H->CallOk(TEXT("reflection.get_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"properties\":[\"Tags\",\"InitialLifeSpan\"]}"), *Cube));
+		TestEqual(TEXT("one undo restores both"), After->GetArrayField(TEXT("Tags")).Num(), TagsBefore);
+		TestEqual(TEXT("life span restored"), After->GetNumberField(TEXT("InitialLifeSpan")), 0.0);
+		// All-or-nothing: an unknown path changes nothing.
+		H->CallFails(TEXT("reflection.set_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"values\":{\"InitialLifeSpan\":7,\"Nope\":1}}"), *Cube), ERuntimeToolError::NotFound);
+		TestEqual(TEXT("unchanged"), H->CallOk(TEXT("reflection.get_property"), FString::Printf(TEXT("{\"target\":\"%s\",\"path\":\"InitialLifeSpan\"}"), *Cube))->GetNumberField(TEXT("value")), 0.0);
+		H->CallFails(TEXT("reflection.set_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"values\":{}}"), *Cube), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("reflection.get_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"properties\":[\"Nope\"]}"), *Cube), ERuntimeToolError::NotFound);
+	});
+
+	It("resets properties to class defaults", [this]()
+	{
+		H->CallOk(TEXT("reflection.set_property"), FString::Printf(TEXT("{\"target\":\"%s\",\"path\":\"InitialLifeSpan\",\"value\":9}"), *Cube));
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("reflection.reset_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"properties\":[\"InitialLifeSpan\"]}"), *Cube));
+		TestEqual(TEXT("default"), R->GetNumberField(TEXT("InitialLifeSpan")), 0.0);
+		H->CallOk(TEXT("history.undo"));
+		TestEqual(TEXT("undo reset"), H->CallOk(TEXT("reflection.get_property"), FString::Printf(TEXT("{\"target\":\"%s\",\"path\":\"InitialLifeSpan\"}"), *Cube))->GetNumberField(TEXT("value")), 9.0);
+		H->CallFails(TEXT("reflection.reset_properties"), FString::Printf(TEXT("{\"target\":\"%s\",\"properties\":[\"Nope\"]}"), *Cube), ERuntimeToolError::NotFound);
+	});
+
+	It("describes enums and lists enum values of properties", [this]()
+	{
+		const TSharedRef<FJsonObject> E = H->CallOk(TEXT("reflection.describe_enum"), TEXT("{\"enum\":\"ECollisionChannel\"}"));
+		bool bStatic = false;
+		for (const TSharedPtr<FJsonValue>& V : E->GetArrayField(TEXT("values")))
+		{
+			bStatic |= V->AsObject()->GetStringField(TEXT("name")) == TEXT("ECC_WorldStatic");
+		}
+		TestTrue(TEXT("has ECC_WorldStatic"), bStatic);
+		H->CallFails(TEXT("reflection.describe_enum"), TEXT("{\"enum\":\"ENoSuchEnumAtAll\"}"), ERuntimeToolError::NotFound);
+		const TSharedRef<FJsonObject> L = H->CallOk(TEXT("reflection.list_properties"), FString::Printf(TEXT("{\"target\":\"%s#StaticMeshComponent0\",\"filter\":\"Mobility\"}"), *Cube));
+		const TArray<TSharedPtr<FJsonValue>> Props = L->GetArrayField(TEXT("properties"));
+		TestTrue(TEXT("enum values listed"), Props.Num() == 1 && Props[0]->AsObject()->GetArrayField(TEXT("enum_values")).Num() >= 3);
 	});
 }
 
@@ -148,8 +197,12 @@ void FConsoleToolsetSpec::Define()
 		TestEqual(TEXT("set"), IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"))->GetFloat(), 37.f);
 		H->CallOk(TEXT("history.undo"));
 		TestEqual(TEXT("restored"), IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"))->GetString(), Before);
-		TestTrue(TEXT("prefix list"), H->CallOk(TEXT("console.get_cvar"), TEXT("{\"prefix\":\"t.Max\"}"))->GetNumberField(TEXT("total")) >= 1);
+		TestEqual(TEXT("previous"), S->GetStringField(TEXT("previous")), Before);
+		TestTrue(TEXT("prefix list"), H->CallOk(TEXT("console.list_cvars"), TEXT("{\"prefix\":\"t.Max\"}"))->GetNumberField(TEXT("total")) >= 1);
 		H->CallFails(TEXT("console.get_cvar"), TEXT("{\"name\":\"no.such.cvar\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("console.list_cvars"), TEXT("{\"prefix\":\"t\"}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("console.set_cvar"), TEXT("{\"name\":\"no.such.cvar\",\"value\":1}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("console.set_cvar"), TEXT("{\"name\":\"t.MaxFPS\",\"value\":[1]}"), ERuntimeToolError::InvalidArguments);
 	});
 
 	It("runs allowed commands and refuses denied ones", [this]()
@@ -158,6 +211,7 @@ void FConsoleToolsetSpec::Define()
 		H->CallFails(TEXT("console.exec_command"), TEXT("{\"command\":\"quit\"}"), ERuntimeToolError::NotAllowed);
 		H->CallFails(TEXT("console.exec_command"), TEXT("{\"command\":\"  EXIT\"}"), ERuntimeToolError::NotAllowed);
 		H->CallFails(TEXT("console.exec_command"), TEXT("{\"command\":\"stat fps|quit\"}"), ERuntimeToolError::NotAllowed);
+		H->CallFails(TEXT("console.exec_command"), TEXT("{\"command\":\"  \"}"), ERuntimeToolError::InvalidArguments);
 	});
 
 	It("sets scalability and undo restores", [this]()
@@ -168,6 +222,8 @@ void FConsoleToolsetSpec::Define()
 		TestEqual(TEXT("set"), H->CallOk(TEXT("console.get_user_settings"))->GetObjectField(TEXT("scalability"))->GetNumberField(TEXT("shadows")), Target);
 		H->CallOk(TEXT("history.undo"));
 		TestEqual(TEXT("restored"), H->CallOk(TEXT("console.get_user_settings"))->GetObjectField(TEXT("scalability"))->GetNumberField(TEXT("shadows")), Before);
+		H->CallFails(TEXT("console.set_scalability"), TEXT("{\"shadows\":7}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("console.set_scalability"), TEXT("{}"), ERuntimeToolError::InvalidArguments);
 	});
 }
 
@@ -202,6 +258,8 @@ void FLogToolsetSpec::Define()
 		const int64 Last = static_cast<int64>(R->GetNumberField(TEXT("last_seq")));
 		const TSharedRef<FJsonObject> Since = H->CallOk(TEXT("log.tail_log"), FString::Printf(TEXT("{\"since_seq\":%lld,\"contains\":\"%s\"}"), Last, *Marker));
 		TestEqual(TEXT("nothing new"), Since->GetArrayField(TEXT("lines")).Num(), 0);
+		H->CallFails(TEXT("log.tail_log"), TEXT("{\"min_verbosity\":\"Loud\"}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("log.subscribe_log_category"), TEXT("{\"category\":\"\"}"), ERuntimeToolError::InvalidArguments);
 	});
 
 	It("reads stats", [this]()
@@ -268,6 +326,14 @@ void FCaptureToolsetSpec::Define()
 	{
 		// ExecuteInline is sync-only; async tools are reached through Invoke or session.call_tool.
 		H->CallFails(TEXT("capture.screenshot"), TEXT("{}"), ERuntimeToolError::Unsupported);
+	});
+
+	It("refuses render-target reads of other objects", [this]()
+	{
+		const FString Cube = H->SpawnCube();
+		H->CallFails(TEXT("capture.capture_render_target"), FString::Printf(TEXT("{\"target\":\"%s\"}"), *Cube), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("capture.capture_render_target"), TEXT("{\"target\":\"n999999\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("capture.scene_capture"), TEXT("{\"format\":\"gif\"}"), ERuntimeToolError::InvalidArguments);
 	});
 }
 

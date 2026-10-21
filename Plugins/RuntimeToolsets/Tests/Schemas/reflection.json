@@ -1,118 +1,9 @@
 {
-	"description": "Read/write properties and call BlueprintCallable functions on any allowed object",
+	"description": "Reflection: inspect and change any object's properties and call its Blueprint-callable functions, like Epic's object\ntools. Targets are node ids, actor:Name, components (\"n12#LightComponent0\", from actors.list_components), shortcuts\n(pawn, game_mode, world_settings...), subsystem:<kind>/<Class> or object paths; project policy can deny classes.\nWorkflow: list_properties (types, enum values) -> get_properties -> set_properties (one undo step) or reset_properties;\ndescribe_enum for enum names; list_functions -> call_function for behaviour; find_class to discover classes.",
 	"name": "reflection",
 	"tools": [
 		{
-			"description": "Properties of an object (name, type, read_only, optional values).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"editable_only":
-					{
-						"default": true,
-						"description": "Only editable/blueprint-visible",
-						"type": "boolean"
-					},
-					"filter":
-					{
-						"description": "Name wildcard, e.g. *Color*",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"include_values":
-					{
-						"default": false,
-						"description": "Include current values",
-						"type": "boolean"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"name": "reflection.list_properties"
-		},
-		{
-			"description": "Read a property by path, e.g. LightComponent.Intensity or Tags[0].",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"path":
-					{
-						"description": "Property path",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target",
-					"path"
-				],
-				"type": "object"
-			},
-			"name": "reflection.get_property"
-		},
-		{
-			"description": "Write a property by path. Vectors as [x,y,z], colors as [r,g,b,a]. Undoable.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"path":
-					{
-						"description": "Property path",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"value":
-					{
-						"description": "New value"
-					}
-				},
-				"required": [
-					"target",
-					"path",
-					"value"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "reflection.set_property",
-			"undoable": true
-		},
-		{
-			"description": "Call a BlueprintCallable function with named args. Not undoable unless pure.",
+			"description": "Calls a BlueprintCallable function with named arguments. Missing arguments use zero/default values (listed in defaulted); a WorldContextObject argument is filled in. Fails for unknown functions, unknown argument names, latent functions and functions denied by project settings.\nReturns: Return value, out parameters, defaulted parameter names and whether the call was side-effect free.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -120,19 +11,16 @@
 				{
 					"args":
 					{
-						"description": "Arguments by parameter name",
-						"type": "object"
+						"description": "Arguments by parameter name, e.g. {\"NewLocation\": [0, 0, 100]}. (Any JSON value)"
 					},
 					"function":
 					{
-						"description": "Function name",
-						"maxLength": 128,
+						"description": "Function name, e.g. \"K2_GetActorLocation\" (see list_functions).",
 						"type": "string"
 					},
 					"target":
 					{
-						"description": "Object, or class:/Script/Module.Class for static functions",
-						"maxLength": 1024,
+						"description": "Object, or class:/Script/Module.Class for static library functions. (Reference to Object: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -144,44 +32,132 @@
 			},
 			"mutating": true,
 			"name": "reflection.call_function",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Return value, out parameters, defaulted parameter names and whether the call was side-effect free.",
+						"properties":
+						{
+							"defaulted":
+							{
+								"description": "Parameters that were not passed and used their zero/default value.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"outputs":
+							{
+								"description": "Out parameters by name. (Any JSON value)"
+							},
+							"return":
+							{
+								"description": "Return value (null for functions without one). (Any JSON value)"
+							},
+							"undoable":
+							{
+								"description": "False when the function may have changed state (only pure/const functions are side-effect free).",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeCallResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": false
 		},
 		{
-			"description": "Callable functions of an object with signatures.",
+			"description": "Describes an enum: its value names (what enum properties and arguments accept) and numbers. Fails if no loaded enum has that name; similar names are suggested.\nReturns: Name, path, whether it is a bit-flag enum, and its values in declaration order.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"filter":
+					"enum":
 					{
-						"description": "Name wildcard, e.g. Set*",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Enum name or path, e.g. \"ECollisionChannel\", \"EComponentMobility\" or \"/Script/Engine.ELightUnits\".",
 						"type": "string"
 					}
 				},
 				"required": [
-					"target"
+					"enum"
 				],
 				"type": "object"
 			},
-			"name": "reflection.list_functions"
+			"name": "reflection.describe_enum",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Name, path, whether it is a bit-flag enum, and its values in declaration order.",
+						"properties":
+						{
+							"bitflags":
+							{
+								"description": "Values combine as bit flags.",
+								"type": "boolean"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full path, e.g. \"/Script/Engine.ECollisionChannel\".",
+								"type": "string"
+							},
+							"values":
+							{
+								"description": "Values in declaration order (hidden and _MAX entries left out).",
+								"items":
+								{
+									"properties":
+									{
+										"description":
+										{
+											"description": "Tooltip, when available.",
+											"type": "string"
+										},
+										"name":
+										{
+											"description": "Name to pass as a value, e.g. \"Movable\".",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Numeric value.",
+											"type": "integer"
+										}
+									},
+									"title": "RuntimeEnumEntry",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeEnumInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Find loaded classes by name wildcard, optionally derived from a base.",
+			"description": "Finds loaded classes by name, optionally derived from a base class (Epic: search_subclasses). Fails if the base class does not exist.\nReturns: Total count and classes {name, path, parent, abstract}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -189,30 +165,190 @@
 				{
 					"base":
 					{
-						"description": "Base class name, e.g. Actor",
-						"maxLength": 256,
+						"default": "",
+						"description": "Base class name, e.g. \"Actor\" or \"ActorComponent\".",
 						"type": "string"
 					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 25,
+						"description": "Maximum classes returned (0 = project default).",
 						"type": "integer"
 					},
 					"pattern":
 					{
-						"description": "Name wildcard, e.g. *Light*",
-						"maxLength": 128,
+						"default": "",
+						"description": "Name wildcard, e.g. \"*Light*\".",
 						"type": "string"
 					}
 				},
 				"type": "object"
 			},
-			"name": "reflection.find_class"
+			"name": "reflection.find_class",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total count and classes {name, path, parent, abstract}.",
+						"properties":
+						{
+							"classes":
+							{
+								"description": "Matching loaded classes, at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"abstract":
+										{
+											"type": "boolean"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"parent":
+										{
+											"description": "Parent class name.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Full path, e.g. \"/Script/Engine.PointLight\" (pass it to actors.spawn_actor class).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeClassInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeClassList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Get a subsystem as a target string for other reflection tools.",
+			"description": "Reads several properties at once (Epic: get_properties).\nReturns: Path -> value. Fails on the first unknown path.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"properties":
+					{
+						"description": "Property paths, e.g. [\"Intensity\", \"LightColor\", \"AttenuationRadius\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Object to read. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"properties"
+				],
+				"type": "object"
+			},
+			"name": "reflection.get_properties",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"description": "Any JSON value"
+						},
+						"description": "Path -> value. Fails on the first unknown path.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Reads one property by path. Fails if the path does not exist (see list_properties).\nReturns: The path, the property type and the value.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"path":
+					{
+						"description": "Property path, e.g. \"Intensity\", \"LightComponent.Intensity\", \"RelativeLocation.Z\" or \"Tags[0]\".",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Object to read. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"path"
+				],
+				"type": "object"
+			},
+			"name": "reflection.get_property",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The path, the property type and the value.",
+						"properties":
+						{
+							"path":
+							{
+								"description": "The property path that was read.",
+								"type": "string"
+							},
+							"type":
+							{
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "Value as JSON: numbers, strings, [x,y,z] vectors, [r,g,b,a] colors, objects for structs, references for objects. (Any JSON value)"
+							}
+						},
+						"title": "RuntimePropertyValue",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Gets a subsystem as a target string for the other reflection tools. Fails if the class does not exist or the subsystem is not running.\nReturns: The target string, class path and number of callable functions.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -220,19 +356,12 @@
 				{
 					"class":
 					{
-						"description": "Subsystem class name",
-						"maxLength": 256,
+						"description": "Subsystem class name, e.g. \"TimerSubsystem\".",
 						"type": "string"
 					},
 					"kind":
 					{
-						"description": "Subsystem kind",
-						"enum": [
-							"engine",
-							"game_instance",
-							"world",
-							"local_player"
-						],
+						"description": "engine, game_instance, world or local_player.",
 						"type": "string"
 					}
 				},
@@ -242,8 +371,392 @@
 				],
 				"type": "object"
 			},
-			"name": "reflection.get_subsystem"
+			"name": "reflection.get_subsystem",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The target string, class path and number of callable functions.",
+						"properties":
+						{
+							"callable_functions":
+							{
+								"description": "Number of functions call_function may call.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Class path.",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Target string for other reflection tools, e.g. \"subsystem:world/MySubsystem\".",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSubsystemInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the functions call_function may call on an object, with signatures.\nReturns: Class, total count and signatures.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"default": "",
+						"description": "Name wildcard, e.g. \"Set*\".",
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 25,
+						"description": "Maximum functions returned (0 = project default).",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Object to inspect. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "reflection.list_functions",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Class, total count and signatures.",
+						"properties":
+						{
+							"class":
+							{
+								"type": "string"
+							},
+							"functions":
+							{
+								"description": "Signatures \"Name(type Param, out type Param) -> type\", at most `limit`.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeFunctionList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists an object's properties with their types, enum values and (optionally) current values.\nReturns: Class, total count and properties {name, type, read_only, enum_values, value, value_preview}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"editable_only":
+					{
+						"default": true,
+						"description": "Only editable or Blueprint-visible properties.",
+						"type": "boolean"
+					},
+					"filter":
+					{
+						"default": "",
+						"description": "Property name wildcard, e.g. \"*Color*\".",
+						"type": "string"
+					},
+					"include_values":
+					{
+						"default": false,
+						"description": "Include current values (long values become a 200-character preview).",
+						"type": "boolean"
+					},
+					"limit":
+					{
+						"default": 25,
+						"description": "Maximum properties returned (0 = project default).",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Object, e.g. \"n12\", \"n12#PointLightComponent0\" or \"world_settings\". (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "reflection.list_properties",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Class, total count and properties {name, type, read_only, enum_values, value, value_preview}.",
+						"properties":
+						{
+							"class":
+							{
+								"description": "The object's class.",
+								"type": "string"
+							},
+							"properties":
+							{
+								"description": "Properties in declaration order (subclass first), at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"enum_values":
+										{
+											"description": "Allowed values for enum properties (pass one of these names).",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"name":
+										{
+											"description": "Property name, usable as a path segment (\"Intensity\", \"RelativeLocation\").",
+											"type": "string"
+										},
+										"read_only":
+										{
+											"description": "Not writable by set_property / set_properties.",
+											"type": "boolean"
+										},
+										"type":
+										{
+											"description": "C++ type, e.g. \"float\", \"FVector\", \"TArray<FName>\", \"EComponentMobility::Type\".",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Current value (with include_values; null when the value was too long, see value_preview). (Any JSON value)"
+										},
+										"value_preview":
+										{
+											"description": "First 200 characters of a long value (with include_values).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimePropertyInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Number of matching properties (may exceed the list).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimePropertyList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Resets properties to their defaults (the object's archetype: class defaults, or the Blueprint/component template), as one undo step (Epic: reset_properties). Fails if a path is unknown or read-only.\nReturns: Path -> value after the reset.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"properties":
+					{
+						"description": "Property paths to reset, e.g. [\"Intensity\", \"LightColor\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Object to change. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"properties"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "reflection.reset_properties",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"description": "Any JSON value"
+						},
+						"description": "Path -> value after the reset.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Writes several properties as one undo step (Epic: set_properties). All paths are checked first; nothing changes if any path is unknown or read-only.\nReturns: Path -> value read back after the change.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Object to change. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"values":
+					{
+						"description": "Path -> value, e.g. {\"Intensity\": 5000, \"LightColor\": [255, 200, 150, 255]}. (Any JSON value)"
+					}
+				},
+				"required": [
+					"target",
+					"values"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "reflection.set_properties",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"description": "Any JSON value"
+						},
+						"description": "Path -> value read back after the change.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Writes one property by path. Undoable. Vectors as [x,y,z], colors as [r,g,b,a], enums by name, objects by reference. Fails if the path does not exist or the property is read-only (try a setter with call_function).\nReturns: The target, the path and the value read back.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"path":
+					{
+						"description": "Property path, e.g. \"Intensity\".",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Object to change. (Reference to Object: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New value, e.g. 5000. (Any JSON value)"
+					}
+				},
+				"required": [
+					"target",
+					"path",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "reflection.set_property",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The target, the path and the value read back.",
+						"properties":
+						{
+							"property":
+							{
+								"description": "The property path.",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "The changed object.",
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "Value after the change (read back). (Any JSON value)"
+							}
+						},
+						"title": "RuntimePropertyChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

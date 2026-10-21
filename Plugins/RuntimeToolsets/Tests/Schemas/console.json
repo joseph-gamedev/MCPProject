@@ -1,9 +1,9 @@
 {
-	"description": "Console commands, cvars, scalability and user settings",
+	"description": "Console: console commands, console variables (cvars), scalability and user settings of the running game.\nWorkflow: list_cvars {prefix} to discover -> get_cvar for help text -> set_cvar (undoable); set_scalability for quality\npresets; exec_command only for commands that have no cvar (it cannot be undone, and the project deny-list applies).",
 	"name": "console",
 	"tools": [
 		{
-			"description": "Run one console command (deny-list applies). Returns captured output. Not undoable.",
+			"description": "Runs one console command and returns what it printed. Fails for commands denied by project settings and for chained commands (\"a|b\").\nReturns: Whether it was handled and its captured output.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,8 +11,7 @@
 				{
 					"command":
 					{
-						"description": "Console command, e.g. stat fps",
-						"maxLength": 512,
+						"description": "Console command, e.g. \"stat fps\" or \"r.ScreenPercentage 75\".",
 						"type": "string"
 					}
 				},
@@ -23,10 +22,218 @@
 			},
 			"mutating": true,
 			"name": "console.exec_command",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether it was handled and its captured output.",
+						"properties":
+						{
+							"handled":
+							{
+								"description": "Whether any handler recognised the command.",
+								"type": "boolean"
+							},
+							"output":
+							{
+								"description": "Text the command printed (up to 4000 characters).",
+								"type": "string"
+							},
+							"truncated":
+							{
+								"description": "True when the output was cut.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeCommandOutput",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": false
 		},
 		{
-			"description": "Read a console variable by name, or list by prefix.",
+			"description": "Reads one console variable with its help text. Fails if it does not exist (search with list_cvars).\nReturns: Name, value, read-only flag and help.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Exact cvar name, e.g. \"r.ScreenPercentage\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "console.get_cvar",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Name, value, read-only flag and help.",
+						"properties":
+						{
+							"help":
+							{
+								"description": "Help text (get_cvar only, up to 300 characters).",
+								"type": "string"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"read_only":
+							{
+								"type": "boolean"
+							},
+							"value":
+							{
+								"description": "Current value as text.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCVarInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the game user settings: resolution, window mode, vsync, frame rate limit, dynamic resolution and scalability.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "console.get_user_settings",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"dynamic_resolution":
+							{
+								"type": "boolean"
+							},
+							"frame_rate_limit":
+							{
+								"description": "Frame rate cap (0 = none).",
+								"type": "number"
+							},
+							"resolution":
+							{
+								"description": "[x, y] integers",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 2,
+								"minItems": 2,
+								"type": "array"
+							},
+							"scalability":
+							{
+								"properties":
+								{
+									"anti_aliasing":
+									{
+										"type": "integer"
+									},
+									"effects":
+									{
+										"type": "integer"
+									},
+									"foliage":
+									{
+										"type": "integer"
+									},
+									"global_illumination":
+									{
+										"type": "integer"
+									},
+									"overall":
+									{
+										"description": "Lowest group level.",
+										"type": "integer"
+									},
+									"post_process":
+									{
+										"type": "integer"
+									},
+									"reflections":
+									{
+										"type": "integer"
+									},
+									"resolution_scale":
+									{
+										"description": "Screen percentage.",
+										"type": "number"
+									},
+									"shading":
+									{
+										"type": "integer"
+									},
+									"shadows":
+									{
+										"type": "integer"
+									},
+									"textures":
+									{
+										"type": "integer"
+									},
+									"view_distance":
+									{
+										"type": "integer"
+									}
+								},
+								"title": "RuntimeScalability",
+								"type": "object"
+							},
+							"vsync":
+							{
+								"type": "boolean"
+							},
+							"window_mode":
+							{
+								"description": "fullscreen, windowed_fullscreen or windowed.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeUserSettings",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists console variables whose names start with a prefix.\nReturns: Total count and variables {name, value, read_only}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -34,30 +241,80 @@
 				{
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 25,
+						"description": "Maximum variables returned (0 = project default).",
 						"type": "integer"
-					},
-					"name":
-					{
-						"description": "Exact cvar name",
-						"maxLength": 256,
-						"type": "string"
 					},
 					"prefix":
 					{
-						"description": "List cvars starting with this",
-						"maxLength": 256,
+						"description": "At least 2 characters, e.g. \"r.Shadow\".",
 						"type": "string"
 					}
 				},
+				"required": [
+					"prefix"
+				],
 				"type": "object"
 			},
-			"name": "console.get_cvar"
+			"name": "console.list_cvars",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total count and variables {name, value, read_only}.",
+						"properties":
+						{
+							"cvars":
+							{
+								"description": "Matches in console-manager order, at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"help":
+										{
+											"description": "Help text (get_cvar only, up to 300 characters).",
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"read_only":
+										{
+											"type": "boolean"
+										},
+										"value":
+										{
+											"description": "Current value as text.",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeCVarInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Number of matching variables (may exceed the list).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeCVarList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Set a console variable. Undoable.",
+			"description": "Sets a console variable. Undoable. Fails if it does not exist, is read-only or is denied by project settings.\nReturns: Name, new value and previous value.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -65,13 +322,12 @@
 				{
 					"name":
 					{
-						"description": "Cvar name",
-						"maxLength": 256,
+						"description": "Cvar name, e.g. \"t.MaxFPS\".",
 						"type": "string"
 					},
 					"value":
 					{
-						"description": "New value (number, bool or string)"
+						"description": "New value: number, bool or string, e.g. 60. (Any JSON value)"
 					}
 				},
 				"required": [
@@ -82,10 +338,43 @@
 			},
 			"mutating": true,
 			"name": "console.set_cvar",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Name, new value and previous value.",
+						"properties":
+						{
+							"name":
+							{
+								"type": "string"
+							},
+							"previous":
+							{
+								"description": "Value before the change (undo restores it).",
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "Value after the change.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCVarChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Set overall or per-group quality (0 low .. 3 epic, 4 cinematic). Undoable.",
+			"description": "Sets the overall quality level and/or individual groups (0 low, 1 medium, 2 high, 3 epic, 4 cinematic); groups you omit keep their level, and groups override overall. Undoable. Fails for levels outside 0-4.\nReturns: The resulting scalability levels.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -93,76 +382,62 @@
 				{
 					"anti_aliasing":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Anti-aliasing level.",
 						"type": "integer"
 					},
 					"effects":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Effects level.",
 						"type": "integer"
 					},
 					"foliage":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Foliage level.",
 						"type": "integer"
 					},
 					"global_illumination":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Global illumination level.",
 						"type": "integer"
 					},
 					"overall":
 					{
-						"description": "All groups",
-						"maximum": 4,
-						"minimum": 0,
+						"description": "All groups at once.",
 						"type": "integer"
 					},
 					"post_process":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Post-process level.",
 						"type": "integer"
 					},
 					"reflections":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Reflection level.",
 						"type": "integer"
 					},
 					"resolution_scale":
 					{
-						"description": "Screen percentage",
-						"maximum": 200,
-						"minimum": 10,
+						"description": "Screen percentage, 10-200.",
 						"type": "number"
 					},
 					"shading":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Shading level.",
 						"type": "integer"
 					},
 					"shadows":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Shadow level.",
 						"type": "integer"
 					},
 					"textures":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "Texture level.",
 						"type": "integer"
 					},
 					"view_distance":
 					{
-						"maximum": 4,
-						"minimum": 0,
+						"description": "View distance level.",
 						"type": "integer"
 					}
 				},
@@ -170,20 +445,77 @@
 			},
 			"mutating": true,
 			"name": "console.set_scalability",
-			"undoable": true
-		},
-		{
-			"description": "Resolution, window mode, vsync, frame limit, scalability.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
+					"returnValue":
+					{
+						"description": "The resulting scalability levels.",
+						"properties":
+						{
+							"anti_aliasing":
+							{
+								"type": "integer"
+							},
+							"effects":
+							{
+								"type": "integer"
+							},
+							"foliage":
+							{
+								"type": "integer"
+							},
+							"global_illumination":
+							{
+								"type": "integer"
+							},
+							"overall":
+							{
+								"description": "Lowest group level.",
+								"type": "integer"
+							},
+							"post_process":
+							{
+								"type": "integer"
+							},
+							"reflections":
+							{
+								"type": "integer"
+							},
+							"resolution_scale":
+							{
+								"description": "Screen percentage.",
+								"type": "number"
+							},
+							"shading":
+							{
+								"type": "integer"
+							},
+							"shadows":
+							{
+								"type": "integer"
+							},
+							"textures":
+							{
+								"type": "integer"
+							},
+							"view_distance":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeScalability",
+						"type": "object"
+					}
 				},
+				"required": [
+					"returnValue"
+				],
 				"type": "object"
 			},
-			"name": "console.get_user_settings"
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

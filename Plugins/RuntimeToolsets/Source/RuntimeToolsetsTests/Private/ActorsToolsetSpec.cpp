@@ -4,6 +4,7 @@
 
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
 BEGIN_DEFINE_SPEC(FActorsToolsetSpec, "RuntimeToolsets.Toolsets.Actors", RUNTIMETOOLSETS_TEST_FLAGS)
@@ -91,6 +92,12 @@ void FActorsToolsetSpec::Define()
 			H->CallOk(TEXT("history.undo"));
 			TestFalse(TEXT("child visible"), ActorOf(Child)->IsHidden());
 		});
+		It("fails for unknown targets and protected level actors", [this]()
+		{
+			H->CallFails(TEXT("actors.destroy_actor"), TEXT("{\"target\":\"n999999\"}"), ERuntimeToolError::NotFound);
+			AActor* Level = H->GetWorld()->SpawnActor<AActor>();
+			H->CallFails(TEXT("actors.destroy_actor"), FString::Printf(TEXT("{\"target\":\"actor:%s\"}"), *Level->GetName()), ERuntimeToolError::NotAllowed);
+		});
 	});
 
 	Describe("find_actors", [this]()
@@ -104,6 +111,24 @@ void FActorsToolsetSpec::Define()
 			const TSharedRef<FJsonObject> C = H->CallOk(TEXT("actors.find_actors"), TEXT("{\"class\":\"StaticMeshActor\",\"limit\":1}"));
 			TestEqual(TEXT("two meshes"), static_cast<int32>(C->GetNumberField(TEXT("total"))), 2);
 			TestEqual(TEXT("limit"), C->GetArrayField(TEXT("actors")).Num(), 1);
+			TestTrue(TEXT("truncated"), C->GetBoolField(TEXT("truncated")));
+		});
+		It("filters by bounds, root and name substring", [this]()
+		{
+			const FString Group = H->CallOk(TEXT("scene.create_group"), TEXT("{\"name\":\"yard\"}"))->GetStringField(TEXT("id"));
+			H->SpawnCube(FString::Printf(TEXT("\"name\":\"near_box\",\"parent\":\"%s\""), *Group));
+			H->SpawnCube(TEXT("\"name\":\"far_box\",\"location\":[5000,0,0]"));
+			const TSharedRef<FJsonObject> B = H->CallOk(TEXT("actors.find_actors"), TEXT("{\"class\":\"StaticMeshActor\",\"bounds\":{\"min\":[-200,-200,-200],\"max\":[200,200,200]}}"));
+			TestEqual(TEXT("one in bounds"), static_cast<int32>(B->GetNumberField(TEXT("total"))), 1);
+			const TSharedRef<FJsonObject> R = H->CallOk(TEXT("actors.find_actors"), FString::Printf(TEXT("{\"root\":\"%s\",\"class\":\"StaticMeshActor\"}"), *Group));
+			TestEqual(TEXT("one under root"), static_cast<int32>(R->GetNumberField(TEXT("total"))), 1);
+			const TSharedRef<FJsonObject> N = H->CallOk(TEXT("actors.find_actors"), TEXT("{\"name\":\"FAR\"}"));
+			TestEqual(TEXT("substring on node name"), static_cast<int32>(N->GetNumberField(TEXT("total"))), 1);
+		});
+		It("rejects collision channels without bounds and unknown channels", [this]()
+		{
+			H->CallFails(TEXT("actors.find_actors"), TEXT("{\"collision_channels\":[\"ECC_WorldStatic\"]}"), ERuntimeToolError::InvalidArguments);
+			H->CallFails(TEXT("actors.find_actors"), TEXT("{\"collision_channels\":[\"NoChannel\"],\"bounds\":{\"min\":[0,0,0],\"max\":[1,1,1]}}"), ERuntimeToolError::InvalidArguments);
 		});
 	});
 
@@ -120,6 +145,12 @@ void FActorsToolsetSpec::Define()
 			TestNull(TEXT("detached"), ActorOf(B)->GetAttachParentActor());
 			TestTrue(TEXT("graph root"), H->GetGraph()->Find(B)->ParentId.IsEmpty());
 		});
+		It("refuses cycles and unknown parents", [this]()
+		{
+			const FString A = H->SpawnCube();
+			H->CallFails(TEXT("actors.attach"), FString::Printf(TEXT("{\"child\":\"%s\",\"parent\":\"%s\"}"), *A, *A), ERuntimeToolError::InvalidArguments);
+			H->CallFails(TEXT("actors.attach"), FString::Printf(TEXT("{\"child\":\"%s\",\"parent\":\"n999999\"}"), *A), ERuntimeToolError::NotFound);
+		});
 	});
 
 	Describe("set_visibility", [this]()
@@ -132,15 +163,27 @@ void FActorsToolsetSpec::Define()
 			H->CallOk(TEXT("history.undo"));
 			TestFalse(TEXT("visible"), ActorOf(Id)->IsHidden());
 		});
+		It("requires visible", [this]()
+		{
+			const FString Id = H->SpawnCube();
+			H->CallFails(TEXT("actors.set_visibility"), FString::Printf(TEXT("{\"target\":\"%s\"}"), *Id), ERuntimeToolError::InvalidArguments);
+		});
 	});
 
 	Describe("list_components", [this]()
 	{
-		It("lists the mesh component", [this]()
+		It("lists components with refs that reflection accepts", [this]()
 		{
 			const FString Id = H->SpawnCube();
-			const TSharedRef<FJsonObject> R = H->CallOk(TEXT("actors.list_components"), FString::Printf(TEXT("{\"target\":\"%s\"}"), *Id));
-			TestTrue(TEXT("has components"), R->GetNumberField(TEXT("total")) >= 1);
+			const TSharedRef<FJsonObject> R = H->CallOk(TEXT("actors.list_components"), FString::Printf(TEXT("{\"target\":\"%s\",\"class\":\"StaticMeshComponent\"}"), *Id));
+			TestEqual(TEXT("one mesh component"), static_cast<int32>(R->GetNumberField(TEXT("total"))), 1);
+			const FString Ref = R->GetArrayField(TEXT("components"))[0]->AsObject()->GetStringField(TEXT("ref"));
+			TestTrue(TEXT("component address"), Ref.StartsWith(Id + TEXT("#")));
+			H->CallOk(TEXT("reflection.get_property"), FString::Printf(TEXT("{\"target\":\"%s\",\"path\":\"bVisible\"}"), *Ref));
+		});
+		It("fails for unknown targets", [this]()
+		{
+			H->CallFails(TEXT("actors.list_components"), TEXT("{\"target\":\"n999999\"}"), ERuntimeToolError::NotFound);
 		});
 	});
 }

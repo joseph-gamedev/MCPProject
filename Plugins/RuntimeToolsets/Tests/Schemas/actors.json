@@ -1,257 +1,9 @@
 {
-	"description": "Spawn, destroy, find, transform, attach and hide actors",
+	"description": "Actors: spawn, find, move, attach, hide, inspect and destroy actors in the running world. Spawned actors become\nscene-graph nodes (ids like \"n12\") that every other toolset accepts; level actors are addressed as actor:Name.\nWorkflow: find_actors (or spawn_actor) -> set_transform / attach / set_visibility -> list_components to reach a\ncomponent's properties with reflection tools. Use the scene toolset to organise nodes into groups.",
 	"name": "actors",
 	"tools": [
 		{
-			"description": "Spawn a basic shape or actor class; returns node id. With parent, transform is relative to it.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"class":
-					{
-						"description": "Actor class path, e.g. /Script/Engine.PointLight or /Game/BP_X",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"color":
-					{
-						"description": "Shape color [r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"location":
-					{
-						"description": "[x,y,z] cm",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"name":
-					{
-						"description": "Node name (unique among siblings)",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"parent":
-					{
-						"description": "Parent node (id or path)",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll] deg",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"scale":
-					{
-						"description": "[x,y,z] scale",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"shape":
-					{
-						"description": "Basic shape (100 cm)",
-						"enum": [
-							"cube",
-							"sphere",
-							"cylinder",
-							"cone",
-							"plane"
-						],
-						"type": "string"
-					},
-					"tags":
-					{
-						"description": "Tags",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 16,
-						"type": "array"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "actors.spawn_actor",
-			"undoable": true
-		},
-		{
-			"description": "Delete an actor (and its node subtree). Undoable.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "actors.destroy_actor",
-			"undoable": true
-		},
-		{
-			"description": "Find actors by name wildcard, class (incl. parents) and tag.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"class":
-					{
-						"description": "Class name wildcard, e.g. *Light*",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"fields":
-					{
-						"description": "Fields to include (default: all listed)",
-						"items":
-						{
-							"enum": [
-								"name",
-								"class",
-								"location",
-								"rotation",
-								"tags"
-							],
-							"type": "string"
-						},
-						"maxItems": 5,
-						"type": "array"
-					},
-					"include_hidden":
-					{
-						"default": false,
-						"description": "Include hidden level actors",
-						"type": "boolean"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"name":
-					{
-						"description": "Name wildcard, e.g. Light*",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"tag":
-					{
-						"description": "Actor tag",
-						"maxLength": 128,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "actors.find_actors"
-		},
-		{
-			"description": "Set location/rotation/scale (missing parts unchanged). Children follow.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"location":
-					{
-						"description": "[x,y,z] cm",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll] deg",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"scale":
-					{
-						"description": "[x,y,z]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"space":
-					{
-						"default": "world",
-						"description": "Coordinate space",
-						"enum": [
-							"world",
-							"relative"
-						],
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "actors.set_transform",
-			"undoable": true
-		},
-		{
-			"description": "Attach child actor to parent actor (empty parent = detach).",
+			"description": "Attaches an actor to another actor, or detaches it when parent is omitted. Undoable. For tool-created nodes this also moves the node in the scene graph. Fails if the parent is the child or attached below it.\nReturns: Child and new parent references.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -259,26 +11,24 @@
 				{
 					"child":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Actor to attach. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"keep_world":
 					{
 						"default": true,
-						"description": "Keep world transform",
+						"description": "Keep the world transform (false keeps the relative transform).",
 						"type": "boolean"
 					},
 					"parent":
 					{
-						"description": "Parent target; empty to detach",
-						"maxLength": 1024,
+						"description": "New parent actor; omit (or \"\") to detach. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"socket":
 					{
-						"description": "Socket name",
-						"maxLength": 128,
+						"default": "",
+						"description": "Socket or bone name on the parent's root component, e.g. \"hand_r\".",
 						"type": "string"
 					}
 				},
@@ -289,10 +39,506 @@
 			},
 			"mutating": true,
 			"name": "actors.attach",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Child and new parent references.",
+						"properties":
+						{
+							"child":
+							{
+								"description": "The attached (or detached) actor.",
+								"type": "string"
+							},
+							"parent":
+							{
+								"description": "The new parent, empty when detached.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeAttachResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Show or hide an actor (and attached actors).",
+			"description": "Deletes an actor and its node subtree. Undoable (the actors are hidden until the step leaves history). Fails for level actors unless the project allows it (bAllowDestroyLevelActors); hide them with set_visibility instead.\nReturns: References of the deleted actors.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor to delete, e.g. \"n12\" or \"actor:PointLight_0\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.destroy_actor",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "References of the deleted actors.",
+						"properties":
+						{
+							"deleted":
+							{
+								"description": "References of the deleted actors (the target and its node subtree).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeDestroyResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Searches the world for actors by name, class, tag, subtree and bounds (Epic's scene.find_actors).\nReturns: Total match count and the actors {ref, name, class, location, rotation, tags, hidden}, in world order.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"bounds":
+					{
+						"description": "Only actors whose bounds overlap this world box {min:[x,y,z], max:[x,y,z]}.",
+						"properties":
+						{
+							"max":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"min":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeBox",
+						"type": "object"
+					},
+					"class":
+					{
+						"default": "",
+						"description": "Class name wildcard, matched against the class and its parents, e.g. \"*Light*\" or \"StaticMeshActor\".",
+						"type": "string"
+					},
+					"collision_channels":
+					{
+						"description": "With bounds: use a physics overlap restricted to these object channels (e.g. [\"ECC_WorldStatic\", \"ECC_PhysicsBody\"]); actors without collision are then ignored.",
+						"items":
+						{
+							"enum": [
+								"ECC_WorldStatic",
+								"ECC_WorldDynamic",
+								"ECC_Pawn",
+								"ECC_Visibility",
+								"ECC_Camera",
+								"ECC_PhysicsBody",
+								"ECC_Vehicle",
+								"ECC_Destructible"
+							],
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"include_hidden":
+					{
+						"default": false,
+						"description": "Include hidden level actors (hidden tool-created nodes are always included).",
+						"type": "boolean"
+					},
+					"limit":
+					{
+						"default": 25,
+						"description": "Maximum actors returned (0 = project default).",
+						"type": "integer"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Name filter: a wildcard (\"Light*\") or a case-insensitive substring of the actor or node name.",
+						"type": "string"
+					},
+					"root":
+					{
+						"description": "Only this actor and the actors attached below it. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tag":
+					{
+						"default": "",
+						"description": "Only actors with this tag.",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "actors.find_actors",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total match count and the actors {ref, name, class, location, rotation, tags, hidden}, in world order.",
+						"properties":
+						{
+							"actors":
+							{
+								"description": "Matches in world iteration order, at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"hidden":
+										{
+											"description": "Hidden in game.",
+											"type": "boolean"
+										},
+										"location":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"name":
+										{
+											"description": "Node name for tool-created actors, else the engine object name.",
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Reference to pass to other tools: node id for tool-created actors, else actor:Name.",
+											"type": "string"
+										},
+										"rotation":
+										{
+											"description": "[pitch, yaw, roll] (degrees)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"tags":
+										{
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										}
+									},
+									"title": "RuntimeActorSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Number of matching actors (may exceed the returned list).",
+								"type": "integer"
+							},
+							"truncated":
+							{
+								"description": "True when more actors matched than were returned.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeActorList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists an actor's components. Each ref (\"n12#LightComponent0\") can be passed directly as a target to reflection tools (list_properties, set_properties, call_function) or to any tool that takes a component.\nReturns: The actor reference, total count and components {ref, name, class, parent, root, visible}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"default": "",
+						"description": "Only components of this class (wildcard, parents included), e.g. \"*Light*\".",
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum components returned (0 = project default).",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor to inspect. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "actors.list_components",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor reference, total count and components {ref, name, class, parent, root, visible}.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "The actor.",
+								"type": "string"
+							},
+							"components":
+							{
+								"description": "Components in the actor's order, at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"parent":
+										{
+											"description": "Name of the scene component it is attached to (empty for the root and non-scene components).",
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Component address (\"n12#StaticMeshComponent0\"): pass it as `target` to reflection tools or as a component argument.",
+											"type": "string"
+										},
+										"root":
+										{
+											"description": "The actor's root component.",
+											"type": "boolean"
+										},
+										"visible":
+										{
+											"description": "Scene components: visible flag (true for non-scene components).",
+											"type": "boolean"
+										}
+									},
+									"title": "RuntimeComponentInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Number of matching components (may exceed the list).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeComponentList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets an actor's location, rotation and/or scale; parts you omit stay unchanged and attached children follow. Undoable.\nReturns: The actor's resulting world transform.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x, y, z] in cm. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x, y, z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"space":
+					{
+						"default": "World",
+						"description": "World, or Relative to the attach parent.",
+						"enum": [
+							"World",
+							"Relative"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Actor to move. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.set_transform",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor's resulting world transform.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"target":
+							{
+								"description": "The changed actor (node id or actor:Name).",
+								"type": "string"
+							},
+							"warning":
+							{
+								"description": "Set when the change has a side effect worth knowing (e.g. shearing children).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeTransformResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Shows or hides an actor in game (and, by default, the actors attached to it). Undoable.\nReturns: The target, the new visibility and how many actors changed.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -301,18 +547,17 @@
 					"propagate":
 					{
 						"default": true,
-						"description": "Include attached actors",
+						"description": "Also apply to attached actors.",
 						"type": "boolean"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Actor to show or hide. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"visible":
 					{
-						"description": "Visible",
+						"description": "True to show, false to hide.",
 						"type": "boolean"
 					}
 				},
@@ -324,36 +569,169 @@
 			},
 			"mutating": true,
 			"name": "actors.set_visibility",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The target, the new visibility and how many actors changed.",
+						"properties":
+						{
+							"actors":
+							{
+								"description": "Actors changed (the target plus attached actors when propagating).",
+								"type": "integer"
+							},
+							"target":
+							{
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeVisibilityResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Components of an actor (name, class, attach parent).",
+			"description": "Spawns a basic shape or an actor class as a new scene node. Undoable. With a parent the transform is relative to it. Fails if both or neither of shape and class are given, the shape is unknown, or the class is missing or not allowed.\nReturns: The new node: {id, name, path, actor}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"limit":
+					"class":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"default": "",
+						"description": "Actor class path instead of a shape, e.g. \"/Script/Engine.PointLight\" or \"/Game/BP_Door\".",
 						"type": "string"
+					},
+					"color":
+					{
+						"description": "Shape color [r, g, b] 0-1, e.g. [1, 0.2, 0.1]. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "[x, y, z] in cm (default origin). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (made unique among siblings), e.g. \"crate\". Defaults to the shape or class name.",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent node; the transform is then relative to it. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x, y, z] (default [1, 1, 1]). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"shape":
+					{
+						"default": "",
+						"description": "Basic 100 cm shape: cube, sphere, cylinder, cone or plane.",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Actor tags, e.g. [\"prop\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.spawn_actor",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new node: {id, name, path, actor}.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Engine object name of the actor (for actor:Name references).",
+								"type": "string"
+							},
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\". Pass it to any tool that takes an actor or a node.",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name, unique among its siblings.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Path through node names from the root, e.g. \"house/door\" (also accepted wherever a node is expected).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNodeInfo",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"name": "actors.list_components"
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }
