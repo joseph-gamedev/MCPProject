@@ -1,45 +1,131 @@
 {
-	"description": "List, find, create and change on-screen UMG widgets",
+	"description": "Live UMG at runtime: inspect, create and change on-screen widgets, HUD text without assets, world labels, and the\nactivity panel. Widgets are addressed by \"widget:Name\" (top-level or unique names) or by the `target` that every\nresult returns (pass it directly).\nWorkflow: list_widgets -> get_widget_description (one line per widget, index-aligned refs) -> set_text /\nset_widget_visibility / set_brush, or edit the tree (add_widget, move_widget, wrap_widget, remove_widget).\ncreate_hud_text shows text without a widget asset; create_label tags things in the world. All edits are undoable\nexcept click_button.",
 	"name": "ui",
 	"tools": [
 		{
-			"description": "Top-level widgets currently on screen.",
+			"description": "Adds a new widget as a child of a panel in a live widget tree. Undoable.\nReturns: The new widget. Fails if the parent is not a panel or is full, or the class is not a widget class.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
+					"child_index":
+					{
+						"default": -1,
+						"description": "Position among the parent's children (-1 = last).",
+						"type": "integer"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "New widget name.",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Panel widget target, e.g. a CanvasPanel or VerticalBox from get_widget_description.",
+						"type": "string"
+					},
+					"text":
+					{
+						"default": "",
+						"description": "Initial text for text widgets.",
+						"type": "string"
+					},
+					"widget_class":
+					{
+						"description": "Widget class, e.g. \"TextBlock\", \"Button\", \"Image\", \"VerticalBox\". (Class name or path (a Widget))",
+						"type": "string"
+					}
 				},
+				"required": [
+					"parent",
+					"widget_class"
+				],
 				"type": "object"
 			},
-			"name": "ui.list_widgets"
+			"mutating": true,
+			"name": "ui.add_widget",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new widget. Fails if the parent is not a panel or is full, or the class is not a widget class.",
+						"properties":
+						{
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		},
 		{
-			"description": "Child hierarchy of a widget with classes and texts.",
+			"description": "Fires a Button's pressed, released and clicked events, as if the player clicked it.\nReturns: The button. Fails if the target is not a Button or is disabled.\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"depth":
-					{
-						"default": 4,
-						"description": "Levels",
-						"maximum": 32,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
 					"target":
 					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
+						"description": "The Button widget target, e.g. \"widget:StartButton\".",
 						"type": "string"
 					}
 				},
@@ -48,78 +134,80 @@
 				],
 				"type": "object"
 			},
-			"name": "ui.list_widget_tree"
-		},
-		{
-			"description": "Find on-screen widgets by name, class or text wildcard.",
-			"input_schema":
+			"mutating": true,
+			"name": "ui.click_button",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"class":
+					"returnValue":
 					{
-						"description": "Class wildcard, e.g. Button",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"name":
-					{
-						"description": "Name wildcard",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"text":
-					{
-						"description": "Text wildcard, e.g. *Start*",
-						"maxLength": 256,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "ui.find_widget"
-		},
-		{
-			"description": "Create a project widget (WBP) and add it to the screen.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"class":
-					{
-						"description": "Widget class, e.g. /Game/UI/WBP_Menu",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"z_order":
-					{
-						"default": 0,
-						"description": "Z order",
-						"maximum": 1000,
-						"minimum": -100,
-						"type": "integer"
+						"description": "The button. Fails if the target is not a Button or is disabled.",
+						"properties":
+						{
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
 					}
 				},
 				"required": [
-					"class"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "ui.create_widget",
-			"undoable": true
+			"undoable": false
 		},
 		{
-			"description": "Show text on screen without any widget asset.",
+			"description": "Shows text on screen without any widget asset (a canvas with one text block). Undoable.\nReturns: The widget (target \"widget:Name\"). Fails if there is no local player (WrongState) or position is outside 0-1.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -127,53 +215,47 @@
 				{
 					"color":
 					{
-						"description": "[r,g,b] 0-1",
+						"description": "Text colour [r, g, b], 0-1; default white. ([r, g, b] or [r, g, b, a], linear 0-1)",
 						"items":
 						{
 							"type": "number"
 						},
-						"maxItems": 3,
+						"maxItems": 4,
 						"minItems": 3,
 						"type": "array"
 					},
 					"name":
 					{
-						"description": "Widget name",
-						"maxLength": 128,
+						"default": "",
+						"description": "Widget name (then \"widget:Name\" addresses it).",
 						"type": "string"
 					},
 					"position":
 					{
-						"description": "[x,y] 0-1 screen space, centre of the text",
+						"description": "[x, y] in 0-1 screen space, the centre of the text; default [0.5, 0.1].",
 						"items":
 						{
-							"maximum": 1,
-							"minimum": 0,
 							"type": "number"
 						},
 						"maxItems": 2,
+						"minItems": 2,
 						"type": "array"
 					},
 					"size":
 					{
 						"default": 24,
-						"description": "Font size",
-						"maximum": 400,
-						"minimum": 4,
+						"description": "Font size (4-400).",
 						"type": "number"
 					},
 					"text":
 					{
-						"description": "Text",
-						"maxLength": 2000,
+						"description": "The text, e.g. \"Level 2\".",
 						"type": "string"
 					},
 					"z_order":
 					{
 						"default": 10,
-						"description": "Z order",
-						"maximum": 1000,
-						"minimum": -100,
+						"description": "Higher draws on top.",
 						"type": "integer"
 					}
 				},
@@ -184,10 +266,913 @@
 			},
 			"mutating": true,
 			"name": "ui.create_hud_text",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The widget (target \"widget:Name\"). Fails if there is no local player (WrongState) or position is outside 0-1.",
+						"properties":
+						{
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Take a top-level widget off the screen (undo puts it back).",
+			"description": "Puts a name tag in the world: text drawn above a target (as its child node, so it follows it) or at a location. Undoable.\nReturns: The label node. Fails if neither target nor location is given.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"background":
+					{
+						"default": true,
+						"description": "Dark backing box.",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Text colour [r, g, b], 0-1; default white. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "World location [x, y, z] when there is no target. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"default": "label",
+						"description": "Node name.",
+						"type": "string"
+					},
+					"offset":
+					{
+						"description": "World offset from the anchor, default [0, 0, 100]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"size":
+					{
+						"default": 28,
+						"description": "Font size (6-200).",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Node or actor to label (placed above its top centre), e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "Label text, e.g. \"Town Hall\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"text"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.create_label",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The label node. Fails if neither target nor location is given.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\" (pass it to set_label).",
+								"type": "string"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Scene path.",
+								"type": "string"
+							},
+							"text":
+							{
+								"type": "string"
+							},
+							"visible_on_screen":
+							{
+								"description": "False in worlds without a game instance (no widget can be drawn; the node still exists).",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeLabelInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Creates a project widget (Widget Blueprint) and adds it to the screen. Undoable.\nReturns: The widget. Fails if the class is not found or abstract, or there is no local player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"description": "Widget class, e.g. \"/Game/UI/WBP_Menu\" (the _C suffix is added).",
+						"type": "string"
+					},
+					"z_order":
+					{
+						"default": 0,
+						"description": "Higher draws on top.",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"class"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.create_widget",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The widget. Fails if the class is not found or abstract, or there is no local player.",
+						"properties":
+						{
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Finds on-screen widgets by name, class or text wildcards (all given filters must match).\nReturns: Total matches and the widgets in screen-tree order.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"class":
+					{
+						"default": "",
+						"description": "Class wildcard, e.g. \"Button\".",
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum widgets returned.",
+						"type": "integer"
+					},
+					"name":
+					{
+						"default": "*",
+						"description": "Name wildcard, e.g. \"*Button*\".",
+						"type": "string"
+					},
+					"text":
+					{
+						"default": "",
+						"description": "Text wildcard, e.g. \"*Start*\".",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ui.find_widget",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total matches and the widgets in screen-tree order.",
+						"properties":
+						{
+							"total":
+							{
+								"description": "All matches (the list is cut at `limit`).",
+								"type": "integer"
+							},
+							"widgets":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"child_index":
+										{
+											"description": "Index in the parent's children.",
+											"type": "integer"
+										},
+										"class":
+										{
+											"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "Depth below the listed root (0 = root).",
+											"type": "integer"
+										},
+										"name":
+										{
+											"description": "Widget name.",
+											"type": "string"
+										},
+										"panel":
+										{
+											"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+											"type": "boolean"
+										},
+										"parent":
+										{
+											"description": "Parent panel's target, empty for a root widget.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Full object path (always accepted as a target).",
+											"type": "string"
+										},
+										"target":
+										{
+											"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+											"type": "string"
+										},
+										"text":
+										{
+											"description": "Text for text widgets (first 200 characters).",
+											"type": "string"
+										},
+										"visible":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "RuntimeWidgetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeWidgetList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Describes a widget tree, one line per widget (\"[N] Class Name text=... (hidden)\", indented by depth), with an index-aligned widget list: Widgets[N] is line [N]. The quickest way to understand a screen.\nReturns: The description and the index-aligned widgets. Fails if the widget is not on screen.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_depth":
+					{
+						"default": -1,
+						"description": "Levels to include (-1 = all).",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "\"widget:Name\" or a widget target, e.g. \"widget:HUD\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "ui.get_widget_description",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The description and the index-aligned widgets. Fails if the widget is not on screen.",
+						"properties":
+						{
+							"description":
+							{
+								"description": "One line per widget: \"[N] Class Name text=... (hidden)\", indented by depth. N indexes Widgets.",
+								"type": "string"
+							},
+							"widgets":
+							{
+								"description": "Widgets[N] is line [N] of Description: use its target without parsing text.",
+								"items":
+								{
+									"properties":
+									{
+										"child_index":
+										{
+											"description": "Index in the parent's children.",
+											"type": "integer"
+										},
+										"class":
+										{
+											"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "Depth below the listed root (0 = root).",
+											"type": "integer"
+										},
+										"name":
+										{
+											"description": "Widget name.",
+											"type": "string"
+										},
+										"panel":
+										{
+											"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+											"type": "boolean"
+										},
+										"parent":
+										{
+											"description": "Parent panel's target, empty for a root widget.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Full object path (always accepted as a target).",
+											"type": "string"
+										},
+										"target":
+										{
+											"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+											"type": "string"
+										},
+										"text":
+										{
+											"description": "Text for text widgets (first 200 characters).",
+											"type": "string"
+										},
+										"visible":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "RuntimeWidgetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeWidgetDescription",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists a widget's hierarchy in depth-first order with classes, texts and parents.\nReturns: The root and the widgets (children in slot order; parent and depth give the hierarchy). Fails if the widget is not on screen (NotFound) or the name is ambiguous.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"depth":
+					{
+						"default": 4,
+						"description": "Levels below the root to include.",
+						"type": "integer"
+					},
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum widgets returned.",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "\"widget:Name\" or a widget target from another result, e.g. \"widget:MainMenu\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "ui.list_widget_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The root and the widgets (children in slot order; parent and depth give the hierarchy). Fails if the widget is not on screen (NotFound) or the name is ambiguous.",
+						"properties":
+						{
+							"root":
+							{
+								"description": "The root of the listed tree (a user widget's root panel).",
+								"properties":
+								{
+									"child_index":
+									{
+										"description": "Index in the parent's children.",
+										"type": "integer"
+									},
+									"class":
+									{
+										"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+										"type": "string"
+									},
+									"depth":
+									{
+										"description": "Depth below the listed root (0 = root).",
+										"type": "integer"
+									},
+									"name":
+									{
+										"description": "Widget name.",
+										"type": "string"
+									},
+									"panel":
+									{
+										"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+										"type": "boolean"
+									},
+									"parent":
+									{
+										"description": "Parent panel's target, empty for a root widget.",
+										"type": "string"
+									},
+									"path":
+									{
+										"description": "Full object path (always accepted as a target).",
+										"type": "string"
+									},
+									"target":
+									{
+										"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+										"type": "string"
+									},
+									"text":
+									{
+										"description": "Text for text widgets (first 200 characters).",
+										"type": "string"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeWidgetInfo",
+								"type": "object"
+							},
+							"truncated":
+							{
+								"description": "True when the tree was cut by depth or limit.",
+								"type": "boolean"
+							},
+							"widgets":
+							{
+								"description": "Widgets in depth-first order (children in slot order); Parent and Depth give the hierarchy.",
+								"items":
+								{
+									"properties":
+									{
+										"child_index":
+										{
+											"description": "Index in the parent's children.",
+											"type": "integer"
+										},
+										"class":
+										{
+											"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "Depth below the listed root (0 = root).",
+											"type": "integer"
+										},
+										"name":
+										{
+											"description": "Widget name.",
+											"type": "string"
+										},
+										"panel":
+										{
+											"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+											"type": "boolean"
+										},
+										"parent":
+										{
+											"description": "Parent panel's target, empty for a root widget.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Full object path (always accepted as a target).",
+											"type": "string"
+										},
+										"target":
+										{
+											"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+											"type": "string"
+										},
+										"text":
+										{
+											"description": "Text for text widgets (first 200 characters).",
+											"type": "string"
+										},
+										"visible":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "RuntimeWidgetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeWidgetTree",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the top-level widgets currently on screen.\nReturns: Total and the widgets, sorted by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "ui.list_widgets",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total and the widgets, sorted by name.",
+						"properties":
+						{
+							"total":
+							{
+								"description": "All matches (the list is cut at `limit`).",
+								"type": "integer"
+							},
+							"widgets":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"child_index":
+										{
+											"description": "Index in the parent's children.",
+											"type": "integer"
+										},
+										"class":
+										{
+											"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "Depth below the listed root (0 = root).",
+											"type": "integer"
+										},
+										"name":
+										{
+											"description": "Widget name.",
+											"type": "string"
+										},
+										"panel":
+										{
+											"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+											"type": "boolean"
+										},
+										"parent":
+										{
+											"description": "Parent panel's target, empty for a root widget.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Full object path (always accepted as a target).",
+											"type": "string"
+										},
+										"target":
+										{
+											"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+											"type": "string"
+										},
+										"text":
+										{
+											"description": "Text for text widgets (first 200 characters).",
+											"type": "string"
+										},
+										"visible":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "RuntimeWidgetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeWidgetList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Moves a widget to another panel (or another position in the same one). Undoable.\nReturns: The widget in its new place. Fails if the widget is a root, the destination is not a panel, is full, or is inside the widget.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"child_index":
+					{
+						"default": -1,
+						"description": "Position among the new parent's children (-1 = last).",
+						"type": "integer"
+					},
+					"new_parent":
+					{
+						"description": "Destination panel target.",
+						"type": "string"
+					},
+					"widget":
+					{
+						"description": "The widget target.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"widget",
+					"new_parent"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.move_widget",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The widget in its new place. Fails if the widget is a root, the destination is not a panel, is full, or is inside the widget.",
+						"properties":
+						{
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Removes a widget: takes a top-level widget off the screen, or removes a child from its panel. Undo puts it back.\nReturns: The removed widget. Fails if the widget is not found or not on screen.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -195,8 +1180,7 @@
 				{
 					"target":
 					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
+						"description": "The widget target.",
 						"type": "string"
 					}
 				},
@@ -207,10 +1191,92 @@
 			},
 			"mutating": true,
 			"name": "ui.remove_widget",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The removed widget. Fails if the widget is not found or not on screen.",
+						"properties":
+						{
+							"change":
+							{
+								"description": "What changed, e.g. \"text\", \"visibility\", \"removed\".",
+								"type": "string"
+							},
+							"widget":
+							{
+								"description": "The changed widget.",
+								"properties":
+								{
+									"child_index":
+									{
+										"description": "Index in the parent's children.",
+										"type": "integer"
+									},
+									"class":
+									{
+										"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+										"type": "string"
+									},
+									"depth":
+									{
+										"description": "Depth below the listed root (0 = root).",
+										"type": "integer"
+									},
+									"name":
+									{
+										"description": "Widget name.",
+										"type": "string"
+									},
+									"panel":
+									{
+										"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+										"type": "boolean"
+									},
+									"parent":
+									{
+										"description": "Parent panel's target, empty for a root widget.",
+										"type": "string"
+									},
+									"path":
+									{
+										"description": "Full object path (always accepted as a target).",
+										"type": "string"
+									},
+									"target":
+									{
+										"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+										"type": "string"
+									},
+									"text":
+									{
+										"description": "Text for text widgets (first 200 characters).",
+										"type": "string"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeWidgetInfo",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeWidgetChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Change the text of a text block, rich text or editable text.",
+			"description": "Sets an Image widget's texture and/or tint. Undoable.\nReturns: The widget after the change. Fails if the target is not an Image or the texture is not found.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -218,14 +1284,234 @@
 				{
 					"target":
 					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
+						"description": "The Image widget target.",
+						"type": "string"
+					},
+					"texture":
+					{
+						"default": "",
+						"description": "Texture2D path, e.g. \"/Game/UI/T_Icon.T_Icon\" (default: keep).",
+						"type": "string"
+					},
+					"tint":
+					{
+						"description": "Colour [r, g, b], 0-1 (default: keep). ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_brush",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The widget after the change. Fails if the target is not an Image or the texture is not found.",
+						"properties":
+						{
+							"change":
+							{
+								"description": "What changed, e.g. \"text\", \"visibility\", \"removed\".",
+								"type": "string"
+							},
+							"widget":
+							{
+								"description": "The changed widget.",
+								"properties":
+								{
+									"child_index":
+									{
+										"description": "Index in the parent's children.",
+										"type": "integer"
+									},
+									"class":
+									{
+										"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+										"type": "string"
+									},
+									"depth":
+									{
+										"description": "Depth below the listed root (0 = root).",
+										"type": "integer"
+									},
+									"name":
+									{
+										"description": "Widget name.",
+										"type": "string"
+									},
+									"panel":
+									{
+										"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+										"type": "boolean"
+									},
+									"parent":
+									{
+										"description": "Parent panel's target, empty for a root widget.",
+										"type": "string"
+									},
+									"path":
+									{
+										"description": "Full object path (always accepted as a target).",
+										"type": "string"
+									},
+									"target":
+									{
+										"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+										"type": "string"
+									},
+									"text":
+									{
+										"description": "Text for text widgets (first 200 characters).",
+										"type": "string"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeWidgetInfo",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeWidgetChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Changes a label's text, size, colour or background; arguments left out keep their value. Undoable.\nReturns: The label after the change. Fails if the target is not a label made by create_label.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"background":
+					{
+						"description": "Dark backing box.",
+						"type": "boolean"
+					},
+					"color":
+					{
+						"description": "Text colour [r, g, b]. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"size":
+					{
+						"description": "Font size (6-200).",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "The label node, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"text":
 					{
-						"description": "New text",
-						"maxLength": 4000,
+						"description": "New text.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ui.set_label",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The label after the change. Fails if the target is not a label made by create_label.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\" (pass it to set_label).",
+								"type": "string"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Scene path.",
+								"type": "string"
+							},
+							"text":
+							{
+								"type": "string"
+							},
+							"visible_on_screen":
+							{
+								"description": "False in worlds without a game instance (no widget can be drawn; the node still exists).",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeLabelInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Changes the text of a text block, rich text or editable text (for a user widget: its first text). Undoable.\nReturns: The widget after the change. Fails if the widget is not found or holds no text.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "The widget target, e.g. \"widget:Score\".",
+						"type": "string"
+					},
+					"text":
+					{
+						"description": "New text.",
 						"type": "string"
 					}
 				},
@@ -237,10 +1523,92 @@
 			},
 			"mutating": true,
 			"name": "ui.set_text",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The widget after the change. Fails if the widget is not found or holds no text.",
+						"properties":
+						{
+							"change":
+							{
+								"description": "What changed, e.g. \"text\", \"visibility\", \"removed\".",
+								"type": "string"
+							},
+							"widget":
+							{
+								"description": "The changed widget.",
+								"properties":
+								{
+									"child_index":
+									{
+										"description": "Index in the parent's children.",
+										"type": "integer"
+									},
+									"class":
+									{
+										"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+										"type": "string"
+									},
+									"depth":
+									{
+										"description": "Depth below the listed root (0 = root).",
+										"type": "integer"
+									},
+									"name":
+									{
+										"description": "Widget name.",
+										"type": "string"
+									},
+									"panel":
+									{
+										"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+										"type": "boolean"
+									},
+									"parent":
+									{
+										"description": "Parent panel's target, empty for a root widget.",
+										"type": "string"
+									},
+									"path":
+									{
+										"description": "Full object path (always accepted as a target).",
+										"type": "string"
+									},
+									"target":
+									{
+										"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+										"type": "string"
+									},
+									"text":
+									{
+										"description": "Text for text widgets (first 200 characters).",
+										"type": "string"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeWidgetInfo",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeWidgetChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Show, hide or collapse a widget.",
+			"description": "Shows, hides or collapses a widget. Undoable.\nReturns: The widget after the change. Fails if the widget is not found.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -248,18 +1616,18 @@
 				{
 					"target":
 					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
+						"description": "The widget target.",
 						"type": "string"
 					},
 					"visibility":
 					{
-						"description": "Visibility",
+						"description": "Visible, Hidden (keeps its space), Collapsed (no space), HitTestInvisible, SelfHitTestInvisible.",
 						"enum": [
-							"visible",
-							"hidden",
-							"collapsed",
-							"hit_test_invisible"
+							"Visible",
+							"Hidden",
+							"Collapsed",
+							"HitTestInvisible",
+							"SelfHitTestInvisible"
 						],
 						"type": "string"
 					}
@@ -272,50 +1640,92 @@
 			},
 			"mutating": true,
 			"name": "ui.set_widget_visibility",
-			"undoable": true
-		},
-		{
-			"description": "Set an Image widget's texture and/or tint.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"target":
+					"returnValue":
 					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"texture":
-					{
-						"description": "Texture2D path",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"tint":
-					{
-						"description": "[r,g,b] 0-1",
-						"items":
+						"description": "The widget after the change. Fails if the widget is not found.",
+						"properties":
 						{
-							"type": "number"
+							"change":
+							{
+								"description": "What changed, e.g. \"text\", \"visibility\", \"removed\".",
+								"type": "string"
+							},
+							"widget":
+							{
+								"description": "The changed widget.",
+								"properties":
+								{
+									"child_index":
+									{
+										"description": "Index in the parent's children.",
+										"type": "integer"
+									},
+									"class":
+									{
+										"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+										"type": "string"
+									},
+									"depth":
+									{
+										"description": "Depth below the listed root (0 = root).",
+										"type": "integer"
+									},
+									"name":
+									{
+										"description": "Widget name.",
+										"type": "string"
+									},
+									"panel":
+									{
+										"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+										"type": "boolean"
+									},
+									"parent":
+									{
+										"description": "Parent panel's target, empty for a root widget.",
+										"type": "string"
+									},
+									"path":
+									{
+										"description": "Full object path (always accepted as a target).",
+										"type": "string"
+									},
+									"target":
+									{
+										"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+										"type": "string"
+									},
+									"text":
+									{
+										"description": "Text for text widgets (first 200 characters).",
+										"type": "string"
+									},
+									"visible":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeWidgetInfo",
+								"type": "object"
+							}
 						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
+						"title": "RuntimeWidgetChange",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "ui.set_brush",
 			"undoable": true
 		},
 		{
-			"description": "Optional on-screen activity panel (current step, count, time, recent actions). Use only when the user asks to see progress.",
+			"description": "Optional on-screen activity panel (current step, count, time, recent actions). Use only when the user asks to see progress.\nReturns: Whether the panel is shown.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -323,177 +1733,144 @@
 				{
 					"enabled":
 					{
-						"description": "Show or hide the panel",
+						"description": "Show or hide the panel (default: keep).",
 						"type": "boolean"
 					},
 					"status":
 					{
-						"description": "What you are doing, e.g. 'Building the Eiffel Tower legs' (empty clears)",
-						"maxLength": 160,
+						"description": "What you are doing, e.g. \"Building the Eiffel Tower legs\"; empty clears (default: keep).",
 						"type": "string"
 					}
 				},
 				"type": "object"
 			},
-			"name": "ui.show_activity"
+			"name": "ui.show_activity",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether the panel is shown.",
+						"properties":
+						{
+							"enabled":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeActivityInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Name tag in the world: text drawn above a target (it follows the target) or at a location.",
+			"description": "Wraps a widget in a new panel that takes its place (e.g. a Border for a background, a SizeBox for a fixed size). Undoable.\nReturns: The new wrapper (the widget is its only child). Fails if the widget has no parent panel or the class is not a panel.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"background":
-					{
-						"default": true,
-						"description": "Dark backing box",
-						"type": "boolean"
-					},
-					"color":
-					{
-						"description": "Text color [r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"location":
-					{
-						"description": "World location when there is no target",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
 					"name":
 					{
-						"description": "Node name",
-						"maxLength": 128,
+						"default": "",
+						"description": "Wrapper name.",
 						"type": "string"
 					},
-					"offset":
+					"widget":
 					{
-						"description": "World offset from the anchor, default [0,0,100]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"size":
-					{
-						"default": 28,
-						"description": "Font size",
-						"maximum": 200,
-						"minimum": 6,
-						"type": "number"
-					},
-					"target":
-					{
-						"description": "Label this node/actor (placed above its top centre)",
-						"maxLength": 1024,
+						"description": "The widget target.",
 						"type": "string"
 					},
-					"text":
+					"wrapper_class":
 					{
-						"description": "Label text",
-						"maxLength": 500,
+						"description": "Panel class, e.g. \"Border\", \"SizeBox\", \"VerticalBox\", \"Overlay\". (Class name or path (a PanelWidget))",
 						"type": "string"
 					}
 				},
 				"required": [
-					"text"
+					"widget",
+					"wrapper_class"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "ui.create_label",
-			"undoable": true
-		},
-		{
-			"description": "Change a label's text, size, color or background.",
-			"input_schema":
+			"name": "ui.wrap_widget",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"background":
+					"returnValue":
 					{
-						"description": "Dark backing box",
-						"type": "boolean"
-					},
-					"color":
-					{
-						"description": "[r,g,b] 0-1",
-						"items":
+						"description": "The new wrapper (the widget is its only child). Fails if the widget has no parent panel or the class is not a panel.",
+						"properties":
 						{
-							"type": "number"
+							"child_index":
+							{
+								"description": "Index in the parent's children.",
+								"type": "integer"
+							},
+							"class":
+							{
+								"description": "Widget class, e.g. TextBlock, Button, CanvasPanel.",
+								"type": "string"
+							},
+							"depth":
+							{
+								"description": "Depth below the listed root (0 = root).",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Widget name.",
+								"type": "string"
+							},
+							"panel":
+							{
+								"description": "Whether the widget is a panel (can take children: add_widget, move_widget).",
+								"type": "boolean"
+							},
+							"parent":
+							{
+								"description": "Parent panel's target, empty for a root widget.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Full object path (always accepted as a target).",
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "Pass this directly as `target`, `parent` or `widget` to other ui tools: \"widget:Name\" for top-level widgets, the object path otherwise.",
+								"type": "string"
+							},
+							"text":
+							{
+								"description": "Text for text widgets (first 200 characters).",
+								"type": "string"
+							},
+							"visible":
+							{
+								"type": "boolean"
+							}
 						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"size":
-					{
-						"description": "Font size",
-						"maximum": 200,
-						"minimum": 6,
-						"type": "number"
-					},
-					"target":
-					{
-						"description": "Label node",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"text":
-					{
-						"description": "Text",
-						"maxLength": 500,
-						"type": "string"
+						"title": "RuntimeWidgetInfo",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "ui.set_label",
 			"undoable": true
-		},
-		{
-			"description": "Fire a Button's pressed/released/clicked events. Not undoable.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"target":
-					{
-						"description": "widget:Name or a widget path from find_widget",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "ui.click_button",
-			"undoable": false
 		}
 	],
-	"version": "1.2.0"
+	"version": "2.0.0"
 }

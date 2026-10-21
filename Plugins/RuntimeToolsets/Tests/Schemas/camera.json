@@ -1,21 +1,9 @@
 {
-	"description": "Move the player view (player keeps WASD/mouse control): set, frame, orbit, fly mode, reset, view mode",
+	"description": "Player view control. Camera moves keep the player in control: a flying pawn is moved directly, a walking pawn switches\nto fly mode first (WASD/QE + mouse), and without any pawn a locked tool camera is used.\nWorkflow: get_camera -> set_camera (location + look_at) or frame_nodes (fit nodes on screen) -> orbit to circle around ->\nreset_camera to give the view back. set_fly_mode / set_fly_speed tune free flight; possess switches pawns;\nset_view_mode changes the render mode (lit, unlit, wireframe, ...). All moves are undoable.",
 	"name": "camera",
 	"tools": [
 		{
-			"description": "Current player view: location, rotation, fov, view target, pawn.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "camera.get_camera"
-		},
-		{
-			"description": "Move the player's view to a pose (missing parts keep the current view). The player keeps fly control.",
+			"description": "Points the view so all targets fit on screen. Undoable.\nReturns: The new view, with center and distance. Fails if targets is empty, a target is not found, or the targets have no bounds.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -24,21 +12,572 @@
 					"blend_time":
 					{
 						"default": 0,
-						"description": "Blend seconds",
-						"maximum": 10,
-						"minimum": 0,
+						"description": "Seconds to blend (tool camera only).",
+						"type": "number"
+					},
+					"direction":
+					{
+						"description": "View direction [x, y, z] (default: the current one), e.g. [1, 0.5, -0.3]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"fov":
+					{
+						"description": "Field of view in degrees for the framing (default: current).",
+						"type": "number"
+					},
+					"padding":
+					{
+						"default": 1.1499999761581421,
+						"description": "Margin factor (1 = tight, 1.15 default).",
+						"type": "number"
+					},
+					"targets":
+					{
+						"description": "Nodes or actors to frame, e.g. [\"n3\", \"n7\"].",
+						"items":
+						{
+							"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.frame_nodes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new view, with center and distance. Fails if targets is empty, a target is not found, or the targets have no bounds.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCameraView",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Reads the current player view.\nReturns: Location, rotation, fov, how the view is driven (mode), the view target and the player's pawn. Fails if there is no local player controller.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "camera.get_camera",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Location, rotation, fov, how the view is driven (mode), the view target and the player's pawn. Fails if there is no local player controller.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCameraView",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Orbits the view around a node's bounds centre or a point, by yaw/pitch degrees. Undoable.\nReturns: The new view, with center and distance. Fails if neither target nor center is given.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Seconds to blend (tool camera only).",
+						"type": "number"
+					},
+					"center":
+					{
+						"description": "Or around this point [x, y, z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"distance":
+					{
+						"description": "New distance in cm (default: keep).",
+						"type": "number"
+					},
+					"pitch":
+					{
+						"default": 0,
+						"description": "Degrees up (+) or down (-); clamped to +-89.",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Orbit around this node or actor, e.g. \"n3\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"yaw":
+					{
+						"default": 0,
+						"description": "Degrees around the vertical axis, e.g. 90.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.orbit",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new view, with center and distance. Fails if neither target nor center is given.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCameraView",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Makes the local player control a pawn. Undoable (returns to the previous pawn).\nReturns: The possessed pawn and the previous one. Fails if the target is not a pawn or is controlled by another controller.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "The pawn, e.g. \"n5\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.possess",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The possessed pawn and the previous one. Fails if the target is not a pawn or is controlled by another controller.",
+						"properties":
+						{
+							"possessed":
+							{
+								"description": "The pawn now controlled.",
+								"type": "string"
+							},
+							"previous":
+							{
+								"description": "The pawn controlled before (empty if none); undo returns to it.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimePossessInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Gives the view back to the player's pawn (or controller) and leaves fly mode. Undoable.\nReturns: The view after the reset. Fails if there is no local player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Seconds to blend.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.reset_camera",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The view after the reset. Fails if there is no local player.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCameraView",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Moves the player's view to a pose; parts left out keep the current view. Undoable.\nReturns: The new view. Fails if there is no local player or look_at equals the location.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"blend_time":
+					{
+						"default": 0,
+						"description": "Seconds to blend (tool camera only).",
 						"type": "number"
 					},
 					"fov":
 					{
-						"description": "Horizontal FOV degrees",
-						"maximum": 170,
-						"minimum": 5,
+						"description": "Horizontal field of view in degrees (5-170), e.g. 60.",
 						"type": "number"
 					},
 					"location":
 					{
-						"description": "[x,y,z] cm",
+						"description": "View position [x, y, z] in cm, e.g. [0, -1000, 500]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -49,7 +588,7 @@
 					},
 					"look_at":
 					{
-						"description": "Point to look at (overrides rotation)",
+						"description": "Point to look at [x, y, z], e.g. [0, 0, 0]. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -60,7 +599,7 @@
 					},
 					"rotation":
 					{
-						"description": "[pitch,yaw,roll]",
+						"description": "View rotation [pitch, yaw, roll]; ignored when look_at is given. ([pitch, yaw, roll] (degrees))",
 						"items":
 						{
 							"type": "number"
@@ -74,10 +613,244 @@
 			},
 			"mutating": true,
 			"name": "camera.set_camera",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new view. Fails if there is no local player or look_at equals the location.",
+						"properties":
+						{
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeCameraView",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Change the field of view, keeping the current pose.",
+			"description": "Lets the player fly freely from the current view (WASD/QE + mouse), or returns them to their pawn. Undoable.\nReturns: Whether fly mode is on and the controls. Fails if there is no local player.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"enabled":
+					{
+						"default": true,
+						"description": "true = fly mode on, false = back to the player's pawn.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "camera.set_fly_mode",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether fly mode is on and the controls. Fails if there is no local player.",
+						"properties":
+						{
+							"controls":
+							{
+								"type": "string"
+							},
+							"fly_mode":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeFlyModeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Fly speed: auto (scales with distance to the nearest surface) or fixed. Arguments left out keep their value.\nReturns: The settings after the change and the current speed. Fails if a speed or multiplier is not positive.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"max_speed":
+					{
+						"description": "Auto mode: fastest cm/s.",
+						"type": "number"
+					},
+					"min_speed":
+					{
+						"description": "Auto mode: slowest cm/s.",
+						"type": "number"
+					},
+					"mode":
+					{
+						"default": "Unchanged",
+						"description": "Auto, Fixed or Unchanged (giving only `speed` switches to Fixed).",
+						"enum": [
+							"Unchanged",
+							"Auto",
+							"Fixed"
+						],
+						"type": "string"
+					},
+					"multiplier":
+					{
+						"description": "Scales either mode, e.g. 2.",
+						"type": "number"
+					},
+					"speed":
+					{
+						"description": "Fixed speed in cm/s, e.g. 2000.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "camera.set_fly_speed",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The settings after the change and the current speed. Fails if a speed or multiplier is not positive.",
+						"properties":
+						{
+							"current_speed":
+							{
+								"description": "Speed right now, cm/s.",
+								"type": "number"
+							},
+							"fixed_speed":
+							{
+								"description": "Fixed mode speed, cm/s.",
+								"type": "number"
+							},
+							"max_speed":
+							{
+								"description": "Auto mode: fastest speed, cm/s.",
+								"type": "number"
+							},
+							"min_speed":
+							{
+								"description": "Auto mode: slowest speed, cm/s.",
+								"type": "number"
+							},
+							"mode":
+							{
+								"description": "Auto or Fixed.",
+								"enum": [
+									"Unchanged",
+									"Auto",
+									"Fixed"
+								],
+								"type": "string"
+							},
+							"multiplier":
+							{
+								"type": "number"
+							}
+						},
+						"title": "RuntimeFlySpeedInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Changes the field of view, keeping the current pose. Undoable.\nReturns: The new view. Fails if fov is outside 5-170 or there is no local player.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -86,16 +859,12 @@
 					"blend_time":
 					{
 						"default": 0,
-						"description": "Blend seconds",
-						"maximum": 10,
-						"minimum": 0,
+						"description": "Seconds to blend (tool camera only).",
 						"type": "number"
 					},
 					"fov":
 					{
-						"description": "Horizontal FOV degrees",
-						"maximum": 170,
-						"minimum": 5,
+						"description": "Horizontal field of view in degrees (5-170), e.g. 50.",
 						"type": "number"
 					}
 				},
@@ -106,243 +875,101 @@
 			},
 			"mutating": true,
 			"name": "camera.set_fov",
-			"undoable": true
-		},
-		{
-			"description": "Point the view so all targets fit on screen.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"blend_time":
+					"returnValue":
 					{
-						"default": 0,
-						"description": "Blend seconds",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					},
-					"direction":
-					{
-						"description": "View direction (default: current)",
-						"items":
+						"description": "The new view. Fails if fov is outside 5-170 or there is no local player.",
+						"properties":
 						{
-							"type": "number"
+							"center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controls":
+							{
+								"description": "What the player can do now.",
+								"type": "string"
+							},
+							"distance":
+							{
+								"description": "frame_nodes / orbit: distance from the view to the center in cm.",
+								"type": "number"
+							},
+							"fov":
+							{
+								"description": "Horizontal field of view in degrees.",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"PlayerPawn",
+									"ToolCamera",
+									"ViewTarget"
+								],
+								"type": "string"
+							},
+							"pawn":
+							{
+								"description": "The player's pawn, empty if none.",
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"tool_camera":
+							{
+								"description": "Whether the tool camera is the view target.",
+								"type": "boolean"
+							},
+							"view_target":
+							{
+								"description": "The view target (node id, actor:Name).",
+								"type": "string"
+							}
 						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"fov":
-					{
-						"description": "Horizontal FOV degrees",
-						"maximum": 170,
-						"minimum": 5,
-						"type": "number"
-					},
-					"padding":
-					{
-						"default": 1.1499999999999999,
-						"description": "Margin factor",
-						"maximum": 5,
-						"minimum": 0.5,
-						"type": "number"
-					},
-					"targets":
-					{
-						"description": "Targets to frame",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 256,
-						"type": "array"
+						"title": "RuntimeCameraView",
+						"type": "object"
 					}
 				},
 				"required": [
-					"targets"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "camera.frame_nodes",
 			"undoable": true
 		},
 		{
-			"description": "Orbit the view around a target or point by yaw/pitch degrees.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"blend_time":
-					{
-						"default": 0,
-						"description": "Blend seconds",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					},
-					"center":
-					{
-						"description": "Or orbit around this point",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"distance":
-					{
-						"description": "New distance cm",
-						"minimum": 1,
-						"type": "number"
-					},
-					"pitch":
-					{
-						"default": 0,
-						"description": "Degrees up/down",
-						"type": "number"
-					},
-					"target":
-					{
-						"description": "Orbit around this actor's bounds centre",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"yaw":
-					{
-						"default": 0,
-						"description": "Degrees around Z",
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "camera.orbit",
-			"undoable": true
-		},
-		{
-			"description": "Give the view back to the player's pawn and leave fly mode.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"blend_time":
-					{
-						"default": 0,
-						"description": "Blend seconds",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "camera.reset_camera",
-			"undoable": true
-		},
-		{
-			"description": "Let the player fly freely (WASD/QE + mouse) from the current view, or return to their pawn.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"enabled":
-					{
-						"default": true,
-						"description": "Fly mode on",
-						"type": "boolean"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "camera.set_fly_mode",
-			"undoable": true
-		},
-		{
-			"description": "Fly speed: 'auto' scales with distance to the nearest surface (fast far away, slow up close) or 'fixed'.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"max_speed":
-					{
-						"description": "Auto: fastest cm/s",
-						"maximum": 10000000,
-						"minimum": 10,
-						"type": "number"
-					},
-					"min_speed":
-					{
-						"description": "Auto: slowest cm/s",
-						"maximum": 1000000,
-						"minimum": 10,
-						"type": "number"
-					},
-					"mode":
-					{
-						"description": "auto or fixed",
-						"enum": [
-							"auto",
-							"fixed"
-						],
-						"type": "string"
-					},
-					"multiplier":
-					{
-						"description": "Scales either mode",
-						"maximum": 100,
-						"minimum": 0.01,
-						"type": "number"
-					},
-					"speed":
-					{
-						"description": "Fixed speed cm/s",
-						"maximum": 1000000,
-						"minimum": 10,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"name": "camera.set_fly_speed"
-		},
-		{
-			"description": "Make the local player control a pawn.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"target":
-					{
-						"description": "Pawn",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "camera.possess",
-			"undoable": true
-		},
-		{
-			"description": "Viewport render mode (lit, unlit, wireframe, ...).",
+			"description": "Sets the viewport render mode. Undoable.\nReturns: The new and the previous mode. Fails if there is no game viewport, or (Unsupported) the mode was stripped from this cooked build.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -350,17 +977,17 @@
 				{
 					"mode":
 					{
-						"description": "View mode",
+						"description": "Lit, Unlit, Wireframe, LightingOnly, Reflections, ShaderComplexity, CollisionVisibility, CollisionPawn, LodColoration.",
 						"enum": [
-							"lit",
-							"unlit",
-							"wireframe",
-							"lighting_only",
-							"reflections",
-							"shader_complexity",
-							"collision_visibility",
-							"collision_pawn",
-							"lod_coloration"
+							"Lit",
+							"Unlit",
+							"Wireframe",
+							"LightingOnly",
+							"Reflections",
+							"ShaderComplexity",
+							"CollisionVisibility",
+							"CollisionPawn",
+							"LodColoration"
 						],
 						"type": "string"
 					}
@@ -372,8 +999,58 @@
 			},
 			"mutating": true,
 			"name": "camera.set_view_mode",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new and the previous mode. Fails if there is no game viewport, or (Unsupported) the mode was stripped from this cooked build.",
+						"properties":
+						{
+							"previous":
+							{
+								"description": "The mode before; undo restores it.",
+								"enum": [
+									"Lit",
+									"Unlit",
+									"Wireframe",
+									"LightingOnly",
+									"Reflections",
+									"ShaderComplexity",
+									"CollisionVisibility",
+									"CollisionPawn",
+									"LodColoration"
+								],
+								"type": "string"
+							},
+							"view_mode":
+							{
+								"enum": [
+									"Lit",
+									"Unlit",
+									"Wireframe",
+									"LightingOnly",
+									"Reflections",
+									"ShaderComplexity",
+									"CollisionVisibility",
+									"CollisionPawn",
+									"LodColoration"
+								],
+								"type": "string"
+							}
+						},
+						"title": "RuntimeViewModeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		}
 	],
-	"version": "1.2.0"
+	"version": "2.0.0"
 }

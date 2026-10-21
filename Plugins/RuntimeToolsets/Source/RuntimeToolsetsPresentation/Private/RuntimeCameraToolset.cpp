@@ -1,5 +1,8 @@
-#include "CameraToolset.h"
+#include "RuntimeCameraToolset.h"
+#include "PresentationToolCall.h"
+#include "RuntimeCommand.h"
 #include "RuntimeToolHelpers.h"
+#include "RuntimeToolsetsActivity.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -10,17 +13,17 @@
 #include "GameFramework/DefaultPawn.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
-#include "GameFramework/SpectatorPawn.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/SpectatorPawn.h"
 #include "ShaderCore.h"
-#include "RuntimeToolsetsActivity.h"
 
-using namespace RuntimeTools;
-
-namespace
+namespace RtCam
 {
+	using namespace PresentationTool;
+
 	const FName ToolCameraTag(TEXT("RuntimeToolsetsCamera"));
 	const FName FlyPawnTag(TEXT("RuntimeToolsetsFlyPawn"));
+	const TCHAR* FlyControls = TEXT("player keeps control: WASD/QE to fly, mouse to look");
 
 	/** Spectator pawn -> the pawn the player had before fly mode. */
 	TMap<TWeakObjectPtr<APawn>, TWeakObjectPtr<APawn>>& FlyOrigins()
@@ -35,12 +38,14 @@ namespace
 		return Pawn && Pawn->IsA<ADefaultPawn>();
 	}
 
-	APlayerController* RequirePlayer(FToolInvocation& Inv)
+	APlayerController* RequirePlayer()
 	{
-		APlayerController* PC = Inv.GetWorld() ? Inv.GetWorld()->GetFirstPlayerController() : nullptr;
+		UWorld* World = RuntimeToolCall::GetWorld();
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
 		if (!PC || !PC->PlayerCameraManager)
 		{
-			Inv.Fail(ERuntimeToolError::WrongState, TEXT("no local player controller with a camera manager"));
+			RuntimeToolCall::Fail(ERuntimeToolError::WrongState, TEXT("no local player controller with a camera manager"),
+				TEXT("Camera tools need a running game or PIE session with a player"));
 			return nullptr;
 		}
 		return PC;
@@ -98,6 +103,34 @@ namespace
 		J->SetField(TEXT("rotation"), RuntimeJson::Rot(P.Rotation));
 		J->SetNumberField(TEXT("fov"), RuntimeJson::Round(P.Fov));
 		return J;
+	}
+
+	/** The view as a result struct. */
+	FRuntimeCameraView MakeView(const APlayerController* PC, const FPose& Pose)
+	{
+		FRuntimeCameraView V;
+		V.Location = Pose.Location;
+		V.Rotation = Pose.Rotation;
+		V.Fov = Pose.Fov;
+		AActor* ViewTarget = PC->GetViewTarget();
+		V.ViewTarget = Ref(ViewTarget);
+		V.bToolCamera = ViewTarget && ViewTarget->ActorHasTag(ToolCameraTag);
+		V.Pawn = Ref(PC->GetPawn());
+		if (V.bToolCamera)
+		{
+			V.Mode = ERuntimeCameraMode::ToolCamera;
+			V.Controls = TEXT("locked tool camera: camera.reset_camera gives the view back");
+		}
+		else if (PC->GetPawn() && ViewTarget == PC->GetPawn() && CanFly(PC->GetPawn()))
+		{
+			V.Mode = ERuntimeCameraMode::PlayerPawn;
+			V.Controls = FlyControls;
+		}
+		else
+		{
+			V.Mode = ERuntimeCameraMode::ViewTarget;
+		}
+		return V;
 	}
 
 	/**
@@ -212,7 +245,6 @@ namespace
 		FPose OldCamPose;
 	};
 
-
 	/**
 	 * Puts the player's own (flying) pawn at a pose: the view stays under player control (WASD + mouse).
 	 * Undo restores the pawn, control rotation, FOV and view target.
@@ -275,7 +307,6 @@ namespace
 		{
 			TSharedRef<FJsonObject> D = PoseJson(NewPose);
 			D->SetStringField(TEXT("mode"), TEXT("player_pawn"));
-			D->SetStringField(TEXT("controls"), TEXT("player keeps control: WASD/QE to fly, mouse to look"));
 			return D;
 		}
 
@@ -353,7 +384,7 @@ namespace
 			}
 			if (bOn)
 			{
-				if (IsActive(P) || (P->GetPawn() == nullptr && false))
+				if (IsActive(P))
 				{
 					return true;
 				}
@@ -401,11 +432,9 @@ namespace
 	 * Moves the view. The player keeps control: a flying pawn is moved directly; a walking pawn switches to fly
 	 * mode first. Without any pawn a locked tool camera is used.
 	 */
-	void RunPose(FToolInvocation& Inv, APlayerController* PC, const FPose& Pose, const TCHAR* Label, TSharedPtr<FJsonObject> Extra = nullptr)
+	FRuntimeCameraView RunPose(APlayerController* PC, const FPose& Pose, bool bSetFov, float BlendTime, const TCHAR* Label)
 	{
-		TSharedPtr<FJsonObject> Delta;
 		TUniquePtr<IRuntimeCommand> Cmd;
-		const bool bSetFov = Inv.Has(TEXT("fov"));
 		if (CanFly(PC->GetPawn()))
 		{
 			Cmd = MakeUnique<FPawnPoseCommand>(PC, Pose, bSetFov, Label);
@@ -419,189 +448,237 @@ namespace
 		}
 		else
 		{
-			Cmd = MakeUnique<FCameraPoseCommand>(PC, Pose, static_cast<float>(Inv.GetNumber(TEXT("blend_time"), 0.0)), Label);
+			Cmd = MakeUnique<FCameraPoseCommand>(PC, Pose, BlendTime, Label);
 		}
-		if (Inv.RunCommand(MoveTemp(Cmd), &Delta))
+		if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
 		{
-			if (Extra.IsValid())
-			{
-				for (const FString& Key : RuntimeJson::Keys(Extra))
-				{
-					Delta->SetField(Key, Extra->TryGetField(Key));
-				}
-			}
-			Inv.Succeed(Delta);
+			return FRuntimeCameraView();
 		}
+		return MakeView(PC, Pose);
 	}
 
-	const TArray<TPair<FString, EViewModeIndex>>& ViewModes()
+	bool CheckFov(float Fov)
 	{
-		static const TArray<TPair<FString, EViewModeIndex>> Modes = {
-			{TEXT("lit"), VMI_Lit},
-			{TEXT("unlit"), VMI_Unlit},
-			{TEXT("wireframe"), VMI_BrushWireframe},
-			{TEXT("lighting_only"), VMI_LightingOnly},
-			{TEXT("reflections"), VMI_ReflectionOverride},
-			{TEXT("shader_complexity"), VMI_ShaderComplexity},
-			{TEXT("collision_visibility"), VMI_CollisionVisibility},
-			{TEXT("collision_pawn"), VMI_CollisionPawn},
-			{TEXT("lod_coloration"), VMI_LODColoration},
-		};
-		return Modes;
+		if (Fov < 5.f || Fov > 170.f)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("fov %g is outside 5-170 degrees"), Fov));
+			return false;
+		}
+		return true;
+	}
+
+	EViewModeIndex ToEngine(ERuntimeViewMode Mode)
+	{
+		switch (Mode)
+		{
+		case ERuntimeViewMode::Lit: return VMI_Lit;
+		case ERuntimeViewMode::Unlit: return VMI_Unlit;
+		case ERuntimeViewMode::Wireframe: return VMI_BrushWireframe;
+		case ERuntimeViewMode::LightingOnly: return VMI_LightingOnly;
+		case ERuntimeViewMode::Reflections: return VMI_ReflectionOverride;
+		case ERuntimeViewMode::ShaderComplexity: return VMI_ShaderComplexity;
+		case ERuntimeViewMode::CollisionVisibility: return VMI_CollisionVisibility;
+		case ERuntimeViewMode::CollisionPawn: return VMI_CollisionPawn;
+		case ERuntimeViewMode::LodColoration: return VMI_LODColoration;
+		}
+		return VMI_Lit;
+	}
+
+	ERuntimeViewMode FromEngine(int32 Index)
+	{
+		for (int32 i = 0; i <= static_cast<int32>(ERuntimeViewMode::LodColoration); ++i)
+		{
+			if (ToEngine(static_cast<ERuntimeViewMode>(i)) == Index)
+			{
+				return static_cast<ERuntimeViewMode>(i);
+			}
+		}
+		return ERuntimeViewMode::Lit;
 	}
 }
 
-static void GetCamera(FToolInvocation& Inv)
+FRuntimeCameraView URuntimeCameraToolset::GetCamera()
 {
-	APlayerController* PC = RequirePlayer(Inv);
-	if (!PC)
-	{
-		return;
-	}
-	TSharedRef<FJsonObject> Out = PoseJson(CurrentPose(PC));
-	AActor* ViewTarget = PC->GetViewTarget();
-	Out->SetStringField(TEXT("view_target"), ViewTarget ? Ref(Inv, ViewTarget) : TEXT(""));
-	Out->SetBoolField(TEXT("tool_camera"), ViewTarget && ViewTarget->ActorHasTag(ToolCameraTag));
-	if (APawn* Pawn = PC->GetPawn())
-	{
-		Out->SetStringField(TEXT("pawn"), Ref(Inv, Pawn));
-	}
-	Inv.Succeed(Out);
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
+	return PC ? MakeView(PC, CurrentPose(PC)) : FRuntimeCameraView();
 }
 
-static void SetCamera(FToolInvocation& Inv)
+FRuntimeCameraView URuntimeCameraToolset::SetCamera(const FVector& Location, const FRotator& Rotation, const FVector& LookAt, const float& Fov, float BlendTime)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
-		return;
+		return {};
 	}
 	FPose Pose = CurrentPose(PC);
-	Inv.GetVector(TEXT("location"), Pose.Location);
-	Inv.GetRotator(TEXT("rotation"), Pose.Rotation);
-	FVector LookAt;
-	if (Inv.GetVector(TEXT("look_at"), LookAt))
+	if (Passed(TEXT("location")))
+	{
+		Pose.Location = Location;
+	}
+	if (Passed(TEXT("rotation")))
+	{
+		Pose.Rotation = Rotation;
+	}
+	if (Passed(TEXT("look_at")))
 	{
 		if (LookAt.Equals(Pose.Location, 0.1))
 		{
-			Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("look_at equals the camera location"));
-			return;
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("look_at equals the camera location"), TEXT("Move the camera away from the point or drop look_at"));
+			return {};
 		}
 		Pose.Rotation = (LookAt - Pose.Location).Rotation();
 	}
-	if (Inv.Has(TEXT("fov")))
+	const bool bFov = Passed(TEXT("fov"));
+	if (bFov)
 	{
-		Pose.Fov = static_cast<float>(Inv.GetNumber(TEXT("fov")));
+		if (!CheckFov(Fov))
+		{
+			return {};
+		}
+		Pose.Fov = Fov;
 	}
-	RunPose(Inv, PC, Pose, TEXT("set camera"));
+	return RunPose(PC, Pose, bFov, BlendTime, TEXT("set camera"));
 }
 
-static void FrameNodes(FToolInvocation& Inv)
+FRuntimeCameraView URuntimeCameraToolset::SetFov(float Fov, float BlendTime)
 {
-	APlayerController* PC = RequirePlayer(Inv);
-	TArray<AActor*> Actors;
-	if (!PC || !ResolveActorList(Inv, TEXT("targets"), Actors))
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
+	if (!PC || !CheckFov(Fov))
 	{
-		return;
+		return {};
+	}
+	FPose Pose = CurrentPose(PC);
+	Pose.Fov = Fov;
+	return RunPose(PC, Pose, true, BlendTime, TEXT("set fov"));
+}
+
+FRuntimeCameraView URuntimeCameraToolset::FrameNodes(const TArray<AActor*>& Targets, const FVector& Direction, const float& Fov, float Padding, float BlendTime)
+{
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
+	if (!PC)
+	{
+		return {};
 	}
 	FBox Box(ForceInit);
-	for (AActor* A : Actors)
+	for (AActor* A : Targets)
 	{
-		Box += ActorBox(A);
+		if (A)
+		{
+			Box += RuntimeTools::ActorBox(A);
+		}
+	}
+	if (Targets.Num() == 0)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("targets is empty"), TEXT("Pass node ids, e.g. [\"n3\"] (scene.find_nodes lists them)"));
+		return {};
 	}
 	if (!Box.IsValid)
 	{
-		Inv.Fail(ERuntimeToolError::WrongState, TEXT("targets have no bounds"));
-		return;
+		RuntimeToolCall::Fail(ERuntimeToolError::WrongState, TEXT("targets have no bounds"));
+		return {};
 	}
 	FPose Pose = CurrentPose(PC);
-	if (Inv.Has(TEXT("fov")))
+	const bool bFov = Passed(TEXT("fov"));
+	if (bFov)
 	{
-		Pose.Fov = static_cast<float>(Inv.GetNumber(TEXT("fov")));
+		if (!CheckFov(Fov))
+		{
+			return {};
+		}
+		Pose.Fov = Fov;
 	}
-	FVector Direction;
-	if (!Inv.GetVector(TEXT("direction"), Direction) || Direction.IsNearlyZero())
+	FVector Dir = Passed(TEXT("direction")) ? Direction : FVector::ZeroVector;
+	if (Dir.IsNearlyZero())
 	{
-		Direction = Pose.Rotation.Vector();
+		Dir = Pose.Rotation.Vector();
 	}
-	Direction.Normalize();
-	const double Radius = FMath::Max(Box.GetExtent().Size(), 10.0) * Inv.GetNumber(TEXT("padding"), 1.15);
+	Dir.Normalize();
+	const double Radius = FMath::Max(Box.GetExtent().Size(), 10.0) * FMath::Clamp(Padding, 0.5f, 5.f);
 	const double HalfFov = FMath::DegreesToRadians(FMath::Clamp(Pose.Fov, 5.f, 170.f) * 0.5);
 	const double Distance = Radius / FMath::Sin(HalfFov);
-	Pose.Location = Box.GetCenter() - Direction * Distance;
-	Pose.Rotation = Direction.Rotation();
-
-	TSharedRef<FJsonObject> Extra = Obj();
-	Extra->SetField(TEXT("center"), RuntimeJson::Vec(Box.GetCenter()));
-	Extra->SetNumberField(TEXT("distance"), RuntimeJson::Round(Distance));
-	RunPose(Inv, PC, Pose, TEXT("frame nodes"), Extra);
+	Pose.Location = Box.GetCenter() - Dir * Distance;
+	Pose.Rotation = Dir.Rotation();
+	FRuntimeCameraView View = RunPose(PC, Pose, bFov, BlendTime, TEXT("frame nodes"));
+	View.Center = Box.GetCenter();
+	View.Distance = RuntimeJson::Round(Distance);
+	return View;
 }
 
-static void Orbit(FToolInvocation& Inv)
+FRuntimeCameraView URuntimeCameraToolset::Orbit(const FVector& Center, const float& Distance, AActor* Target, float Yaw, float Pitch, float BlendTime)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
-		return;
+		return {};
 	}
-	FVector Center;
-	if (!Inv.GetString(TEXT("target")).IsEmpty())
+	FVector Pivot;
+	if (Target)
 	{
-		AActor* Target = Inv.ResolveActor(TEXT("target"));
-		if (!Target)
-		{
-			return;
-		}
-		Center = ActorBox(Target).GetCenter();
+		Pivot = RuntimeTools::ActorBox(Target).GetCenter();
 	}
-	else if (!Inv.GetVector(TEXT("center"), Center))
+	else if (Passed(TEXT("center")))
 	{
-		Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("give target or center"));
-		return;
+		Pivot = Center;
+	}
+	else
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("give target or center"), TEXT("e.g. {\"target\":\"n3\",\"yaw\":45}"));
+		return {};
 	}
 	FPose Pose = CurrentPose(PC);
-	FVector Offset = Pose.Location - Center;
-	double Distance = Offset.Size();
-	if (Distance < 1.0)
+	FVector Offset = Pose.Location - Pivot;
+	double Dist = Offset.Size();
+	if (Dist < 1.0)
 	{
 		Offset = -Pose.Rotation.Vector() * 500.0;
-		Distance = 500.0;
+		Dist = 500.0;
 	}
-	if (Inv.Has(TEXT("distance")))
+	if (Passed(TEXT("distance")))
 	{
-		Distance = Inv.GetNumber(TEXT("distance"));
+		if (Distance <= 0.f)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("distance must be positive"));
+			return {};
+		}
+		Dist = Distance;
 	}
 	// Spherical step: yaw around world Z, pitch clamped to avoid flipping over the pole.
 	FRotator Dir = Offset.Rotation();
-	Dir.Yaw += Inv.GetNumber(TEXT("yaw"), 0.0);
-	Dir.Pitch = FMath::Clamp(Dir.Pitch + Inv.GetNumber(TEXT("pitch"), 0.0), -89.0, 89.0);
-	Pose.Location = Center + Dir.Vector() * Distance;
-	Pose.Rotation = (Center - Pose.Location).Rotation();
-	RunPose(Inv, PC, Pose, TEXT("orbit"));
+	Dir.Yaw += Yaw;
+	Dir.Pitch = FMath::Clamp(Dir.Pitch + Pitch, -89.0, 89.0);
+	Pose.Location = Pivot + Dir.Vector() * Dist;
+	Pose.Rotation = (Pivot - Pose.Location).Rotation();
+	FRuntimeCameraView View = RunPose(PC, Pose, false, BlendTime, TEXT("orbit"));
+	View.Center = Pivot;
+	View.Distance = RuntimeJson::Round(Dist);
+	return View;
 }
 
-static void ResetCamera(FToolInvocation& Inv)
+FRuntimeCameraView URuntimeCameraToolset::ResetCamera(float BlendTime)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	using namespace RtCam;
+	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
-		return;
+		return {};
 	}
 	TWeakObjectPtr<APlayerController> WeakPC = PC;
 	TWeakObjectPtr<AActor> Old = PC->GetViewTarget();
-	const float Blend = static_cast<float>(Inv.GetNumber(TEXT("blend_time"), 0.0));
-	TSharedRef<FJsonObject> Delta = Obj();
-	AActor* NewTarget = PC->GetPawn() ? static_cast<AActor*>(PC->GetPawn()) : static_cast<AActor*>(PC);
-	Delta->SetStringField(TEXT("view_target"), Ref(Inv, NewTarget));
-	auto DoFn = [WeakPC, Blend](FRuntimeCommandContext&, FString& Error)
+	TSharedRef<FJsonObject> Delta = MakeShared<FJsonObject>();
+	auto DoFn = [WeakPC, BlendTime](FRuntimeCommandContext&, FString& Err)
 	{
 		if (!WeakPC.IsValid())
 		{
-			Error = TEXT("player controller no longer exists");
+			Err = TEXT("player controller no longer exists");
 			return false;
 		}
-		AActor* Target = WeakPC->GetPawn() ? static_cast<AActor*>(WeakPC->GetPawn()) : static_cast<AActor*>(WeakPC.Get());
-		WeakPC->SetViewTargetWithBlend(Target, Blend);
+		AActor* NewTarget = WeakPC->GetPawn() ? static_cast<AActor*>(WeakPC->GetPawn()) : static_cast<AActor*>(WeakPC.Get());
+		WeakPC->SetViewTargetWithBlend(NewTarget, BlendTime);
 		return true;
 	};
 	auto UndoFn = [WeakPC, Old](FRuntimeCommandContext&)
@@ -617,25 +694,27 @@ static void ResetCamera(FToolInvocation& Inv)
 	if (FFlyModeCommand::IsActive(PC))
 	{
 		Cmd->Add(MakeUnique<FFlyModeCommand>(PC, false));
-		Delta->SetBoolField(TEXT("left_fly_mode"), true);
 	}
 	Cmd->Add(MakeUnique<FLambdaCommand>(TEXT("reset camera"), DoFn, UndoFn, Delta));
-	if (Inv.RunCommand(MoveTemp(Cmd)))
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
 	{
-		Inv.Succeed(Delta);
+		return {};
 	}
+	FRuntimeCameraView View = MakeView(PC, CurrentPose(PC));
+	View.Controls = PC->GetPawn() ? TEXT("back to the player's pawn") : TEXT("view on the player controller (no pawn)");
+	return View;
 }
 
-static void SetFlyMode(FToolInvocation& Inv)
+FRuntimeFlyModeInfo URuntimeCameraToolset::SetFlyMode(bool bEnabled)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	using namespace RtCam;
+	FRuntimeFlyModeInfo Out;
+	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
-		return;
+		return Out;
 	}
-	const bool bEnable = Inv.GetBool(TEXT("enabled"), true);
-	TSharedRef<FJsonObject> Out = Obj();
-	if (bEnable && CanFly(PC->GetPawn()))
+	if (bEnabled && CanFly(PC->GetPawn()))
 	{
 		// Already a free-flying pawn: just make sure the view is the pawn's.
 		if (PC->GetViewTarget() != PC->GetPawn())
@@ -643,75 +722,94 @@ static void SetFlyMode(FToolInvocation& Inv)
 			PC->SetViewTarget(PC->GetPawn());
 		}
 		PC->SetInputMode(FInputModeGameOnly());
-		Out->SetBoolField(TEXT("fly_mode"), true);
-		Out->SetStringField(TEXT("controls"), TEXT("WASD/QE to fly, mouse to look"));
-		Inv.Succeed(Out);
-		return;
 	}
-	TSharedPtr<FJsonObject> Delta;
-	if (Inv.RunCommand(MakeUnique<FFlyModeCommand>(PC, bEnable), &Delta))
+	else if (!RuntimeToolCall::RunCommand(MakeUnique<FFlyModeCommand>(PC, bEnabled)))
 	{
-		Delta->SetStringField(TEXT("controls"), bEnable ? TEXT("WASD/QE to fly, mouse to look") : TEXT("back to the player's pawn"));
-		Inv.Succeed(Delta);
+		return Out;
 	}
+	Out.bFlyMode = bEnabled;
+	Out.Controls = bEnabled ? TEXT("WASD/QE to fly, mouse to look") : TEXT("back to the player's pawn");
+	return Out;
 }
 
-static void SetFlySpeed(FToolInvocation& Inv)
+FRuntimeFlySpeedInfo URuntimeCameraToolset::SetFlySpeed(const float& Speed, const float& Multiplier, const float& MinSpeed, const float& MaxSpeed, ERuntimeFlySpeedMode Mode)
 {
+	using namespace RtCam;
+	FRuntimeFlySpeedInfo Out;
+	for (const TPair<const TCHAR*, float>& P : {TPair<const TCHAR*, float>(TEXT("speed"), Speed), TPair<const TCHAR*, float>(TEXT("multiplier"), Multiplier),
+			 TPair<const TCHAR*, float>(TEXT("min_speed"), MinSpeed), TPair<const TCHAR*, float>(TEXT("max_speed"), MaxSpeed)})
+	{
+		if (Passed(P.Key) && P.Value <= 0.f)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("%s must be positive (got %g)"), P.Key, P.Value));
+			return Out;
+		}
+	}
 	FRuntimeToolsetsActivity::FFlySpeed& Fly = FRuntimeToolsetsActivity::Get().FlySpeed();
-	if (Inv.Has(TEXT("mode")))
+	if (Mode != ERuntimeFlySpeedMode::Unchanged)
 	{
-		Fly.bAuto = Inv.GetString(TEXT("mode")) == TEXT("auto");
+		Fly.bAuto = Mode == ERuntimeFlySpeedMode::Auto;
 	}
-	if (Inv.Has(TEXT("speed")))
+	if (Passed(TEXT("speed")))
 	{
-		Fly.FixedSpeed = Inv.GetNumber(TEXT("speed"));
-		Fly.bAuto = Inv.Has(TEXT("mode")) ? Fly.bAuto : false;
+		Fly.FixedSpeed = Speed;
+		Fly.bAuto = Mode == ERuntimeFlySpeedMode::Unchanged ? false : Fly.bAuto;
 	}
-	Fly.Multiplier = Inv.GetNumber(TEXT("multiplier"), Fly.Multiplier);
-	Fly.MinSpeed = Inv.GetNumber(TEXT("min_speed"), Fly.MinSpeed);
-	Fly.MaxSpeed = FMath::Max(Fly.MinSpeed, Inv.GetNumber(TEXT("max_speed"), Fly.MaxSpeed));
-	TSharedRef<FJsonObject> Out = Obj();
-	Out->SetStringField(TEXT("mode"), Fly.bAuto ? TEXT("auto") : TEXT("fixed"));
-	Out->SetNumberField(TEXT("multiplier"), Fly.Multiplier);
-	Out->SetNumberField(TEXT("min_speed"), Fly.MinSpeed);
-	Out->SetNumberField(TEXT("max_speed"), Fly.MaxSpeed);
-	Out->SetNumberField(TEXT("fixed_speed"), Fly.FixedSpeed);
-	Out->SetNumberField(TEXT("current_speed"), FMath::RoundToDouble(FRuntimeToolsetsActivity::Get().GetCurrentFlySpeed()));
-	Inv.Succeed(Out);
+	if (Passed(TEXT("multiplier")))
+	{
+		Fly.Multiplier = Multiplier;
+	}
+	if (Passed(TEXT("min_speed")))
+	{
+		Fly.MinSpeed = MinSpeed;
+	}
+	if (Passed(TEXT("max_speed")))
+	{
+		Fly.MaxSpeed = MaxSpeed;
+	}
+	Fly.MaxSpeed = FMath::Max(Fly.MinSpeed, Fly.MaxSpeed);
+	Out.Mode = Fly.bAuto ? ERuntimeFlySpeedMode::Auto : ERuntimeFlySpeedMode::Fixed;
+	Out.Multiplier = Fly.Multiplier;
+	Out.MinSpeed = Fly.MinSpeed;
+	Out.MaxSpeed = Fly.MaxSpeed;
+	Out.FixedSpeed = Fly.FixedSpeed;
+	Out.CurrentSpeed = FMath::RoundToFloat(FRuntimeToolsetsActivity::Get().GetCurrentFlySpeed());
+	return Out;
 }
 
-static void Possess(FToolInvocation& Inv)
+FRuntimePossessInfo URuntimeCameraToolset::Possess(AActor* Target)
 {
-	APlayerController* PC = RequirePlayer(Inv);
+	using namespace RtCam;
+	FRuntimePossessInfo Out;
+	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
-		return;
+		return Out;
 	}
-	APawn* Pawn = Cast<APawn>(Inv.ResolveActor(TEXT("target")));
+	APawn* Pawn = Cast<APawn>(Target);
 	if (!Pawn)
 	{
-		if (!Inv.IsComplete())
-		{
-			Inv.Fail(ERuntimeToolError::InvalidArguments, TEXT("target is not a pawn"));
-		}
-		return;
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("%s is a %s, not a Pawn"), *Ref(Target), Target ? *Target->GetClass()->GetName() : TEXT("nothing")),
+			TEXT("Spawn a pawn, e.g. actors.spawn_actor class /Script/Engine.DefaultPawn"));
+		return Out;
 	}
 	if (Pawn->GetController() && Pawn->GetController() != PC)
 	{
-		Inv.Fail(ERuntimeToolError::WrongState, TEXT("pawn is controlled by another controller"));
-		return;
+		RuntimeToolCall::Fail(ERuntimeToolError::WrongState, TEXT("pawn is controlled by another controller"));
+		return Out;
 	}
 	TWeakObjectPtr<APlayerController> WeakPC = PC;
 	TWeakObjectPtr<APawn> New = Pawn;
 	TWeakObjectPtr<APawn> Old = PC->GetPawn();
-	TSharedRef<FJsonObject> Delta = Obj();
-	Delta->SetStringField(TEXT("possessed"), Ref(Inv, Pawn));
-	auto DoFn = [WeakPC, New](FRuntimeCommandContext&, FString& Error)
+	Out.Possessed = Ref(Pawn);
+	Out.Previous = Ref(PC->GetPawn());
+	TSharedRef<FJsonObject> Delta = MakeShared<FJsonObject>();
+	Delta->SetStringField(TEXT("possessed"), Out.Possessed);
+	auto DoFn = [WeakPC, New](FRuntimeCommandContext&, FString& Err)
 	{
 		if (!WeakPC.IsValid() || !New.IsValid())
 		{
-			Error = TEXT("pawn or controller no longer exists");
+			Err = TEXT("pawn or controller no longer exists");
 			return false;
 		}
 		WeakPC->Possess(New.Get());
@@ -733,48 +831,45 @@ static void Possess(FToolInvocation& Inv)
 		}
 		return true;
 	};
-	if (Inv.RunCommand(MakeUnique<FLambdaCommand>(TEXT("possess"), DoFn, UndoFn, Delta)))
+	if (!RuntimeToolCall::RunCommand(MakeUnique<FLambdaCommand>(TEXT("possess"), DoFn, UndoFn, Delta)))
 	{
-		Inv.Succeed(Delta);
+		return FRuntimePossessInfo();
 	}
+	return Out;
 }
 
-static void SetViewMode(FToolInvocation& Inv)
+FRuntimeViewModeInfo URuntimeCameraToolset::SetViewMode(ERuntimeViewMode Mode)
 {
+	using namespace RtCam;
+	FRuntimeViewModeInfo Out;
 	UGameViewportClient* Viewport = GEngine ? GEngine->GameViewport.Get() : nullptr;
 	if (!Viewport)
 	{
-		Inv.Fail(ERuntimeToolError::Unsupported, TEXT("no game viewport"));
-		return;
+		RuntimeToolCall::Fail(ERuntimeToolError::Unsupported, TEXT("no game viewport"), TEXT("View modes need a game window (not a headless or server run)"));
+		return Out;
 	}
-	const FString Mode = Inv.GetString(TEXT("mode"));
-	const TPair<FString, EViewModeIndex>* Found = ViewModes().FindByPredicate([&Mode](const TPair<FString, EViewModeIndex>& P) { return P.Key == Mode; });
-	if (!Found)
-	{
-		Inv.Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("unknown view mode '%s'"), *Mode));
-		return;
-	}
-	const EViewModeIndex New = Found->Value;
+	const EViewModeIndex New = ToEngine(Mode);
+	const FString ModeName = StaticEnum<ERuntimeViewMode>()->GetNameStringByValue(static_cast<int64>(Mode));
 	if (New != VMI_Lit && !AllowDebugViewmodes())
 	{
-		Inv.Fail(ERuntimeToolError::Unsupported, FString::Printf(TEXT("view mode '%s' is not available in this build (debug view modes were not cooked)"), *Mode),
-			TEXT("Set r.ForceDebugViewModes=1 under [SystemSettings] in DefaultEngine.ini and re-cook, or use 'lit'"));
-		return;
+		RuntimeToolCall::Fail(ERuntimeToolError::Unsupported, FString::Printf(TEXT("view mode '%s' is not available in this build (debug view modes were not cooked)"), *ModeName),
+			TEXT("Set r.ForceDebugViewModes=1 under [SystemSettings] in DefaultEngine.ini and re-cook, or use Lit"));
+		return Out;
 	}
 	const EViewModeIndex Old = static_cast<EViewModeIndex>(Viewport->ViewModeIndex);
-	TSharedRef<FJsonObject> Delta = Obj();
-	Delta->SetStringField(TEXT("view_mode"), Mode);
-	auto DoFn = [New](FRuntimeCommandContext&, FString& Error)
+	TSharedRef<FJsonObject> Delta = MakeShared<FJsonObject>();
+	Delta->SetStringField(TEXT("view_mode"), ModeName);
+	auto DoFn = [New](FRuntimeCommandContext&, FString& Err)
 	{
 		if (!GEngine || !GEngine->GameViewport)
 		{
-			Error = TEXT("no game viewport");
+			Err = TEXT("no game viewport");
 			return false;
 		}
 		GEngine->GameViewport->SetViewMode(New);
 		if (GEngine->GameViewport->ViewModeIndex != New)
 		{
-			Error = TEXT("the engine rejected this view mode");
+			Err = TEXT("the engine rejected this view mode");
 			return false;
 		}
 		return true;
@@ -788,88 +883,11 @@ static void SetViewMode(FToolInvocation& Inv)
 		GEngine->GameViewport->SetViewMode(Old);
 		return true;
 	};
-	if (Inv.RunCommand(MakeUnique<FLambdaCommand>(FString::Printf(TEXT("view mode %s"), *Mode), DoFn, UndoFn, Delta)))
+	if (!RuntimeToolCall::RunCommand(MakeUnique<FLambdaCommand>(FString::Printf(TEXT("view mode %s"), *ModeName), DoFn, UndoFn, Delta)))
 	{
-		Inv.Succeed(Delta);
+		return Out;
 	}
-}
-
-void FCameraToolset::RegisterTools(FRuntimeToolsetBuilder& B)
-{
-	const auto Blend = []() { return FToolParam::Number(TEXT("Blend seconds"), 0.0, 10.0).Default(0.0); };
-	const auto Fov = []() { return FToolParam::Number(TEXT("Horizontal FOV degrees"), 5.0, 170.0); };
-
-	B.Tool(TEXT("get_camera"), TEXT("Current player view: location, rotation, fov, view target, pawn."))
-		.RequiresWorld()
-		.Handle(&GetCamera);
-
-	B.Tool(TEXT("set_camera"), TEXT("Move the player's view to a pose (missing parts keep the current view). The player keeps fly control."))
-		.Args(FToolSchema()
-			.Add(TEXT("location"), FToolParam::Vec3(TEXT("[x,y,z] cm")))
-			.Add(TEXT("rotation"), FToolParam::Rotator(TEXT("[pitch,yaw,roll]")))
-			.Add(TEXT("look_at"), FToolParam::Vec3(TEXT("Point to look at (overrides rotation)")))
-			.Add(TEXT("fov"), Fov())
-			.Add(TEXT("blend_time"), Blend()))
-		.Undoable().RequiresWorld()
-		.Handle(&SetCamera);
-
-	B.Tool(TEXT("set_fov"), TEXT("Change the field of view, keeping the current pose."))
-		.Args(FToolSchema().Add(TEXT("fov"), Fov().Required()).Add(TEXT("blend_time"), Blend()))
-		.Undoable().RequiresWorld()
-		.Handle(&SetCamera);
-
-	B.Tool(TEXT("frame_nodes"), TEXT("Point the view so all targets fit on screen."))
-		.Args(FToolSchema()
-			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Targets to frame"), 256).Required())
-			.Add(TEXT("direction"), FToolParam::Vec3(TEXT("View direction (default: current)")))
-			.Add(TEXT("padding"), FToolParam::Number(TEXT("Margin factor"), 0.5, 5.0).Default(1.15))
-			.Add(TEXT("fov"), Fov())
-			.Add(TEXT("blend_time"), Blend()))
-		.Undoable().RequiresWorld()
-		.Handle(&FrameNodes);
-
-	B.Tool(TEXT("orbit"), TEXT("Orbit the view around a target or point by yaw/pitch degrees."))
-		.Args(FToolSchema()
-			.Add(TEXT("target"), FToolParam::Target(TEXT("Orbit around this actor's bounds centre")))
-			.Add(TEXT("center"), FToolParam::Vec3(TEXT("Or orbit around this point")))
-			.Add(TEXT("yaw"), FToolParam::Number(TEXT("Degrees around Z")).Default(0.0))
-			.Add(TEXT("pitch"), FToolParam::Number(TEXT("Degrees up/down")).Default(0.0))
-			.Add(TEXT("distance"), FToolParam::Number(TEXT("New distance cm"), 1.0))
-			.Add(TEXT("blend_time"), Blend()))
-		.Undoable().RequiresWorld()
-		.Handle(&Orbit);
-
-	B.Tool(TEXT("reset_camera"), TEXT("Give the view back to the player's pawn and leave fly mode."))
-		.Args(FToolSchema().Add(TEXT("blend_time"), Blend()))
-		.Undoable().RequiresWorld()
-		.Handle(&ResetCamera);
-
-	B.Tool(TEXT("set_fly_mode"), TEXT("Let the player fly freely (WASD/QE + mouse) from the current view, or return to their pawn."))
-		.Args(FToolSchema().Add(TEXT("enabled"), FToolParam::Boolean(TEXT("Fly mode on")).Default(true)))
-		.Undoable().RequiresWorld()
-		.Handle(&SetFlyMode);
-
-	B.Tool(TEXT("set_fly_speed"), TEXT("Fly speed: 'auto' scales with distance to the nearest surface (fast far away, slow up close) or 'fixed'."))
-		.Args(FToolSchema()
-			.Add(TEXT("mode"), FToolParam::Enum(TEXT("auto or fixed"), {TEXT("auto"), TEXT("fixed")}))
-			.Add(TEXT("speed"), FToolParam::Number(TEXT("Fixed speed cm/s"), 10.0, 1000000.0))
-			.Add(TEXT("multiplier"), FToolParam::Number(TEXT("Scales either mode"), 0.01, 100.0))
-			.Add(TEXT("min_speed"), FToolParam::Number(TEXT("Auto: slowest cm/s"), 10.0, 1000000.0))
-			.Add(TEXT("max_speed"), FToolParam::Number(TEXT("Auto: fastest cm/s"), 10.0, 10000000.0)))
-		.Handle(&SetFlySpeed);
-
-	B.Tool(TEXT("possess"), TEXT("Make the local player control a pawn."))
-		.Args(FToolSchema().Add(TEXT("target"), FToolParam::Target(TEXT("Pawn")).Required()))
-		.Undoable().RequiresWorld()
-		.Handle(&Possess);
-
-	TArray<FString> ModeNames;
-	for (const TPair<FString, EViewModeIndex>& P : ViewModes())
-	{
-		ModeNames.Add(P.Key);
-	}
-	B.Tool(TEXT("set_view_mode"), TEXT("Viewport render mode (lit, unlit, wireframe, ...)."))
-		.Args(FToolSchema().Add(TEXT("mode"), FToolParam::Enum(TEXT("View mode"), ModeNames).Required()))
-		.Undoable()
-		.Handle(&SetViewMode);
+	Out.ViewMode = Mode;
+	Out.Previous = FromEngine(Old);
+	return Out;
 }

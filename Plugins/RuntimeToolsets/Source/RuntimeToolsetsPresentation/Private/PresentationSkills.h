@@ -14,6 +14,16 @@ public:
 	URuntimeOutdoorLightingSkill();
 };
 
+/** Placing Niagara effects (adapted from Epic's Niagara placement and fundamentals skills). */
+UCLASS()
+class URuntimeVfxPlacementSkill : public URuntimeAgentSkill
+{
+	GENERATED_BODY()
+
+public:
+	URuntimeVfxPlacementSkill();
+};
+
 /** Choosing and tuning an art style. */
 UCLASS()
 class URuntimeArtStyleSkill : public URuntimeAgentSkill

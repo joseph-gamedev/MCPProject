@@ -1,102 +1,23 @@
 {
-	"description": "Spawn Niagara systems, set user parameters, activate/deactivate",
+	"description": "Niagara effects at runtime. Effects are scene nodes (spawn_system) or fire-and-forget bursts (spawn_one_shot).\nWorkflow: spawn_system (snap_to_ground for effects that sit on the floor) -> get_summary (user variables, emitters) ->\nset_user_variable to tune it -> activate / deactivate, or set_system to swap the effect on the same node.\nRead the vfx_placement skill before placing effects the user asked for.",
 	"name": "vfx",
 	"tools": [
 		{
-			"description": "Spawn a Niagara system as a scene node, optionally with user parameters.",
+			"description": "Starts an effect, or restarts it from the beginning with reset. Undoable.\nReturns: The effect state. Fails if the target has no Niagara component.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"location":
+					"reset":
 					{
-						"description": "[x,y,z] cm",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
+						"default": false,
+						"description": "Restart from the beginning.",
+						"type": "boolean"
 					},
-					"name":
-					{
-						"description": "Node name",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"parameters":
-					{
-						"description": "User parameters by name, e.g. {\"SpawnRate\":50}",
-						"type": "object"
-					},
-					"parent":
-					{
-						"description": "Parent node",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"scale":
-					{
-						"description": "[x,y,z]",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"system":
-					{
-						"description": "Niagara system path, e.g. /Game/FX/NS_Fire.NS_Fire",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"tags":
-					{
-						"description": "Tags",
-						"items":
-						{
-							"maxLength": 256,
-							"type": "string"
-						},
-						"maxItems": 16,
-						"type": "array"
-					}
-				},
-				"required": [
-					"system"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "vfx.spawn_system",
-			"undoable": true
-		},
-		{
-			"description": "User parameters of an effect with types and current values.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -105,10 +26,226 @@
 				],
 				"type": "object"
 			},
-			"name": "vfx.list_user_parameters"
+			"mutating": true,
+			"name": "vfx.activate",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The effect state. Fails if the target has no Niagara component.",
+						"properties":
+						{
+							"active":
+							{
+								"type": "boolean"
+							},
+							"system":
+							{
+								"type": "string"
+							},
+							"target":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeVfxState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		},
 		{
-			"description": "Set a user parameter (float, int, bool, [x,y,z], [r,g,b,a]).",
+			"description": "Stops spawning new particles; existing ones finish. Undoable.\nReturns: The effect state. Fails if the target has no Niagara component.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.deactivate",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The effect state. Fails if the target has no Niagara component.",
+						"properties":
+						{
+							"active":
+							{
+								"type": "boolean"
+							},
+							"system":
+							{
+								"type": "string"
+							},
+							"target":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeVfxState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Summary of an effect: system, active and looping flags, user variables with values, and one entry per emitter (enabled, CPU/GPU, renderers). Call it first on an unfamiliar effect.\nReturns: The summary; user variables sorted by name, emitters in system order. Fails if the target has no Niagara component.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Effect node or actor (or actor#Component), e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "vfx.get_summary",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The summary; user variables sorted by name, emitters in system order. Fails if the target has no Niagara component.",
+						"properties":
+						{
+							"active":
+							{
+								"type": "boolean"
+							},
+							"emitters":
+							{
+								"description": "Emitters in system order.",
+								"items":
+								{
+									"properties":
+									{
+										"enabled":
+										{
+											"type": "boolean"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"renderers":
+										{
+											"description": "Renderer classes (de-duplicated), e.g. [\"NiagaraSpriteRendererProperties\"].",
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"sim_target":
+										{
+											"description": "CPU or GPU.",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeVfxEmitterSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"looping":
+							{
+								"description": "Whether the system loops forever.",
+								"type": "boolean"
+							},
+							"system":
+							{
+								"type": "string"
+							},
+							"target":
+							{
+								"description": "The effect (node id or actor:Name).",
+								"type": "string"
+							},
+							"user_variables":
+							{
+								"description": "User variables with current values, sorted by name.",
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"description": "Name without the \"User.\" prefix, e.g. \"SpawnRate\".",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Niagara type: float, int32, bool, Vector, Position, LinearColor, ...",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Current value (number, bool, [x,y,z] or [r,g,b,a]); null for types the tools cannot read. (Any JSON value)"
+										}
+									},
+									"title": "RuntimeVfxUserVariable",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeVfxSummary",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Reads one user variable.\nReturns: The variable with its type and current value. Fails if the variable does not exist (the error lists the available ones).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -116,19 +253,272 @@
 				{
 					"name":
 					{
-						"description": "Parameter name (User. prefix optional)",
-						"maxLength": 128,
+						"description": "Variable name, \"User.\" prefix optional, e.g. \"SpawnRate\".",
 						"type": "string"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "vfx.get_user_variable",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The variable with its type and current value. Fails if the variable does not exist (the error lists the available ones).",
+						"properties":
+						{
+							"name":
+							{
+								"description": "Name without the \"User.\" prefix, e.g. \"SpawnRate\".",
+								"type": "string"
+							},
+							"type":
+							{
+								"description": "Niagara type: float, int32, bool, Vector, Position, LinearColor, ...",
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "Current value (number, bool, [x,y,z] or [r,g,b,a]); null for types the tools cannot read. (Any JSON value)"
+							}
+						},
+						"title": "RuntimeVfxUserVariable",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the user variables of an effect with types and current values (Epic: GetUserVariables).\nReturns: User variables sorted by name. Fails if the target has no Niagara component.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "vfx.get_user_variables",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "User variables sorted by name. Fails if the target has no Niagara component.",
+						"items":
+						{
+							"properties":
+							{
+								"name":
+								{
+									"description": "Name without the \"User.\" prefix, e.g. \"SpawnRate\".",
+									"type": "string"
+								},
+								"type":
+								{
+									"description": "Niagara type: float, int32, bool, Vector, Position, LinearColor, ...",
+									"type": "string"
+								},
+								"value":
+								{
+									"description": "Current value (number, bool, [x,y,z] or [r,g,b,a]); null for types the tools cannot read. (Any JSON value)"
+								}
+							},
+							"title": "RuntimeVfxUserVariable",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the Niagara effects currently active in the world.\nReturns: Total count and the effects (target, system name, location), sorted by target.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum entries returned.",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "vfx.list_active",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total count and the effects (target, system name, location), sorted by target.",
+						"properties":
+						{
+							"active":
+							{
+								"description": "Sorted by target.",
+								"items":
+								{
+									"properties":
+									{
+										"location":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"system":
+										{
+											"type": "string"
+										},
+										"target":
+										{
+											"type": "string"
+										}
+									},
+									"title": "RuntimeVfxActive",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "All active effects (the list is cut at `limit`).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeVfxActiveList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Swaps the Niagara system of an effect, keeping its place in the scene (Epic: SetSystem). Undoable.\nReturns: The effect with its new system. Fails if the target has no Niagara component or the system is not found.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"reset_user_variables":
+					{
+						"default": false,
+						"description": "true: user variables go back to the new system's defaults; false: overrides with matching names are kept.",
+						"type": "boolean"
+					},
+					"system":
+					{
+						"description": "The new system, e.g. \"/Game/FX/NS_Smoke.NS_Smoke\". (Reference to NiagaraSystem: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"system"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "vfx.set_system",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The effect with its new system. Fails if the target has no Niagara component or the system is not found.",
+						"properties":
+						{
+							"active":
+							{
+								"type": "boolean"
+							},
+							"system":
+							{
+								"type": "string"
+							},
+							"target":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeVfxState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets a user variable on an effect: a number (float, int), true/false (bool), [x,y,z] (vector, position) or [r,g,b,a] (color). Undoable.\nReturns: The variable after the change and its previous value. Fails if the variable does not exist, or the value does not fit its type (the error names the expected JSON).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Variable name, \"User.\" prefix optional, e.g. \"SpawnRate\".",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Effect node or actor, e.g. \"n12\". (Reference to NiagaraComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"value":
 					{
-						"description": "New value"
+						"description": "New value, e.g. 120. (Any JSON value)"
 					}
 				},
 				"required": [
@@ -140,79 +530,311 @@
 			},
 			"mutating": true,
 			"name": "vfx.set_user_variable",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The variable after the change and its previous value. Fails if the variable does not exist, or the value does not fit its type (the error names the expected JSON).",
+						"properties":
+						{
+							"previous":
+							{
+								"description": "Value before the change. (Any JSON value)"
+							},
+							"target":
+							{
+								"type": "string"
+							},
+							"variable":
+							{
+								"properties":
+								{
+									"name":
+									{
+										"description": "Name without the \"User.\" prefix, e.g. \"SpawnRate\".",
+										"type": "string"
+									},
+									"type":
+									{
+										"description": "Niagara type: float, int32, bool, Vector, Position, LinearColor, ...",
+										"type": "string"
+									},
+									"value":
+									{
+										"description": "Current value (number, bool, [x,y,z] or [r,g,b,a]); null for types the tools cannot read. (Any JSON value)"
+									}
+								},
+								"title": "RuntimeVfxUserVariable",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeVfxVariableChange",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Start (or restart with reset) an effect.",
+			"description": "Plays a system once at a location and lets it destroy itself when it finishes (explosions, impacts, sparks). Not a scene node and not undoable: it removes itself. Use spawn_system for effects that should stay.\nReturns: The system, the final location and whether it loops (a looping system never ends). Fails if the system is not found or a user variable does not exist or fit.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"reset":
+					"location":
+					{
+						"description": "World position [x, y, z] in cm. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "[pitch, yaw, roll]. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x, y, z], default [1, 1, 1]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"snap_to_ground":
 					{
 						"default": false,
-						"description": "Restart from the beginning",
+						"description": "Move the location down onto the first surface below it.",
 						"type": "boolean"
 					},
-					"target":
+					"system":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Niagara system asset, e.g. \"/Game/FX/NS_Explosion.NS_Explosion\". (Reference to NiagaraSystem: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
+					},
+					"user_variables":
+					{
+						"description": "User variables by name, e.g. {\"Size\": 2}. (Any JSON value)"
 					}
 				},
 				"required": [
-					"target"
+					"system"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "vfx.activate",
-			"undoable": true
+			"name": "vfx.spawn_one_shot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The system, the final location and whether it loops (a looping system never ends). Fails if the system is not found or a user variable does not exist or fit.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"looping":
+							{
+								"description": "Whether the system loops forever (a looping system never finishes; prefer spawn_system for it).",
+								"type": "boolean"
+							},
+							"snapped_to_ground":
+							{
+								"type": "boolean"
+							},
+							"system":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeVfxOneShot",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Stop an effect (existing particles finish).",
+			"description": "Spawns a Niagara system as a scene node, optionally setting user variables. Undoable (undo removes it).\nReturns: The effect node: id, name, system, location, active flag and its user variable names. Fails if the system is not found, a user variable does not exist or does not fit its type, or the parent is not a node.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"target":
+					"location":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "World position [x, y, z] in cm. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (default: the system name).",
 						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Optional parent node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch, yaw, roll]. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x, y, z], default [1, 1, 1]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"snap_to_ground":
+					{
+						"default": false,
+						"description": "Move the location down onto the first surface below it (fires, smoke, puddles).",
+						"type": "boolean"
+					},
+					"system":
+					{
+						"description": "Niagara system asset, e.g. \"/Niagara/DefaultAssets/DefaultSystem.DefaultSystem\". (Reference to NiagaraSystem: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"user_variables":
+					{
+						"description": "User variables by name, e.g. {\"SpawnRate\": 50, \"Color\": [1, 0.3, 0, 1]}. (Any JSON value)"
 					}
 				},
 				"required": [
-					"target"
+					"system"
 				],
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "vfx.deactivate",
-			"undoable": true
-		},
-		{
-			"description": "Niagara effects currently active in the world.",
-			"input_schema":
+			"name": "vfx.spawn_system",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"limit":
+					"returnValue":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
+						"description": "The effect node: id, name, system, location, active flag and its user variable names. Fails if the system is not found, a user variable does not exist or does not fit its type, or the parent is not a node.",
+						"properties":
+						{
+							"active":
+							{
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\" (pass it as `target`).",
+								"type": "string"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Node name.",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "Whether the location was moved down onto the ground.",
+								"type": "boolean"
+							},
+							"system":
+							{
+								"description": "Niagara system asset path.",
+								"type": "string"
+							},
+							"user_variables":
+							{
+								"description": "Names of the user variables (set them with set_user_variable).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeVfxInfo",
+						"type": "object"
 					}
 				},
+				"required": [
+					"returnValue"
+				],
 				"type": "object"
 			},
-			"name": "vfx.list_active"
+			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

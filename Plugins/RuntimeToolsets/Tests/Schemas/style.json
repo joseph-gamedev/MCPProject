@@ -1,21 +1,9 @@
 {
-	"description": "Art style for the whole scene: realistic, stylized, lowpoly, toon, retro, noir presets or custom mixes (materials, post-process, lighting)",
+	"description": "Art style: one call restyles the whole scene (realistic, stylized, lowpoly, toon, retro, noir, ...).\nA style drives three layers: global material switches for every builder material (MPC_RT_Style: flat shading,\nprocedural detail, colour steps, saturation, tint, rim light), a style post-process (M_PP_Style: toon bands, outlines,\npainterly filter, pixelation, posterize, grading) plus post settings, and lighting (mood, sun, sky, fog).\nWorkflow: list_presets -> apply a preset -> screenshot -> apply again with only the layer to tweak -> define_preset to keep it.\nPresets are data: built in, overridable/extendable from Config/RuntimeToolsets/StylePresets.json or define_preset.\nSee the art_style skill.",
 	"name": "style",
 	"tools": [
 		{
-			"description": "Art style presets with descriptions, and every adjustable parameter.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "style.list_presets"
-		},
-		{
-			"description": "Restyle the whole scene: a preset (realistic, stylized, lowpoly, toon, retro, noir, ...) and/or overrides of any layer. Undoable.",
+			"description": "Restyles the whole scene: a preset and/or overrides of any layer, merged key by key. Without a preset, overrides tweak the style already applied. The material/post layer is one undo step; the lighting layer adds lighting undo steps.\nReturns: The applied style and any lighting notes. Fails if the preset is unknown (the hint lists the presets) or the style assets are missing.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -23,57 +11,74 @@
 				{
 					"lighting":
 					{
-						"description": "{mood, sun:{rotation, intensity, temperature, color}, sky:{intensity, color}, fog:{density, color, height_falloff}}",
-						"type": "object"
+						"description": "{mood, sun:{rotation, intensity, temperature, color}, sky:{intensity, color}, fog:{density, color, height_falloff}}. (Any JSON value)"
 					},
 					"lighting_enabled":
 					{
 						"default": true,
-						"description": "Also change the lighting (default true)",
+						"description": "Also change the lighting.",
 						"type": "boolean"
 					},
 					"material":
 					{
-						"description": "{Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}",
-						"type": "object"
+						"description": "{Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}, e.g. {\"Saturation\": 1.2}. (Any JSON value)"
 					},
 					"post":
 					{
-						"description": "{Toon 0-1, Bands, ShadowFloor, Outline 0-1, OutlineWidth px, OutlineColor, DepthSens, NormalSens, Paint 0-1, PaintRadius, PaintScale, PixelSize px, Levels, Saturation, Contrast, Tint}",
-						"type": "object"
+						"description": "{Toon 0-1, Bands, ShadowFloor, Outline 0-1, OutlineWidth px, OutlineColor, DepthSens, NormalSens, Paint 0-1, PaintRadius, PaintScale, PixelSize px, Levels, Saturation, Contrast, Tint}, e.g. {\"Outline\": 0.6}. (Any JSON value)"
 					},
 					"preset":
 					{
-						"description": "Preset name (empty = tweak the current style)",
-						"maxLength": 64,
+						"default": "",
+						"description": "Preset name, e.g. \"toon\"; empty = tweak the current style.",
 						"type": "string"
 					},
 					"settings":
 					{
-						"description": "{bloom, vignette, ao, grain, chromatic, exposure_bias, temperature}",
-						"type": "object"
+						"description": "{bloom, vignette, ao, grain, chromatic, exposure_bias, temperature}. (Any JSON value)"
 					}
 				},
 				"type": "object"
 			},
 			"mutating": true,
 			"name": "style.apply",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The applied style and any lighting notes. Fails if the preset is unknown (the hint lists the presets) or the style assets are missing.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "Whether a style is applied (get only; false = engine defaults).",
+								"type": "boolean"
+							},
+							"lighting_notes":
+							{
+								"description": "Problems while applying the lighting layer (missing sun or fog, ...), empty if none.",
+								"type": "string"
+							},
+							"style":
+							{
+								"description": "The style: {name, description, material:{...}, post:{...}, settings:{...}, lighting:{...}}. (Any JSON value)"
+							}
+						},
+						"title": "RuntimeStyleInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "The style currently applied.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "style.get"
-		},
-		{
-			"description": "Add or replace a named style preset (optionally based on another).",
+			"description": "Adds or replaces a named style preset, optionally starting from another preset. Lasts until the game restarts (put permanent presets in Config/RuntimeToolsets/StylePresets.json).\nReturns: The new preset. Fails if the name is empty or based_on is not a preset.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -81,41 +86,36 @@
 				{
 					"based_on":
 					{
-						"description": "Start from this preset",
-						"maxLength": 64,
+						"default": "",
+						"description": "Start from this preset, e.g. \"toon\".",
 						"type": "string"
 					},
 					"description":
 					{
-						"description": "What it looks like",
-						"maxLength": 256,
+						"default": "Custom style",
+						"description": "What it looks like.",
 						"type": "string"
 					},
 					"lighting":
 					{
-						"description": "Lighting",
-						"type": "object"
+						"description": "Lighting overrides. (Any JSON value)"
 					},
 					"material":
 					{
-						"description": "Material layer",
-						"type": "object"
+						"description": "Material layer overrides. (Any JSON value)"
 					},
 					"name":
 					{
-						"description": "Preset name",
-						"maxLength": 64,
+						"description": "Preset name, e.g. \"comic\".",
 						"type": "string"
 					},
 					"post":
 					{
-						"description": "Post layer",
-						"type": "object"
+						"description": "Post layer overrides, e.g. {\"OutlineWidth\": 3}. (Any JSON value)"
 					},
 					"settings":
 					{
-						"description": "Post settings",
-						"type": "object"
+						"description": "Post settings overrides. (Any JSON value)"
 					}
 				},
 				"required": [
@@ -123,8 +123,145 @@
 				],
 				"type": "object"
 			},
-			"name": "style.define_preset"
+			"name": "style.define_preset",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new preset. Fails if the name is empty or based_on is not a preset.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "Whether a style is applied (get only; false = engine defaults).",
+								"type": "boolean"
+							},
+							"lighting_notes":
+							{
+								"description": "Problems while applying the lighting layer (missing sun or fog, ...), empty if none.",
+								"type": "string"
+							},
+							"style":
+							{
+								"description": "The style: {name, description, material:{...}, post:{...}, settings:{...}, lighting:{...}}. (Any JSON value)"
+							}
+						},
+						"title": "RuntimeStyleInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "The style currently applied.\nReturns: applied = false (and a note in style) when no style was applied, otherwise the style object.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "style.get",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "applied = false (and a note in style) when no style was applied, otherwise the style object.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "Whether a style is applied (get only; false = engine defaults).",
+								"type": "boolean"
+							},
+							"lighting_notes":
+							{
+								"description": "Problems while applying the lighting layer (missing sun or fog, ...), empty if none.",
+								"type": "string"
+							},
+							"style":
+							{
+								"description": "The style: {name, description, material:{...}, post:{...}, settings:{...}, lighting:{...}}. (Any JSON value)"
+							}
+						},
+						"title": "RuntimeStyleInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the art style presets with descriptions, and every adjustable parameter per layer.\nReturns: Presets sorted by name, and the layer parameter list.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "style.list_presets",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Presets sorted by name, and the layer parameter list.",
+						"properties":
+						{
+							"layers":
+							{
+								"description": "Every adjustable parameter, per layer.",
+								"type": "string"
+							},
+							"presets":
+							{
+								"description": "Presets sorted by name.",
+								"items":
+								{
+									"properties":
+									{
+										"description":
+										{
+											"description": "What it looks like.",
+											"type": "string"
+										},
+										"name":
+										{
+											"description": "Preset name to pass to style.apply, e.g. \"toon\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeStylePresetInfo",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeStylePresetList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }
