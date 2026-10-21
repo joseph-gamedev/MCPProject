@@ -1,9 +1,115 @@
 {
-	"description": "Scene graph of tool-created nodes: groups, hierarchy, transforms, export/import",
+	"description": "Scene graph: the hierarchy of nodes (actors and groups) created by the tools. Nodes have stable ids (\"n12\") and paths\n(\"house/door\"); children follow their parent, and every change is undoable through the history toolset.\nWorkflow: create_group for each object or area -> actors.spawn_actor / build tools with parent -> list_tree or find_nodes\nto see what exists -> get_node for transforms and bounds -> move/rotate/scale/reparent/duplicate nodes ->\nexport_tree / import_tree to save or copy layouts. clear_scope and clear_all checkpoint first, so they can be rolled back.",
 	"name": "scene",
 	"tools": [
 		{
-			"description": "Create an empty group node (pivot for children). Transform is relative to parent.",
+			"description": "Deletes every node this session created. Creates a checkpoint first. Fails without confirm, or while a history transaction is open.\nReturns: Nodes deleted and the checkpoint name (history.rollback restores them).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"confirm":
+					{
+						"default": false,
+						"description": "Must be true.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.clear_all",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Nodes deleted and the checkpoint name (history.rollback restores them).",
+						"properties":
+						{
+							"checkpoint":
+							{
+								"description": "Checkpoint created first: history.rollback {\"name\": checkpoint} restores everything. Empty when nothing was deleted.",
+								"type": "string"
+							},
+							"deleted":
+							{
+								"description": "Nodes deleted.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeClearResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Deletes everything this session created under a node, keeping the node itself. Creates a checkpoint first. Fails without confirm, or while a history transaction is open.\nReturns: Nodes deleted and the checkpoint name (history.rollback restores them).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"confirm":
+					{
+						"default": false,
+						"description": "Must be true.",
+						"type": "boolean"
+					},
+					"root":
+					{
+						"description": "Scope node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"root"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.clear_scope",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Nodes deleted and the checkpoint name (history.rollback restores them).",
+						"properties":
+						{
+							"checkpoint":
+							{
+								"description": "Checkpoint created first: history.rollback {\"name\": checkpoint} restores everything. Empty when nothing was deleted.",
+								"type": "string"
+							},
+							"deleted":
+							{
+								"description": "Nodes deleted.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeClearResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Creates an empty group node: a pivot that children move, rotate and scale with. Undoable. The transform is relative to the parent when one is given.\nReturns: The new node: {id, name, path, actor}.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,7 +117,7 @@
 				{
 					"location":
 					{
-						"description": "[x,y,z] cm",
+						"description": "[x, y, z] in cm. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -22,19 +128,17 @@
 					},
 					"name":
 					{
-						"description": "Group name",
-						"maxLength": 128,
+						"description": "Group name (made unique among siblings), e.g. \"house\".",
 						"type": "string"
 					},
 					"parent":
 					{
-						"description": "Parent node",
-						"maxLength": 1024,
+						"description": "Parent node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"rotation":
 					{
-						"description": "[pitch,yaw,roll]",
+						"description": "[pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",
 						"items":
 						{
 							"type": "number"
@@ -45,7 +149,7 @@
 					},
 					"scale":
 					{
-						"description": "[x,y,z]",
+						"description": "[x, y, z] (default [1, 1, 1]). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -56,13 +160,11 @@
 					},
 					"tags":
 					{
-						"description": "Tags",
+						"description": "Node tags, e.g. [\"building\"].",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 16,
 						"type": "array"
 					}
 				},
@@ -73,170 +175,63 @@
 			},
 			"mutating": true,
 			"name": "scene.create_group",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new node: {id, name, path, actor}.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Engine object name of the actor (for actor:Name references).",
+								"type": "string"
+							},
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\". Pass it to any tool that takes an actor or a node.",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name, unique among its siblings.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Path through node names from the root, e.g. \"house/door\" (also accepted wherever a node is expected).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Node hierarchy, depth-limited. Deeper levels show child_count.",
+			"description": "Deletes a node and its subtree, or only the node with its children moved up to its parent. Undoable.\nReturns: The deleted node id and the number of nodes deleted.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"depth":
+					"promote_children":
 					{
-						"default": 2,
-						"description": "Levels to expand",
-						"maximum": 32,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"fields":
-					{
-						"description": "Fields to include (default: all listed)",
-						"items":
-						{
-							"enum": [
-								"name",
-								"path",
-								"kind",
-								"parent",
-								"children",
-								"tags",
-								"class",
-								"source",
-								"location",
-								"rotation",
-								"scale",
-								"bounds"
-							],
-							"type": "string"
-						},
-						"maxItems": 12,
-						"type": "array"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"root":
-					{
-						"description": "Start node (default: all roots)",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "scene.list_tree"
-		},
-		{
-			"description": "Find nodes by name wildcard, tag or kind.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"fields":
-					{
-						"description": "Fields to include (default: all listed)",
-						"items":
-						{
-							"enum": [
-								"name",
-								"path",
-								"kind",
-								"parent",
-								"children",
-								"tags",
-								"class",
-								"source",
-								"location",
-								"rotation",
-								"scale",
-								"bounds"
-							],
-							"type": "string"
-						},
-						"maxItems": 12,
-						"type": "array"
-					},
-					"kind":
-					{
-						"description": "Node kind",
-						"enum": [
-							"group",
-							"actor"
-						],
-						"type": "string"
-					},
-					"limit":
-					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"pattern":
-					{
-						"description": "Name wildcard",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"tag":
-					{
-						"description": "Tag",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"under":
-					{
-						"description": "Search only below this node",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "scene.find_nodes"
-		},
-		{
-			"description": "One node with transform, bounds, tags and color.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"fields":
-					{
-						"description": "Fields to include (default: all listed)",
-						"items":
-						{
-							"enum": [
-								"name",
-								"path",
-								"kind",
-								"parent",
-								"children",
-								"tags",
-								"class",
-								"source",
-								"location",
-								"rotation",
-								"scale",
-								"bounds"
-							],
-							"type": "string"
-						},
-						"maxItems": 12,
-						"type": "array"
+						"default": false,
+						"description": "Keep the children and move them to the node's parent.",
+						"type": "boolean"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Node to delete. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -245,10 +240,562 @@
 				],
 				"type": "object"
 			},
-			"name": "scene.get_node"
+			"mutating": true,
+			"name": "scene.delete_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The deleted node id and the number of nodes deleted.",
+						"properties":
+						{
+							"deleted":
+							{
+								"description": "Id of the deleted node.",
+								"type": "string"
+							},
+							"nodes":
+							{
+								"description": "Nodes deleted (1 with promote_children, else the subtree size).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeDeleteNodeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		},
 		{
-			"description": "Set location or add offset. Children follow.",
+			"description": "Copies a node and its subtree (rebuilt from their spawn recipes) next to the original, as one undo step. Fails for subtrees over 2000 nodes.\nReturns: The copy's root node and the number of nodes copied.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"default": "",
+						"description": "Name for the copy (default: the original's name, made unique).",
+						"type": "string"
+					},
+					"offset":
+					{
+						"description": "World offset for the copy [x, y, z] in cm. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Node to copy. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.duplicate_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The copy's root node and the number of nodes copied.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Id of the copy's root node.",
+								"type": "string"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"nodes":
+							{
+								"description": "Nodes copied (the subtree size).",
+								"type": "integer"
+							},
+							"path":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeDuplicateResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Exports nodes as a JSON spec (transforms relative to the parent, spawn recipes, tags, colors) for import_tree.\nReturns: {nodes:[{id, name, source, location, rotation, scale, tags, color, children:[...]}]}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"root":
+					{
+						"description": "Export only this subtree (default: all root nodes). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.export_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{nodes:[{id, name, source, location, rotation, scale, tags, color, children:[...]}]}."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Finds nodes by name, tag or kind, optionally below one node.\nReturns: Total match count and the nodes {id, name, path, kind, tags} in tree order.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"kind":
+					{
+						"default": "Any",
+						"description": "Any, Group or Actor.",
+						"enum": [
+							"Any",
+							"Group",
+							"Actor"
+						],
+						"type": "string"
+					},
+					"limit":
+					{
+						"default": 25,
+						"description": "Maximum nodes returned (0 = project default).",
+						"type": "integer"
+					},
+					"pattern":
+					{
+						"default": "",
+						"description": "Name filter: a wildcard (\"door*\") or a case-insensitive substring.",
+						"type": "string"
+					},
+					"tag":
+					{
+						"default": "",
+						"description": "Only nodes with this tag.",
+						"type": "string"
+					},
+					"under":
+					{
+						"description": "Search only below this node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.find_nodes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total match count and the nodes {id, name, path, kind, tags} in tree order.",
+						"properties":
+						{
+							"nodes":
+							{
+								"description": "Matches in tree order (pre-order), at most `limit`.",
+								"items":
+								{
+									"properties":
+									{
+										"id":
+										{
+											"description": "Node id, e.g. \"n12\".",
+											"type": "string"
+										},
+										"kind":
+										{
+											"description": "\"group\" or \"actor\".",
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Path from the root, e.g. \"house/door\".",
+											"type": "string"
+										},
+										"tags":
+										{
+											"items":
+											{
+												"type": "string"
+											},
+											"type": "array"
+										}
+									},
+									"title": "RuntimeNodeSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Number of matching nodes (may exceed the list).",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeNodeList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns one node: hierarchy, tags, class, source, world transform, bounds (including children) and shape color. Fails if the target is not a live scene node (deleted nodes come back with history.undo).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Node id or path, e.g. \"n12\" or \"house/door\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "scene.get_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"bounds":
+							{
+								"description": "Bounds including child nodes.",
+								"properties":
+								{
+									"center":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"size":
+									{
+										"description": "[x, y, z] (cm)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									}
+								},
+								"title": "RuntimeNodeBounds",
+								"type": "object"
+							},
+							"children":
+							{
+								"description": "Child node ids.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"class":
+							{
+								"description": "Actor class name.",
+								"type": "string"
+							},
+							"color":
+							{
+								"description": "Shape color [r, g, b] set by spawn_actor (empty if none).",
+								"items":
+								{
+									"type": "number"
+								},
+								"type": "array"
+							},
+							"hidden":
+							{
+								"description": "Hidden in game.",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"type": "string"
+							},
+							"kind":
+							{
+								"description": "\"group\" or \"actor\".",
+								"type": "string"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"parent":
+							{
+								"description": "Parent node id (empty for roots).",
+								"type": "string"
+							},
+							"path":
+							{
+								"type": "string"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"source":
+							{
+								"description": "What created it (\"shape:cube\", \"class:/Script/Engine.PointLight\", \"group\", builder recipes...).",
+								"type": "string"
+							},
+							"tags":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeNodeDetails",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Builds nodes from an export_tree spec as one undo step. Fails on invalid specs or more than 2000 nodes.\nReturns: New root ids, the node count and spec id -> new id.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"parent":
+					{
+						"description": "Attach the imported roots under this node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tree":
+					{
+						"description": "Spec {nodes:[{name, source, location, rotation, scale, tags, color, children:[...]}]}, e.g. from export_tree. (Any JSON value)"
+					}
+				},
+				"required": [
+					"tree"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.import_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "New root ids, the node count and spec id -> new id.",
+						"properties":
+						{
+							"id_map":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Spec id -> new node id (for specs that carry ids, up to 200 entries).",
+								"type": "object"
+							},
+							"nodes":
+							{
+								"description": "Nodes created.",
+								"type": "integer"
+							},
+							"roots":
+							{
+								"description": "Ids of the imported root nodes, in spec order.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeImportResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Returns the node hierarchy, depth-limited. Nodes at the depth limit report child_count instead of children.\nReturns: Nested nodes in tree order, the total live node count and whether the limit cut the tree.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"depth":
+					{
+						"default": 2,
+						"description": "Levels to expand, 1-32.",
+						"type": "integer"
+					},
+					"fields":
+					{
+						"description": "Node fields to include besides id: name, path, kind, parent, tags, class, source, location, rotation, scale, bounds (default name and kind).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"limit":
+					{
+						"default": 25,
+						"description": "Maximum nodes returned (0 = project default).",
+						"type": "integer"
+					},
+					"root":
+					{
+						"description": "Start node (default: all root nodes). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "scene.list_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Nested nodes in tree order, the total live node count and whether the limit cut the tree.",
+						"properties":
+						{
+							"nodes":
+							{
+								"description": "Nested nodes [{id, <fields>, children:[...]}]; nodes at the depth limit show child_count instead of children. (Any JSON value)"
+							},
+							"total_nodes":
+							{
+								"description": "Live nodes in the whole scene graph.",
+								"type": "integer"
+							},
+							"truncated":
+							{
+								"description": "True when the node limit cut the tree short.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeTreeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Moves a node to a location or by an offset (give exactly one). Children follow. Undoable.\nReturns: The node's resulting world transform.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -256,7 +803,7 @@
 				{
 					"location":
 					{
-						"description": "New location",
+						"description": "New location [x, y, z] in cm. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -267,7 +814,7 @@
 					},
 					"offset":
 					{
-						"description": "Offset to add",
+						"description": "Offset to add [x, y, z] in cm. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -278,18 +825,17 @@
 					},
 					"space":
 					{
-						"default": "world",
-						"description": "world, or local (location relative to parent, offset along own axes)",
+						"default": "World",
+						"description": "World; or Local: location relative to the parent node, offset along the node's own axes.",
 						"enum": [
-							"world",
-							"local"
+							"World",
+							"Local"
 						],
 						"type": "string"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Node to move. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -300,179 +846,72 @@
 			},
 			"mutating": true,
 			"name": "scene.move_node",
-			"undoable": true
-		},
-		{
-			"description": "Set rotation or apply a delta. Children follow.",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"delta":
+					"returnValue":
 					{
-						"description": "Rotation to apply",
-						"items":
+						"description": "The node's resulting world transform.",
+						"properties":
 						{
-							"type": "number"
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"target":
+							{
+								"description": "The changed actor (node id or actor:Name).",
+								"type": "string"
+							},
+							"warning":
+							{
+								"description": "Set when the change has a side effect worth knowing (e.g. shearing children).",
+								"type": "string"
+							}
 						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"rotation":
-					{
-						"description": "New rotation",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"space":
-					{
-						"default": "world",
-						"description": "world, or local (rotation relative to parent, delta about own axes)",
-						"enum": [
-							"world",
-							"local"
-						],
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
+						"title": "RuntimeTransformResult",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "scene.rotate_node",
 			"undoable": true
 		},
 		{
-			"description": "Set scale or multiply by factor. Prefer scaling leaves.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"factor":
-					{
-						"description": "Multiply current scale",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"scale":
-					{
-						"description": "New world scale",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.scale_node",
-			"undoable": true
-		},
-		{
-			"description": "Move a node under another node (empty parent = root).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"keep_world":
-					{
-						"default": true,
-						"description": "Keep world transform",
-						"type": "boolean"
-					},
-					"parent":
-					{
-						"description": "New parent node; empty for root",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.reparent_node",
-			"undoable": true
-		},
-		{
-			"description": "Move a group's origin; children stay in place. Default: bounds centre.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"location":
-					{
-						"description": "New pivot (world)",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"target":
-					{
-						"description": "Group node",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.set_pivot",
-			"undoable": true
-		},
-		{
-			"description": "Rename a node (unique among siblings). Id is unchanged.",
+			"description": "Renames a node. The id stays the same; the path changes. Undoable. Fails if a sibling already has the name.\nReturns: The node with its new name and path.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -480,14 +919,12 @@
 				{
 					"name":
 					{
-						"description": "New name",
-						"maxLength": 128,
+						"description": "New name, e.g. \"front_door\" (\"/\" is replaced by \"_\").",
 						"type": "string"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Node to rename. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -499,10 +936,343 @@
 			},
 			"mutating": true,
 			"name": "scene.rename_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node with its new name and path.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Engine object name of the actor (for actor:Name references).",
+								"type": "string"
+							},
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\". Pass it to any tool that takes an actor or a node.",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name, unique among its siblings.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Path through node names from the root, e.g. \"house/door\" (also accepted wherever a node is expected).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Set, add or remove node tags.",
+			"description": "Moves a node under another node, or to the root when parent is omitted. Undoable. Fails if the new parent is the node itself or one of its descendants.\nReturns: The node with its new path.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"keep_world":
+					{
+						"default": true,
+						"description": "Keep the world transform (false keeps the relative transform).",
+						"type": "boolean"
+					},
+					"parent":
+					{
+						"description": "New parent node; omit (or \"\") for the root. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Node to move. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.reparent_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node with its new path.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Engine object name of the actor (for actor:Name references).",
+								"type": "string"
+							},
+							"id":
+							{
+								"description": "Node id, e.g. \"n12\". Pass it to any tool that takes an actor or a node.",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name, unique among its siblings.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Path through node names from the root, e.g. \"house/door\" (also accepted wherever a node is expected).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNodeInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets a node's rotation or applies a rotation delta (give exactly one). Children follow. Undoable.\nReturns: The node's resulting world transform.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"delta":
+					{
+						"description": "Rotation to apply, e.g. [0, 90, 0] turns 90 degrees around Z. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rotation":
+					{
+						"description": "New rotation [pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"space":
+					{
+						"default": "World",
+						"description": "World; or Local: rotation relative to the parent node, delta about the node's own axes.",
+						"enum": [
+							"World",
+							"Local"
+						],
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Node to rotate. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.rotate_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node's resulting world transform.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"target":
+							{
+								"description": "The changed actor (node id or actor:Name).",
+								"type": "string"
+							},
+							"warning":
+							{
+								"description": "Set when the change has a side effect worth knowing (e.g. shearing children).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeTransformResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets a node's world scale or multiplies it by a factor (give one). Undoable. Prefer scaling leaves: non-uniform scale on a parent shears rotated children (the result then carries a warning). Fails on zero scale components.\nReturns: The node's resulting world transform.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"factor":
+					{
+						"description": "Multiply the current scale, e.g. [2, 2, 2]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "New world scale [x, y, z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Node to scale. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.scale_node",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node's resulting world transform.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"scale":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"target":
+							{
+								"description": "The changed actor (node id or actor:Name).",
+								"type": "string"
+							},
+							"warning":
+							{
+								"description": "Set when the change has a side effect worth knowing (e.g. shearing children).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeTransformResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets, adds or removes node tags (also applied as actor tags). Undoable.\nReturns: The node's tags after the change.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -510,30 +1280,27 @@
 				{
 					"mode":
 					{
-						"default": "set",
-						"description": "How to apply",
+						"default": "Set",
+						"description": "Set (replace), Add or Remove.",
 						"enum": [
-							"set",
-							"add",
-							"remove"
+							"Set",
+							"Add",
+							"Remove"
 						],
 						"type": "string"
 					},
 					"tags":
 					{
-						"description": "Tags",
+						"description": "Tags, e.g. [\"wall\", \"stone\"].",
 						"items":
 						{
-							"maxLength": 256,
 							"type": "string"
 						},
-						"maxItems": 32,
 						"type": "array"
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Node to tag. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -545,24 +1312,50 @@
 			},
 			"mutating": true,
 			"name": "scene.set_node_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The node's tags after the change.",
+						"properties":
+						{
+							"tags":
+							{
+								"description": "The node's tags after the change.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"target":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeTagsResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Copy a node subtree (from its spawn specs) next to it.",
+			"description": "Moves a group's origin while its children stay where they are. Undoable. Fails if the target is not a group.\nReturns: The group and its new pivot location.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
-					"name":
+					"location":
 					{
-						"description": "Name for the copy",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"offset":
-					{
-						"description": "World offset for the copy",
+						"description": "New pivot [x, y, z] in world cm (default: the center of the children's bounds). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -573,8 +1366,7 @@
 					},
 					"target":
 					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
+						"description": "Group node. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -584,133 +1376,44 @@
 				"type": "object"
 			},
 			"mutating": true,
-			"name": "scene.duplicate_node",
-			"undoable": true
-		},
-		{
-			"description": "Delete a node and its subtree, or promote its children. Undoable.",
-			"input_schema":
+			"name": "scene.set_pivot",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"promote_children":
+					"returnValue":
 					{
-						"default": false,
-						"description": "Keep children, move them up",
-						"type": "boolean"
-					},
-					"target":
-					{
-						"description": "Target: node id (n12), path (a/b), actor:Name, or object path",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"target"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.delete_node",
-			"undoable": true
-		},
-		{
-			"description": "Delete everything under a node (this session's nodes). Needs confirm; checkpoints first.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"confirm":
-					{
-						"default": false,
-						"description": "Must be true to proceed",
-						"type": "boolean"
-					},
-					"root":
-					{
-						"description": "Scope node",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"required": [
-					"root"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.clear_scope",
-			"undoable": true
-		},
-		{
-			"description": "Delete all nodes this session created. Needs confirm; checkpoints first.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"confirm":
-					{
-						"default": false,
-						"description": "Must be true to proceed",
-						"type": "boolean"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "scene.clear_all",
-			"undoable": true
-		},
-		{
-			"description": "Export nodes as a JSON spec (relative transforms, sources, tags, colors).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"root":
-					{
-						"description": "Export only this subtree",
-						"maxLength": 1024,
-						"type": "string"
-					}
-				},
-				"type": "object"
-			},
-			"name": "scene.export_tree"
-		},
-		{
-			"description": "Build nodes from an export_tree spec as one undo step. Returns new ids.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"parent":
-					{
-						"description": "Attach roots under this node",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"tree":
-					{
-						"description": "Spec: {nodes:[{name,source,location,rotation,scale,tags,color,children:[...]}]}",
+						"description": "The group and its new pivot location.",
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"pivot":
+							{
+								"description": "The group node.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimePivotResult",
 						"type": "object"
 					}
 				},
 				"required": [
-					"tree"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "scene.import_tree",
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

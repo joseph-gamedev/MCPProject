@@ -1,12 +1,12 @@
-#include "ActorsToolset.h"
-#include "CaptureToolset.h"
-#include "ConsoleToolset.h"
 #include "HistoryToolset.h"
-#include "LogToolset.h"
-#include "ReflectionToolset.h"
-#include "SceneGraphToolset.h"
-#include "SessionToolset.h"
+#include "RuntimeActorsToolset.h"
+#include "RuntimeCaptureToolset.h"
+#include "RuntimeConsoleToolset.h"
+#include "RuntimeLogToolset.h"
+#include "RuntimeReflectionToolset.h"
+#include "RuntimeSceneToolset.h"
 #include "RuntimeSkillsToolset.h"
+#include "SessionToolset.h"
 #include "RuntimeToolReflection.h"
 #include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
@@ -17,7 +17,10 @@ DEFINE_LOG_CATEGORY(LogRuntimeToolsetsTools);
 // Tool docs for packaged builds (doc comments are editor-only metadata).
 #include "Generated/ToolDocs.gen.inl"
 
-/** Registers the Phase 1 core-group toolsets with RuntimeToolsetsCore. */
+/**
+ * Core group: session and history (framework tools), skills, and the actors, scene, reflection, console, log and capture
+ * toolsets (UFUNCTION classes, Epic ToolsetRegistry style).
+ */
 class FRuntimeToolsetsCoreToolsModule final : public IModuleInterface
 {
 public:
@@ -29,12 +32,12 @@ public:
 			RuntimeToolReflection::MakeToolset(URuntimeSkillsToolset::StaticClass()),
 			MakeShared<FSessionToolset>(),
 			MakeShared<FHistoryToolset>(),
-			MakeShared<FActorsToolset>(),
-			MakeShared<FSceneGraphToolset>(),
-			MakeShared<FReflectionToolset>(),
-			MakeShared<FConsoleToolset>(),
-			MakeShared<FLogToolset>(),
-			MakeShared<FCaptureToolset>(),
+			RuntimeToolReflection::MakeToolset(URuntimeActorsToolset::StaticClass()),
+			RuntimeToolReflection::MakeToolset(URuntimeSceneToolset::StaticClass()),
+			RuntimeToolReflection::MakeToolset(URuntimeReflectionToolset::StaticClass()),
+			RuntimeToolReflection::MakeToolset(URuntimeConsoleToolset::StaticClass()),
+			RuntimeToolReflection::MakeToolset(URuntimeLogToolset::StaticClass()),
+			RuntimeToolReflection::MakeToolset(URuntimeCaptureToolset::StaticClass()),
 		};
 		for (const FString& Prefix : {FString(TEXT("group")), FString(TEXT("shape:")), FString(TEXT("class:"))})
 		{

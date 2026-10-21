@@ -305,10 +305,18 @@ namespace RuntimeToolReflection
 				{
 					continue;
 				}
+				const bool bReference = CastField<FObjectPropertyBase>(*It) != nullptr;
+				FString RefText;
+				if (bReference && V->TryGetString(RefText) && RefText.IsEmpty())
+				{
+					continue; // "" = no object (e.g. "parent": "" moves to the root)
+				}
 				FString Err;
 				if (!JsonToProperty(V, *It, It->ContainerPtrToValuePtr<void>(Parms), Ctx, Err))
 				{
-					Inv.Fail(Err.StartsWith(TEXT("no ")) ? ERuntimeToolError::NotFound : ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("$.%s: %s"), *Name, *Err));
+					// A reference that does not resolve is a missing object, not a malformed argument.
+					const bool bMissing = (bReference && !CastField<FClassProperty>(*It)) || Err.StartsWith(TEXT("no "));
+					Inv.Fail(bMissing ? ERuntimeToolError::NotFound : ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("$.%s: %s"), *Name, *Err));
 					return;
 				}
 			}

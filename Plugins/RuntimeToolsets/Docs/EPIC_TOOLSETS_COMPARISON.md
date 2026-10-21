@@ -10,9 +10,16 @@ Meta / tool-search exposure, per-toolset version and description, async tools wi
 atomic batches with rollback.
 
 ## Adopted so far
-- **pcg**: real PCG graphs (Get Spline Data -> Spline Sampler or Create Surface From Spline -> Surface Sampler ->
-  Transform Points -> Bounds Modifier -> Self Pruning), executed on demand, output points read back, the same node set
-  Epic's PCG toolset lists as common. `pcg.scatter` is our high-level recipe on top.
+- **Authoring model** (ToolsetRegistry): toolsets are classes with static `UFUNCTION(meta=(AICallable))` tools; input and
+  output schemas and descriptions are generated from signatures and doc comments; results are `{"returnValue": ...}`;
+  async results; pluggable struct converters. Docs are compiled in for packaged builds. See `AUTHORING.md`.
+- **Skills** (UAgentSkill): `skills.list_skills` / `skills.get_skills`, C++/Blueprint/markdown skills with live
+  placeholders: outdoor_lighting (ported from Epic's), art_style, pcg_graph_generation (from Epic's PCG skill), builder,
+  game_logic.
+- **pcg** (PCGToolset): graphs, graph params, graph instances and instance params, native node discovery/schemas,
+  add/update/remove nodes and edges, subgraphs, node data view, plus `scatter`. PCGPrimitives example graphs are
+  available through `list_graphs`.
+- **spline**: create and sample.
 
 ## Gaps, by priority
 
