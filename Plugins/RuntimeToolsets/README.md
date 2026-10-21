@@ -54,6 +54,11 @@ Builder nodes are dynamic meshes (Geometry Script) generated from a JSON **recip
 ![generator example](Docs/images/generator_eiffel_pyramid_wide.jpg)
 ![tower close-up](Docs/images/generator_eiffel_base.jpg)
 
+- **City example:** `Scripts/examples/city.py --seed N` builds a district where no two buildings are alike: 8 building types (glass towers with setbacks, twisted towers, round towers, art deco, brick apartments, concrete-frame offices, townhouse rows, shop podiums), each with random size, floors, materials, window rhythm, crown and rooftop details, plus streets, sidewalks, lights and trees. 64 buildings, 12,700 parts, 7 s. A different seed gives a different city.
+
+![city](Docs/images/city_aerial.jpg)
+![street](Docs/images/city_street2.jpg)
+
 - **Guide:** `build.get_guide` tells prompted agents how to work at this quality level: real dimensions, generator scripts, materials, lighting and checking their own result.
 - **Checking the work:** `capture_view` returns one contact sheet of ortho front/right/top and a perspective view, framing the whole build, so an agent can compare it with a reference. `check_overlaps` and `get_build_stats` report bounding-box overlaps and size/triangle counts.
 - **Older demo:** `Scripts/build_landmark_demo.py` builds a simplified Taj Mahal with single primitives:
