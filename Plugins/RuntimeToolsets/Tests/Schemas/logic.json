@@ -1,5 +1,5 @@
 {
-	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer or top-down player, health, damage zones, weapons, tweens, pools, start/restart",
+	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer or top-down player, health, damage zones, weapons, AI brains, game HUD, feedback, tweens, pools, start/restart",
 	"name": "logic",
 	"tools": [
 		{
@@ -206,12 +206,252 @@
 			"undoable": true
 		},
 		{
+			"description": "AI brain as a state machine: states with movement, facing, firing and an icon; transitions by expressions (sees, heard, distance, time_in_state...).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"decide_every":
+					{
+						"description": "Seconds between decisions (default 0.15)",
+						"maximum": 10,
+						"minimum": 0,
+						"type": "number"
+					},
+					"hearing":
+					{
+						"description": "{radius}: hears the player's shots within this distance",
+						"type": "object"
+					},
+					"name":
+					{
+						"description": "Brain name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"start":
+					{
+						"description": "Start state (default: first)",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"states":
+					{
+						"description": "States: {name, move, speed, keep_distance, radius, face, fire, fire_angle, weapon, icon, transitions:[{when, to}]}",
+						"items":
+						{
+							"description": "State",
+							"type": "object"
+						},
+						"maxItems": 32,
+						"type": "array"
+					},
+					"turn_speed":
+					{
+						"description": "Degrees per second (default 300)",
+						"maximum": 5000,
+						"minimum": 1,
+						"type": "number"
+					},
+					"vision":
+					{
+						"description": "{radius (cm), angle (deg), eye_height, near (always notice within), show_cone, opacity}",
+						"type": "object"
+					}
+				},
+				"required": [
+					"name",
+					"states"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_brain",
+			"undoable": true
+		},
+		{
+			"description": "Give nodes an AI brain (with a patrol route) and draw their vision cones.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"brain":
+					{
+						"description": "Brain name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"patrol":
+					{
+						"description": "{axis:[1,0,0], distance} or {points:[[dx,dy,0],...]} relative to the start",
+						"type": "object"
+					},
+					"targets":
+					{
+						"description": "Node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 100,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets",
+					"brain"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.assign_brain",
+			"undoable": true
+		},
+		{
+			"description": "World HUD effects: health bars over damaged enemies, ! / ? alert icons, floating damage numbers, red hit flash, low-health pulse.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"alert_icons":
+					{
+						"default": true,
+						"description": "Brain state icons",
+						"type": "boolean"
+					},
+					"always_bars":
+					{
+						"default": false,
+						"description": "Show bars even at full health",
+						"type": "boolean"
+					},
+					"damage_numbers":
+					{
+						"default": true,
+						"description": "Floating damage numbers",
+						"type": "boolean"
+					},
+					"enemy_bars":
+					{
+						"default": true,
+						"description": "Health bars over hurt enemies",
+						"type": "boolean"
+					},
+					"hit_flash":
+					{
+						"default": true,
+						"description": "Red screen flash when the player is hurt",
+						"type": "boolean"
+					},
+					"low_health":
+					{
+						"default": true,
+						"description": "Pulsing red edges under 30% health",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.set_hud",
+			"undoable": true
+		},
+		{
+			"description": "A named game-feel preset: steps of shake, flash, freeze-frame, slow motion, floating text, tween, pooled effect or event, each with a delay.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Feedback name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"steps":
+					{
+						"description": "Steps: {type, delay, duration, intensity, scale, color, text, pool, name, ...tween fields}",
+						"items":
+						{
+							"description": "Step",
+							"type": "object"
+						},
+						"maxItems": 32,
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"steps"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_feedback",
+			"undoable": true
+		},
+		{
+			"description": "Play a feedback preset now (testing).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"at":
+					{
+						"description": "World location (default: the player)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Feedback name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Node for tween steps",
+						"maxLength": 256,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "logic.play_feedback"
+		},
+		{
 			"description": "Give 'player' or nodes health: max, invulnerability after hits, resistances by damage type, what happens on death.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
+					"death_feedback":
+					{
+						"description": "Feedback preset played on death",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"hit_feedback":
+					{
+						"description": "Feedback preset played when hurt",
+						"maxLength": 64,
+						"type": "string"
+					},
 					"initial":
 					{
 						"description": "Starting health (default max)",
@@ -400,6 +640,12 @@
 						"description": "Per hit (default 1)",
 						"type": "number"
 					},
+					"feedback":
+					{
+						"description": "Feedback preset played on each shot",
+						"maxLength": 64,
+						"type": "string"
+					},
 					"hits":
 					{
 						"description": "What it can damage: tag:enemy, player or any (default any but the shooter)",
@@ -445,6 +691,12 @@
 						"description": "Weapon name",
 						"maxLength": 64,
 						"type": "string"
+					},
+					"noise":
+					{
+						"description": "How far brains hear the player's shots (default 1600)",
+						"minimum": 0,
+						"type": "number"
 					},
 					"per_shot":
 					{
@@ -1038,7 +1290,7 @@
 				{
 					"items":
 					{
-						"description": "Items: {name, kind: text|button, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if}",
+						"description": "Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if; bar: value, max, fill, ghost}",
 						"items":
 						{
 							"description": "UI item",
@@ -1267,5 +1519,5 @@
 			"undoable": true
 		}
 	],
-	"version": "1.2.0"
+	"version": "1.3.0"
 }

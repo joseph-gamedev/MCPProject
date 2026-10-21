@@ -959,6 +959,24 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"emissive":
+					{
+						"description": "Default glow color",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"emissive_strength":
+					{
+						"description": "Default glow strength",
+						"maximum": 1000,
+						"minimum": 0,
+						"type": "number"
+					},
 					"location":
 					{
 						"description": "World location cm (or relative to parent)",
@@ -1021,6 +1039,13 @@
 						"description": "Node name",
 						"maxLength": 128,
 						"type": "string"
+					},
+					"opacity":
+					{
+						"description": "Default glass opacity",
+						"maximum": 1,
+						"minimum": 0,
+						"type": "number"
 					},
 					"parent":
 					{
@@ -1114,6 +1139,13 @@
 						"description": "Default pattern size cm",
 						"maximum": 100000,
 						"minimum": 1,
+						"type": "number"
+					},
+					"variation":
+					{
+						"description": "Default surface variation",
+						"maximum": 1,
+						"minimum": 0,
 						"type": "number"
 					}
 				},

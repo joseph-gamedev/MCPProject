@@ -56,7 +56,7 @@ def main():
                    {"shape": "box", "size": [250, 46, 46], "pivot": "center", "rotation": [0, -45, 0], "bevel": 6}]}}
     o_piece = {"call": "build.create_primitive", "args": {"name": "O_{moves}", "shape": "torus", "size": [210, 210, 46],
                "location": "=pos[event.index]", "material": "blue", "color": [0.04, 0.2, 0.75], "roughness": 0.35, "detail": "high"}}
-    rt.call("logic.define_rules", rules=[
+    rt.call("logic.define_rules", replace=True, rules=[
         {"name": "setup", "on": "start", "actions": [{"set": "lines", "value": "grid_lines(3, 3, 3)"}]},
         {"name": "player_click", "on": "click", "target": "tag:cell",
          "condition": "winner == '' && board[event.data.index] == '' && (!ai || turn == 'X')",
@@ -86,7 +86,7 @@ def main():
         {"name": "restart_key", "on": "key", "key": "R", "actions": [{"restart": True, "keep": KEEP}]},
         {"name": "mode_button", "on": "button", "filter": "mode", "actions": [{"set": "ai", "value": "!ai"}, {"restart": True, "keep": KEEP}]},
     ])
-    rt.call("logic.define_ui", items=[
+    rt.call("logic.define_ui", replace=True, items=[
         {"name": "title", "kind": "text", "text": "TIC-TAC-TOE", "anchor": [0.5, 0.05], "font_size": 30, "background": [0, 0, 0, 0.55]},
         {"name": "status", "kind": "text", "anchor": [0.5, 0.13], "font_size": 24, "color": [1, 0.85, 0.4, 1],
          "text": "{winner == '' ? (ai && turn == 'O' ? 'Computer is thinking...' : turn + ' to move') : (winner == 'draw' ? 'Draw!' : winner + ' wins!')}"},

@@ -42,6 +42,11 @@ struct FLogicUiItem
 	FLinearColor Background = FLinearColor(0.f, 0.f, 0.f, 0.5f);
 	int32 FontSize = 22;
 	FString VisibleIf;
+	/** kind "bar": value / max expressions, fill color, delayed ghost bar. */
+	FString Value;
+	FString MaxValue;
+	FLinearColor Fill = FLinearColor(0.85f, 0.15f, 0.12f, 1.f);
+	bool bGhost = true;
 
 	TSharedRef<FJsonObject> ToJson() const;
 	static bool FromJson(const TSharedPtr<FJsonObject>& Json, FLogicUiItem& Out, FString& OutError);
@@ -83,6 +88,13 @@ public:
 	TMap<FString, TSharedPtr<FJsonObject>> WeaponDefs;
 	/** Owner spec ("player" or target spec) -> weapon name. */
 	TMap<FString, FString> EquipDefs;
+	/** AI brains: name -> {states, start, vision, hearing, ...}; target spec -> {brain, patrol, wander_radius}. */
+	TMap<FString, TSharedPtr<FJsonObject>> BrainDefs;
+	TMap<FString, TSharedPtr<FJsonObject>> BrainAssign;
+	/** In-world HUD: enemy bars, damage numbers, alert icons, hit flash. */
+	TSharedPtr<FJsonObject> HudDef;
+	/** Feedback presets: name -> {steps:[{type, delay, ...}]}. */
+	TMap<FString, TSharedPtr<FJsonObject>> FeedbackDefs;
 
 	TSharedRef<FJsonObject> ExportDefinitions() const;
 	bool ImportDefinitions(const TSharedPtr<FJsonObject>& Json, FString& OutError);
@@ -135,6 +147,62 @@ public:
 	FString EquippedWeapon(const FString& OwnerKey) const;
 	bool IsTopDown() const;
 	int32 NumProjectiles() const { return Projectiles.Num(); }
+
+	// ---- AI brains and game feel
+	static bool ValidateBrain(const TSharedPtr<FJsonObject>& Def, FString& OutError);
+	bool CreateBrainVisuals(const FString& NodeId, const TSharedPtr<FJsonObject>& Brain, const FString& Session, FString& OutError);
+	void ResetBrains();
+	void HearNoise(const FVector& At, double Radius);
+	/** Bounds of an actor and its visible attachments, ignoring effect helpers (vision cones, held guns). */
+	static FBox GameBox(const AActor* Actor);
+	struct FFloatText
+	{
+		FVector World = FVector::ZeroVector;
+		FString Text;
+		FLinearColor Color = FLinearColor::White;
+		double Age = 0.0;
+	};
+	struct FBrainAgent
+	{
+		FString Node;
+		FString Brain;
+		FString State;
+		double TimeInState = 0.0;
+		FVector Home = FVector::ZeroVector;
+		double Yaw = 0.0;
+		TArray<FVector> Patrol;
+		int32 PatrolIndex = 0;
+		int32 PatrolDir = 1;
+		FVector LastKnown = FVector::ZeroVector;
+		bool bHasLastKnown = false;
+		double SinceSeen = 1e9;
+		bool bSees = false;
+		bool bHeard = false;
+		bool bAtGoal = false;
+		bool bMoving = false;
+		double Phase = 0.0;
+		double Roll = 0.0;
+		FVector Wander = FVector::ZeroVector;
+		double NextWander = 0.0;
+		double NextPerceive = 0.0;
+		double NextDecide = 0.0;
+		FString Cone;
+		FString Icon;
+		FLinearColor ConeColor = FLinearColor::Black;
+	};
+	const TMap<FString, FBrainAgent>& GetAgents() const { return Agents; }
+	void PlayFeedback(const FString& Name, const FVector& At, const FString& Target);
+	void TickFeedback(double RealDt);
+	FVector ShakeOffset() const;
+	double TimeScale() const { return SlowmoLeft > 0.0 ? SlowmoScale : 1.0; }
+	struct FPendingFeedback
+	{
+		TSharedPtr<FJsonObject> Step;
+		FVector At = FVector::ZeroVector;
+		FString Target;
+		double Delay = 0.0;
+	};
+	friend class SLogicHud;
 
 	// ---- tweens and pools
 	static const TArray<FString>& EaseNames();
@@ -256,6 +324,10 @@ private:
 	void TickProjectiles(double Dt);
 	void TickHitZones();
 	void TickWeapons();
+	void TickBrains(double Dt);
+	void TickFeel(double Dt);
+	void ChangeBrainState(FBrainAgent& Agent, const FString& To);
+	bool BrainSteer(FBrainAgent& Agent, AActor* A, const FVector& Goal, double Speed, double Dt);
 	void ResetCombat();
 	void SpawnShots(const FString& Owner, const TSharedPtr<FJsonObject>& W, const FVector& Muzzle, const FVector& Dir);
 	bool VictimMatches(const FString& Key, const FString& Filter) const;
@@ -317,6 +389,18 @@ private:
 	TMap<FString, FWeaponState> WeaponStates;
 	TArray<FProjectile> Projectiles;
 	TMap<FString, TMap<FString, double>> ZoneTimes;
+	TMap<FString, FBrainAgent> Agents;
+	TArray<FFloatText> FloatTexts;
+	double HitFlash = 0.0;
+	FLinearColor FlashColor = FLinearColor(0.9f, 0.05f, 0.02f);
+	TArray<FPendingFeedback> PendingFeedback;
+	double ShakeTime = 0.0;
+	double ShakeAmp = 0.0;
+	double SlowmoLeft = 0.0;
+	double SlowmoScale = 1.0;
+	double Recoil = 0.0;
+	FString GunNode;
+	mutable TMap<FString, double> GhostValues;
 	FVector AimPoint = FVector::ZeroVector;
 	FVector AimDir = FVector(1, 0, 0);
 	TSet<FString> Hidden;

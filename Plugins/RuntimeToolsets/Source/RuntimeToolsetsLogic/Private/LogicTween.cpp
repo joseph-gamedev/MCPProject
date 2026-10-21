@@ -470,6 +470,50 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 	Body->SetActorRelativeRotation(FRotator(Lean, 0, 0));
 	Body->SetActorRelativeScale3D(FVector(1.0 + 0.12 * Squash, 1.0 + 0.12 * Squash, 1.0 - 0.2 * Squash));
 	const double Swing = FMath::Sin(AnimPhase);
+	const bool bArmed = IsTopDown() && !EquippedWeapon(TEXT("player")).IsEmpty();
+	if (bArmed && GunNode.IsEmpty() && PlayerBodyNodes.Num() >= 5)
+	{
+		// A blaster in the right hand, along the arm (the arm points down -Z at rest).
+		auto P = [S](const TCHAR* Shape, FVector Size, FVector Loc, FVector Color, const TCHAR* Material)
+		{
+			TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
+			J->SetStringField(TEXT("shape"), Shape);
+			J->SetField(TEXT("size"), RuntimeJson::Vec(Size * S));
+			J->SetField(TEXT("location"), RuntimeJson::Vec(Loc * S));
+			J->SetField(TEXT("color"), RuntimeJson::Vec(Color));
+			J->SetStringField(TEXT("material"), Material);
+			return MakeShared<FJsonValueObject>(J);
+		};
+		TSharedRef<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("name"), TEXT("PlayerGun"));
+		Args->SetStringField(TEXT("parent"), PlayerBodyNodes.Last());
+		Args->SetField(TEXT("location"), RuntimeJson::Vec(FVector::ZeroVector));
+		Args->SetBoolField(TEXT("repair_coplanar"), false);
+		Args->SetArrayField(TEXT("parts"), {
+			P(TEXT("box"), FVector(16, 12, 48), FVector(4, 0, -100), FVector(0.12, 0.13, 0.15), TEXT("steel")),
+			P(TEXT("box"), FVector(10, 14, 20), FVector(14, 0, -72), FVector(0.05, 0.05, 0.06), TEXT("black")),
+			P(TEXT("cylinder"), FVector(9, 9, 26), FVector(2, 0, -126), FVector(0.3, 0.32, 0.35), TEXT("steel")),
+			P(TEXT("box"), FVector(6, 16, 8), FVector(4, 0, -110), FVector(0.2, 0.7, 1.0), TEXT("light")),
+		});
+		FToolCallerContext Caller;
+		Caller.SessionId = FLogicManager::Session();
+		const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(TEXT("build.create_assembly"), Args, Caller, 1);
+		FString Id;
+		if (R.IsOk() && R.Payload->TryGetStringField(TEXT("id"), Id))
+		{
+			GunNode = Id;
+			PlayerBodyNodes.Add(Id);
+			if (FRuntimeSceneGraph* G = GraphFor(World.Get()))
+			{
+				if (const FRuntimeSceneNode* N = G->Find(Id); N && N->Actor.IsValid())
+				{
+					N->Actor->Tags.Add(TEXT("logic_fx"));
+					N->Actor->SetActorEnableCollision(false);
+					N->Actor->SetActorRelativeRotation(FRotator::ZeroRotator);
+				}
+			}
+		}
+	}
 	for (FLimb& L : Limbs)
 	{
 		AActor* A = L.Actor.Get();
@@ -482,11 +526,13 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 		{
 		case 0: Target = bGround ? Swing * 42.0 * Amp : 38.0; break;    // left leg
 		case 1: Target = bGround ? -Swing * 42.0 * Amp : -22.0; break;  // right leg
-		case 2: Target = bGround ? -Swing * 36.0 * Amp : 155.0; break;  // left arm (raised in the air)
-		case 3: Target = bGround ? Swing * 36.0 * Amp : 25.0; break;    // right arm
+		case 2: Target = bArmed ? 72.0 - 10.0 * Recoil : (bGround ? -Swing * 36.0 * Amp : 155.0); break; // left arm (supports the gun / raised in the air)
+		case 3: Target = bArmed ? 90.0 - 22.0 * Recoil : (bGround ? Swing * 36.0 * Amp : 25.0); break;   // right arm (aims / swings)
 		}
-		L.Pitch = FMath::FInterpTo(L.Pitch, Target, Dt, 18.0);
-		A->SetActorRelativeRotation(FRotator(L.Pitch, 0, 0));
+		L.Pitch = FMath::FInterpTo(L.Pitch, Target, Dt, bArmed && L.Kind >= 2 ? 30.0 : 18.0);
+		// Arms holding the gun turn slightly inward so both hands meet in front.
+		const double Inward = bArmed ? (L.Kind == 2 ? 18.0 : L.Kind == 3 ? -6.0 : 0.0) : 0.0;
+		A->SetActorRelativeRotation(FRotator(L.Pitch, Inward, 0));
 	}
 	// Blink while invulnerable after a hit.
 	if (Invulnerable > 0.0)

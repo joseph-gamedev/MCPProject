@@ -135,7 +135,20 @@ Turns a scene into a playable game with no code. The game runs inside the engine
   - bullets come from a pool, created automatically if you don't supply one.
 - **`equip`** gives a weapon to the player or tagged nodes. The `fire`, `damage` and `heal` actions and the `fired`/`reloaded` events go with it.
 - **World functions in expressions:** `pos(id)`, `nodes('tag:x')` and `dist(a,b)`, so enemies can be scripted ("shoot the player when within 14 m").
-- **Example:** `Scripts/examples/topdown_shooter.py` is an arena with cover, six patrolling robots that shoot back, lava, medkits and ammo crates, an exit that opens when every robot is destroyed, a HUD, and win/lose screens with restart.
+- **`define_brain` / `assign_brain` (AI state machines):**
+  - each state sets movement (patrol, chase, strafe, flee, go to last known position, return home, wander), facing (direction of travel, target, look around), whether to fire, and an icon;
+  - transitions are expressions over `sees`, `heard`, `distance`, `time_in_state`, `since_seen`, `at_goal`, `at_home`, health and any variable;
+  - a vision cone (radius and angle, walls block it) is drawn on the ground: yellow when calm, orange when searching, red when it sees you;
+  - hearing: guards notice the player's gunshots within a radius;
+  - steering around walls, waddle while walking, recoil when firing;
+  - a `state` event fires on every change.
+- **`set_hud`:** health bars over hurt enemies, `!`/`?` alert icons, floating damage numbers, a red flash when hit, a pulsing red edge at low health. `define_ui` gains a `bar` kind (value/max expressions, fill colour, a delayed "damage" bar), rounded panels, text shadows and screen-edge anchoring. The crosshair cursor appears in top-down mode.
+- **`define_feedback` (game feel):** named sequences of screen shake, flash, freeze-frame, slow motion, floating text, tweens, pooled effects and events, each with a delay. Health definitions take `hit_feedback`/`death_feedback`, weapons take `feedback`, and rules can play one with `{"feedback":...}`.
+- **The hero holds a blaster** (both hands, aimed, recoil) whenever a weapon is equipped in top-down mode.
+- **Example:** `Scripts/examples/topdown_shooter.py` is a top-down stealth shooter:
+  - guards patrol, spot you, attack, search for you, look around and return to their posts, and they hear gunfire;
+  - medkits and ammo crates, lava, an exit;
+  - a full game HUD, plus shake, freeze-frame and explosion puffs on kills.
 
 ![top-down shooter](Docs/images/topdown_shooter.jpg)
 

@@ -11,6 +11,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/WorldSettings.h"
 #include "InputCoreTypes.h"
 
 namespace
@@ -399,6 +400,7 @@ void FLogicWorld::RemovePlayer()
 	}
 	PlayerBodyNodes.Reset();
 	Limbs.Reset();
+	GunNode.Reset();
 	if (ACameraActor* Cam = PlayerCamera.Get())
 	{
 		Cam->Destroy();
@@ -433,6 +435,19 @@ void FLogicWorld::ResetPlay()
 	ResetTweens();
 	ResetPools();
 	ResetCombat();
+	FloatTexts.Reset();
+	PendingFeedback.Reset();
+	HitFlash = 0.0;
+	ShakeTime = 0.0;
+	if (SlowmoLeft > 0.0)
+	{
+		SlowmoLeft = 0.0;
+		SlowmoScale = 1.0;
+		if (UWorld* W = World.Get())
+		{
+			W->GetWorldSettings()->SetTimeDilation(1.f);
+		}
+	}
 	for (const FString& Id : Hidden.Array())
 	{
 		HideNode(Id, false);
@@ -455,6 +470,7 @@ void FLogicWorld::ResetPlay()
 		}
 	}
 	ApplySolid();
+	ResetBrains();
 	if (PlayerDef.IsValid())
 	{
 		FString Err;
@@ -489,6 +505,8 @@ void FLogicWorld::ApplyPlayerInputMode(APlayerController* PC)
 	{
 		// Aim with the mouse: visible cursor, clicks still reach the game.
 		PC->SetShowMouseCursor(true);
+		PC->DefaultMouseCursor = EMouseCursor::Crosshairs;
+		PC->CurrentMouseCursor = EMouseCursor::Crosshairs;
 		FInputModeGameAndUI Mode;
 		Mode.SetHideCursorDuringCapture(false);
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -618,7 +636,7 @@ void FLogicWorld::TickMotion()
 	{
 		const FRuntimeSceneNode* N = Graph->Find(P.Key);
 		AActor* A = N ? N->Actor.Get() : nullptr;
-		if (!A || N->bSoftDeleted || IsHidden(P.Key) || IsTweening(P.Key) || A->IsHidden())
+		if (!A || N->bSoftDeleted || IsHidden(P.Key) || IsTweening(P.Key) || A->IsHidden() || Agents.Contains(P.Key))
 		{
 			continue;
 		}
@@ -772,7 +790,7 @@ void FLogicWorld::TickTouch()
 		{
 			continue;
 		}
-		const FBox NB = RuntimeTools::ActorBox(N.Actor.Get());
+		const FBox NB = GameBox(N.Actor.Get());
 		if (!NB.IsValid || !NB.Intersect(PB))
 		{
 			continue;
@@ -816,7 +834,7 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		const FVector Lead = AimDir * Num(PlayerDef, TEXT("camera_lead"), 150.0);
 		const FVector Goal = P + Lead + FVector(-Dist * FMath::Cos(FMath::DegreesToRadians(-Pitch)), 0.0, Dist * FMath::Sin(FMath::DegreesToRadians(-Pitch)));
 		CamPos = bSnap || Dt <= 0.0 ? Goal : FMath::VInterpTo(CamPos, Goal, Dt, 6.0);
-		Cam->SetActorLocationAndRotation(CamPos, FRotator(Pitch, 0.0, 0.0));
+		Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Pitch, 0.0, 0.0));
 		return;
 	}
 	const FVector Target = P + FVector(Facing * Num(PlayerDef, TEXT("camera_lead"), 200.0), Num(PlayerDef, TEXT("camera_distance"), 1700.0),
@@ -831,7 +849,7 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		CamPos.Y = Target.Y;
 		CamPos.Z = FMath::FInterpTo(CamPos.Z, Target.Z, Dt, 3.0);
 	}
-	Cam->SetActorLocationAndRotation(CamPos, FRotator(Num(PlayerDef, TEXT("camera_pitch"), -6.0), -90.0, 0.0));
+	Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Num(PlayerDef, TEXT("camera_pitch"), -6.0), -90.0, 0.0));
 }
 
 void FLogicWorld::TickPlay(double Dt)
@@ -839,7 +857,9 @@ void FLogicWorld::TickPlay(double Dt)
 	PlayTime += Dt;
 	TickTweens(Dt);
 	TickMotion();
+	TickBrains(Dt);
 	TickCombat(Dt);
+	TickFeel(Dt);
 	if (ACharacter* C = Player.Get())
 	{
 		const double KillZ = Num(PlayerDef, TEXT("kill_z"), SpawnPoint.Z - 1500.0);

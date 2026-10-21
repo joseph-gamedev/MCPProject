@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.11.0 — 2026-10-21
+
+- **AI brains:**
+  - data-driven state machines: move modes, facing, firing, icons, expression transitions;
+  - vision cones (blocked by walls) drawn in-world, hearing gunshots, wall-avoiding steering;
+  - `state` events.
+- **Game HUD:**
+  - `set_hud`: enemy health bars, alert icons, damage numbers, hit flash, low-health pulse;
+  - UI `bar` kind with a ghost bar; rounded panels; text shadows; edge anchoring; crosshair cursor.
+- **Feedback presets:** shake, flash, freeze, slow motion, text, tween, spawn and emit; per-weapon and per-health hooks. Time effects run in real time and slow the game step.
+- **Hero animation:** the hero holds the weapon and aims with recoil.
+- **Hit feel:** hit punch and enemy firing kick.
+- **Rule and UI cleanup:**
+  - `define_rules`/`define_ui` take `replace`;
+  - `create_assembly` accepts opacity/emissive/variation defaults;
+  - new `reloading` variable, and the player's magazine starts full.
+- **Tests:** 142 automation tests.
+
 ## 0.10.0 — 2026-10-21
 
 - **Combat in `logic`:**

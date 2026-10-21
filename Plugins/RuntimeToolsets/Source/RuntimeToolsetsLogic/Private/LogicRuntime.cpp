@@ -17,6 +17,9 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/SOverlay.h"
+#include "LogicHud.h"
+#include "Misc/App.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRuntimeToolsetsLogic, Log, All);
 
@@ -25,14 +28,14 @@ namespace
 	const TArray<FString>& EventNames()
 	{
 		static const TArray<FString> Names = {TEXT("start"), TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"),
-			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded")};
+			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded"), TEXT("state")};
 		return Names;
 	}
 
 	const TArray<FString>& ActionNames()
 	{
 		static const TArray<FString> Names = {TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
-			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire")};
+			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback")};
 		return Names;
 	}
 
@@ -360,6 +363,13 @@ TSharedRef<FJsonObject> FLogicUiItem::ToJson() const
 	J->SetField(TEXT("background"), ColorJson(Background));
 	J->SetNumberField(TEXT("font_size"), FontSize);
 	if (!VisibleIf.IsEmpty()) J->SetStringField(TEXT("visible_if"), VisibleIf);
+	if (Kind == TEXT("bar"))
+	{
+		J->SetStringField(TEXT("value"), Value);
+		J->SetStringField(TEXT("max"), MaxValue);
+		J->SetField(TEXT("fill"), ColorJson(Fill));
+		J->SetBoolField(TEXT("ghost"), bGhost);
+	}
 	return J;
 }
 
@@ -374,10 +384,26 @@ bool FLogicUiItem::FromJson(const TSharedPtr<FJsonObject>& J, FLogicUiItem& Out,
 	}
 	FString Kind = ReadString(J, TEXT("kind"));
 	Out.Kind = Kind.IsEmpty() ? TEXT("text") : Kind.ToLower();
-	if (Out.Kind != TEXT("text") && Out.Kind != TEXT("button"))
+	if (Out.Kind != TEXT("text") && Out.Kind != TEXT("button") && Out.Kind != TEXT("bar"))
 	{
-		OutError = TEXT("ui kind must be text or button");
+		OutError = TEXT("ui kind must be text, button or bar");
 		return false;
+	}
+	if (Out.Kind == TEXT("bar"))
+	{
+		Out.Value = ReadString(J, TEXT("value"));
+		Out.MaxValue = ReadString(J, TEXT("max"));
+		ReadColor(J, TEXT("fill"), Out.Fill);
+		J->TryGetBoolField(TEXT("ghost"), Out.bGhost);
+		if (Out.Value.IsEmpty() || Out.MaxValue.IsEmpty())
+		{
+			OutError = FString::Printf(TEXT("bar '%s' needs value and max expressions (e.g. \"health.player\", \"10\")"), *Out.Name);
+			return false;
+		}
+		if (!CheckExpr(Out.Value, TEXT("bar value"), OutError) || !CheckExpr(Out.MaxValue, TEXT("bar max"), OutError))
+		{
+			return false;
+		}
 	}
 	Out.Text = ReadString(J, TEXT("text"));
 	ReadVec2(J, TEXT("anchor"), Out.Anchor);
@@ -493,6 +519,13 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 	Section(TEXT("health"), HealthDefs);
 	Section(TEXT("hitzones"), HitZoneDefs);
 	Section(TEXT("weapons"), WeaponDefs);
+	Section(TEXT("brains"), BrainDefs);
+	Section(TEXT("brain_assign"), BrainAssign);
+	Section(TEXT("feedbacks"), FeedbackDefs);
+	if (HudDef.IsValid())
+	{
+		J->SetObjectField(TEXT("hud"), HudDef);
+	}
 	TSharedRef<FJsonObject> Eq = MakeShared<FJsonObject>();
 	for (const TPair<FString, FString>& P : EquipDefs)
 	{
@@ -617,6 +650,11 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 	ReadSection(TEXT("health"), HealthDefs);
 	ReadSection(TEXT("hitzones"), HitZoneDefs);
 	ReadSection(TEXT("weapons"), WeaponDefs);
+	ReadSection(TEXT("brains"), BrainDefs);
+	ReadSection(TEXT("brain_assign"), BrainAssign);
+	ReadSection(TEXT("feedbacks"), FeedbackDefs);
+	const TSharedPtr<FJsonObject>* HudJ = nullptr;
+	HudDef = J->TryGetObjectField(TEXT("hud"), HudJ) ? *HudJ : nullptr;
 	EquipDefs.Reset();
 	const TSharedPtr<FJsonObject>* Eq = nullptr;
 	if (J->TryGetObjectField(TEXT("equip"), Eq))
@@ -699,6 +737,16 @@ FLogicScope FLogicWorld::MakeScope(FFrame& Frame)
 			}
 			Frame.Locals.Add(TEXT("player"), P);
 			return Frame.Locals.Find(TEXT("player"));
+		}
+		if (Name == TEXT("reloading"))
+		{
+			FLogicValue M = FLogicValue::MakeMap();
+			for (const TPair<FString, FWeaponState>& W : WeaponStates)
+			{
+				M.M->Add(W.Key, FLogicValue::MakeBool(W.Value.ReloadUntil > PlayTime));
+			}
+			Frame.Locals.Add(Name, M);
+			return Frame.Locals.Find(Name);
 		}
 		if (Name == TEXT("health") || Name == TEXT("ammo"))
 		{
@@ -880,6 +928,10 @@ bool FLogicWorld::Matches(const FLogicRule& Rule, const FLogicEvent& E) const
 	if (E.On == TEXT("fall"))
 	{
 		return true;
+	}
+	if (E.On == TEXT("state"))
+	{
+		return (Rule.Filter.IsEmpty() || Rule.Filter == E.Name) && (Rule.Target.IsEmpty() || NodeMatches(E.Target, Rule.Target));
 	}
 	if (E.On == TEXT("damaged") || E.On == TEXT("died") || E.On == TEXT("fired") || E.On == TEXT("reloaded"))
 	{
@@ -1547,6 +1599,47 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 		}
 		return true;
 	}
+	if (A->TryGetStringField(TEXT("feedback"), Name))
+	{
+		FVector At = FVector::ZeroVector;
+		FString Target;
+		if (A->HasField(TEXT("at")))
+		{
+			FLogicValue V;
+			if (!EvalField(A, TEXT("at"), Frame, V, OutError))
+			{
+				return false;
+			}
+			RuntimeJson::ToVector(V.ToJson(), At);
+		}
+		else if (const FLogicValue* L = Frame.EventValue.M->Find(TEXT("location")); L && RuntimeJson::ToVector(L->ToJson(), At))
+		{
+		}
+		else
+		{
+			OwnerLocation(TEXT("player"), At);
+		}
+		if (A->HasField(TEXT("target")))
+		{
+			FLogicValue V;
+			if (!EvalField(A, TEXT("target"), Frame, V, OutError))
+			{
+				return false;
+			}
+			Target = V.ToText();
+		}
+		else if (Frame.Event)
+		{
+			Target = Frame.Event->Target;
+		}
+		if (!FeedbackDefs.Contains(Name))
+		{
+			OutError = FString::Printf(TEXT("no feedback '%s' (logic.define_feedback)"), *Name);
+			return false;
+		}
+		PlayFeedback(Name, At, Target);
+		return true;
+	}
 	if (A->TryGetStringField(TEXT("player"), Name))
 	{
 		ACharacter* C = GetPlayer();
@@ -1870,6 +1963,15 @@ TSharedRef<FJsonObject> FLogicWorld::GetState(int32 LogLimit) const
 	J->SetArrayField(TEXT("hidden"), HiddenList);
 	J->SetNumberField(TEXT("tweens"), Tweens.Num());
 	J->SetNumberField(TEXT("projectiles"), Projectiles.Num());
+	if (Agents.Num() > 0)
+	{
+		TSharedRef<FJsonObject> B = MakeShared<FJsonObject>();
+		for (const TPair<FString, FBrainAgent>& P : Agents)
+		{
+			B->SetStringField(P.Key, P.Value.State + (P.Value.bSees ? TEXT(" (sees)") : TEXT("")));
+		}
+		J->SetObjectField(TEXT("brains"), B);
+	}
 	if (Healths.Num() > 0)
 	{
 		J->SetField(TEXT("health"), HealthMap().ToJson());
@@ -1925,12 +2027,13 @@ void FLogicWorld::RefreshUi()
 	RemoveUi();
 	UWorld* W = World.Get();
 	UGameViewportClient* VP = W ? W->GetGameViewport() : nullptr;
-	if (!VP || Ui.Num() == 0 || !FSlateApplication::IsInitialized())
+	if (!VP || (Ui.Num() == 0 && !HudDef.IsValid()) || !FSlateApplication::IsInitialized())
 	{
 		return;
 	}
 	TWeakPtr<FLogicWorld> Weak = AsShared();
 	TSharedRef<SConstraintCanvas> Canvas = SNew(SConstraintCanvas);
+	const FLinearColor Shadow(0.f, 0.f, 0.f, 0.85f);
 	for (const FLogicUiItem& Item : Ui)
 	{
 		const FString Name = Item.Name;
@@ -1968,13 +2071,19 @@ void FLogicWorld::RefreshUi()
 			return EVisibility::Visible;
 		};
 		const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", Item.FontSize);
-		TSharedRef<SWidget> Content = SNew(STextBlock).Font(Font).ColorAndOpacity(Item.Color).Justification(ETextJustify::Center).Text_Lambda(TextFn);
+		TSharedRef<SWidget> Content = SNew(STextBlock)
+			.Font(Font)
+			.ColorAndOpacity(Item.Color)
+			.ShadowOffset(FVector2D(1.5, 1.5))
+			.ShadowColorAndOpacity(Shadow)
+			.Justification(ETextJustify::Center)
+			.Text_Lambda(TextFn);
 		TSharedPtr<SWidget> Widget;
 		if (Item.Kind == TEXT("button"))
 		{
 			Widget = SNew(SButton)
 				.ButtonColorAndOpacity(Item.Background)
-				.ContentPadding(FMargin(18.f, 8.f))
+				.ContentPadding(FMargin(22.f, 10.f))
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Visibility_Lambda(VisibleFn)
@@ -1991,28 +2100,86 @@ void FLogicWorld::RefreshUi()
 				})
 				[Content];
 		}
+		else if (Item.Kind == TEXT("bar"))
+		{
+			const FVector2D Sz = Item.Size.IsZero() ? FVector2D(320.0, 28.0) : Item.Size;
+			const FString Value = Item.Value, MaxValue = Item.MaxValue;
+			const bool bGhost = Item.bGhost;
+			auto FracFn = [Weak, Value, MaxValue]() -> double
+			{
+				TSharedPtr<FLogicWorld> S = Weak.Pin();
+				if (!S)
+				{
+					return 0.0;
+				}
+				FFrame Frame;
+				FLogicScope Scope = S->MakeScope(Frame);
+				const double V = LogicExpr::Evaluate(Value, Scope).N;
+				const double M = LogicExpr::Evaluate(MaxValue, Scope).N;
+				return M > 0.0 ? FMath::Clamp(V / M, 0.0, 1.0) : 0.0;
+			};
+			auto GhostFn = [Weak, Name, FracFn]() -> double
+			{
+				TSharedPtr<FLogicWorld> S = Weak.Pin();
+				if (!S)
+				{
+					return 0.0;
+				}
+				const double F = FracFn();
+				double& G = S->GhostValues.FindOrAdd(Name, F);
+				G = F >= G ? F : FMath::FInterpConstantTo(G, F, FApp::GetDeltaTime(), 0.6);
+				return G;
+			};
+			const double Inner = Sz.X - 6.0;
+			Widget = SNew(SBox)
+				.WidthOverride(Sz.X)
+				.HeightOverride(Sz.Y)
+				.Visibility_Lambda(VisibleFn)
+				[
+					SNew(SOverlay)
+					+ SOverlay::Slot()[SNew(SBorder).BorderImage(LogicRoundedBrush()).BorderBackgroundColor(Item.Background)]
+					+ SOverlay::Slot().HAlign(HAlign_Left).Padding(3.f)
+					[
+						SNew(SBox).WidthOverride_Lambda([GhostFn, Inner, bGhost]() { return FOptionalSize(bGhost ? Inner * GhostFn() : 0.0); })
+						[SNew(SBorder).BorderImage(LogicRoundedBrush()).BorderBackgroundColor(FLinearColor(1.f, 0.85f, 0.55f, 0.9f))]
+					]
+					+ SOverlay::Slot().HAlign(HAlign_Left).Padding(3.f)
+					[
+						SNew(SBox).WidthOverride_Lambda([FracFn, Inner]() { return FOptionalSize(Inner * FracFn()); })
+						[SNew(SBorder).BorderImage(LogicRoundedBrush()).BorderBackgroundColor(Item.Fill)]
+					]
+					+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[Content]
+				];
+		}
 		else
 		{
 			Widget = SNew(SBorder)
-				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderImage(LogicRoundedBrush())
 				.BorderBackgroundColor(Item.Background)
-				.Padding(FMargin(14.f, 6.f))
+				.Padding(FMargin(16.f, 7.f))
 				.Visibility_Lambda(VisibleFn)
 				[Content];
 		}
-		if (!Item.Size.IsZero())
+		if (!Item.Size.IsZero() && Item.Kind != TEXT("bar"))
 		{
 			Widget = SNew(SBox).WidthOverride(Item.Size.X).HeightOverride(Item.Size.Y)[Widget.ToSharedRef()];
 		}
 		Canvas->AddSlot()
 			.Anchors(FAnchors(Item.Anchor.X, Item.Anchor.Y))
-			.Alignment(FVector2D(0.5, 0.5))
+			.Alignment(FVector2D(Item.Anchor.X < 0.2 ? 0.0 : Item.Anchor.X > 0.8 ? 1.0 : 0.5, 0.5))
+			.Offset(FMargin(Item.Anchor.X < 0.2 ? 24.f : Item.Anchor.X > 0.8 ? -24.f : 0.f, 0.f, 0.f, 0.f))
 			.AutoSize(true)
 			[Widget.ToSharedRef()];
 	}
-	Overlay = Canvas;
+	TSharedRef<SOverlay> Root = SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible);
+	if (HudDef.IsValid())
+	{
+		Root->AddSlot()[SNew(SLogicHud, Weak).Visibility(EVisibility::HitTestInvisible)];
+	}
+	Root->AddSlot()[Canvas];
+	Overlay = Root;
 	OverlayViewport = VP;
-	VP->AddViewportWidgetContent(Canvas, 60);
+	VP->AddViewportWidgetContent(Root, 60);
 }
 
 // ------------------------------------------------------------------ manager
@@ -2087,7 +2254,8 @@ bool FLogicManager::Tick(float DeltaTime)
 			continue;
 		}
 		L->PollInput();
-		L->Step(W->IsPaused() ? 0.0 : DeltaTime);
+		L->TickFeedback(DeltaTime);
+		L->Step(W->IsPaused() ? 0.0 : DeltaTime * L->TimeScale());
 	}
 	return true;
 }

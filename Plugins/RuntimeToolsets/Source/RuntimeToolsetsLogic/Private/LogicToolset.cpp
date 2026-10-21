@@ -40,7 +40,7 @@ MAKE A PLAYABLE GAME WITHOUT CODE. The game runs by itself once started; you onl
 8. logic.start. Test it yourself: logic.fire_event {on:"click", target:"cell_4"} / {on:"button", name:"restart"} /
    {on:"key", key:"R"}, logic.step {seconds} for timers, logic.get_state for vars + event log + errors.
    Fix rules until a full game (win, draw, restart) works, then tell the user how to play.
-PLATFORMERS / ACTION GAMES:
+)GUIDE" R"GUIDE(PLATFORMERS / ACTION GAMES:
    logic.spawn_player {location:[x,0,z] (feet), speed, jump, body:"<node>" (optional: your own character model, feet at
    z=0, facing +X; default: a cap-and-overalls hero), kill_z}. Side view: the level runs along +X in the plane Y=0, the
    camera follows from +Y (put background scenery at negative Y). Controls: A/D or arrows to run, Shift to sprint,
@@ -56,7 +56,7 @@ PLATFORMERS / ACTION GAMES:
    Typical rules: coin touch -> hide + coins+1; enemy touch from_above -> hide enemy + bounce + score; enemy touch
    otherwise -> lives-1 + respawn (lives==0 -> freeze + game over text); fall -> same as hit; flag touch -> win + freeze;
    checkpoint touch -> {"player":"checkpoint"}; key R or button -> restart (keep high score).
-TOP-DOWN / SHOOTERS: logic.spawn_player {mode:"topdown", location, speed} -> WASD moves on the ground, the hero faces
+)GUIDE" R"GUIDE(TOP-DOWN / SHOOTERS: logic.spawn_player {mode:"topdown", location, speed} -> WASD moves on the ground, the hero faces
    the mouse cursor, an overhead camera follows (camera_distance, camera_pitch). Left mouse / F / right trigger fires.
    logic.define_health {targets:["player"] or ["tag:enemy"], max, invulnerable (s after a hit), resistances:{fire:0.5},
       on_death: hide|squash|release|respawn|freeze|none, points_var, points}. Rules: on:"damaged"/"died" target:"player"
@@ -70,7 +70,23 @@ TOP-DOWN / SHOOTERS: logic.spawn_player {mode:"topdown", location, speed} -> WAS
    {"heal":"'player'","amount":"25"}. Events fired / reloaded. Functions: pos(id), hp(id), alive(id), nodes('tag:x'),
    dist(a,b). Typical enemy fire rule: on timer repeat -> for e in nodes('tag:enemy') -> if alive(e) && dist(pos(e),
    pos('player')) < 1500 -> {"fire":"e","at":"pos('player')"}. HUD: "HP {health.player}  AMMO {ammo.player}/{reserve}".
-TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
+)GUIDE" R"GUIDE(AI BRAINS (state machines): logic.define_brain {name, start, vision:{radius, angle, eye_height, show_cone}, hearing:
+   {radius} (hears the player's shots), turn_speed, states:[{name, move: stop|patrol|chase|strafe|flee|to_last_known|home|
+   wander, speed, keep_distance, face: move|target|look_around, fire: true (shoot while seeing the player), icon: "!"|"?",
+   transitions:[{when:"sees", to:"alert"}, ...]}]}. Transition expressions can use sees, heard, distance, time_in_state,
+   since_seen, at_goal, at_home, has_last_known, health, health_pct, player_alive, self + all variables.
+   logic.assign_brain {targets:["tag:guard"], brain, patrol:{axis:[1,0,0], distance:600} or {points:[[0,0,0],[600,0,0]]}}
+   (draws the vision cone: yellow calm, orange searching, red seeing you). Rules: on:"state" filter:"<state>" target:tag.
+   Classic guard: patrol -(sees)-> alert (stop, face target, icon !, 0.5 s) -> attack (strafe/chase, fire, keep_distance
+   500) -(since_seen > 2)-> search (to_last_known, icon ?) -(at_goal && time_in_state > 3)-> return (home) -> patrol;
+   any calm state -(heard)-> search.
+GAME HUD: logic.set_hud {enemy_bars, alert_icons, damage_numbers, hit_flash, low_health} draws health bars over damaged
+   enemies, ! / ? icons, floating damage numbers, a red flash when hurt. define_ui kind:"bar" {value:"health.player",
+   max:"10", fill:[r,g,b,a], size:[w,h], ghost:true, text:"HP {health.player}"}; anchors near 0/1 snap to screen edges.
+FEEDBACK (juice): logic.define_feedback {name, steps:[{type: shake|flash|freeze|slowmo|text|tween|spawn|emit, delay,
+   duration, intensity, scale, color, text, pool, ...tween fields}]}; play with {"feedback":"name"} or attach
+   hit_feedback/death_feedback to define_health and feedback to define_weapon.
+)GUIDE" R"GUIDE(TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
    fields: location|move (relative), rotation|rotate (relative), scale (number or [x,y,z]), color [r,g,b], duration, delay,
    ease (linear in_quad out_quad in_out_quad in_cubic out_cubic in_out_cubic in_sine out_sine in_out_sine in_back out_back
    in_out_back out_elastic in_bounce out_bounce), loop (once|yoyo|loop|pingpong), repeat, then (hide|show|release),
@@ -78,7 +94,7 @@ TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.
    Examples: stomp squash {"tween":"event.target","scale":[1.4,1.4,0.2],"duration":0.25,"ease":"out_back","then":"hide"};
    coin collect {"tween":"event.target","move":[0,0,150],"scale":0.2,"duration":0.3,"then":"hide"};
    block bump {"tween":"event.target","move":[0,0,30],"duration":0.08,"loop":"yoyo"}.
-POOLS (reuse objects instead of creating them): logic.define_pool {name:"pop", template:"<node>", size:8} hides the
+)GUIDE" R"GUIDE(POOLS (reuse objects instead of creating them): logic.define_pool {name:"pop", template:"<node>", size:8} hides the
    template and pre-makes copies. Action {"spawn":"pop","at":"[x,y,z] expr","as":"p"} shows a free copy there (p.id);
    {"release":"p.id"} or tween then:"release" returns it. Restart returns all. Use for coins from blocks, bullets, effects.
 Computer opponent: on var_changed turn (filter:"turn", condition:"turn == 'O'"), start a short timer, then pick
@@ -213,9 +229,14 @@ static void Eval(FToolInvocation& Inv)
 static void DefineRules(FToolInvocation& Inv)
 {
 	const TSharedPtr<FJsonValue> Raw = Inv.GetValue(TEXT("rules"));
+	const bool bReplaceRules = Inv.GetBool(TEXT("replace"));
 	TArray<FString> Names;
 	if (EditDefinitions(Inv, TEXT("define rules"), [&](FLogicWorld& L, FString& Err)
 	{
+		if (bReplaceRules)
+		{
+			L.Rules.Reset();
+		}
 		for (const TSharedPtr<FJsonValue>& Item : Raw->AsArray())
 		{
 			const TSharedPtr<FJsonObject>* O = nullptr;
@@ -312,8 +333,13 @@ static void SetData(FToolInvocation& Inv)
 static void DefineUi(FToolInvocation& Inv)
 {
 	const TSharedPtr<FJsonValue> Raw = Inv.GetValue(TEXT("items"));
+	const bool bReplaceUi = Inv.GetBool(TEXT("replace"));
 	if (EditDefinitions(Inv, TEXT("define ui"), [&](FLogicWorld& L, FString& Err)
 	{
+		if (bReplaceUi)
+		{
+			L.Ui.Reset();
+		}
 		for (const TSharedPtr<FJsonValue>& Item : Raw->AsArray())
 		{
 			const TSharedPtr<FJsonObject>* O = nullptr;
@@ -680,6 +706,135 @@ static void DamageTool(FToolInvocation& Inv)
 	Inv.Succeed(Out);
 }
 
+static void DefineBrain(FToolInvocation& Inv)
+{
+	const FString Name = Inv.GetString(TEXT("name"));
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("name")});
+	if (EditDefinitions(Inv, TEXT("define brain"), [&](FLogicWorld& L, FString& Err)
+	{
+		if (!FLogicWorld::ValidateBrain(Def, Err))
+		{
+			return false;
+		}
+		L.BrainDefs.Add(Name, Def);
+		if (L.IsRunning())
+		{
+			L.ResetBrains();
+		}
+		return true;
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetStringField(TEXT("brain"), Name);
+		Inv.Succeed(Out);
+	}
+}
+
+static void AssignBrain(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = TargetsArg(Inv);
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("targets")});
+	int32 Count = 0;
+	if (EditDefinitions(Inv, TEXT("assign brain"), [&](FLogicWorld& L, FString& Err)
+	{
+		const TSharedPtr<FJsonObject>* Brain = L.BrainDefs.Find(Def->GetStringField(TEXT("brain")));
+		if (!Brain)
+		{
+			Err = TEXT("no such brain (logic.define_brain)");
+			return false;
+		}
+		for (const FString& T : Targets)
+		{
+			TArray<FString> Ids;
+			if (!L.ResolveNodes({T}, Ids, Err))
+			{
+				return false;
+			}
+			for (const FString& Id : Ids)
+			{
+				if (!L.CreateBrainVisuals(Id, *Brain, Inv.GetCaller().SessionId, Err))
+				{
+					return false;
+				}
+			}
+			Count += Ids.Num();
+			L.BrainAssign.Add(T, Def);
+		}
+		if (L.IsRunning())
+		{
+			L.ResetBrains();
+		}
+		return true;
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetNumberField(TEXT("agents"), Count);
+		Inv.Succeed(Out);
+	}
+}
+
+static void SetHud(FToolInvocation& Inv)
+{
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {});
+	if (EditDefinitions(Inv, TEXT("set hud"), [&](FLogicWorld& L, FString&)
+	{
+		L.HudDef = Def;
+		L.RefreshUi();
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void DefineFeedback(FToolInvocation& Inv)
+{
+	const FString Name = Inv.GetString(TEXT("name"));
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("name")});
+	if (EditDefinitions(Inv, TEXT("define feedback"), [&](FLogicWorld& L, FString& Err)
+	{
+		static const TArray<FString> Types = {TEXT("shake"), TEXT("flash"), TEXT("freeze"), TEXT("slowmo"), TEXT("text"), TEXT("tween"), TEXT("spawn"), TEXT("emit")};
+		for (const TSharedPtr<FJsonValue>& V : Def->GetArrayField(TEXT("steps")))
+		{
+			const TSharedPtr<FJsonObject> Step = V->AsObject();
+			FString Type;
+			if (!Step.IsValid() || !Step->TryGetStringField(TEXT("type"), Type) || !Types.Contains(Type))
+			{
+				Err = TEXT("each step needs type: ") + FString::Join(Types, TEXT(", "));
+				return false;
+			}
+			if (Type == TEXT("spawn") && !L.Pools.Contains(Step->GetStringField(TEXT("pool"))))
+			{
+				Err = TEXT("spawn step needs an existing pool");
+				return false;
+			}
+		}
+		L.FeedbackDefs.Add(Name, Def);
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void PlayFeedbackTool(FToolInvocation& Inv)
+{
+	FLogicWorld& L = *Logic(Inv);
+	const FString Name = Inv.GetString(TEXT("name"));
+	if (!L.FeedbackDefs.Contains(Name))
+	{
+		Inv.Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no feedback '%s'"), *Name));
+		return;
+	}
+	FVector At = FVector::ZeroVector;
+	if (!Inv.GetVector(TEXT("at"), At))
+	{
+		L.OwnerLocation(TEXT("player"), At);
+	}
+	L.PlayFeedback(Name, At, Inv.GetString(TEXT("target")));
+	Inv.Succeed();
+}
+
 static TSharedPtr<FJsonObject> PlayerDefFromArgs(FToolInvocation& Inv)
 {
 	TSharedRef<FJsonObject> Def = Obj();
@@ -910,6 +1065,53 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		.Undoable().RequiresWorld()
 		.Handle(&DefinePool);
 
+	B.Tool(TEXT("define_brain"), TEXT("AI brain as a state machine: states with movement, facing, firing and an icon; transitions by expressions (sees, heard, distance, time_in_state...)."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Brain name"), 64).Required())
+			.Add(TEXT("states"), FToolParam::Array(TEXT("States: {name, move, speed, keep_distance, radius, face, fire, fire_angle, weapon, icon, transitions:[{when, to}]}"),
+				FToolParam::Object(TEXT("State")), 32).Required())
+			.Add(TEXT("start"), FToolParam::String(TEXT("Start state (default: first)"), 64))
+			.Add(TEXT("vision"), FToolParam::Object(TEXT("{radius (cm), angle (deg), eye_height, near (always notice within), show_cone, opacity}")))
+			.Add(TEXT("hearing"), FToolParam::Object(TEXT("{radius}: hears the player's shots within this distance")))
+			.Add(TEXT("turn_speed"), FToolParam::Number(TEXT("Degrees per second (default 300)"), 1.0, 5000.0))
+			.Add(TEXT("decide_every"), FToolParam::Number(TEXT("Seconds between decisions (default 0.15)"), 0.0, 10.0)))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineBrain);
+
+	B.Tool(TEXT("assign_brain"), TEXT("Give nodes an AI brain (with a patrol route) and draw their vision cones."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Node ids/paths/names or tag:x"), 100).Required())
+			.Add(TEXT("brain"), FToolParam::String(TEXT("Brain name"), 64).Required())
+			.Add(TEXT("patrol"), FToolParam::Object(TEXT("{axis:[1,0,0], distance} or {points:[[dx,dy,0],...]} relative to the start"))))
+		.Undoable().RequiresWorld()
+		.Handle(&AssignBrain);
+
+	B.Tool(TEXT("set_hud"), TEXT("World HUD effects: health bars over damaged enemies, ! / ? alert icons, floating damage numbers, red hit flash, low-health pulse."))
+		.Args(FToolSchema()
+			.Add(TEXT("enemy_bars"), FToolParam::Boolean(TEXT("Health bars over hurt enemies")).Default(true))
+			.Add(TEXT("always_bars"), FToolParam::Boolean(TEXT("Show bars even at full health")).Default(false))
+			.Add(TEXT("alert_icons"), FToolParam::Boolean(TEXT("Brain state icons")).Default(true))
+			.Add(TEXT("damage_numbers"), FToolParam::Boolean(TEXT("Floating damage numbers")).Default(true))
+			.Add(TEXT("hit_flash"), FToolParam::Boolean(TEXT("Red screen flash when the player is hurt")).Default(true))
+			.Add(TEXT("low_health"), FToolParam::Boolean(TEXT("Pulsing red edges under 30% health")).Default(true)))
+		.Undoable().RequiresWorld()
+		.Handle(&SetHud);
+
+	B.Tool(TEXT("define_feedback"), TEXT("A named game-feel preset: steps of shake, flash, freeze-frame, slow motion, floating text, tween, pooled effect or event, each with a delay."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Feedback name"), 64).Required())
+			.Add(TEXT("steps"), FToolParam::Array(TEXT("Steps: {type, delay, duration, intensity, scale, color, text, pool, name, ...tween fields}"), FToolParam::Object(TEXT("Step")), 32).Required()))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineFeedback);
+
+	B.Tool(TEXT("play_feedback"), TEXT("Play a feedback preset now (testing)."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Feedback name"), 64).Required())
+			.Add(TEXT("at"), FToolParam::Vec3(TEXT("World location (default: the player)")))
+			.Add(TEXT("target"), FToolParam::String(TEXT("Node for tween steps"), 256)))
+		.RequiresWorld()
+		.Handle(&PlayFeedbackTool);
+
 	B.Tool(TEXT("define_health"), TEXT("Give 'player' or nodes health: max, invulnerability after hits, resistances by damage type, what happens on death."))
 		.Args(FToolSchema()
 			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("'player', node ids/paths/names or tag:x"), 100).Required())
@@ -919,7 +1121,9 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("resistances"), FToolParam::Object(TEXT("{damage type: multiplier}, e.g. {fire: 0.5, explosion: 2}")))
 			.Add(TEXT("on_death"), FToolParam::Enum(TEXT("What happens at 0"), {TEXT("hide"), TEXT("squash"), TEXT("release"), TEXT("respawn"), TEXT("freeze"), TEXT("none")}))
 			.Add(TEXT("points_var"), FToolParam::String(TEXT("Variable that gets 'points' on death"), 64))
-			.Add(TEXT("points"), FToolParam::Number(TEXT("Points on death"))))
+			.Add(TEXT("points"), FToolParam::Number(TEXT("Points on death")))
+			.Add(TEXT("hit_feedback"), FToolParam::String(TEXT("Feedback preset played when hurt"), 64))
+			.Add(TEXT("death_feedback"), FToolParam::String(TEXT("Feedback preset played on death"), 64)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineHealth);
 
@@ -962,7 +1166,9 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("hits"), FToolParam::String(TEXT("What it can damage: tag:enemy, player or any (default any but the shooter)"), 128))
 			.Add(TEXT("pool"), FToolParam::String(TEXT("Pool of bullet objects (default: a glowing bullet)"), 64))
 			.Add(TEXT("pool_size"), FToolParam::Integer(TEXT("Default bullet pool size"), 1, 500))
-			.Add(TEXT("bullet"), FToolParam::Object(TEXT("Default bullet look {size, color}"))))
+			.Add(TEXT("bullet"), FToolParam::Object(TEXT("Default bullet look {size, color}")))
+			.Add(TEXT("feedback"), FToolParam::String(TEXT("Feedback preset played on each shot"), 64))
+			.Add(TEXT("noise"), FToolParam::Number(TEXT("How far brains hear the player's shots (default 1600)"), 0.0)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineWeapon);
 
@@ -1054,7 +1260,8 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 
 	B.Tool(TEXT("define_rules"), TEXT("Add or replace rules (by name): when <on> [target/key/filter] and <condition> then <actions>."))
 		.Args(FToolSchema().Add(TEXT("rules"), FToolParam::Array(TEXT("Rules: {name, on, target, key, filter, condition, actions:[...], enabled}"),
-			FToolParam::Object(TEXT("Rule")), 200).Required()))
+			FToolParam::Object(TEXT("Rule")), 200).Required())
+			.Add(TEXT("replace"), FToolParam::Boolean(TEXT("Remove all other rules first")).Default(false)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineRules);
 
@@ -1076,8 +1283,9 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		.Handle(&SetData);
 
 	B.Tool(TEXT("define_ui"), TEXT("Add or replace on-screen text and buttons. Text is a live template: 'Score: {score}'. Buttons fire 'button' rules."))
-		.Args(FToolSchema().Add(TEXT("items"), FToolParam::Array(TEXT("Items: {name, kind: text|button, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if}"),
-			FToolParam::Object(TEXT("UI item")), 64).Required()))
+		.Args(FToolSchema().Add(TEXT("items"), FToolParam::Array(TEXT("Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if; bar: value, max, fill, ghost}"),
+			FToolParam::Object(TEXT("UI item")), 64).Required())
+			.Add(TEXT("replace"), FToolParam::Boolean(TEXT("Remove all other items first")).Default(false)))
 		.Undoable().RequiresWorld()
 		.Handle(&DefineUi);
 

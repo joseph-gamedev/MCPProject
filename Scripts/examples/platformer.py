@@ -149,7 +149,7 @@ def main():
     # ---- the game
     rt.call("logic.define_vars", replace=True, vars={"coins": 0, "score": 0, "lives": 3, "state": "play", "best": 0, "used": []})
     hurt = {"emit": "hurt"}
-    rt.call("logic.define_rules", rules=[
+    rt.call("logic.define_rules", replace=True, rules=[
         {"name": "coin", "on": "touch", "target": "tag:coin", "condition": "state == 'play'", "actions": [
             {"tween": "event.target", "move": [0, 0, 160], "scale": 0.2, "duration": 0.25, "ease": "out_quad", "then": "hide"},
             {"set": "coins", "value": "coins + 1"}, {"set": "score", "value": "score + 100"},
@@ -183,7 +183,7 @@ def main():
         {"name": "restart_key", "on": "key", "key": "R", "actions": [{"restart": True, "keep": ["best"]}]},
         {"name": "restart_button", "on": "button", "filter": "restart", "actions": [{"restart": True, "keep": ["best"]}]},
     ])
-    rt.call("logic.define_ui", items=[
+    rt.call("logic.define_ui", replace=True, items=[
         {"name": "hud", "kind": "text", "anchor": [0.5, 0.05], "font_size": 24,
          "text": "SCORE {score}     COINS {coins}     LIVES {lives}     TIME {floor(time)}     BEST {best}"},
         {"name": "banner", "kind": "text", "anchor": [0.5, 0.4], "font_size": 48, "visible_if": "state != 'play'",

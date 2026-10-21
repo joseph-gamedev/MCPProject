@@ -145,6 +145,50 @@ bool FLogicWorld::ApplyDamage(const FString& Victim, double Amount, const FStrin
 			C->LaunchCharacter(Push, true, true);
 		}
 	}
+	// Feel: floating number, hit punch / screen flash, optional feedback preset.
+	{
+		FVector Top;
+		FBox VB;
+		if (VictimBox(Victim, VB))
+		{
+			Top = FVector(VB.GetCenter().X, VB.GetCenter().Y, VB.Max.Z + 20.0);
+			FFloatText F;
+			F.World = Top;
+			F.Text = FString::Printf(TEXT("-%s"), *FLogicValue::MakeNumber(FMath::RoundToDouble(Amount * 10.0) / 10.0).ToText());
+			F.Color = Victim == TEXT("player") ? FLinearColor(1.f, 0.25f, 0.2f) : FLinearColor(1.f, 0.95f, 0.6f);
+			FloatTexts.Add(F);
+		}
+		if (Victim == TEXT("player"))
+		{
+			HitFlash = 1.0;
+			FlashColor = FLinearColor(0.9f, 0.05f, 0.02f);
+		}
+		else if (H->Current > 0.0)
+		{
+			TSharedRef<FJsonObject> Punch = MakeShared<FJsonObject>();
+			FVector S = FVector::OneVector;
+			if (FRuntimeSceneGraph* G = GraphFor(World.Get()))
+			{
+				if (const FRuntimeSceneNode* N = G->Find(Victim); N && N->Actor.IsValid())
+				{
+					S = N->Actor->GetActorScale3D();
+				}
+			}
+			Punch->SetField(TEXT("scale"), RuntimeJson::Vec(S * 1.15));
+			Punch->SetNumberField(TEXT("duration"), 0.05);
+			Punch->SetStringField(TEXT("loop"), TEXT("yoyo"));
+			Punch->SetBoolField(TEXT("add"), true);
+			FString Err;
+			StartTween(Victim, Punch, Err);
+		}
+		FString Fb = Str(H->Def, H->Current <= 0.0 ? TEXT("death_feedback") : TEXT("hit_feedback"));
+		if (!Fb.IsEmpty())
+		{
+			FVector At;
+			OwnerLocation(Victim, At);
+			PlayFeedback(Fb, At, Victim == TEXT("player") ? FString() : Victim);
+		}
+	}
 	FLogicEvent E;
 	E.On = TEXT("damaged");
 	E.Target = Victim == TEXT("player") ? FString() : Victim;
@@ -245,7 +289,7 @@ bool FLogicWorld::OwnerLocation(const FString& Key, FVector& Out) const
 	{
 		return false;
 	}
-	const FBox B = RuntimeTools::ActorBox(N->Actor.Get());
+	const FBox B = GameBox(N->Actor.Get());
 	Out = B.IsValid ? B.GetCenter() : N->Actor->GetActorLocation();
 	return true;
 }
@@ -268,7 +312,7 @@ bool FLogicWorld::VictimBox(const FString& Key, FBox& Out) const
 	{
 		return false;
 	}
-	Out = RuntimeTools::ActorBox(N->Actor.Get());
+	Out = GameBox(N->Actor.Get());
 	return Out.IsValid != 0;
 }
 
@@ -497,6 +541,26 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	S.NextShot = PlayTime + 1.0 / Rate;
 	const FVector Muzzle = From + Dir * Num(W, TEXT("muzzle"), 60.0) + FVector(0, 0, Num(W, TEXT("muzzle_height"), 0.0));
 	SpawnShots(Owner, W, Muzzle, Dir);
+	if (Owner == TEXT("player"))
+	{
+		Recoil = 1.0;
+		HearNoise(From, Num(W, TEXT("noise"), 1600.0));
+	}
+	else if (!IsTweening(Owner))
+	{
+		FVector Back = -Dir * 14.0;
+		TSharedRef<FJsonObject> Kick = MakeShared<FJsonObject>();
+		Kick->SetField(TEXT("move"), RuntimeJson::Vec(Back));
+		Kick->SetNumberField(TEXT("duration"), 0.05);
+		Kick->SetStringField(TEXT("loop"), TEXT("yoyo"));
+		Kick->SetBoolField(TEXT("add"), true);
+		FString Err;
+		StartTween(Owner, Kick, Err);
+	}
+	if (const FString Fb = Str(W, TEXT("feedback")); !Fb.IsEmpty())
+	{
+		PlayFeedback(Fb, Muzzle, Owner == TEXT("player") ? FString() : Owner);
+	}
 	const int32 Burst = static_cast<int32>(Num(W, TEXT("burst"), 1));
 	if (Burst > 1)
 	{
@@ -811,4 +875,9 @@ void FLogicWorld::ResetCombat()
 	WeaponStates.Reset();
 	ZoneTimes.Reset();
 	RebuildHealths(true);
+	// The player's magazine starts full, so HUD counters are right before the first shot.
+	if (const TSharedPtr<FJsonObject>* W = WeaponDefs.Find(EquippedWeapon(TEXT("player"))))
+	{
+		WeaponStates.FindOrAdd(TEXT("player")).Mag = static_cast<int32>(Num(*W, TEXT("magazine"), 0));
+	}
 }

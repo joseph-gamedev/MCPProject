@@ -304,6 +304,51 @@ void FLogicToolsetSpec::Define()
 		H->CallOk(TEXT("logic.remove_player"));
 	});
 
+	It("runs AI brains: sees the player, changes state, shoots, searches", [this]()
+	{
+		H->CallOk(TEXT("logic.spawn_player"), TEXT(R"J({"location":[0,0,0],"mode":"topdown"})J"));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["player"],"max":10,"invulnerable":0})J"));
+		const FString Guard = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[80,80,120],"location":[700,0,0],"rotation":[0,180,0],"name":"guard","tags":["guard"]})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.set_solid"), TEXT(R"J({"targets":["tag:guard"],"solid":false})J"));
+		H->CallOk(TEXT("logic.define_weapon"), TEXT(R"J({"name":"zap","damage":1,"rate":5,"speed":4000,"hits":"player"})J"));
+		H->CallOk(TEXT("logic.equip"), TEXT(R"J({"owner":"tag:guard","weapon":"zap"})J"));
+		H->CallOk(TEXT("logic.define_brain"), TEXT(R"J({"name":"g","vision":{"radius":1200,"angle":90},"states":[
+			{"name":"patrol","move":"stop","transitions":[{"when":"sees","to":"attack"}]},
+			{"name":"attack","move":"stop","face":"target","fire":true,"icon":"!","transitions":[{"when":"since_seen > 1","to":"search"}]},
+			{"name":"search","move":"to_last_known","icon":"?","transitions":[{"when":"sees","to":"attack"}]}]})J"));
+		const TSharedRef<FJsonObject> A = H->CallOk(TEXT("logic.assign_brain"), TEXT(R"J({"targets":["tag:guard"],"brain":"g"})J"));
+		TestEqual(TEXT("one agent"), static_cast<int32>(A->GetNumberField(TEXT("agents"))), 1);
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"alerted":false}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[{"name":"a","on":"state","filter":"attack","target":"tag:guard","actions":[{"set":"alerted","value":"true"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.5})J"));
+		TestTrue(TEXT("state event"), Vars()->GetBoolField(TEXT("alerted")));
+		TestTrue(TEXT("attacking"), H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("brains"))->GetStringField(Guard).StartsWith(TEXT("attack")));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":1.5})J"));
+		TestTrue(TEXT("guard shot the player"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"health.player"})J"))->GetNumberField(TEXT("value")) < 10.0);
+		// Turn the guard away and move the player out of its view: it loses sight and searches.
+		H->GetGraph()->Find(Guard)->Actor->SetActorLocation(FVector(700, 3000, 0));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.3})J"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":1.5})J"));
+		const FString St = H->CallOk(TEXT("logic.get_state"))->GetObjectField(TEXT("brains"))->GetStringField(Guard);
+		TestTrue(FString::Printf(TEXT("searching (%s)"), *St), St.StartsWith(TEXT("search")) || St.StartsWith(TEXT("attack")));
+		H->CallFails(TEXT("logic.define_brain"), TEXT(R"J({"name":"bad","states":[{"name":"a","transitions":[{"when":"sees","to":"nowhere"}]}]})J"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_brain"), TEXT(R"J({"name":"bad","states":[{"name":"a","move":"teleport"}]})J"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("logic.remove_player"));
+	});
+
+	It("plays feedback presets and validates them", [this]()
+	{
+		H->CallOk(TEXT("logic.define_feedback"), TEXT(R"J({"name":"hit","steps":[{"type":"shake","duration":0.2},{"type":"flash","intensity":0.6},{"type":"slowmo","scale":0.5,"duration":0.3},{"type":"text","text":"BOOM"}]})J"));
+		H->CallOk(TEXT("logic.set_hud"), TEXT(R"J({"enemy_bars":true})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.play_feedback"), TEXT(R"J({"name":"hit","at":[0,0,100]})J"));
+		H->CallFails(TEXT("logic.define_feedback"), TEXT(R"J({"name":"x","steps":[{"type":"explode"}]})J"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.play_feedback"), TEXT(R"J({"name":"nope"})J"), ERuntimeToolError::NotFound);
+		H->CallOk(TEXT("logic.define_ui"), TEXT(R"J({"items":[{"name":"hp","kind":"bar","value":"3","max":"10","text":"HP"}]})J"));
+		H->CallFails(TEXT("logic.define_ui"), TEXT(R"J({"items":[{"name":"hp2","kind":"bar","text":"HP"}]})J"), ERuntimeToolError::InvalidArguments);
+	});
+
 	It("detects a draw", [this]()
 	{
 		BuildTicTacToe();
