@@ -76,3 +76,5 @@ DerivedDataCache/*
 
 # Packaged builds
 Build/Packaged/
+
+__pycache__/
