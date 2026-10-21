@@ -291,6 +291,12 @@ class Runtime:
         if is_error or not payload.get("ok", True):
             raise RuntimeError(f"{tool} failed: {json.dumps(payload)[:2000]}")
         self.images = images
+        # UFUNCTION tools wrap results in {"returnValue": ...}: expose an object returnValue's fields directly.
+        ret = payload.get("returnValue")
+        if isinstance(ret, dict):
+            merged = dict(ret)
+            merged.update(payload)
+            return merged
         return payload
 
     def group(self, name, location=(0, 0, 0), parent=None):

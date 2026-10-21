@@ -1,4 +1,4 @@
-#include "ToolTestHarness.h"
+﻿#include "ToolTestHarness.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -96,7 +96,23 @@ TSharedRef<FJsonObject> FToolTestHarness::CallOk(const FString& Tool, const FStr
 		Test.AddError(FString::Printf(TEXT("%s %s failed: %s"), *Tool, *Json, *R.ToJsonString()));
 		return MakeShared<FJsonObject>();
 	}
-	return R.Payload.IsValid() ? R.Payload.ToSharedRef() : MakeShared<FJsonObject>();
+	if (!R.Payload.IsValid())
+	{
+		return MakeShared<FJsonObject>();
+	}
+	// UFUNCTION tools wrap results in {"returnValue": ...}: expose an object returnValue's fields directly (and keep returnValue).
+	const TSharedPtr<FJsonObject>* Ret = nullptr;
+	if (R.Payload->TryGetObjectField(TEXT("returnValue"), Ret))
+	{
+		TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+		Out->Values = (*Ret)->Values;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : R.Payload->Values)
+		{
+			Out->SetField(P.Key, P.Value);
+		}
+		return Out;
+	}
+	return R.Payload.ToSharedRef();
 }
 
 void FToolTestHarness::CallFails(const FString& Tool, const FString& Json, ERuntimeToolError Expected)
