@@ -76,6 +76,10 @@ class McpClient:
         texts = [c["text"] for c in result.get("content", []) if c.get("type") == "text"]
         images = [c for c in result.get("content", []) if c.get("type") == "image"]
         payload = json.loads(texts[0]) if texts else {}
+        # UFUNCTION tools return {"returnValue": ...}: expose an object returnValue's fields directly.
+        ret = payload.get("returnValue") if isinstance(payload, dict) else None
+        if isinstance(ret, dict):
+            payload = {**ret, **payload}
         return payload, images, bool(result.get("isError"))
 
 
