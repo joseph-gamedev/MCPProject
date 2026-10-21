@@ -5,6 +5,7 @@
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
 #include "RuntimeToolsetsCore.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
 BEGIN_DEFINE_SPEC(FSceneGraphToolsetSpec, "RuntimeToolsets.Toolsets.Scene", RUNTIMETOOLSETS_TEST_FLAGS)
@@ -145,7 +146,7 @@ void FSceneGraphToolsetSpec::Define()
 
 	It("exports and imports a tree", [this]()
 	{
-		const TSharedRef<FJsonObject> Spec = H->CallOk(TEXT("scene.export_tree"), FString::Printf(TEXT("{\"root\":\"%s\"}"), *House));
+		const TSharedPtr<FJsonObject> Spec = H->CallOk(TEXT("scene.export_tree"), FString::Printf(TEXT("{\"root\":\"%s\"}"), *House))->GetObjectField(TEXT("returnValue"));
 		TSharedRef<FJsonObject> Args = MakeShared<FJsonObject>();
 		Args->SetObjectField(TEXT("tree"), Spec);
 		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("scene.import_tree"), RuntimeJson::Write(Args));
@@ -153,6 +154,49 @@ void FSceneGraphToolsetSpec::Define()
 		TestEqual(TEXT("total"), H->GetGraph()->NumLiveNodes(), 4);
 		TestTrue(TEXT("id map"), R->HasField(TEXT("id_map")));
 		H->CallFails(TEXT("scene.import_tree"), TEXT("{\"tree\":{\"nodes\":[{\"source\":\"bad\"}]}}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.import_tree"), TEXT("{\"tree\":[1,2]}"), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("returns full node details", [this]()
+	{
+		const TSharedRef<FJsonObject> N = H->CallOk(TEXT("scene.get_node"), Target(House));
+		TestEqual(TEXT("kind"), N->GetStringField(TEXT("kind")), FString(TEXT("group")));
+		TestEqual(TEXT("children"), N->GetArrayField(TEXT("children")).Num(), 1);
+		TestTrue(TEXT("bounds"), N->GetObjectField(TEXT("bounds"))->HasField(TEXT("size")));
+		TestEqual(TEXT("path"), H->CallOk(TEXT("scene.get_node"), Target(Box))->GetStringField(TEXT("path")), FString(TEXT("house/box")));
+	});
+
+	It("fails clearly for each tool", [this]()
+	{
+		AActor* Level = H->GetWorld()->SpawnActor<AActor>();
+		const FString LevelRef = FString::Printf(TEXT("actor:%s"), *Level->GetName());
+		H->CallFails(TEXT("scene.create_group"), TEXT("{}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.create_group"), FString::Printf(TEXT("{\"name\":\"g\",\"parent\":\"%s\"}"), *LevelRef), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.list_tree"), TEXT("{\"root\":\"n999999\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("scene.find_nodes"), TEXT("{\"kind\":\"bogus\"}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.get_node"), Target(LevelRef), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.rotate_node"), Target(Box, TEXT("\"rotation\":[0,0,0],\"delta\":[0,1,0]")), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.scale_node"), Target(Box, TEXT("\"scale\":[1,0,1]")), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.scale_node"), Target(Box), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.rename_node"), Target(Box, TEXT("\"name\":\"\"")), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.set_node_tags"), Target(Box, TEXT("\"tags\":[\"a\"],\"mode\":\"toggle\"")), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("scene.duplicate_node"), Target(TEXT("n999999")), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("scene.delete_node"), Target(TEXT("n999999")), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("scene.clear_scope"), FString::Printf(TEXT("{\"root\":\"%s\"}"), *House), ERuntimeToolError::ConfirmRequired);
+		H->CallFails(TEXT("scene.export_tree"), FString::Printf(TEXT("{\"root\":\"%s\"}"), *LevelRef), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("history.begin_transaction"), TEXT("{\"label\":\"t\"}"));
+		H->CallFails(TEXT("scene.clear_all"), TEXT("{\"confirm\":true}"), ERuntimeToolError::WrongState);
+		H->CallOk(TEXT("history.end_transaction"));
+	});
+
+	It("moves in local space and tags with add mode", [this]()
+	{
+		H->CallOk(TEXT("scene.rotate_node"), Target(House, TEXT("\"rotation\":[0,90,0]")));
+		H->CallOk(TEXT("scene.move_node"), Target(Box, TEXT("\"location\":[100,0,0],\"space\":\"local\"")));
+		TestTrue(TEXT("local location rotates with the parent"), ActorOf(Box)->GetActorLocation().Equals(FVector(1000, 100, 0), 0.1));
+		H->CallOk(TEXT("scene.set_node_tags"), Target(Box, TEXT("\"tags\":[\"a\"]")));
+		const TSharedRef<FJsonObject> T = H->CallOk(TEXT("scene.set_node_tags"), Target(Box, TEXT("\"tags\":[\"b\"],\"mode\":\"add\"")));
+		TestEqual(TEXT("both tags"), T->GetArrayField(TEXT("tags")).Num(), 2);
 	});
 }
 

@@ -318,7 +318,25 @@ public:
 		}
 		const FToolResult& Result = Inv->GetResult();
 		RecordUsage(Tool, Result, FPlatformTime::Seconds() - Start);
-		return Result;
+		return FlattenReturnValue(Result);
+	}
+
+	/** In-engine callers read result fields directly: expose an object returnValue's fields at the top level (UFUNCTION tools). */
+	static FToolResult FlattenReturnValue(const FToolResult& In)
+	{
+		const TSharedPtr<FJsonObject>* Ret = nullptr;
+		if (!In.Payload.IsValid() || !In.Payload->TryGetObjectField(TEXT("returnValue"), Ret))
+		{
+			return In;
+		}
+		FToolResult Out = In;
+		Out.Payload = MakeShared<FJsonObject>();
+		Out.Payload->Values = (*Ret)->Values;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : In.Payload->Values)
+		{
+			Out.Payload->SetField(P.Key, P.Value);
+		}
+		return Out;
 	}
 
 	virtual TFunction<void()> ExecuteNested(const FString& Tool, const TSharedPtr<FJsonObject>& Arguments, const FToolCallerContext& Caller, int32 Depth,
@@ -343,7 +361,7 @@ public:
 		Inv->OnFinished = [this, Tool, Start, OnDone](const FToolResult& Result)
 		{
 			RecordUsage(Tool, Result, FPlatformTime::Seconds() - Start);
-			OnDone(Result);
+			OnDone(FlattenReturnValue(Result));
 		};
 		Inv->GetTool().Handler(*Inv);
 		if (!Inv->IsComplete() && !Inv->IsDeferred())

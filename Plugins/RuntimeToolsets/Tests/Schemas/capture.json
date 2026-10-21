@@ -1,10 +1,9 @@
 {
-	"description": "Screenshots, render targets and scene captures as JPEG/PNG",
+	"description": "Capture: images of the running game for visual checks. Each tool attaches one JPEG or PNG image to its result.\nWorkflow: screenshot to see exactly what the player sees (UI optional); scene_capture to look from any camera pose\n(e.g. above or behind something you built) without moving the player; capture_render_target to read a render target.",
 	"name": "capture",
 	"tools": [
 		{
-			"async": true,
-			"description": "Capture the game viewport as an image (async, next frame).",
+			"description": "Reads a render target, or a scene capture's render target, as an image. Fails if the target is neither, or the render target cannot be read.\nReturns: Image size {w, h, source_w, source_h}; the image is attached.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -12,76 +11,29 @@
 				{
 					"format":
 					{
-						"default": "jpg",
-						"description": "Image format",
+						"default": "Jpg",
+						"description": "Jpg or Png.",
 						"enum": [
-							"jpg",
-							"png"
+							"Jpg",
+							"Png"
 						],
 						"type": "string"
 					},
 					"max_dim":
 					{
 						"default": 768,
-						"description": "Longest side in px",
-						"maximum": 4096,
-						"minimum": 64,
+						"description": "Longest side of the returned image in px, 64-4096.",
 						"type": "integer"
 					},
 					"quality":
 					{
-						"description": "JPEG quality",
-						"maximum": 100,
-						"minimum": 1,
-						"type": "integer"
-					},
-					"show_ui":
-					{
-						"default": false,
-						"description": "Include UI",
-						"type": "boolean"
-					}
-				},
-				"type": "object"
-			},
-			"name": "capture.screenshot"
-		},
-		{
-			"description": "Read a render target (or a scene capture's target) as an image.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"format":
-					{
-						"default": "jpg",
-						"description": "Image format",
-						"enum": [
-							"jpg",
-							"png"
-						],
-						"type": "string"
-					},
-					"max_dim":
-					{
-						"default": 768,
-						"description": "Longest side in px",
-						"maximum": 4096,
-						"minimum": 64,
-						"type": "integer"
-					},
-					"quality":
-					{
-						"description": "JPEG quality",
-						"maximum": 100,
-						"minimum": 1,
+						"default": 0,
+						"description": "JPEG quality 1-100 (0 = project default).",
 						"type": "integer"
 					},
 					"target":
 					{
-						"description": "Render target object or scene capture",
-						"maxLength": 1024,
+						"description": "Render target object path, or a SceneCapture2D actor / component. (Reference to Object: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -90,10 +42,49 @@
 				],
 				"type": "object"
 			},
-			"name": "capture.capture_render_target"
+			"name": "capture.capture_render_target",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Image size {w, h, source_w, source_h}; the image is attached.",
+						"properties":
+						{
+							"h":
+							{
+								"description": "Height of the attached image in px.",
+								"type": "integer"
+							},
+							"source_h":
+							{
+								"description": "Height rendered before downscaling.",
+								"type": "integer"
+							},
+							"source_w":
+							{
+								"description": "Width rendered before downscaling.",
+								"type": "integer"
+							},
+							"w":
+							{
+								"description": "Width of the attached image in px.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeImageInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Render the scene from any camera pose. Defaults to the player camera.",
+			"description": "Renders the scene from any camera pose (default: the player camera) without moving the player. Fails when rendering is disabled (null RHI).\nReturns: Image size {w, h, source_w, source_h}; the image is attached.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -101,33 +92,29 @@
 				{
 					"format":
 					{
-						"default": "jpg",
-						"description": "Image format",
+						"default": "Jpg",
+						"description": "Jpg or Png.",
 						"enum": [
-							"jpg",
-							"png"
+							"Jpg",
+							"Png"
 						],
 						"type": "string"
 					},
 					"fov":
 					{
 						"default": 90,
-						"description": "Horizontal FOV deg",
-						"maximum": 170,
-						"minimum": 5,
+						"description": "Horizontal field of view in degrees, 5-170.",
 						"type": "number"
 					},
 					"height":
 					{
 						"default": 432,
-						"description": "Render height",
-						"maximum": 4096,
-						"minimum": 64,
+						"description": "Render height in px, 64-4096.",
 						"type": "integer"
 					},
 					"location":
 					{
-						"description": "Camera [x,y,z] cm",
+						"description": "Camera position [x, y, z] in cm. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -138,7 +125,7 @@
 					},
 					"look_at":
 					{
-						"description": "Point to look at (overrides rotation)",
+						"description": "Point to look at [x, y, z] (overrides rotation). ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"
@@ -150,21 +137,18 @@
 					"max_dim":
 					{
 						"default": 768,
-						"description": "Longest side in px",
-						"maximum": 4096,
-						"minimum": 64,
+						"description": "Longest side of the returned image in px.",
 						"type": "integer"
 					},
 					"quality":
 					{
-						"description": "JPEG quality",
-						"maximum": 100,
-						"minimum": 1,
+						"default": 0,
+						"description": "JPEG quality 1-100 (0 = project default).",
 						"type": "integer"
 					},
 					"rotation":
 					{
-						"description": "Camera [pitch,yaw,roll]",
+						"description": "Camera rotation [pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",
 						"items":
 						{
 							"type": "number"
@@ -176,16 +160,132 @@
 					"width":
 					{
 						"default": 768,
-						"description": "Render width",
-						"maximum": 4096,
-						"minimum": 64,
+						"description": "Render width in px, 64-4096.",
 						"type": "integer"
 					}
 				},
 				"type": "object"
 			},
-			"name": "capture.scene_capture"
+			"name": "capture.scene_capture",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Image size {w, h, source_w, source_h}; the image is attached.",
+						"properties":
+						{
+							"h":
+							{
+								"description": "Height of the attached image in px.",
+								"type": "integer"
+							},
+							"source_h":
+							{
+								"description": "Height rendered before downscaling.",
+								"type": "integer"
+							},
+							"source_w":
+							{
+								"description": "Width rendered before downscaling.",
+								"type": "integer"
+							},
+							"w":
+							{
+								"description": "Width of the attached image in px.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeImageInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"async": true,
+			"description": "Captures the game viewport as an image on the next rendered frame (async). Fails without a game viewport (null RHI, dedicated server): use scene_capture there.\nReturns: Image size {w, h, source_w, source_h}; the image is attached.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"format":
+					{
+						"default": "Jpg",
+						"description": "Jpg or Png.",
+						"enum": [
+							"Jpg",
+							"Png"
+						],
+						"type": "string"
+					},
+					"max_dim":
+					{
+						"default": 768,
+						"description": "Longest side of the returned image in px, 64-4096 (capped by project settings).",
+						"type": "integer"
+					},
+					"quality":
+					{
+						"default": 0,
+						"description": "JPEG quality 1-100 (0 = project default).",
+						"type": "integer"
+					},
+					"show_ui":
+					{
+						"default": false,
+						"description": "Include the UI (HUD, widgets).",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "capture.screenshot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"h":
+							{
+								"description": "Height of the attached image in px.",
+								"type": "integer"
+							},
+							"source_h":
+							{
+								"description": "Height rendered before downscaling.",
+								"type": "integer"
+							},
+							"source_w":
+							{
+								"description": "Width rendered before downscaling.",
+								"type": "integer"
+							},
+							"w":
+							{
+								"description": "Width of the attached image in px.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeImageInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

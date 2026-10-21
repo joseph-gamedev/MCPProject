@@ -1,9 +1,49 @@
 {
-	"description": "Tail the log, subscribe to categories, frame and memory stats",
+	"description": "Log and stats: read the game log, subscribe to log categories as pushed events, and read frame/memory stats.\nWorkflow: tail_log after an action to see what happened (pass since_seq = last_seq to read only new lines);\nsubscribe_log_category to be notified; get_stat for performance (fps, frame/game/render/gpu ms, memory).",
 	"name": "log",
 	"tools": [
 		{
-			"description": "Recent log lines (oldest first). Pass since_seq=last_seq to get only new lines.",
+			"description": "Reads frame and memory stats. Fails for unknown stat names.\nReturns: Stat name -> value.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Stats to read: fps, frame_ms, game_ms, render_ms, rhi_ms, gpu_ms, memory_mb, actors, nodes (default: fps, frame_ms, game_ms, render_ms, gpu_ms, memory_mb).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"name": "log.get_stat",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"additionalProperties":
+						{
+							"type": "number"
+						},
+						"description": "Stat name -> value.",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Pushes new lines of a log category to this session as events (type \"log\"), or stops doing so.\nReturns: The session's subscriptions and how lines are delivered.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,27 +51,100 @@
 				{
 					"category":
 					{
-						"description": "Log category, e.g. LogTemp",
-						"maxLength": 128,
+						"description": "Log category, e.g. \"LogBlueprintUserMessages\".",
+						"type": "string"
+					},
+					"enabled":
+					{
+						"default": true,
+						"description": "False to unsubscribe.",
+						"type": "boolean"
+					},
+					"min_verbosity":
+					{
+						"default": "Log",
+						"description": "Most verbose level to push.",
+						"enum": [
+							"Fatal",
+							"Error",
+							"Warning",
+							"Display",
+							"Log",
+							"Verbose",
+							"VeryVerbose"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"category"
+				],
+				"type": "object"
+			},
+			"name": "log.subscribe_log_category",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The session's subscriptions and how lines are delivered.",
+						"properties":
+						{
+							"delivery":
+							{
+								"description": "How new lines arrive.",
+								"type": "string"
+							},
+							"subscriptions":
+							{
+								"description": "Categories this session is subscribed to.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeLogSubscriptions",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns recent log lines, oldest first, filtered by category, verbosity and text.\nReturns: The lines {seq, category, verbosity, message} and last_seq.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"category":
+					{
+						"default": "",
+						"description": "Log category, e.g. \"LogTemp\".",
 						"type": "string"
 					},
 					"contains":
 					{
-						"description": "Substring filter",
-						"maxLength": 256,
+						"default": "",
+						"description": "Substring the message must contain.",
 						"type": "string"
 					},
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 25,
+						"description": "Maximum lines returned (0 = project default); the newest matching lines are kept.",
 						"type": "integer"
 					},
 					"min_verbosity":
 					{
 						"default": "Log",
-						"description": "Most verbose level to include",
+						"description": "Most verbose level to include: Error shows only errors (and fatal), Log includes Display and Log.",
 						"enum": [
 							"Fatal",
 							"Error",
@@ -45,88 +158,72 @@
 					},
 					"since_seq":
 					{
-						"description": "Only lines after this sequence number",
-						"minimum": 0,
+						"default": 0,
+						"description": "Only lines after this sequence number (the last_seq of a previous call).",
 						"type": "integer"
 					}
 				},
 				"type": "object"
 			},
-			"name": "log.tail_log"
-		},
-		{
-			"description": "Push new lines of a category to this session as events.",
-			"input_schema":
+			"name": "log.tail_log",
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"category":
+					"returnValue":
 					{
-						"description": "Log category",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"enabled":
-					{
-						"default": true,
-						"description": "false to unsubscribe",
-						"type": "boolean"
-					},
-					"min_verbosity":
-					{
-						"default": "Log",
-						"description": "Most verbose level",
-						"enum": [
-							"Error",
-							"Warning",
-							"Display",
-							"Log",
-							"Verbose"
-						],
-						"type": "string"
+						"description": "The lines {seq, category, verbosity, message} and last_seq.",
+						"properties":
+						{
+							"last_seq":
+							{
+								"description": "Newest sequence number in the capture buffer: pass it as since_seq next time.",
+								"type": "integer"
+							},
+							"lines":
+							{
+								"description": "Matching lines, oldest first.",
+								"items":
+								{
+									"properties":
+									{
+										"category":
+										{
+											"description": "Log category, e.g. \"LogTemp\".",
+											"type": "string"
+										},
+										"message":
+										{
+											"description": "Message (up to 500 characters).",
+											"type": "string"
+										},
+										"seq":
+										{
+											"description": "Sequence number (increasing); pass the last one as since_seq to read only newer lines.",
+											"type": "integer"
+										},
+										"verbosity":
+										{
+											"description": "Verbosity (Error, Warning, Display, Log...).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeLogEntry",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeLogTail",
+						"type": "object"
 					}
 				},
 				"required": [
-					"category"
+					"returnValue"
 				],
 				"type": "object"
-			},
-			"name": "log.subscribe_log_category"
-		},
-		{
-			"description": "Frame and memory stats: fps, frame_ms, game_ms, render_ms, rhi_ms, gpu_ms, memory_mb, actors, nodes.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"names":
-					{
-						"description": "Stats to read (default: common set)",
-						"items":
-						{
-							"enum": [
-								"fps",
-								"frame_ms",
-								"game_ms",
-								"render_ms",
-								"rhi_ms",
-								"gpu_ms",
-								"memory_mb",
-								"actors",
-								"nodes"
-							],
-							"type": "string"
-						},
-						"maxItems": 9,
-						"type": "array"
-					}
-				},
-				"type": "object"
-			},
-			"name": "log.get_stat"
+			}
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }
