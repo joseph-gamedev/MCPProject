@@ -135,6 +135,8 @@ private:
 	TArray<FTimer> Timers;
 	TArray<FLogicEvent> Queue;
 	TArray<FString> PlayNodes;
+	/** Values carried over a restart ({"restart":true,"keep":[...]}). */
+	TMap<FString, FLogicValue> KeepOnRestart;
 	TArray<TSharedPtr<FJsonObject>> Log;
 	int64 EventCount = 0;
 	FRandomStream Random;

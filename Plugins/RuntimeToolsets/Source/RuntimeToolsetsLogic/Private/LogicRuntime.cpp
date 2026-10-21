@@ -521,6 +521,14 @@ void FLogicWorld::Start()
 	{
 		Vars.Add(P.Key, P.Value.DeepCopy());
 	}
+	for (const TPair<FString, FLogicValue>& P : KeepOnRestart)
+	{
+		if (Vars.Contains(P.Key))
+		{
+			Vars.Add(P.Key, P.Value);
+		}
+	}
+	KeepOnRestart.Reset();
 	Timers.Reset();
 	Queue.Reset();
 	TextOverrides.Reset();
@@ -1116,6 +1124,18 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 	}
 	if (A->HasField(TEXT("restart")))
 	{
+		KeepOnRestart.Reset();
+		const TArray<TSharedPtr<FJsonValue>>* Keep = nullptr;
+		if (A->TryGetArrayField(TEXT("keep"), Keep))
+		{
+			for (const TSharedPtr<FJsonValue>& K : *Keep)
+			{
+				if (const FLogicValue* V = Vars.Find(K->AsString()))
+				{
+					KeepOnRestart.Add(K->AsString(), V->DeepCopy());
+				}
+			}
+		}
 		bRestartPending = true;
 		Frame.bStop = true;
 		return true;

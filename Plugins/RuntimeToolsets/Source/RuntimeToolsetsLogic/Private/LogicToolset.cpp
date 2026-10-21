@@ -28,7 +28,7 @@ MAKE A PLAYABLE GAME WITHOUT CODE. The game runs by itself once started; you onl
       args: "=expr" -> value of expr, "text {expr}" -> interpolated. Objects created by rules are removed on restart.
       Any tool works (materials.set_material, scene.move_node, ui..., vfx..., physics...). Not logic.* tools.
    {"emit":"won","data":{"who":"=turn"}}   {"timer":"ai","delay":"0.6","repeat":false}   {"cancel_timer":"ai"}
-   {"set_ui":"status","text":"...","visible":"expr"}   {"log":"moved to {event.data.index}"}   {"restart":true}   {"stop":true}
+   {"set_ui":"status","text":"...","visible":"expr"}   {"log":"moved to {event.data.index}"}   {"restart":true,"keep":["score"]}   {"stop":true}
 5. Expressions: numbers, 'text', true/false/null, lists [1,2], + - * / % == != < <= > >= && || ! and or not, a ? b : c,
    list[i], map.field, event.target/name/data/tags/location, time. Functions: len abs floor ceil round sqrt min max rand
    rand_int(a,b) str num list(n,fill) range(n) contains index_of count indices pick sum join set(list,i,v) keys upper lower

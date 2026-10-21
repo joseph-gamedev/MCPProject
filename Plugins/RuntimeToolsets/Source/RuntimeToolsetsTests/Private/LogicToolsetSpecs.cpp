@@ -119,6 +119,18 @@ void FLogicToolsetSpec::Define()
 		TestEqual(TEXT("R restarts too"), static_cast<int32>(Vars()->GetNumberField(TEXT("moves"))), 0);
 	});
 
+	It("keeps chosen variables over a restart", [this]()
+	{
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"({"vars":{"score":0,"round":1}})"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"({"rules":[{"name":"next","on":"button","filter":"next","actions":[
+			{"set":"score","value":"score + 5"},{"set":"round","value":"round + 1"},{"restart":true,"keep":["score"]}]}]})"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"({"on":"button","name":"next"})"));
+		const TSharedPtr<FJsonObject> V = Vars();
+		TestEqual(TEXT("kept"), static_cast<int32>(V->GetNumberField(TEXT("score"))), 5);
+		TestEqual(TEXT("reset"), static_cast<int32>(V->GetNumberField(TEXT("round"))), 1);
+	});
+
 	It("detects a draw", [this]()
 	{
 		BuildTicTacToe();

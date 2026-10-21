@@ -3,7 +3,7 @@ A complete, playable tic-tac-toe made only from tool calls (what an agent does f
 rules, HUD, restart button, R to restart, optional computer opponent. After it runs the game plays by itself;
 the script/agent can disconnect.
 
-    python Scripts/examples/tictactoe.py [--ai] [--demo] [--out shot.jpg] [--clear]
+    python Scripts/examples/tictactoe.py [--two-player] [--demo] [--out shot.jpg] [--clear]
 """
 
 import argparse
@@ -14,12 +14,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from rtbuild import Runtime, box, mat  # noqa: E402
 
 CELL = 300
+KEEP = ["ai", "score_x", "score_o"]  # survive Restart / Mode
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8018/mcp")
-    ap.add_argument("--ai", action="store_true", help="play X against the computer")
+    ap.add_argument("--two-player", action="store_true", help="start in 2-player mode (default: X against the computer)")
     ap.add_argument("--demo", action="store_true", help="play a few moves to show the board")
     ap.add_argument("--out", default=None)
     ap.add_argument("--clear", action="store_true")
@@ -47,7 +48,7 @@ def main():
 
     # ---- game definition
     rt.call("logic.define_vars", replace=True, vars={
-        "board": [""] * 9, "turn": "X", "winner": "", "moves": 0, "pos": positions, "lines": [], "ai": args.ai,
+        "board": [""] * 9, "turn": "X", "winner": "", "moves": 0, "pos": positions, "lines": [], "ai": not args.two_player,
         "score_x": 0, "score_o": 0})
     x_piece = {"call": "build.create_assembly", "args": {"name": "X_{moves}", "location": "=pos[event.index]", "material": "red",
                "color": [0.75, 0.05, 0.04], "roughness": 0.35, "parts": [
@@ -81,16 +82,19 @@ def main():
             {"if": "m < 0 && board[4] == ''", "then": [{"set": "m", "value": "4"}]},
             {"if": "m < 0", "then": [{"set": "m", "value": "pick(indices(board, ''))"}]},
             {"emit": "move", "data": {"index": "=m"}}]},
-        {"name": "restart_button", "on": "button", "filter": "restart", "actions": [{"restart": True}]},
-        {"name": "restart_key", "on": "key", "key": "R", "actions": [{"restart": True}]},
+        {"name": "restart_button", "on": "button", "filter": "restart", "actions": [{"restart": True, "keep": KEEP}]},
+        {"name": "restart_key", "on": "key", "key": "R", "actions": [{"restart": True, "keep": KEEP}]},
+        {"name": "mode_button", "on": "button", "filter": "mode", "actions": [{"set": "ai", "value": "!ai"}, {"restart": True, "keep": KEEP}]},
     ])
-    # Scores survive a restart: restart resets variables, so carry them in the start rule.
     rt.call("logic.define_ui", items=[
         {"name": "title", "kind": "text", "text": "TIC-TAC-TOE", "anchor": [0.5, 0.05], "font_size": 30, "background": [0, 0, 0, 0.55]},
         {"name": "status", "kind": "text", "anchor": [0.5, 0.13], "font_size": 24, "color": [1, 0.85, 0.4, 1],
          "text": "{winner == '' ? (ai && turn == 'O' ? 'Computer is thinking...' : turn + ' to move') : (winner == 'draw' ? 'Draw!' : winner + ' wins!')}"},
-        {"name": "restart", "kind": "button", "text": "Restart (R)", "anchor": [0.5, 0.92], "font_size": 22},
-        {"name": "hint", "kind": "text", "text": "Click a square to play" + (" X against the computer" if args.ai else ""), "anchor": [0.5, 0.97],
+        {"name": "score", "kind": "text", "anchor": [0.12, 0.08], "font_size": 22, "text": "X  {score_x} : {score_o}  O"},
+        {"name": "restart", "kind": "button", "text": "Restart (R)", "anchor": [0.42, 0.92], "font_size": 22},
+        {"name": "mode", "kind": "button", "text": "{ai ? 'Mode: vs Computer' : 'Mode: 2 Players'}", "anchor": [0.6, 0.92], "font_size": 22,
+         "background": [0.15, 0.5, 0.2, 1]},
+        {"name": "hint", "kind": "text", "text": "{ai ? 'You are X. Click a square.' : 'Take turns clicking squares.'}", "anchor": [0.5, 0.97],
          "font_size": 14, "background": [0, 0, 0, 0]},
     ])
     rt.call("logic.set_input_mode", mode="cursor", lock_camera=True)
@@ -98,9 +102,9 @@ def main():
     rt.call("camera.set_camera", location=[0, -1150, 1550], look_at=[0, -60, 0], fov=60)
     rt.call("logic.start")
     if args.demo:
-        for cell in ([0, 4] if args.ai else [0, 4, 8, 2, 6]):
+        for cell in ([0, 2] if not args.two_player else [0, 4, 8, 2, 6]):
             rt.call("logic.fire_event", on="click", target=f"TicTacToe/cell_{cell}")
-            if args.ai:
+            if not args.two_player:
                 rt.call("logic.step", seconds=1)
     state = rt.call("logic.get_state", log_limit=5)
     print("vars:", {k: state["vars"][k] for k in ("board", "turn", "winner", "moves")})
