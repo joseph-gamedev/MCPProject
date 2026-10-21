@@ -5,6 +5,7 @@
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
 #include "RuntimeToolsetsCore.h"
+#include "RuntimeToolsetsSettings.h"
 #include "Camera/CameraActor.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/Engine.h"
@@ -102,9 +103,43 @@ void FMaterialsToolsetSpec::Define()
 		H->CallFails(TEXT("materials.set_material"), FString::Printf(TEXT("{\"target\":\"%s\",\"material\":\"/Game/NoSuch.NoSuch\"}"), *Cube), ERuntimeToolError::NotFound);
 	});
 
+	It("reads one parameter and names the right setter on a type mismatch", [this]()
+	{
+		const TSharedRef<FJsonObject> P = H->CallOk(TEXT("materials.get_parameter"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"color\"}"), *Cube));
+		TestEqual(TEXT("exact name"), P->GetStringField(TEXT("name")), FString(TEXT("Color")));
+		TestEqual(TEXT("type"), P->GetStringField(TEXT("type")), FString(TEXT("Vector")));
+		H->CallFails(TEXT("materials.get_parameter"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"Nope\"}"), *Cube), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("materials.set_scalar"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"Color\",\"value\":1}"), *Cube), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("materials.set_texture"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"Color\"}"), *Cube), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("materials.set_texture"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"Nope\"}"), *Cube), ERuntimeToolError::NotFound);
+		const TSharedRef<FJsonObject> Set = H->CallOk(TEXT("materials.set_vector"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"Color\",\"value\":[0,1,0]}"), *Cube));
+		TestEqual(TEXT("new value returned"), Set->GetArrayField(TEXT("vector"))[1]->AsNumber(), 1.0);
+	});
+
 	It("reports missing collections", [this]()
 	{
 		H->CallFails(TEXT("materials.set_collection_param"), TEXT("{\"collection\":\"/Game/NoSuch.NoSuch\",\"name\":\"X\",\"value\":1}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("materials.list_collection_parameters"), TEXT("{\"collection\":\"/Game/NoSuch.NoSuch\"}"), ERuntimeToolError::NotFound);
+		const TCHAR* Style = TEXT("/RuntimeToolsets/Materials/MPC_RT_Style.MPC_RT_Style");
+		URuntimeToolsetsSettings* Settings = GetMutableDefault<URuntimeToolsetsSettings>();
+		const TArray<FString> Roots = Settings->AllowedObjectRoots;
+		if (Roots.Num() > 0 && !Roots.Contains(TEXT("/RuntimeToolsets/")))
+		{
+			H->CallFails(TEXT("materials.list_collection_parameters"), FString::Printf(TEXT("{\"collection\":\"%s\"}"), Style), ERuntimeToolError::NotAllowed);
+			Settings->AllowedObjectRoots.Add(TEXT("/RuntimeToolsets/"));
+		}
+		ON_SCOPE_EXIT { GetMutableDefault<URuntimeToolsetsSettings>()->AllowedObjectRoots = Roots; };
+		if (LoadObject<UObject>(nullptr, Style))
+		{
+			TestTrue(TEXT("scalars listed"), H->CallOk(TEXT("materials.list_collection_parameters"), FString::Printf(TEXT("{\"collection\":\"%s\"}"), Style))
+				->GetObjectField(TEXT("scalars"))->HasField(TEXT("Faceted")));
+			const TSharedRef<FJsonObject> R = H->CallOk(TEXT("materials.set_collection_param"), FString::Printf(TEXT("{\"collection\":\"%s\",\"name\":\"Faceted\",\"value\":1}"), Style));
+			TestTrue(TEXT("previous reported"), R->HasField(TEXT("previous")));
+			H->CallOk(TEXT("history.undo"));
+			H->CallFails(TEXT("materials.set_collection_param"), FString::Printf(TEXT("{\"collection\":\"%s\",\"name\":\"Faceted\",\"value\":[1,0,0]}"), Style),
+				ERuntimeToolError::InvalidArguments);
+			H->CallFails(TEXT("materials.set_collection_param"), FString::Printf(TEXT("{\"collection\":\"%s\",\"name\":\"Nope\",\"value\":1}"), Style), ERuntimeToolError::NotFound);
+		}
 	});
 }
 
@@ -134,6 +169,20 @@ void FCameraToolsetSpec::Define()
 	It("needs a player controller", [this]()
 	{
 		H->CallFails(TEXT("camera.get_camera"), TEXT("{}"), ERuntimeToolError::WrongState);
+		H->CallFails(TEXT("camera.reset_camera"), TEXT("{}"), ERuntimeToolError::WrongState);
+		H->CallFails(TEXT("camera.set_fly_mode"), TEXT("{}"), ERuntimeToolError::WrongState);
+		H->CallFails(TEXT("camera.set_fly_speed"), TEXT("{\"speed\":-5}"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("camera.set_view_mode"), TEXT("{\"mode\":\"thermal\"}"), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("sets fly speed, keeping what is not given", [this]()
+	{
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("camera.set_fly_speed"), TEXT("{\"speed\":2500}"));
+		TestEqual(TEXT("fixed"), R->GetStringField(TEXT("mode")), FString(TEXT("Fixed")));
+		TestEqual(TEXT("speed"), R->GetNumberField(TEXT("fixed_speed")), 2500.0);
+		const TSharedRef<FJsonObject> A = H->CallOk(TEXT("camera.set_fly_speed"), TEXT("{\"mode\":\"Auto\"}"));
+		TestEqual(TEXT("auto"), A->GetStringField(TEXT("mode")), FString(TEXT("Auto")));
+		TestEqual(TEXT("speed kept"), A->GetNumberField(TEXT("fixed_speed")), 2500.0);
 	});
 
 	Describe("with a player", [this]()
@@ -155,9 +204,22 @@ void FCameraToolsetSpec::Define()
 			}
 			const TSharedRef<FJsonObject> Get = H->CallOk(TEXT("camera.get_camera"));
 			TestTrue(TEXT("reports tool camera"), Get->GetBoolField(TEXT("tool_camera")));
+			TestEqual(TEXT("mode"), Get->GetStringField(TEXT("mode")), FString(TEXT("ToolCamera")));
 			TestEqual(TEXT("fov"), Get->GetNumberField(TEXT("fov")), 60.0);
 			H->CallOk(TEXT("history.undo"));
 			TestEqual(TEXT("view target restored"), PC->GetViewTarget(), Before);
+			H->CallFails(TEXT("camera.set_camera"), TEXT("{\"location\":[0,0,0],\"look_at\":[0,0,0]}"), ERuntimeToolError::InvalidArguments);
+			H->CallFails(TEXT("camera.set_camera"), TEXT("{\"fov\":300}"), ERuntimeToolError::InvalidArguments);
+		});
+
+		It("changes the fov only", [this]()
+		{
+			H->CallOk(TEXT("camera.set_camera"), TEXT("{\"location\":[0,-500,200],\"look_at\":[0,0,0]}"));
+			const TSharedRef<FJsonObject> R = H->CallOk(TEXT("camera.set_fov"), TEXT("{\"fov\":40}"));
+			TestEqual(TEXT("fov"), R->GetNumberField(TEXT("fov")), 40.0);
+			TestTrue(TEXT("pose kept"), CameraLocation().Equals(FVector(0, -500, 200), 0.1));
+			H->CallFails(TEXT("camera.set_fov"), TEXT("{\"fov\":1}"), ERuntimeToolError::InvalidArguments);
+			H->CallOk(TEXT("camera.set_fly_mode"), TEXT("{\"enabled\":false}"));
 		});
 
 		It("frames nodes so they fit", [this]()

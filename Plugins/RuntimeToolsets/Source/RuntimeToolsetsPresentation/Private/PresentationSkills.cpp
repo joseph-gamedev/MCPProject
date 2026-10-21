@@ -1,6 +1,5 @@
 #include "PresentationSkills.h"
-#include "RuntimeJson.h"
-#include "RuntimeToolsetsCore.h"
+#include "RuntimeStyleToolset.h"
 
 URuntimeOutdoorLightingSkill::URuntimeOutdoorLightingSkill()
 {
@@ -22,11 +21,16 @@ Unreal's outdoor light is a system of six parts. The **Directional Light (sun)**
 ## Sun orientation
 - Pitch is elevation: 0 = on the horizon, -90 = overhead. Sunset/sunrise: -2 to -10. Morning or afternoon: -25 to -45.
 - Yaw is compass direction: 0 = North, 180 = South.
-- lighting.set_time_of_day maps an hour to a sun angle; lighting.set_sun sets rotation, intensity and temperature directly.
+- lighting.set_time_of_day maps an hour to a sun angle; lighting.set_sun sets rotation, intensity, temperature and shadow
+  softness (source_angle, soft_source_angle) directly.
 
-## Properties live on components
-Read and write lighting properties on the actor's **component**, never on the actor: actors.list_components first, then
-reflection.get_property / reflection.set_property on the component (e.g. SkyAtmosphereComponent, VolumetricCloudComponent,
+## Tools first, then components
+lighting.get_environment reads every part at once: sun, sky light, atmosphere, clouds (with the cloud material's coverage and
+density), fog and post process (with the exposure mode). The lighting tools cover the usual settings: lighting.set_sun,
+lighting.set_sky, lighting.set_atmosphere (Rayleigh/Mie), lighting.set_clouds (coverage, density, altitude, layer height,
+shadows), lighting.set_fog, lighting.set_post_process (exposure bias and auto exposure min/max). For anything else, read and
+write properties on the actor's **component**, never on the actor: actors.list_components first, then
+reflection.get_properties / reflection.set_properties on the component (e.g. SkyAtmosphereComponent, VolumetricCloudComponent,
 DirectionalLightComponent). Spawn missing parts with actors.spawn_actor (class /Script/Engine.SkyAtmosphere,
 /Script/Engine.VolumetricCloud, /Script/Engine.SkyLight, /Script/Engine.ExponentialHeightFog).
 
@@ -36,15 +40,15 @@ it stacks and over-saturates. Keep light temperature at 5500-6500 K and nudge it
 
 ## Clouds before colour
 Too much cloud coverage blankets the sky and is the usual cause of "no blue sky" or "everything orange". Check cloud
-coverage before touching sky colour, light temperature, Rayleigh scattering or post process.
+coverage (lighting.get_environment, clouds.coverage) before touching sky colour, light temperature, Rayleigh scattering or post process.
 - Scattered clouds with visible sky: global coverage -0.2 to 0.0, density 0.007-0.010, bottom altitude 3-5 km, layer height 5-8 km.
 
 ## Brightness and exposure
 Use physical intensities: direct sun 80,000-120,000 lux, hazy 25,000-50,000, overcast 5,000-15,000, late afternoon
 1,000-6,000, sunset 300-1,000. Engine defaults (~10 lux) look flat.
-Exposure bias depends on the post process mode; read it first (lighting.get_environment):
-- Auto exposure active (min and max brightness set): bias is a small offset, -2 to +2 EV, steps of 0.5.
-- Auto exposure off: realistic lux needs a large negative bias: direct sun -10 to -14 EV, hazy -7 to -10, overcast -4 to -7,
+Exposure bias depends on the exposure mode; read it first (lighting.get_environment, post_process.exposure_mode):
+- Auto (min and max brightness set, e.g. lighting.set_post_process exposure_min/exposure_max): bias is a small offset, -2 to +2 EV, steps of 0.5.
+- Manual or no limits: realistic lux needs a large negative bias: direct sun -10 to -14 EV, hazy -7 to -10, overcast -4 to -7,
   late afternoon -2 to -5, sunset -1 to -3.
 
 ## Sunset fog
@@ -52,10 +56,10 @@ Haze at sunset comes from the atmosphere. Keep height fog subtle (density 0.0000
 and never use it to fake horizon glow.
 
 ## Overcast recipe
-1. Clouds low and thick: coverage 0.5-0.75, density 0.02-0.04, bottom altitude 0.5-2 km, layer height 8-14 km, cast cloud
+1. Clouds low and thick (lighting.set_clouds): coverage 0.5-0.75, density 0.02-0.04, bottom altitude 0.5-2 km, layer height 8-14 km, cast cloud
    shadows on, sky light occlusion 0.75-0.9.
-2. Soft sun: source angle 2-5 degrees (15-30 when the sun disc is hidden), soft angle 40-70.
-3. Atmosphere: Mie scattering scale 0.01-0.05; Rayleigh colour about (0.45, 0.56, 0.75); restore (0.175, 0.41, 1.0) for clear sky.
+2. Soft sun (lighting.set_sun): source angle 2-5 degrees (15-30 when the sun disc is hidden), soft angle 40-70.
+3. Atmosphere (lighting.set_atmosphere): Mie scattering scale 0.01-0.05; Rayleigh colour about (0.45, 0.56, 0.75); restore (0.175, 0.41, 1.0) for clear sky.
 4. Sky light intensity 1.0-1.5, height fog density 0.01-0.02, exposure bias from 0 and iterate.
 lighting.apply_mood "overcast" is a quick starting point; refine with the values above.
 
@@ -102,17 +106,46 @@ FString URuntimeArtStyleSkill::GeneratePrompt(const FString& InitialInstructions
 {
 	// Live preset list (projects add presets in Config/RuntimeToolsets/StylePresets.json).
 	FString List;
-	const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(TEXT("style.list_presets"), MakeShared<FJsonObject>(), FToolCallerContext(), 1);
-	if (R.IsOk() && R.Payload.IsValid())
+	for (const FRuntimeStylePresetInfo& P : URuntimeStyleToolset::ListPresets().Presets)
 	{
-		const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
-		if (R.Payload->TryGetArrayField(TEXT("presets"), Presets))
-		{
-			for (const TSharedPtr<FJsonValue>& V : *Presets)
-			{
-				List += FString::Printf(TEXT("- **%s**: %s\n"), *V->AsObject()->GetStringField(TEXT("name")), *V->AsObject()->GetStringField(TEXT("description")));
-			}
-		}
+		List += FString::Printf(TEXT("- **%s**: %s\n"), *P.Name, *P.Description);
 	}
 	return InitialInstructions.Replace(TEXT("{Presets}"), List.IsEmpty() ? TEXT("(see style.list_presets)") : *List);
+}
+
+URuntimeVfxPlacementSkill::URuntimeVfxPlacementSkill()
+{
+	Description = TEXT("Apply whenever placing or spawning a visual effect: smoke, fire, explosion, sparks, dust, magic, impacts, ambient particles.");
+	Toolsets = {TEXT("vfx"), TEXT("scene"), TEXT("capture")};
+	Instructions = TEXT(R"SKILL(# Placing visual effects (adapted from Epic's Niagara placement and fundamentals skills)
+
+## Pick, do not invent
+- Use an existing Niagara system. Ask for or confirm the asset when the user did not name one; do not place the first
+  match blindly. /Niagara/DefaultAssets/DefaultSystem.DefaultSystem is only a placeholder (a fountain of sprites).
+- If nothing fits, say so instead of faking it with an unrelated effect.
+
+## Lasting or one-shot
+- Lasting effects (fire, smoke, waterfalls, ambient dust) are scene nodes: vfx.spawn_system. They can be moved, grouped,
+  tuned and undone.
+- Bursts (explosions, impacts, muzzle flashes, sparks) are vfx.spawn_one_shot: they remove themselves when they finish.
+  A looping system never finishes; the result says looping = true, then use vfx.spawn_system and vfx.deactivate instead.
+
+## Placement
+- Effects that sit on something (fire, smoke, puddles, dust) use snap_to_ground, or a location on the surface. Floating
+  effects above the ground look wrong.
+- 1 unit = 1 cm: check size against the real subject (a campfire is about 100 cm across, a torch flame 20-30 cm).
+  Scale the node, or use the system's size user variable when it has one.
+- Attach effects that must follow an object with parent (the node it belongs to).
+
+## Tuning
+- First contact: vfx.get_summary lists user variables (the system's external controls) with values, emitters, CPU/GPU and
+  renderers. Only user variables can change at runtime: vfx.set_user_variable (numbers, true/false, [x,y,z], [r,g,b,a]).
+- Hue shifts do nothing on a white base colour; set a coloured base first.
+- Range requests ("10 to 20") need randomness inside the system; a single user value cannot express a range.
+- Swap the effect on the same node with vfx.set_system (keeps position and tags).
+
+## Check
+Take a screenshot (capture.screenshot) after placing: is it visible, the right size, on the surface, and not hidden in
+geometry? Too many live effects cost frame time: vfx.list_active shows what is running.
+)SKILL");
 }

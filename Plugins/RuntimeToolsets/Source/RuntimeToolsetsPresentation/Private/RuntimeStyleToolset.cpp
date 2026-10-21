@@ -1,7 +1,7 @@
-#include "StyleToolset.h"
+#include "RuntimeStyleToolset.h"
+#include "PresentationToolCall.h"
 #include "RuntimeCommand.h"
 #include "RuntimeJson.h"
-#include "RuntimeToolHelpers.h"
 #include "RuntimeToolsetsCore.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/World.h"
@@ -12,9 +12,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
-using namespace RuntimeTools;
-
-namespace
+namespace RtStyle
 {
 	const TCHAR* MpcPath = TEXT("/RuntimeToolsets/Materials/MPC_RT_Style.MPC_RT_Style");
 	const TCHAR* PostPath = TEXT("/RuntimeToolsets/Materials/M_PP_Style.M_PP_Style");
@@ -247,14 +245,16 @@ namespace
 		return true;
 	}
 
+
 	/** Lighting through the lighting toolset (its own undo entries). */
-	void ApplyLighting(FToolInvocation& Inv, const TSharedRef<FJsonObject>& Style, TArray<FString>& Notes)
+	void ApplyLighting(const TSharedRef<FJsonObject>& Style, TArray<FString>& Notes)
 	{
 		const TSharedPtr<FJsonObject>* L = nullptr;
 		if (!Style->TryGetObjectField(TEXT("lighting"), L))
 		{
 			return;
 		}
+		FToolInvocation& Inv = PresentationTool::Inv();
 		auto Call = [&](const TCHAR* Tool, const TSharedRef<FJsonObject>& Args)
 		{
 			const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(Tool, Args, Inv.GetCaller(), Inv.GetDepth() + 1);
@@ -280,146 +280,147 @@ namespace
 			}
 		}
 	}
+
+	/** Merges the layer overrides given to a tool into a style. */
+	bool MergeLayers(const TSharedRef<FJsonObject>& Style, const TArray<TPair<const TCHAR*, const FRuntimeToolJson*>>& Layers)
+	{
+		for (const TPair<const TCHAR*, const FRuntimeToolJson*>& Layer : Layers)
+		{
+			if (!Layer.Value->IsSet())
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject> O = Layer.Value->AsObject();
+			if (!O.IsValid())
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("%s must be an object of parameters, e.g. {\"Saturation\": 1.2}"), Layer.Key));
+				return false;
+			}
+			TSharedRef<FJsonObject> Over = MakeShared<FJsonObject>();
+			Over->SetObjectField(Layer.Key, O);
+			Merge(Style, Over);
+		}
+		return true;
+	}
+
+	FString PresetNames()
+	{
+		TArray<FString> Names;
+		Presets().GetKeys(Names);
+		Names.Sort();
+		return FString::Join(Names, TEXT(", "));
+	}
 }
 
-static void ListPresets(FToolInvocation& Inv)
+FRuntimeStylePresetList URuntimeStyleToolset::ListPresets()
 {
-	TArray<TSharedPtr<FJsonValue>> Items;
+	using namespace RtStyle;
+	FRuntimeStylePresetList Out;
 	for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Presets())
 	{
-		TSharedRef<FJsonObject> O = Obj();
-		O->SetStringField(TEXT("name"), P.Key);
-		FString D;
-		P.Value->TryGetStringField(TEXT("description"), D);
-		O->SetStringField(TEXT("description"), D);
-		Items.Add(MakeShared<FJsonValueObject>(O));
+		FRuntimeStylePresetInfo& I = Out.Presets.AddDefaulted_GetRef();
+		I.Name = P.Key;
+		P.Value->TryGetStringField(TEXT("description"), I.Description);
 	}
-	TSharedRef<FJsonObject> Out = Obj();
-	Out->SetArrayField(TEXT("presets"), Items);
-	Out->SetStringField(TEXT("layers"), TEXT("material: Faceted, Pattern, Steps, Saturation, RimStrength, RimColor, Tint | post: Toon, Bands, ShadowFloor, Outline, OutlineWidth, "
+	Out.Presets.Sort([](const FRuntimeStylePresetInfo& A, const FRuntimeStylePresetInfo& B) { return A.Name < B.Name; });
+	Out.Layers = TEXT("material: Faceted, Pattern, Steps, Saturation, RimStrength, RimColor, Tint | post: Toon, Bands, ShadowFloor, Outline, OutlineWidth, "
 		"OutlineColor, DepthSens, NormalSens, Paint, PaintRadius, PaintScale, PixelSize, Levels, Saturation, Contrast, Tint | settings: bloom, vignette, ao, grain, "
-		"chromatic, exposure_bias, temperature | lighting: mood, sun{}, sky{}, fog{}"));
-	Inv.Succeed(Out);
+		"chromatic, exposure_bias, temperature | lighting: mood, sun{}, sky{}, fog{}");
+	return Out;
 }
 
-static void Apply(FToolInvocation& Inv)
+FRuntimeStyleInfo URuntimeStyleToolset::Apply(const FRuntimeToolJson& Material, const FRuntimeToolJson& Post, const FRuntimeToolJson& Settings, const FRuntimeToolJson& Lighting,
+	const FString& Preset, bool bLightingEnabled)
 {
+	using namespace RtStyle;
+	FRuntimeStyleInfo Out;
+	UWorld* W = RuntimeToolCall::GetWorld();
 	TSharedRef<FJsonObject> Style = MakeShared<FJsonObject>();
-	const FString Preset = Inv.GetString(TEXT("preset"));
 	if (!Preset.IsEmpty())
 	{
 		const TSharedPtr<FJsonObject>* P = Presets().Find(Preset);
 		if (!P)
 		{
-			TArray<FString> Names;
-			Presets().GetKeys(Names);
-			Inv.Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("unknown preset '%s'"), *Preset), TEXT("Presets: ") + FString::Join(Names, TEXT(", ")));
-			return;
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("unknown preset '%s'"), *Preset), TEXT("Presets: ") + PresetNames());
+			return Out;
 		}
 		Style = Copy(*P);
 	}
-	else if (const TSharedPtr<FJsonObject>* Cur = Current().Find(Inv.GetWorld()))
+	else if (const TSharedPtr<FJsonObject>* Cur = Current().Find(W))
 	{
 		Style = Copy(*Cur); // tweak the current style
 	}
-	for (const TCHAR* Section : {TEXT("material"), TEXT("post"), TEXT("settings"), TEXT("lighting")})
+	if (!MergeLayers(Style, {{TEXT("material"), &Material}, {TEXT("post"), &Post}, {TEXT("settings"), &Settings}, {TEXT("lighting"), &Lighting}}))
 	{
-		if (const TSharedPtr<FJsonObject> O = Inv.GetObject(Section))
-		{
-			TSharedRef<FJsonObject> Over = MakeShared<FJsonObject>();
-			Over->SetObjectField(Section, O);
-			Merge(Style, Over);
-		}
+		return Out;
 	}
-	if (!Inv.GetBool(TEXT("lighting_enabled"), true))
+	if (!bLightingEnabled)
 	{
 		Style->RemoveField(TEXT("lighting"));
 	}
-	Style->SetStringField(TEXT("name"), Preset.IsEmpty() ? TEXT("custom") : Preset);
-	UWorld* W = Inv.GetWorld();
+	Style->SetStringField(TEXT("name"), Preset.IsEmpty() ? TEXT("custom") : *Preset);
 	const TSharedPtr<FJsonObject>* Prev = Current().Find(W);
 	const TSharedRef<FJsonObject> Before = Prev ? Copy(*Prev) : Copy(*Presets().Find(TEXT("realistic")));
 	TWeakObjectPtr<UWorld> WeakW = W;
 	auto Do = [WeakW, Style](FRuntimeCommandContext&, FString& Err) { return WeakW.IsValid() && ApplyLayers(WeakW.Get(), Style, Err); };
 	auto Undo = [WeakW, Before](FRuntimeCommandContext&) { FString E; return WeakW.IsValid() && ApplyLayers(WeakW.Get(), Before, E); };
-	if (!Inv.RunCommand(MakeUnique<FLambdaCommand>(TEXT("art style"), Do, Undo)))
+	if (!RuntimeToolCall::RunCommand(MakeUnique<FLambdaCommand>(TEXT("art style"), Do, Undo)))
 	{
-		return;
+		return Out;
 	}
 	TArray<FString> Notes;
-	ApplyLighting(Inv, Style, Notes);
-	TSharedRef<FJsonObject> Out = Obj();
-	Out->SetObjectField(TEXT("style"), Style);
-	if (Notes.Num() > 0)
-	{
-		Out->SetStringField(TEXT("lighting_notes"), FString::Join(Notes, TEXT("; ")));
-	}
-	Inv.Succeed(Out);
+	ApplyLighting(Style, Notes);
+	Out.bApplied = true;
+	Out.Style = FRuntimeToolJson::Make(Style);
+	Out.LightingNotes = FString::Join(Notes, TEXT("; "));
+	return Out;
 }
 
-static void GetStyle(FToolInvocation& Inv)
+FRuntimeStyleInfo URuntimeStyleToolset::Get()
 {
-	TSharedRef<FJsonObject> Out = Obj();
-	if (const TSharedPtr<FJsonObject>* Cur = Current().Find(Inv.GetWorld()))
+	using namespace RtStyle;
+	FRuntimeStyleInfo Out;
+	if (const TSharedPtr<FJsonObject>* Cur = Current().Find(RuntimeToolCall::GetWorld()))
 	{
-		Out->SetObjectField(TEXT("style"), *Cur);
+		Out.bApplied = true;
+		Out.Style = FRuntimeToolJson::Make(*Cur);
 	}
 	else
 	{
-		Out->SetStringField(TEXT("style"), TEXT("none applied (engine defaults, equivalent to realistic materials)"));
+		Out.Style = FRuntimeToolJson::Make(MakeShared<FJsonValueString>(TEXT("none applied (engine defaults, equivalent to realistic materials)")));
 	}
-	Inv.Succeed(Out);
+	return Out;
 }
 
-static void DefinePreset(FToolInvocation& Inv)
+FRuntimeStyleInfo URuntimeStyleToolset::DefinePreset(const FString& Name, const FRuntimeToolJson& Material, const FRuntimeToolJson& Post, const FRuntimeToolJson& Settings,
+	const FRuntimeToolJson& Lighting, const FString& BasedOn, const FString& Description)
 {
-	const FString Name = Inv.GetString(TEXT("name"));
-	TSharedRef<FJsonObject> P = Inv.Has(TEXT("based_on")) && Presets().Contains(Inv.GetString(TEXT("based_on"))) ? Copy(Presets()[Inv.GetString(TEXT("based_on"))])
-		: MakeShared<FJsonObject>();
-	for (const TCHAR* Section : {TEXT("material"), TEXT("post"), TEXT("settings"), TEXT("lighting")})
+	using namespace RtStyle;
+	FRuntimeStyleInfo Out;
+	if (Name.TrimStartAndEnd().IsEmpty())
 	{
-		if (const TSharedPtr<FJsonObject> O = Inv.GetObject(Section))
-		{
-			TSharedRef<FJsonObject> Over = MakeShared<FJsonObject>();
-			Over->SetObjectField(Section, O);
-			Merge(P, Over);
-		}
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("name is empty"), TEXT("e.g. \"comic\""));
+		return Out;
 	}
-	P->SetStringField(TEXT("description"), Inv.GetString(TEXT("description"), TEXT("Custom style")));
+	TSharedRef<FJsonObject> P = MakeShared<FJsonObject>();
+	if (!BasedOn.IsEmpty())
+	{
+		const TSharedPtr<FJsonObject>* Base = Presets().Find(BasedOn);
+		if (!Base)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("based_on: unknown preset '%s'"), *BasedOn), TEXT("Presets: ") + PresetNames());
+			return Out;
+		}
+		P = Copy(*Base);
+	}
+	if (!MergeLayers(P, {{TEXT("material"), &Material}, {TEXT("post"), &Post}, {TEXT("settings"), &Settings}, {TEXT("lighting"), &Lighting}}))
+	{
+		return Out;
+	}
+	P->SetStringField(TEXT("description"), Description);
 	Presets().Add(Name, P);
-	Inv.Succeed();
-}
-
-void FStyleToolset::RegisterTools(FRuntimeToolsetBuilder& B)
-{
-	B.Tool(TEXT("list_presets"), TEXT("Art style presets with descriptions, and every adjustable parameter."))
-		.Args(FToolSchema())
-		.Handle(&ListPresets);
-
-	B.Tool(TEXT("apply"), TEXT("Restyle the whole scene: a preset (realistic, stylized, lowpoly, toon, retro, noir, ...) and/or overrides of any layer. Undoable."))
-		.Args(FToolSchema()
-			.Add(TEXT("preset"), FToolParam::String(TEXT("Preset name (empty = tweak the current style)"), 64))
-			.Add(TEXT("material"), FToolParam::Object(TEXT("{Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}")))
-			.Add(TEXT("post"), FToolParam::Object(TEXT("{Toon 0-1, Bands, ShadowFloor, Outline 0-1, OutlineWidth px, OutlineColor, DepthSens, NormalSens, Paint 0-1, PaintRadius, PaintScale, PixelSize px, Levels, Saturation, Contrast, Tint}")))
-			.Add(TEXT("settings"), FToolParam::Object(TEXT("{bloom, vignette, ao, grain, chromatic, exposure_bias, temperature}")))
-			.Add(TEXT("lighting"), FToolParam::Object(TEXT("{mood, sun:{rotation, intensity, temperature, color}, sky:{intensity, color}, fog:{density, color, height_falloff}}")))
-			.Add(TEXT("lighting_enabled"), FToolParam::Boolean(TEXT("Also change the lighting (default true)")).Default(true)))
-		.Undoable().RequiresWorld()
-		.Handle(&Apply);
-
-	B.Tool(TEXT("get"), TEXT("The style currently applied."))
-		.Args(FToolSchema())
-		.RequiresWorld()
-		.Handle(&GetStyle);
-
-	B.Tool(TEXT("define_preset"), TEXT("Add or replace a named style preset (optionally based on another)."))
-		.Args(FToolSchema()
-			.Add(TEXT("name"), FToolParam::String(TEXT("Preset name"), 64).Required())
-			.Add(TEXT("based_on"), FToolParam::String(TEXT("Start from this preset"), 64))
-			.Add(TEXT("description"), FToolParam::String(TEXT("What it looks like"), 256))
-			.Add(TEXT("material"), FToolParam::Object(TEXT("Material layer")))
-			.Add(TEXT("post"), FToolParam::Object(TEXT("Post layer")))
-			.Add(TEXT("settings"), FToolParam::Object(TEXT("Post settings")))
-			.Add(TEXT("lighting"), FToolParam::Object(TEXT("Lighting"))))
-		.Handle(&DefinePreset);
+	TSharedRef<FJsonObject> Shown = Copy(P);
+	Shown->SetStringField(TEXT("name"), Name);
+	Out.Style = FRuntimeToolJson::Make(Shown);
+	return Out;
 }

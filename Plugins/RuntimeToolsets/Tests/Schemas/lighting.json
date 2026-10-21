@@ -1,248 +1,9 @@
 {
-	"description": "Sun, sky, fog, post process, time of day and mood presets",
+	"description": "Outdoor lighting at runtime: sun (directional light), sky light, sky atmosphere, volumetric clouds, height fog and the\nglobal post process (exposure, grading). Follow the outdoor_lighting skill.\nWorkflow: get_environment (what exists, exposure mode, cloud coverage) -> set_sun or set_time_of_day first (it drives\nthe sky) -> set_clouds / set_atmosphere -> set_fog -> set_post_process for exposure -> screenshot and refine.\napply_mood is a one-step starting point. Missing parts: spawn them with actors.spawn_actor (SkyAtmosphere,\nVolumetricCloud, SkyLight, ExponentialHeightFog, DirectionalLight). Arguments left out keep their current value.",
 	"name": "lighting",
 	"tools": [
 		{
-			"description": "Sun, sky light, fog and post-process settings of the level.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-				},
-				"type": "object"
-			},
-			"name": "lighting.get_environment"
-		},
-		{
-			"description": "Set the directional light's rotation, intensity, color or temperature.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"color":
-					{
-						"description": "[r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"intensity":
-					{
-						"description": "Intensity (lux)",
-						"minimum": 0,
-						"type": "number"
-					},
-					"rotation":
-					{
-						"description": "[pitch,yaw,roll]; pitch -90 = straight down",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"target":
-					{
-						"description": "Directional light (default: first in level)",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"temperature":
-					{
-						"description": "Kelvin",
-						"maximum": 12000,
-						"minimum": 1700,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "lighting.set_sun",
-			"undoable": true
-		},
-		{
-			"description": "Set the sky light's intensity and color (recaptures if needed).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"color":
-					{
-						"description": "[r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"intensity":
-					{
-						"description": "Intensity",
-						"minimum": 0,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "lighting.set_sky",
-			"undoable": true
-		},
-		{
-			"description": "Set exponential height fog density, falloff, color, start distance, volumetric.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"color":
-					{
-						"description": "[r,g,b] 0-1",
-						"items":
-						{
-							"type": "number"
-						},
-						"maxItems": 3,
-						"minItems": 3,
-						"type": "array"
-					},
-					"density":
-					{
-						"description": "Density",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					},
-					"height_falloff":
-					{
-						"description": "Height falloff",
-						"maximum": 10,
-						"minimum": 0,
-						"type": "number"
-					},
-					"start_distance":
-					{
-						"description": "Start distance cm",
-						"minimum": 0,
-						"type": "number"
-					},
-					"volumetric":
-					{
-						"description": "Volumetric fog",
-						"type": "boolean"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "lighting.set_fog",
-			"undoable": true
-		},
-		{
-			"description": "Set global post process (exposure, bloom, saturation, contrast, vignette, white balance).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"bloom":
-					{
-						"description": "Bloom intensity",
-						"maximum": 8,
-						"minimum": 0,
-						"type": "number"
-					},
-					"contrast":
-					{
-						"description": "Contrast (1 = neutral)",
-						"maximum": 2,
-						"minimum": 0,
-						"type": "number"
-					},
-					"exposure_bias":
-					{
-						"description": "Exposure compensation (stops)",
-						"maximum": 15,
-						"minimum": -15,
-						"type": "number"
-					},
-					"saturation":
-					{
-						"description": "Saturation (1 = neutral)",
-						"maximum": 2,
-						"minimum": 0,
-						"type": "number"
-					},
-					"vignette":
-					{
-						"description": "Vignette intensity",
-						"maximum": 1,
-						"minimum": 0,
-						"type": "number"
-					},
-					"white_balance":
-					{
-						"description": "White balance Kelvin",
-						"maximum": 15000,
-						"minimum": 1500,
-						"type": "number"
-					}
-				},
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "lighting.set_post_process",
-			"undoable": true
-		},
-		{
-			"description": "Place the sun for a clock hour (6 sunrise, 12 noon, 18 sunset).",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"hour":
-					{
-						"description": "Hour 0-24",
-						"maximum": 24,
-						"minimum": 0,
-						"type": "number"
-					},
-					"target":
-					{
-						"description": "Directional light (default: first in level)",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"yaw":
-					{
-						"description": "Sun heading degrees",
-						"type": "number"
-					}
-				},
-				"required": [
-					"hour"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "lighting.set_time_of_day",
-			"undoable": true
-		},
-		{
-			"description": "One-step look: noon, morning, sunset, night, overcast, foggy (sun, fog, grading).",
+			"description": "One-step look for the sun, fog, clouds and grading, as one undo step. A starting point: refine with the other tools.\nReturns: The mood and the parts that changed (parts the level lacks are skipped).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -250,14 +11,14 @@
 				{
 					"mood":
 					{
-						"description": "Preset",
+						"description": "Noon, Morning, Sunset, Night, Overcast or Foggy.",
 						"enum": [
-							"noon",
-							"morning",
-							"sunset",
-							"night",
-							"overcast",
-							"foggy"
+							"Noon",
+							"Morning",
+							"Sunset",
+							"Night",
+							"Overcast",
+							"Foggy"
 						],
 						"type": "string"
 					}
@@ -269,8 +30,1192 @@
 			},
 			"mutating": true,
 			"name": "lighting.apply_mood",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The mood and the parts that changed (parts the level lacks are skipped).",
+						"properties":
+						{
+							"changed":
+							{
+								"description": "Parts that changed: sun, fog, clouds, post_process.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"mood":
+							{
+								"enum": [
+									"Noon",
+									"Morning",
+									"Sunset",
+									"Night",
+									"Overcast",
+									"Foggy"
+								],
+								"type": "string"
+							}
+						},
+						"title": "RuntimeMoodResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Reads the whole lighting setup: sun, sky light, atmosphere, clouds (with material coverage/density), fog and post process (with the exposure mode, which decides the exposure bias range). Read it before changing lighting.\nReturns: One section per part; a part the level lacks has an empty `actor`.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "lighting.get_environment",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "One section per part; a part the level lacks has an empty `actor`.",
+						"properties":
+						{
+							"atmosphere":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "Empty when the level has no sky atmosphere.",
+										"type": "string"
+									},
+									"mie_anisotropy":
+									{
+										"type": "number"
+									},
+									"mie_scattering_scale":
+									{
+										"description": "Mie (haze) scattering scale; overcast 0.01-0.05.",
+										"type": "number"
+									},
+									"multi_scattering_factor":
+									{
+										"type": "number"
+									},
+									"rayleigh_scattering":
+									{
+										"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 4,
+										"minItems": 3,
+										"type": "array"
+									},
+									"rayleigh_scattering_scale":
+									{
+										"type": "number"
+									}
+								},
+								"title": "RuntimeAtmosphereInfo",
+								"type": "object"
+							},
+							"clouds":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "Empty when the level has no volumetric cloud.",
+										"type": "string"
+									},
+									"bottom_altitude_km":
+									{
+										"description": "Bottom of the cloud layer in km.",
+										"type": "number"
+									},
+									"cast_shadows":
+									{
+										"description": "Whether the sun casts cloud shadows (directional light setting).",
+										"type": "boolean"
+									},
+									"coverage":
+									{
+										"description": "Global coverage (-1 clear .. 1 overcast; scattered clouds -0.2..0). Only valid when CoverageParameter is set.",
+										"type": "number"
+									},
+									"coverage_parameter":
+									{
+										"description": "Name of the material's coverage parameter, empty if it has none.",
+										"type": "string"
+									},
+									"density":
+									{
+										"description": "Global density (light clouds ~0.008, overcast 0.02-0.04). Only valid when DensityParameter is set.",
+										"type": "number"
+									},
+									"density_parameter":
+									{
+										"description": "Name of the material's density parameter, empty if it has none.",
+										"type": "string"
+									},
+									"layer_height_km":
+									{
+										"description": "Thickness of the layer in km.",
+										"type": "number"
+									},
+									"material":
+									{
+										"description": "Cloud material path. Engine content (/Engine/...) is shared: changes go to a dynamic instance on this component.",
+										"type": "string"
+									},
+									"shadow_strength":
+									{
+										"description": "Cloud shadow strength on surfaces (directional light setting).",
+										"type": "number"
+									},
+									"sky_light_occlusion":
+									{
+										"description": "How much clouds block sky light from below (0-1).",
+										"type": "number"
+									}
+								},
+								"title": "RuntimeCloudInfo",
+								"type": "object"
+							},
+							"fog":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "Empty when the level has no height fog.",
+										"type": "string"
+									},
+									"color":
+									{
+										"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 4,
+										"minItems": 3,
+										"type": "array"
+									},
+									"density":
+									{
+										"type": "number"
+									},
+									"height_falloff":
+									{
+										"type": "number"
+									},
+									"start_distance":
+									{
+										"description": "Distance from the camera where fog starts, cm.",
+										"type": "number"
+									},
+									"volumetric":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeFogInfo",
+								"type": "object"
+							},
+							"post_process":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "Empty when the level has no unbound post process volume.",
+										"type": "string"
+									},
+									"bloom":
+									{
+										"type": "number"
+									},
+									"contrast":
+									{
+										"type": "number"
+									},
+									"created_volume":
+									{
+										"description": "Whether set_post_process created the volume.",
+										"type": "boolean"
+									},
+									"exposure_bias":
+									{
+										"description": "Exposure compensation in EV.",
+										"type": "number"
+									},
+									"exposure_max":
+									{
+										"description": "Auto exposure maximum brightness (EV100).",
+										"type": "number"
+									},
+									"exposure_min":
+									{
+										"description": "Auto exposure minimum brightness (EV100).",
+										"type": "number"
+									},
+									"exposure_mode":
+									{
+										"enum": [
+											"Auto",
+											"Manual",
+											"ProjectDefault"
+										],
+										"type": "string"
+									},
+									"overridden":
+									{
+										"description": "Settings this volume overrides (others use project defaults), e.g. [\"exposure_bias\", \"bloom\"].",
+										"items":
+										{
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"saturation":
+									{
+										"type": "number"
+									},
+									"vignette":
+									{
+										"type": "number"
+									},
+									"white_balance":
+									{
+										"description": "White balance temperature in Kelvin.",
+										"type": "number"
+									}
+								},
+								"title": "RuntimePostProcessInfo",
+								"type": "object"
+							},
+							"sky_light":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "Empty when the level has no sky light.",
+										"type": "string"
+									},
+									"color":
+									{
+										"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 4,
+										"minItems": 3,
+										"type": "array"
+									},
+									"intensity":
+									{
+										"type": "number"
+									},
+									"realtime_capture":
+									{
+										"description": "Real-time capture follows sky changes; otherwise the tools recapture after changes.",
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeSkyLightInfo",
+								"type": "object"
+							},
+							"sun":
+							{
+								"properties":
+								{
+									"actor":
+									{
+										"description": "The light (node id or actor:Name); empty when the level has no directional light.",
+										"type": "string"
+									},
+									"cast_cloud_shadows":
+									{
+										"description": "Whether volumetric clouds cast shadows from this light.",
+										"type": "boolean"
+									},
+									"color":
+									{
+										"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 4,
+										"minItems": 3,
+										"type": "array"
+									},
+									"elevation":
+									{
+										"description": "Elevation above the horizon in degrees (= -pitch).",
+										"type": "number"
+									},
+									"intensity":
+									{
+										"description": "Intensity in lux (direct sun 80000-120000).",
+										"type": "number"
+									},
+									"rotation":
+									{
+										"description": "[pitch, yaw, roll] (degrees)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"soft_source_angle":
+									{
+										"description": "Soft source angle in degrees (overcast: 40-70).",
+										"type": "number"
+									},
+									"source_angle":
+									{
+										"description": "Angular diameter of the sun disc in degrees (soft shadows: larger).",
+										"type": "number"
+									},
+									"temperature":
+									{
+										"description": "Kelvin, used when bUseTemperature.",
+										"type": "number"
+									},
+									"use_temperature":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeSunInfo",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeEnvironment",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets the sky atmosphere's scattering (sky colour and haze). Undoable.\nReturns: The atmosphere after the change. Fails if the level has no sky atmosphere.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"mie_anisotropy":
+					{
+						"description": "Forward scattering of haze (0-0.999), default 0.8.",
+						"type": "number"
+					},
+					"mie_scattering_scale":
+					{
+						"description": "Haze; clear 0.004, overcast 0.01-0.05.",
+						"type": "number"
+					},
+					"multi_scattering_factor":
+					{
+						"description": "0-2, default 1.",
+						"type": "number"
+					},
+					"rayleigh_scattering":
+					{
+						"description": "Rayleigh colour [r, g, b]: clear [0.175, 0.41, 1.0], overcast about [0.45, 0.56, 0.75]. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"rayleigh_scattering_scale":
+					{
+						"description": "Rayleigh scale, default 0.0331.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_atmosphere",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The atmosphere after the change. Fails if the level has no sky atmosphere.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Empty when the level has no sky atmosphere.",
+								"type": "string"
+							},
+							"mie_anisotropy":
+							{
+								"type": "number"
+							},
+							"mie_scattering_scale":
+							{
+								"description": "Mie (haze) scattering scale; overcast 0.01-0.05.",
+								"type": "number"
+							},
+							"multi_scattering_factor":
+							{
+								"type": "number"
+							},
+							"rayleigh_scattering":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							},
+							"rayleigh_scattering_scale":
+							{
+								"type": "number"
+							}
+						},
+						"title": "RuntimeAtmosphereInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets the volumetric cloud layer, cloud shadows and (through its material) coverage and density. Coverage and density go to a dynamic instance of the cloud material on this component, so engine assets are never modified. Undoable.\nReturns: The clouds after the change. Fails if the level has no volumetric cloud, or coverage/density is given but the cloud material has no such parameter (the error lists its scalar parameters).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"bottom_altitude_km":
+					{
+						"description": "Cloud base in km; 3-5 scattered, 0.5-2 overcast.",
+						"type": "number"
+					},
+					"cast_shadows":
+					{
+						"description": "Cloud shadows from the sun (directional light setting).",
+						"type": "boolean"
+					},
+					"coverage":
+					{
+						"description": "Global coverage -1 (clear) .. 1 (overcast); scattered clouds -0.2..0, overcast 0.5-0.75.",
+						"type": "number"
+					},
+					"density":
+					{
+						"description": "Global density; light 0.007-0.01, overcast 0.02-0.04.",
+						"type": "number"
+					},
+					"layer_height_km":
+					{
+						"description": "Layer thickness in km; 5-8 scattered, 8-14 overcast.",
+						"type": "number"
+					},
+					"shadow_strength":
+					{
+						"description": "Cloud shadow strength on surfaces, 0-1 (overcast 0.8-1).",
+						"type": "number"
+					},
+					"sky_light_occlusion":
+					{
+						"description": "0-1; overcast 0.75-0.9.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_clouds",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The clouds after the change. Fails if the level has no volumetric cloud, or coverage/density is given but the cloud material has no such parameter (the error lists its scalar parameters).",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Empty when the level has no volumetric cloud.",
+								"type": "string"
+							},
+							"bottom_altitude_km":
+							{
+								"description": "Bottom of the cloud layer in km.",
+								"type": "number"
+							},
+							"cast_shadows":
+							{
+								"description": "Whether the sun casts cloud shadows (directional light setting).",
+								"type": "boolean"
+							},
+							"coverage":
+							{
+								"description": "Global coverage (-1 clear .. 1 overcast; scattered clouds -0.2..0). Only valid when CoverageParameter is set.",
+								"type": "number"
+							},
+							"coverage_parameter":
+							{
+								"description": "Name of the material's coverage parameter, empty if it has none.",
+								"type": "string"
+							},
+							"density":
+							{
+								"description": "Global density (light clouds ~0.008, overcast 0.02-0.04). Only valid when DensityParameter is set.",
+								"type": "number"
+							},
+							"density_parameter":
+							{
+								"description": "Name of the material's density parameter, empty if it has none.",
+								"type": "string"
+							},
+							"layer_height_km":
+							{
+								"description": "Thickness of the layer in km.",
+								"type": "number"
+							},
+							"material":
+							{
+								"description": "Cloud material path. Engine content (/Engine/...) is shared: changes go to a dynamic instance on this component.",
+								"type": "string"
+							},
+							"shadow_strength":
+							{
+								"description": "Cloud shadow strength on surfaces (directional light setting).",
+								"type": "number"
+							},
+							"sky_light_occlusion":
+							{
+								"description": "How much clouds block sky light from below (0-1).",
+								"type": "number"
+							}
+						},
+						"title": "RuntimeCloudInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets exponential height fog. Undoable.\nReturns: The fog after the change. Fails if the level has no height fog or a value is out of range.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Inscattering colour [r, g, b]. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"density":
+					{
+						"description": "Fog density (0-10), e.g. 0.02; sunset haze 0.000002-0.00002.",
+						"type": "number"
+					},
+					"height_falloff":
+					{
+						"description": "Height falloff (0-10), e.g. 0.2.",
+						"type": "number"
+					},
+					"start_distance":
+					{
+						"description": "Distance in cm where fog starts, e.g. 3000.",
+						"type": "number"
+					},
+					"volumetric":
+					{
+						"description": "Volumetric fog on/off.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_fog",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The fog after the change. Fails if the level has no height fog or a value is out of range.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Empty when the level has no height fog.",
+								"type": "string"
+							},
+							"color":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							},
+							"density":
+							{
+								"type": "number"
+							},
+							"height_falloff":
+							{
+								"type": "number"
+							},
+							"start_distance":
+							{
+								"description": "Distance from the camera where fog starts, cm.",
+								"type": "number"
+							},
+							"volumetric":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeFogInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets the global post process: exposure (bias and auto exposure range), bloom and grading. Creates an unbound volume when the level has none. Undoable.\nReturns: The post process after the change, with the exposure mode. Fails if a value is out of range.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"bloom":
+					{
+						"description": "Bloom intensity (0-8).",
+						"type": "number"
+					},
+					"contrast":
+					{
+						"description": "Contrast, 1 = neutral (0-2).",
+						"type": "number"
+					},
+					"exposure_bias":
+					{
+						"description": "Exposure compensation in EV (-15..15). Auto exposure: -2..2; manual with physical lux: down to -14.",
+						"type": "number"
+					},
+					"exposure_max":
+					{
+						"description": "Auto exposure maximum brightness (EV100).",
+						"type": "number"
+					},
+					"exposure_min":
+					{
+						"description": "Auto exposure minimum brightness (EV100); with exposure_max it makes the exposure mode Auto.",
+						"type": "number"
+					},
+					"saturation":
+					{
+						"description": "Saturation, 1 = neutral (0-2).",
+						"type": "number"
+					},
+					"vignette":
+					{
+						"description": "Vignette intensity (0-1).",
+						"type": "number"
+					},
+					"white_balance":
+					{
+						"description": "White balance temperature in Kelvin (1500-15000).",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_post_process",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The post process after the change, with the exposure mode. Fails if a value is out of range.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Empty when the level has no unbound post process volume.",
+								"type": "string"
+							},
+							"bloom":
+							{
+								"type": "number"
+							},
+							"contrast":
+							{
+								"type": "number"
+							},
+							"created_volume":
+							{
+								"description": "Whether set_post_process created the volume.",
+								"type": "boolean"
+							},
+							"exposure_bias":
+							{
+								"description": "Exposure compensation in EV.",
+								"type": "number"
+							},
+							"exposure_max":
+							{
+								"description": "Auto exposure maximum brightness (EV100).",
+								"type": "number"
+							},
+							"exposure_min":
+							{
+								"description": "Auto exposure minimum brightness (EV100).",
+								"type": "number"
+							},
+							"exposure_mode":
+							{
+								"enum": [
+									"Auto",
+									"Manual",
+									"ProjectDefault"
+								],
+								"type": "string"
+							},
+							"overridden":
+							{
+								"description": "Settings this volume overrides (others use project defaults), e.g. [\"exposure_bias\", \"bloom\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"saturation":
+							{
+								"type": "number"
+							},
+							"vignette":
+							{
+								"type": "number"
+							},
+							"white_balance":
+							{
+								"description": "White balance temperature in Kelvin.",
+								"type": "number"
+							}
+						},
+						"title": "RuntimePostProcessInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets the sky light's intensity and colour (recaptures when not real-time). Undoable.\nReturns: The sky light after the change. Fails if the level has no sky light.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "[r, g, b], 0-1. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"intensity":
+					{
+						"description": "Multiplier, e.g. 1.2.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_sky",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky light after the change. Fails if the level has no sky light.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "Empty when the level has no sky light.",
+								"type": "string"
+							},
+							"color":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							},
+							"intensity":
+							{
+								"type": "number"
+							},
+							"realtime_capture":
+							{
+								"description": "Real-time capture follows sky changes; otherwise the tools recapture after changes.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeSkyLightInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets the sun's rotation, intensity, colour, temperature and shadow softness. Undoable.\nReturns: The sun after the change. Fails if the level has no directional light or the target is not one.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"color":
+					{
+						"description": "Light colour [r, g, b], 0-1. ([r, g, b] or [r, g, b, a], linear 0-1)",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 4,
+						"minItems": 3,
+						"type": "array"
+					},
+					"intensity":
+					{
+						"description": "Lux, e.g. 100000 for direct sun, 500 at sunset.",
+						"type": "number"
+					},
+					"rotation":
+					{
+						"description": "[pitch, yaw, roll]: pitch 0 = horizon, -90 = overhead, e.g. [-35, 120, 0]. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"soft_source_angle":
+					{
+						"description": "Soft angle in degrees (overcast 40-70).",
+						"type": "number"
+					},
+					"source_angle":
+					{
+						"description": "Sun disc angle in degrees (2-5 overcast, 15-30 when the disc is hidden).",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Directional light; the level's first one when omitted. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"temperature":
+					{
+						"description": "Kelvin (1700-12000), e.g. 6000; enables temperature.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_sun",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sun after the change. Fails if the level has no directional light or the target is not one.",
+						"properties":
+						{
+							"actor":
+							{
+								"description": "The light (node id or actor:Name); empty when the level has no directional light.",
+								"type": "string"
+							},
+							"cast_cloud_shadows":
+							{
+								"description": "Whether volumetric clouds cast shadows from this light.",
+								"type": "boolean"
+							},
+							"color":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							},
+							"elevation":
+							{
+								"description": "Elevation above the horizon in degrees (= -pitch).",
+								"type": "number"
+							},
+							"intensity":
+							{
+								"description": "Intensity in lux (direct sun 80000-120000).",
+								"type": "number"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"soft_source_angle":
+							{
+								"description": "Soft source angle in degrees (overcast: 40-70).",
+								"type": "number"
+							},
+							"source_angle":
+							{
+								"description": "Angular diameter of the sun disc in degrees (soft shadows: larger).",
+								"type": "number"
+							},
+							"temperature":
+							{
+								"description": "Kelvin, used when bUseTemperature.",
+								"type": "number"
+							},
+							"use_temperature":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeSunInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon. Undoable.\nReturns: The hour and the sun after the change. Fails if the hour is outside 0-24 or there is no directional light.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hour":
+					{
+						"description": "0-24, e.g. 9.5.",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Directional light; the level's first one when omitted. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"yaw":
+					{
+						"description": "Sun heading in degrees (default: keep), e.g. 120.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"hour"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.set_time_of_day",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The hour and the sun after the change. Fails if the hour is outside 0-24 or there is no directional light.",
+						"properties":
+						{
+							"hour":
+							{
+								"type": "number"
+							},
+							"sun":
+							{
+								"description": "The sun after the change.",
+								"properties":
+								{
+									"actor":
+									{
+										"description": "The light (node id or actor:Name); empty when the level has no directional light.",
+										"type": "string"
+									},
+									"cast_cloud_shadows":
+									{
+										"description": "Whether volumetric clouds cast shadows from this light.",
+										"type": "boolean"
+									},
+									"color":
+									{
+										"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 4,
+										"minItems": 3,
+										"type": "array"
+									},
+									"elevation":
+									{
+										"description": "Elevation above the horizon in degrees (= -pitch).",
+										"type": "number"
+									},
+									"intensity":
+									{
+										"description": "Intensity in lux (direct sun 80000-120000).",
+										"type": "number"
+									},
+									"rotation":
+									{
+										"description": "[pitch, yaw, roll] (degrees)",
+										"items":
+										{
+											"type": "number"
+										},
+										"maxItems": 3,
+										"minItems": 3,
+										"type": "array"
+									},
+									"soft_source_angle":
+									{
+										"description": "Soft source angle in degrees (overcast: 40-70).",
+										"type": "number"
+									},
+									"source_angle":
+									{
+										"description": "Angular diameter of the sun disc in degrees (soft shadows: larger).",
+										"type": "number"
+									},
+									"temperature":
+									{
+										"description": "Kelvin, used when bUseTemperature.",
+										"type": "number"
+									},
+									"use_temperature":
+									{
+										"type": "boolean"
+									}
+								},
+								"title": "RuntimeSunInfo",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeTimeOfDay",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

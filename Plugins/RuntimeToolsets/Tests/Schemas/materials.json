@@ -1,9 +1,177 @@
 {
-	"description": "Inspect and change materials and material parameters at runtime",
+	"description": "Materials at runtime: material slots and parameters on live meshes, and material parameter collections (world-wide values).\nWorkflow: list_parameters (slots, parameter names, types and values) -> get_parameter -> set_scalar / set_vector /\nset_texture (the first change puts a dynamic instance on the slot; undo restores the original material) or set_material\nto swap the whole material. Collections: list_collection_parameters -> set_collection_param.\nParameter names are matched case-insensitively; a name of another type fails with the tool to use instead.",
 	"name": "materials",
 	"tools": [
 		{
-			"description": "Material slots and the scalar/vector/texture parameters (with values) of one slot.",
+			"description": "Reads one material parameter (any type) on a mesh slot.\nReturns: The parameter: name (exact case), type and value. Fails if no parameter of that name exists (the error lists the available ones).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Parameter name (case-insensitive), e.g. \"Color\".",
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot index.",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Mesh actor or component, e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "materials.get_parameter",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The parameter: name (exact case), type and value. Fails if no parameter of that name exists (the error lists the available ones).",
+						"properties":
+						{
+							"material":
+							{
+								"description": "Material of the slot (a dynamic instance after a change).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Parameter name, exact case.",
+								"type": "string"
+							},
+							"scalar":
+							{
+								"description": "Value when type is Scalar.",
+								"type": "number"
+							},
+							"slot":
+							{
+								"type": "integer"
+							},
+							"target":
+							{
+								"description": "The mesh component the material is on.",
+								"type": "string"
+							},
+							"texture":
+							{
+								"description": "Value when type is Texture: texture path, empty = none.",
+								"type": "string"
+							},
+							"type":
+							{
+								"enum": [
+									"Scalar",
+									"Vector",
+									"Texture"
+								],
+								"type": "string"
+							},
+							"vector":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeMaterialParameter",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the parameters of a material parameter collection with their values in the current world.\nReturns: Scalars and vectors as name -> value maps. Fails if the collection is not found.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"collection":
+					{
+						"description": "Collection path, e.g. \"/Game/Materials/MPC_Global.MPC_Global\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"collection"
+				],
+				"type": "object"
+			},
+			"name": "materials.list_collection_parameters",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Scalars and vectors as name -> value maps. Fails if the collection is not found.",
+						"properties":
+						{
+							"collection":
+							{
+								"type": "string"
+							},
+							"scalars":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Scalar parameters: name -> value.",
+								"type": "object"
+							},
+							"vectors":
+							{
+								"additionalProperties":
+								{
+									"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 4,
+									"minItems": 3,
+									"type": "array"
+								},
+								"description": "Vector parameters: name -> [r,g,b,a].",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeCollectionParameters",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists a mesh's material slots and the scalar, vector and texture parameters (with current values) of one slot. Call this first: it gives exact parameter names and types.\nReturns: Slots (material path per slot), the slot's material, whether it is dynamic, and name -> value maps per type (sorted by name). Fails if the target has no mesh with material slots or the slot is out of range.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -11,23 +179,19 @@
 				{
 					"limit":
 					{
-						"description": "Max results (default 25)",
-						"maximum": 1000,
-						"minimum": 1,
+						"default": 100,
+						"description": "Maximum parameters returned per type.",
 						"type": "integer"
 					},
 					"slot":
 					{
 						"default": 0,
-						"description": "Material slot",
-						"maximum": 255,
-						"minimum": 0,
+						"description": "Material slot index (0 = first).",
 						"type": "integer"
 					},
 					"target":
 					{
-						"description": "Actor or actor#Component with a mesh",
-						"maxLength": 1024,
+						"description": "Mesh actor or component (node id like \"n12\", actor:Name, or actor#Component to pick a component). (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -36,10 +200,181 @@
 				],
 				"type": "object"
 			},
-			"name": "materials.list_parameters"
+			"name": "materials.list_parameters",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Slots (material path per slot), the slot's material, whether it is dynamic, and name -> value maps per type (sorted by name). Fails if the target has no mesh with material slots or the slot is out of range.",
+						"properties":
+						{
+							"component":
+							{
+								"description": "The mesh component (pass it back as `target`).",
+								"type": "string"
+							},
+							"dynamic":
+							{
+								"description": "Whether the slot already holds a dynamic instance (set_* tools create one on first change).",
+								"type": "boolean"
+							},
+							"material":
+							{
+								"description": "Material of that slot.",
+								"type": "string"
+							},
+							"scalars":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Scalar parameters: name -> value. Change with set_scalar.",
+								"type": "object"
+							},
+							"slot":
+							{
+								"description": "The slot the parameters below belong to.",
+								"type": "integer"
+							},
+							"slots":
+							{
+								"description": "Material path per slot, index-aligned with slot numbers.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"textures":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Texture parameters: name -> texture path (empty = none). Change with set_texture.",
+								"type": "object"
+							},
+							"vectors":
+							{
+								"additionalProperties":
+								{
+									"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 4,
+									"minItems": 3,
+									"type": "array"
+								},
+								"description": "Vector (colour) parameters: name -> [r,g,b,a]. Change with set_vector.",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeMaterialParameters",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
-			"description": "Assign a material asset to a slot (or all slots).",
+			"description": "Sets a material parameter collection value for the whole world: a number for scalars, [r,g,b(,a)] for vectors. Undoable.\nReturns: The parameter, its type, the new value and the previous one. Fails if the collection or parameter is not found, or the value does not match the parameter type.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"collection":
+					{
+						"description": "Collection path, e.g. \"/Game/Materials/MPC_Global.MPC_Global\".",
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Parameter name, e.g. \"WindStrength\".",
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "A number (scalar parameter) or [r,g,b] / [r,g,b,a] (vector parameter), e.g. 0.5. (Any JSON value)"
+					}
+				},
+				"required": [
+					"collection",
+					"name",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_collection_param",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The parameter, its type, the new value and the previous one. Fails if the collection or parameter is not found, or the value does not match the parameter type.",
+						"properties":
+						{
+							"collection":
+							{
+								"type": "string"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"previous":
+							{
+								"description": "Value before the change. (Any JSON value)"
+							},
+							"scalar":
+							{
+								"type": "number"
+							},
+							"type":
+							{
+								"description": "Scalar or Vector.",
+								"enum": [
+									"Scalar",
+									"Vector",
+									"Texture"
+								],
+								"type": "string"
+							},
+							"vector":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeCollectionParameter",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Assigns a material asset to a slot, or to every slot. Undoable.\nReturns: The target, the material path and the slots that changed. Fails if the material is not found or outside AllowedObjectRoots, or the slot is out of range.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -48,27 +383,23 @@
 					"all_slots":
 					{
 						"default": false,
-						"description": "Apply to every slot",
+						"description": "Apply to every slot instead of `slot`.",
 						"type": "boolean"
 					},
 					"material":
 					{
-						"description": "Material path, e.g. /Game/M_Stone.M_Stone",
-						"maxLength": 512,
+						"description": "Material or material instance path, e.g. \"/Game/Materials/M_Stone.M_Stone\".",
 						"type": "string"
 					},
 					"slot":
 					{
 						"default": 0,
-						"description": "Material slot",
-						"maximum": 255,
-						"minimum": 0,
+						"description": "Material slot index.",
 						"type": "integer"
 					},
 					"target":
 					{
-						"description": "Actor or actor#Component with a mesh",
-						"maxLength": 1024,
+						"description": "Mesh actor or component, e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					}
 				},
@@ -80,10 +411,47 @@
 			},
 			"mutating": true,
 			"name": "materials.set_material",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The target, the material path and the slots that changed. Fails if the material is not found or outside AllowedObjectRoots, or the slot is out of range.",
+						"properties":
+						{
+							"material":
+							{
+								"description": "Assigned material path.",
+								"type": "string"
+							},
+							"slots":
+							{
+								"description": "Slots that changed.",
+								"items":
+								{
+									"type": "integer"
+								},
+								"type": "array"
+							},
+							"target":
+							{
+								"type": "string"
+							}
+						},
+						"title": "RuntimeMaterialAssignment",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Set a scalar material parameter (creates a dynamic instance).",
+			"description": "Sets a scalar material parameter (creates a dynamic instance on the slot on first change). Undoable.\nReturns: The parameter with its new value. Fails if the parameter does not exist, or is not a scalar (the error names the right tool).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -91,27 +459,23 @@
 				{
 					"name":
 					{
-						"description": "Parameter name",
-						"maxLength": 128,
+						"description": "Scalar parameter name, e.g. \"Roughness\".",
 						"type": "string"
 					},
 					"slot":
 					{
 						"default": 0,
-						"description": "Material slot",
-						"maximum": 255,
-						"minimum": 0,
+						"description": "Material slot index.",
 						"type": "integer"
 					},
 					"target":
 					{
-						"description": "Actor or actor#Component with a mesh",
-						"maxLength": 1024,
+						"description": "Mesh actor or component, e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"value":
 					{
-						"description": "Value",
+						"description": "New value, e.g. 0.4.",
 						"type": "number"
 					}
 				},
@@ -124,10 +488,78 @@
 			},
 			"mutating": true,
 			"name": "materials.set_scalar",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The parameter with its new value. Fails if the parameter does not exist, or is not a scalar (the error names the right tool).",
+						"properties":
+						{
+							"material":
+							{
+								"description": "Material of the slot (a dynamic instance after a change).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Parameter name, exact case.",
+								"type": "string"
+							},
+							"scalar":
+							{
+								"description": "Value when type is Scalar.",
+								"type": "number"
+							},
+							"slot":
+							{
+								"type": "integer"
+							},
+							"target":
+							{
+								"description": "The mesh component the material is on.",
+								"type": "string"
+							},
+							"texture":
+							{
+								"description": "Value when type is Texture: texture path, empty = none.",
+								"type": "string"
+							},
+							"type":
+							{
+								"enum": [
+									"Scalar",
+									"Vector",
+									"Texture"
+								],
+								"type": "string"
+							},
+							"vector":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeMaterialParameter",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
 			"undoable": true
 		},
 		{
-			"description": "Set a vector/color material parameter, e.g. Color [r,g,b(,a)] 0-1.",
+			"description": "Sets a texture material parameter (creates a dynamic instance on first change). Undoable.\nReturns: The parameter with its new value. Fails if the parameter does not exist or is not a texture, or the texture is not found.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -135,32 +567,137 @@
 				{
 					"name":
 					{
-						"description": "Parameter name",
-						"maxLength": 128,
+						"description": "Texture parameter name, e.g. \"BaseTexture\".",
 						"type": "string"
 					},
 					"slot":
 					{
 						"default": 0,
-						"description": "Material slot",
-						"maximum": 255,
-						"minimum": 0,
+						"description": "Material slot index.",
 						"type": "integer"
 					},
 					"target":
 					{
-						"description": "Actor or actor#Component with a mesh",
-						"maxLength": 1024,
+						"description": "Mesh actor or component, e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"texture":
+					{
+						"default": "",
+						"description": "Texture path, e.g. \"/Game/Textures/T_Brick.T_Brick\"; empty clears the parameter.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "materials.set_texture",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The parameter with its new value. Fails if the parameter does not exist or is not a texture, or the texture is not found.",
+						"properties":
+						{
+							"material":
+							{
+								"description": "Material of the slot (a dynamic instance after a change).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Parameter name, exact case.",
+								"type": "string"
+							},
+							"scalar":
+							{
+								"description": "Value when type is Scalar.",
+								"type": "number"
+							},
+							"slot":
+							{
+								"type": "integer"
+							},
+							"target":
+							{
+								"description": "The mesh component the material is on.",
+								"type": "string"
+							},
+							"texture":
+							{
+								"description": "Value when type is Texture: texture path, empty = none.",
+								"type": "string"
+							},
+							"type":
+							{
+								"enum": [
+									"Scalar",
+									"Vector",
+									"Texture"
+								],
+								"type": "string"
+							},
+							"vector":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeMaterialParameter",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets a vector (colour) material parameter (creates a dynamic instance on first change). Undoable.\nReturns: The parameter with its new value. Fails if the parameter does not exist or is not a vector.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Vector parameter name, e.g. \"Color\".",
+						"type": "string"
+					},
+					"slot":
+					{
+						"default": 0,
+						"description": "Material slot index.",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Mesh actor or component, e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
 					"value":
 					{
-						"description": "[r,g,b] or [r,g,b,a]",
+						"description": "[r,g,b] or [r,g,b,a], linear 0-1 (above 1 for emissive), e.g. [1,0.2,0.1]. ([r, g, b] or [r, g, b, a], linear 0-1)",
 						"items":
 						{
 							"type": "number"
 						},
 						"maxItems": 4,
+						"minItems": 3,
 						"type": "array"
 					}
 				},
@@ -173,87 +710,76 @@
 			},
 			"mutating": true,
 			"name": "materials.set_vector",
-			"undoable": true
-		},
-		{
-			"description": "Set a texture material parameter (empty texture clears it).",
-			"input_schema":
+			"output_schema":
 			{
-				"additionalProperties": false,
 				"properties":
 				{
-					"name":
+					"returnValue":
 					{
-						"description": "Parameter name",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"slot":
-					{
-						"default": 0,
-						"description": "Material slot",
-						"maximum": 255,
-						"minimum": 0,
-						"type": "integer"
-					},
-					"target":
-					{
-						"description": "Actor or actor#Component with a mesh",
-						"maxLength": 1024,
-						"type": "string"
-					},
-					"texture":
-					{
-						"description": "Texture path",
-						"maxLength": 512,
-						"type": "string"
+						"description": "The parameter with its new value. Fails if the parameter does not exist or is not a vector.",
+						"properties":
+						{
+							"material":
+							{
+								"description": "Material of the slot (a dynamic instance after a change).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Parameter name, exact case.",
+								"type": "string"
+							},
+							"scalar":
+							{
+								"description": "Value when type is Scalar.",
+								"type": "number"
+							},
+							"slot":
+							{
+								"type": "integer"
+							},
+							"target":
+							{
+								"description": "The mesh component the material is on.",
+								"type": "string"
+							},
+							"texture":
+							{
+								"description": "Value when type is Texture: texture path, empty = none.",
+								"type": "string"
+							},
+							"type":
+							{
+								"enum": [
+									"Scalar",
+									"Vector",
+									"Texture"
+								],
+								"type": "string"
+							},
+							"vector":
+							{
+								"description": "[r, g, b] or [r, g, b, a], linear 0-1",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 4,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "RuntimeMaterialParameter",
+						"type": "object"
 					}
 				},
 				"required": [
-					"target",
-					"name"
+					"returnValue"
 				],
 				"type": "object"
 			},
-			"mutating": true,
-			"name": "materials.set_texture",
-			"undoable": true
-		},
-		{
-			"description": "Set a material parameter collection value (number or [r,g,b(,a)]) for the whole world.",
-			"input_schema":
-			{
-				"additionalProperties": false,
-				"properties":
-				{
-					"collection":
-					{
-						"description": "Collection path",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"name":
-					{
-						"description": "Parameter name",
-						"maxLength": 128,
-						"type": "string"
-					},
-					"value":
-					{
-						"description": "Number or [r,g,b(,a)]"
-					}
-				},
-				"required": [
-					"collection",
-					"name",
-					"value"
-				],
-				"type": "object"
-			},
-			"mutating": true,
-			"name": "materials.set_collection_param",
 			"undoable": true
 		}
 	],
-	"version": "1.0.0"
+	"version": "2.0.0"
 }

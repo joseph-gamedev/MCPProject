@@ -1,25 +1,31 @@
-#include "CameraToolset.h"
-#include "LightingToolset.h"
-#include "MaterialsToolset.h"
-#include "UiToolset.h"
-#include "StyleToolset.h"
+#include "RuntimeCameraToolset.h"
+#include "RuntimeLightingToolset.h"
+#include "RuntimeMaterialsToolset.h"
+#include "RuntimeStyleToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsActivity.h"
-#include "VfxToolset.h"
 #include "RuntimeToolsetsCore.h"
+#include "RuntimeUiToolset.h"
+#include "RuntimeVfxToolset.h"
 #include "Modules/ModuleManager.h"
 
-/** Presentation group: materials, camera, ui, vfx, lighting (Phase 2). Depends only on RuntimeToolsetsCore. */
+// Tool docs for packaged builds (doc comments are editor-only metadata).
+#include "Generated/ToolDocs.gen.inl"
+
+/** Presentation group: materials, camera, ui, vfx, lighting, style. UFUNCTION toolsets (Epic ToolsetRegistry style). */
 class FRuntimeToolsetsPresentationModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FMaterialsToolset>(), MakeShared<FCameraToolset>(), MakeShared<FUiToolset>(), MakeShared<FVfxToolset>(), MakeShared<FLightingToolset>(), MakeShared<FStyleToolset>()};
-		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("vfx:"), &FVfxToolset::SpawnFromSource);
-		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("label:"), &FUiToolset::SpawnLabelFromSource);
-		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)
+		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
+		IRuntimeToolsetsCore& Core = IRuntimeToolsetsCore::Get();
+		Core.RegisterSourceSpawner(TEXT("vfx:"), &URuntimeVfxToolset::SpawnFromSource);
+		Core.RegisterSourceSpawner(TEXT("label:"), &URuntimeUiToolset::SpawnLabelFromSource);
+		for (UClass* Class : {URuntimeMaterialsToolset::StaticClass(), URuntimeCameraToolset::StaticClass(), URuntimeUiToolset::StaticClass(),
+				 URuntimeVfxToolset::StaticClass(), URuntimeLightingToolset::StaticClass(), URuntimeStyleToolset::StaticClass()})
 		{
-			IRuntimeToolsetsCore::Get().RegisterToolset(Toolset);
+			Registered.Add(RuntimeToolReflection::RegisterToolsetClass(Class));
 		}
 		if (!IsRunningCommandlet())
 		{
