@@ -259,3 +259,88 @@ void FLabelToolsetSpec::Define()
 }
 
 #endif
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
+
+BEGIN_DEFINE_SPEC(FStyleToolsetSpec, "RuntimeToolsets.Toolsets.Style", RUNTIMETOOLSETS_TEST_FLAGS)
+	TUniquePtr<FToolTestHarness> H;
+	float Mpc(const TCHAR* Name)
+	{
+		UMaterialParameterCollection* C = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/RuntimeToolsets/Materials/MPC_RT_Style.MPC_RT_Style"));
+		return C ? UKismetMaterialLibrary::GetScalarParameterValue(H->GetWorld(), C, FName(Name)) : -1.f;
+	}
+	APostProcessVolume* StyleVolume()
+	{
+		for (TActorIterator<APostProcessVolume> It(H->GetWorld()); It; ++It)
+		{
+			if (It->Tags.Contains(FName(TEXT("RuntimeToolsetsStyle"))))
+			{
+				return *It;
+			}
+		}
+		return nullptr;
+	}
+END_DEFINE_SPEC(FStyleToolsetSpec)
+
+void FStyleToolsetSpec::Define()
+{
+	BeforeEach([this]()
+	{
+		H = MakeUnique<FToolTestHarness>(*this);
+		H->Setup();
+	});
+	AfterEach([this]() { H.Reset(); });
+
+	It("lists the built-in presets", [this]()
+	{
+		TArray<FString> Names;
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("style.list_presets"));
+		for (const TSharedPtr<FJsonValue>& V : R->GetArrayField(TEXT("presets")))
+		{
+			Names.Add(V->AsObject()->GetStringField(TEXT("name")));
+		}
+		for (const TCHAR* N : {TEXT("realistic"), TEXT("stylized"), TEXT("lowpoly"), TEXT("toon"), TEXT("retro"), TEXT("noir")})
+		{
+			TestTrue(FString::Printf(TEXT("has %s"), N), Names.Contains(N));
+		}
+	});
+
+	It("applies material switches and the post pass, tweaks, and undo restores", [this]()
+	{
+		H->CallOk(TEXT("style.apply"), TEXT(R"J({"preset":"lowpoly","lighting_enabled":false})J"));
+		TestEqual(TEXT("faceted"), Mpc(TEXT("Faceted")), 1.f);
+		TestEqual(TEXT("flat colours"), Mpc(TEXT("Pattern")), 0.f);
+		H->CallOk(TEXT("style.apply"), TEXT(R"J({"preset":"toon","lighting_enabled":false})J"));
+		APostProcessVolume* V = StyleVolume();
+		TestNotNull(TEXT("style volume"), V);
+		if (V)
+		{
+			TestTrue(TEXT("post pass on"), V->Settings.WeightedBlendables.Array.Num() == 1 && V->Settings.WeightedBlendables.Array[0].Weight > 0.5f);
+		}
+		H->CallOk(TEXT("style.apply"), TEXT(R"J({"material":{"Saturation":0.5},"lighting_enabled":false})J")); // tweak on top of toon
+		TestEqual(TEXT("tweak"), Mpc(TEXT("Saturation")), 0.5f);
+		TestEqual(TEXT("still toon"), H->CallOk(TEXT("style.get"))->GetObjectField(TEXT("style"))->GetObjectField(TEXT("post"))->GetNumberField(TEXT("Toon")), 1.0);
+		H->CallOk(TEXT("history.undo"));
+		H->CallOk(TEXT("history.undo"));
+		TestEqual(TEXT("back to lowpoly"), Mpc(TEXT("Faceted")), 1.f);
+		H->CallOk(TEXT("style.apply"), TEXT(R"J({"preset":"realistic"})J"));
+		if (V)
+		{
+			TestEqual(TEXT("realistic skips the post pass"), V->Settings.WeightedBlendables.Array[0].Weight, 0.f);
+		}
+	});
+
+	It("defines presets and rejects unknown ones", [this]()
+	{
+		H->CallFails(TEXT("style.apply"), TEXT(R"J({"preset":"nope"})J"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("style.define_preset"), TEXT(R"J({"name":"comic","based_on":"toon","post":{"OutlineWidth":3}})J"));
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("style.apply"), TEXT(R"J({"preset":"comic","lighting_enabled":false})J"));
+		TestEqual(TEXT("override kept"), R->GetObjectField(TEXT("style"))->GetObjectField(TEXT("post"))->GetNumberField(TEXT("OutlineWidth")), 3.0);
+		TestEqual(TEXT("base kept"), R->GetObjectField(TEXT("style"))->GetObjectField(TEXT("post"))->GetNumberField(TEXT("Toon")), 1.0);
+	});
+}
+
+#endif

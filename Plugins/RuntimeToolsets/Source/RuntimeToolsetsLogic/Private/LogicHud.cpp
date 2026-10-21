@@ -1,5 +1,6 @@
 // In-world HUD painter (enemy health bars, alert icons, floating numbers, hit flash) and feedback presets.
 #include "LogicHud.h"
+#include "LogicJsonHelpers.h"
 #include "LogicTuning.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
@@ -19,16 +20,6 @@
 
 namespace
 {
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
 	bool Flag(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, bool Default)
 	{
 		bool V = Default;

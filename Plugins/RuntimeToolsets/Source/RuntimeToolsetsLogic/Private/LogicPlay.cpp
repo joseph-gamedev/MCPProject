@@ -1,5 +1,6 @@
 // Platformer play: a playable character with a side camera, touch events, moving objects, hide/show and solidity.
 #include "LogicTuning.h"
+#include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -17,26 +18,6 @@
 
 namespace
 {
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
-	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
-	{
-		FString V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetStringField(Field, V);
-		}
-		return V;
-	}
-
 	FVector Vec(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FVector& Default)
 	{
 		FVector V = Default;

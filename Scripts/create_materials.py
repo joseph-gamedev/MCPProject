@@ -149,24 +149,82 @@ float4 sv = S.Eval(uv, Style, max(Tile, 1.0), Variation);
 
 TAILS = {
     "albedo": ("""
-float3 baseC = Color * max(sv.x, 0.0);
+float3 baseC = Color * lerp(1.0, max(sv.x, 0.0), Pattern);
 float3 jointC = (Style > 0.5 && Style < 1.5) ? float3(0.55, 0.53, 0.5) : Color * 0.6;
-return lerp(baseC, jointC, saturate(sv.w));
+float3 c = lerp(baseC, jointC, saturate(sv.w) * Pattern);
+float lum = dot(c, float3(0.2126, 0.7152, 0.0722));
+c = max(lerp(float3(lum, lum, lum), c, Saturation), 0.0) * Tint.rgb;
+if (Steps > 0.5)
+{
+    // flat palette: quantize in a perceptual space
+    float3 g = pow(c, 1.0 / 2.2);
+    g = floor(g * Steps + 0.5) / Steps;
+    c = pow(max(g, 0.0), 2.2);
+}
+return c;
 """, "CMOT_FLOAT3"),
-    "rough": ("\nreturn sv.y;\n", "CMOT_FLOAT1"),
+    "rough": ("\nreturn lerp(1.0, sv.y, Pattern);\n", "CMOT_FLOAT1"),
     "normal": ("""
-float hgt = sv.z * Relief;
+float hgt = sv.z * Relief * Pattern;
 float3 dpdx = ddx(P);
 float3 dpdy = ddy(P);
+float3 outN = nrm;
 float3 r1 = cross(dpdy, nrm);
 float3 r2 = cross(nrm, dpdx);
 float det = dot(dpdx, r1);
-if (abs(det) < 1e-12 || Relief <= 0.0)
-    return nrm;
-float3 grad = sign(det) * (ddx(hgt) * r1 + ddy(hgt) * r2);
-return normalize(abs(det) * nrm - grad);
+if (abs(det) > 1e-12 && Relief > 0.0 && Pattern > 0.0)
+{
+    float3 grad = sign(det) * (ddx(hgt) * r1 + ddy(hgt) * r2);
+    outN = normalize(abs(det) * nrm - grad);
+}
+if (Faceted > 0.01)
+{
+    // flat shading: the true face normal from screen-space derivatives (low-poly look)
+    float3 fn = normalize(cross(dpdy, dpdx));
+    fn = dot(fn, nrm) < 0.0 ? -fn : fn;
+    outN = normalize(lerp(outN, fn, saturate(Faceted)));
+}
+return outN;
+""", "CMOT_FLOAT3"),
+    "rim": ("""
+float fres = pow(saturate(1.0 - dot(nrm, normalize(Cam))), 3.0);
+return RimColor.rgb * fres * RimStrength;
 """, "CMOT_FLOAT3"),
 }
+
+STYLE_SCALARS = [("Faceted", 0.0), ("Pattern", 1.0), ("Steps", 0.0), ("Saturation", 1.0), ("RimStrength", 0.0)]
+STYLE_VECTORS = [("Tint", (1.0, 1.0, 1.0, 1.0)), ("RimColor", (1.0, 0.9, 0.7, 1.0))]
+
+
+def style_collection():
+    """Global art-style switches shared by every builder material (set at runtime by the style toolset)."""
+    name = "MPC_RT_Style"
+    mpc = unreal.load_asset(f"{FOLDER}/{name}.{name}")
+    if not mpc:
+        mpc = tools.create_asset(name, FOLDER, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    scalars, vectors = [], []
+    for n, v in STYLE_SCALARS:
+        p = unreal.CollectionScalarParameter()
+        p.set_editor_property("parameter_name", n)
+        p.set_editor_property("default_value", v)
+        scalars.append(p)
+    for n, v in STYLE_VECTORS:
+        p = unreal.CollectionVectorParameter()
+        p.set_editor_property("parameter_name", n)
+        p.set_editor_property("default_value", unreal.LinearColor(*v))
+        vectors.append(p)
+    mpc.set_editor_property("scalar_parameters", scalars)
+    mpc.set_editor_property("vector_parameters", vectors)
+    unreal.EditorAssetLibrary.save_loaded_asset(mpc)
+    unreal.log("Created MPC_RT_Style")
+    return mpc
+
+
+def collection_param(mat, mpc, name, x, y):
+    node = lib.create_material_expression(mat, unreal.MaterialExpressionCollectionParameter, x, y)
+    node.set_editor_property("collection", mpc)
+    node.set_editor_property("parameter_name", name)
+    return node
 
 
 def surface_node(mat, mode, x, y, sources):
@@ -186,7 +244,7 @@ def surface_node(mat, mode, x, y, sources):
     return node
 
 
-def build_pbr():
+def build_pbr(mpc):
     mat = fresh_material("M_RT_PBR")
     mat.set_editor_property("tangent_space_normal", False)
     world = lib.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1500, 0)
@@ -199,7 +257,10 @@ def build_pbr():
         "Tile": scalar(mat, "TileCm", 100.0, -1500, 400),
         "Relief": scalar(mat, "Relief", 0.0, -1500, 500),
         "Variation": scalar(mat, "Variation", 0.12, -1500, 600),
+        "Cam": lib.create_material_expression(mat, unreal.MaterialExpressionCameraVectorWS, -1500, 700),
     }
+    for i, (n, _) in enumerate(STYLE_SCALARS + STYLE_VECTORS):
+        sources[n] = collection_param(mat, mpc, n, -1800, -300 + i * 110)
     albedo = surface_node(mat, "albedo", -900, -200, sources)
     rough = surface_node(mat, "rough", -900, 50, sources)
     nrm = surface_node(mat, "normal", -900, 300, sources)
@@ -218,10 +279,148 @@ def build_pbr():
     glow = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -300, 450)
     lib.connect_material_expressions(emissive, "", glow, "A")
     lib.connect_material_expressions(strength, "", glow, "B")
-    lib.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    rim = surface_node(mat, "rim", -900, 550, sources)
+    total = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, -200, 500)
+    lib.connect_material_expressions(glow, "", total, "A")
+    lib.connect_material_expressions(rim, "", total, "B")
+    lib.connect_material_property(total, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     lib.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
     unreal.log("Created M_RT_PBR")
+
+
+PP_HLSL = r"""
+struct PPS
+{
+    float Lum(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+    float Depth(float2 uv) { return SceneTextureLookup(uv, PPI_SceneDepth, false).r; }
+    float3 Nrm(float2 uv) { return SceneTextureLookup(uv, PPI_WorldNormal, false).rgb; }
+    float3 Col(float2 uv) { return SceneTextureLookup(uv, PPI_PostProcessInput0, false).rgb; }
+};
+PPS F;
+float2 UV = GetDefaultSceneTextureUV(Parameters, PPI_PostProcessInput0);
+float2 T = GetSceneTextureBufferSize(PPI_PostProcessInput0).zw;
+if (PixelSize > 1.5)
+{
+    float2 cell = T * PixelSize;
+    UV = (floor(UV / cell) + 0.5) * cell;
+}
+float3 col = F.Col(UV);
+float depth = F.Depth(UV);
+bool sky = depth > 2000000.0;
+
+// Painterly: Kuwahara filter (keeps edges, flattens detail into brush-like patches).
+if (Paint > 0.01 && !sky)
+{
+    int R = clamp((int)PaintRadius, 1, 5);
+    float3 m[4];
+    float3 v[4];
+    for (int q = 0; q < 4; q++) { m[q] = 0; v[q] = 0; }
+    float n = (R + 1) * (R + 1);
+    [loop] for (int y = -R; y <= R; y++)
+    {
+        [loop] for (int x = -R; x <= R; x++)
+        {
+            float3 c = F.Col(UV + float2(x, y) * T * PaintScale);
+            if (x <= 0 && y <= 0) { m[0] += c; v[0] += c * c; }
+            if (x >= 0 && y <= 0) { m[1] += c; v[1] += c * c; }
+            if (x <= 0 && y >= 0) { m[2] += c; v[2] += c * c; }
+            if (x >= 0 && y >= 0) { m[3] += c; v[3] += c * c; }
+        }
+    }
+    float best = 1e20;
+    float3 pick = col;
+    for (int k = 0; k < 4; k++)
+    {
+        float3 mean = m[k] / n;
+        float3 var = abs(v[k] / n - mean * mean);
+        float s = var.r + var.g + var.b;
+        if (s < best) { best = s; pick = mean; }
+    }
+    col = lerp(col, pick, Paint);
+}
+
+// Toon: quantize the lighting into bands while keeping the surface colour.
+if (Toon > 0.01 && !sky)
+{
+    float3 base = SceneTextureLookup(UV, PPI_BaseColor, false).rgb;
+    float3 light = col / max(base, 0.02);
+    float L = F.Lum(light);
+    float q = max(floor(L * Bands + 0.5) / Bands, ShadowFloor);
+    float3 toon = L > 1e-4 ? base * light * (q / L) : base * q;
+    col = lerp(col, toon, Toon);
+}
+
+// Ink outlines from depth and normal discontinuities.
+if (Outline > 0.01)
+{
+    float2 o = T * OutlineWidth;
+    float3 n0 = F.Nrm(UV);
+    float dsum = 0.0;
+    float nsum = 0.0;
+    float2 offs[4] = { float2(o.x, 0), float2(-o.x, 0), float2(0, o.y), float2(0, -o.y) };
+    for (int i = 0; i < 4; i++)
+    {
+        float d = F.Depth(UV + offs[i]);
+        dsum += abs(min(d, 2000000.0) - min(depth, 2000000.0));
+        nsum += 1.0 - saturate(dot(n0, F.Nrm(UV + offs[i])));
+    }
+    float de = saturate(dsum / max(min(depth, 2000000.0), 1.0) * DepthSens - 0.15);
+    float ne = sky ? 0.0 : saturate(nsum * NormalSens - 0.25);
+    float e = saturate(max(de, ne));
+    col = lerp(col, OutlineColor.rgb, e * Outline);
+}
+
+// Grading.
+float lum = F.Lum(col);
+col = lerp(float3(lum, lum, lum), col, Saturation);
+col = max((col - 0.18) * Contrast + 0.18, 0.0) * Tint.rgb;
+if (Levels > 1.5)
+{
+    float3 g = pow(saturate(col / (col + 1.0)), 1.0 / 2.2);
+    g = floor(g * Levels + 0.5) / Levels;
+    g = pow(g, 2.2);
+    col = g / max(1.0 - g, 0.001);
+}
+return col;
+"""
+
+PP_SCALARS = [("PixelSize", 0.0), ("Paint", 0.0), ("PaintRadius", 3.0), ("PaintScale", 1.0), ("Toon", 0.0), ("Bands", 3.0), ("ShadowFloor", 0.2),
+              ("Outline", 0.0), ("OutlineWidth", 1.0), ("DepthSens", 8.0), ("NormalSens", 1.5), ("Saturation", 1.0), ("Contrast", 1.0), ("Levels", 0.0)]
+PP_VECTORS = [("OutlineColor", (0.02, 0.02, 0.03, 1.0)), ("Tint", (1.0, 1.0, 1.0, 1.0))]
+
+
+def build_post():
+    mat = fresh_material("M_PP_Style")
+    mat.set_editor_property("material_domain", unreal.MaterialDomain.MD_POST_PROCESS)
+    loc = getattr(unreal.BlendableLocation, "BL_SCENE_COLOR_BEFORE_DOF", None) or getattr(unreal.BlendableLocation, "BL_BEFORE_TRANSLUCENCY")
+    mat.set_editor_property("blendable_location", loc)
+    node = lib.create_material_expression(mat, unreal.MaterialExpressionCustom, -400, 0)
+    node.set_editor_property("code", PP_HLSL)
+    node.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    node.set_editor_property("description", "RT art style")
+    sources = {}
+    for i, (n, v) in enumerate(PP_SCALARS):
+        sources[n] = scalar(mat, n, v, -1100, -600 + i * 90)
+    for i, (n, v) in enumerate(PP_VECTORS):
+        sources[n] = vector(mat, n, v, -1100, 800 + i * 150)
+    # Scene texture nodes make the lookups available to the custom code.
+    for i, tid in enumerate(["PPI_POST_PROCESS_INPUT0", "PPI_SCENE_DEPTH", "PPI_WORLD_NORMAL", "PPI_BASE_COLOR"]):
+        st = lib.create_material_expression(mat, unreal.MaterialExpressionSceneTexture, -800, 900 + i * 120)
+        st.set_editor_property("scene_texture_id", getattr(unreal.SceneTextureId, tid))
+        sources["ST%d" % i] = st
+    inputs = []
+    for name in sources:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", name)
+        inputs.append(ci)
+    node.set_editor_property("inputs", inputs)
+    for name, src in sources.items():
+        lib.connect_material_expressions(src, "Color" if name.startswith("ST") else "", node, name)
+    lib.connect_material_property(node, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    lib.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    unreal.log("Created M_PP_Style")
 
 
 def build_glass():
@@ -238,5 +437,6 @@ def build_glass():
     unreal.log("Created M_RT_Glass")
 
 
-build_pbr()
+build_pbr(style_collection())
 build_glass()
+build_post()

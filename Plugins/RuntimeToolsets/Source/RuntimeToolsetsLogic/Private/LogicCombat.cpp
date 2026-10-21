@@ -1,5 +1,6 @@
 // Health and damage, hit zones, weapons (projectile / hitscan) and projectiles.
 #include "LogicTuning.h"
+#include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -12,26 +13,6 @@
 
 namespace
 {
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
-	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
-	{
-		FString V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetStringField(Field, V);
-		}
-		return V;
-	}
-
 	FRuntimeSceneGraph* GraphFor(UWorld* W)
 	{
 		return W ? IRuntimeToolsetsCore::Get().GetSceneGraph(W) : nullptr;

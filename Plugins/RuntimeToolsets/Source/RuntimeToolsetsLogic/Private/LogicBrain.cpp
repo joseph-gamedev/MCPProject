@@ -1,5 +1,6 @@
 // AI brains: data-driven state machines with vision cones, hearing, steering movement and shooting.
 #include "LogicTuning.h"
+#include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -13,26 +14,6 @@
 namespace
 {
 	const TCHAR* FxTag = TEXT("logic_fx");
-
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
-	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
-	{
-		FString V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetStringField(Field, V);
-		}
-		return V;
-	}
 
 	TSharedPtr<FJsonObject> Obj(const TSharedPtr<FJsonObject>& J, const TCHAR* Field)
 	{

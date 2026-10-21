@@ -1,0 +1,130 @@
+{
+	"description": "Art style for the whole scene: realistic, stylized, lowpoly, toon, retro, noir presets or custom mixes (materials, post-process, lighting)",
+	"name": "style",
+	"tools": [
+		{
+			"description": "Art style presets with descriptions, and every adjustable parameter.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "style.list_presets"
+		},
+		{
+			"description": "Restyle the whole scene: a preset (realistic, stylized, lowpoly, toon, retro, noir, ...) and/or overrides of any layer. Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"lighting":
+					{
+						"description": "{mood, sun:{rotation, intensity, temperature, color}, sky:{intensity, color}, fog:{density, color, height_falloff}}",
+						"type": "object"
+					},
+					"lighting_enabled":
+					{
+						"default": true,
+						"description": "Also change the lighting (default true)",
+						"type": "boolean"
+					},
+					"material":
+					{
+						"description": "{Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}",
+						"type": "object"
+					},
+					"post":
+					{
+						"description": "{Toon 0-1, Bands, ShadowFloor, Outline 0-1, OutlineWidth px, OutlineColor, DepthSens, NormalSens, Paint 0-1, PaintRadius, PaintScale, PixelSize px, Levels, Saturation, Contrast, Tint}",
+						"type": "object"
+					},
+					"preset":
+					{
+						"description": "Preset name (empty = tweak the current style)",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"settings":
+					{
+						"description": "{bloom, vignette, ao, grain, chromatic, exposure_bias, temperature}",
+						"type": "object"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "style.apply",
+			"undoable": true
+		},
+		{
+			"description": "The style currently applied.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "style.get"
+		},
+		{
+			"description": "Add or replace a named style preset (optionally based on another).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"based_on":
+					{
+						"description": "Start from this preset",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"description":
+					{
+						"description": "What it looks like",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"lighting":
+					{
+						"description": "Lighting",
+						"type": "object"
+					},
+					"material":
+					{
+						"description": "Material layer",
+						"type": "object"
+					},
+					"name":
+					{
+						"description": "Preset name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"post":
+					{
+						"description": "Post layer",
+						"type": "object"
+					},
+					"settings":
+					{
+						"description": "Post settings",
+						"type": "object"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "style.define_preset"
+		}
+	],
+	"version": "1.0.0"
+}

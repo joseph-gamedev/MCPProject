@@ -2,6 +2,7 @@
 #include "LightingToolset.h"
 #include "MaterialsToolset.h"
 #include "UiToolset.h"
+#include "StyleToolset.h"
 #include "RuntimeToolsetsActivity.h"
 #include "VfxToolset.h"
 #include "RuntimeToolsetsCore.h"
@@ -13,7 +14,7 @@ class FRuntimeToolsetsPresentationModule final : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
-		Registered = {MakeShared<FMaterialsToolset>(), MakeShared<FCameraToolset>(), MakeShared<FUiToolset>(), MakeShared<FVfxToolset>(), MakeShared<FLightingToolset>()};
+		Registered = {MakeShared<FMaterialsToolset>(), MakeShared<FCameraToolset>(), MakeShared<FUiToolset>(), MakeShared<FVfxToolset>(), MakeShared<FLightingToolset>(), MakeShared<FStyleToolset>()};
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("vfx:"), &FVfxToolset::SpawnFromSource);
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("label:"), &FUiToolset::SpawnLabelFromSource);
 		for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)

@@ -1,5 +1,6 @@
 // Flight: an arcade jet for the player, 3D dogfighting brains, and target locking for homing weapons.
 #include "LogicTuning.h"
+#include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -11,26 +12,6 @@
 
 namespace
 {
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
-	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
-	{
-		FString V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetStringField(Field, V);
-		}
-		return V;
-	}
-
 	TSharedPtr<FJsonObject> Obj(const TSharedPtr<FJsonObject>& J, const TCHAR* Field)
 	{
 		const TSharedPtr<FJsonObject>* O = nullptr;

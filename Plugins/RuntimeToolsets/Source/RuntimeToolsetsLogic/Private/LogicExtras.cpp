@@ -1,5 +1,6 @@
 // Spawners and waves, loot tables, interactables, save slots.
 #include "LogicRuntime.h"
+#include "LogicJsonHelpers.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
 #include "RuntimeToolsetsCore.h"
@@ -15,26 +16,6 @@
 
 namespace
 {
-	double Num(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default)
-	{
-		double V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetNumberField(Field, V);
-		}
-		return V;
-	}
-
-	FString Str(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, const FString& Default = FString())
-	{
-		FString V = Default;
-		if (J.IsValid())
-		{
-			J->TryGetStringField(Field, V);
-		}
-		return V;
-	}
-
 	/** Number or [min, max] -> a random value in range. */
 	double Range(const TSharedPtr<FJsonObject>& J, const TCHAR* Field, double Default, FRandomStream& R)
 	{
