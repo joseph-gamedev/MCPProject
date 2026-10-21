@@ -77,6 +77,12 @@ public:
 	TMap<FString, bool> Solid;
 	/** Pool name -> {template: node id, size}. */
 	TMap<FString, TSharedPtr<FJsonObject>> Pools;
+	/** Combat definitions. Health/hit zones keyed by target spec ("player", "tag:enemy", node id). */
+	TMap<FString, TSharedPtr<FJsonObject>> HealthDefs;
+	TMap<FString, TSharedPtr<FJsonObject>> HitZoneDefs;
+	TMap<FString, TSharedPtr<FJsonObject>> WeaponDefs;
+	/** Owner spec ("player" or target spec) -> weapon name. */
+	TMap<FString, FString> EquipDefs;
 
 	TSharedRef<FJsonObject> ExportDefinitions() const;
 	bool ImportDefinitions(const TSharedPtr<FJsonObject>& Json, FString& OutError);
@@ -115,6 +121,20 @@ public:
 	bool ResolveNodes(const TArray<FString>& Targets, TArray<FString>& OutIds, FString& OutError) const;
 	bool MakeTouchEvent(const FString& NodeId, bool bFromAbove, bool bFromBelow, FLogicEvent& Out) const;
 	TSharedRef<FJsonObject> PlayerJson() const;
+
+	// ---- combat
+	bool ApplyDamage(const FString& Victim, double Amount, const FString& Type, const FString& Instigator, const FVector& Push);
+	void Heal(const FString& Victim, double Amount);
+	/** Fires Owner's weapon (or the named one) toward AimPoint / along AimDir. */
+	bool FireWeapon(const FString& Owner, const FString& WeaponName, const FVector* AimPointIn, FString& OutError);
+	void RebuildHealths(bool bReset);
+	int32 CallWorldFunction(const FString& Name, TArray<FLogicValue>& Args, FLogicValue& Out, FString& OutError) const;
+	bool OwnerLocation(const FString& Key, FVector& Out) const;
+	FLogicValue HealthMap() const;
+	FLogicValue AmmoMap() const;
+	FString EquippedWeapon(const FString& OwnerKey) const;
+	bool IsTopDown() const;
+	int32 NumProjectiles() const { return Projectiles.Num(); }
 
 	// ---- tweens and pools
 	static const TArray<FString>& EaseNames();
@@ -169,6 +189,7 @@ private:
 	FLogicValue FindNodeData(const FString& NodeId) const;
 	void TickPlay(double Dt);
 	void TickPlayerInput(APlayerController* PC);
+	void ApplyPlayerInputMode(APlayerController* PC);
 	void TickMotion();
 	void TickTouch();
 	void TickCamera(double Dt, bool bSnap);
@@ -199,6 +220,48 @@ private:
 	void ResetTweens();
 	void ResetPools();
 	void TickPlayerAnim(double Dt);
+	struct FHealthState
+	{
+		double Max = 10.0;
+		double Current = 10.0;
+		double InvulnUntil = -1.0;
+		bool bDead = false;
+		TSharedPtr<FJsonObject> Def;
+	};
+	struct FWeaponState
+	{
+		double NextShot = 0.0;
+		int32 Mag = -1;
+		double ReloadUntil = -1.0;
+		int32 ReloadAmount = 0;
+		int32 BurstLeft = 0;
+		double NextBurst = 0.0;
+		FVector BurstAim = FVector::ZeroVector;
+	};
+	struct FProjectile
+	{
+		FString Node;
+		FVector Pos = FVector::ZeroVector;
+		FVector Dir = FVector::ForwardVector;
+		double Speed = 2000.0;
+		double Life = 2.0;
+		double Damage = 1.0;
+		double Knockback = 0.0;
+		double Radius = 12.0;
+		FString Type;
+		FString Owner;
+		FString Hits;
+	};
+	void TickCombat(double Dt);
+	void TickProjectiles(double Dt);
+	void TickHitZones();
+	void TickWeapons();
+	void ResetCombat();
+	void SpawnShots(const FString& Owner, const TSharedPtr<FJsonObject>& W, const FVector& Muzzle, const FVector& Dir);
+	bool VictimMatches(const FString& Key, const FString& Filter) const;
+	bool VictimBox(const FString& Key, FBox& Out) const;
+	void CollectOwnerActors(const FString& Owner, TArray<AActor*>& Out) const;
+	bool StartReload(const FString& Owner, const TSharedPtr<FJsonObject>& W, FWeaponState& S);
 	struct FLimb
 	{
 		TWeakObjectPtr<AActor> Actor;
@@ -250,6 +313,12 @@ private:
 	TSet<FString> Touching;
 	/** Node id -> play time it was last touched (no re-touch within 0.35 s, e.g. a bumped block bouncing back). */
 	TMap<FString, double> LastTouch;
+	TMap<FString, FHealthState> Healths;
+	TMap<FString, FWeaponState> WeaponStates;
+	TArray<FProjectile> Projectiles;
+	TMap<FString, TMap<FString, double>> ZoneTimes;
+	FVector AimPoint = FVector::ZeroVector;
+	FVector AimDir = FVector(1, 0, 0);
 	TSet<FString> Hidden;
 
 	TSharedPtr<SWidget> Overlay;

@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 4,
-	"VersionName": "0.9.0",
+	"Version": 5,
+	"VersionName": "0.10.0",
 	"FriendlyName": "Runtime Toolsets",
 	"Description": "Runtime-safe toolsets (actors, reflection, console, log, capture, scene graph, undo) for AI agents. Plain-JSON API; transport is provided by a connector or the optional RuntimeToolsetsMCP adapter.",
 	"Category": "AI",

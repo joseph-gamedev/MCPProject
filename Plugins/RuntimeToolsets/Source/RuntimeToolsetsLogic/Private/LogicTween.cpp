@@ -446,7 +446,7 @@ void FLogicWorld::TickPlayerAnim(double Dt)
 	const double Half = C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	const double S = Half / 90.0;
 	const FVector Vel = C->GetVelocity();
-	const double Speed = FMath::Abs(Vel.X);
+	const double Speed = Vel.Size2D();
 	const bool bGround = C->GetCharacterMovement()->IsMovingOnGround();
 	double Amp = 0.0;
 	if (bGround && Speed > 30.0 && !bFrozen)

@@ -268,9 +268,10 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	M->GroundFriction = 9.f;
 	M->MaxAcceleration = 3200.f;
 	M->MaxStepHeight = Radius;
-	M->bOrientRotationToMovement = true;
+	const bool bTop = IsTopDown();
+	M->bOrientRotationToMovement = !bTop;
 	M->RotationRate = FRotator(0.f, 1500.f, 0.f);
-	M->SetPlaneConstraintEnabled(true);
+	M->SetPlaneConstraintEnabled(!bTop);
 	M->SetPlaneConstraintNormal(FVector(0.f, 1.f, 0.f));
 	C->JumpMaxHoldTime = Num(PlayerDef, TEXT("jump_hold"), 0.22);
 	C->SetActorRotation(FRotator(0.f, 0.f, 0.f));
@@ -351,9 +352,7 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	{
 		PreviousPawn = PC->GetPawn();
 		PC->Possess(C);
-		PC->SetShowMouseCursor(false);
-		PC->SetInputMode(FInputModeGameOnly());
-		PC->ResetIgnoreInputFlags();
+		ApplyPlayerInputMode(PC);
 		if (Cam)
 		{
 			PC->SetViewTarget(Cam);
@@ -433,6 +432,7 @@ void FLogicWorld::ResetPlay()
 {
 	ResetTweens();
 	ResetPools();
+	ResetCombat();
 	for (const FString& Id : Hidden.Array())
 	{
 		HideNode(Id, false);
@@ -476,11 +476,28 @@ void FLogicWorld::ResetPlay()
 				{
 					PC->SetViewTarget(Cam);
 				}
-				PC->SetShowMouseCursor(false);
-				PC->SetInputMode(FInputModeGameOnly());
-				PC->ResetIgnoreInputFlags();
+				ApplyPlayerInputMode(PC);
 			}
 		}
+	}
+}
+
+void FLogicWorld::ApplyPlayerInputMode(APlayerController* PC)
+{
+	PC->ResetIgnoreInputFlags();
+	if (IsTopDown())
+	{
+		// Aim with the mouse: visible cursor, clicks still reach the game.
+		PC->SetShowMouseCursor(true);
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PC->SetInputMode(Mode);
+	}
+	else
+	{
+		PC->SetShowMouseCursor(false);
+		PC->SetInputMode(FInputModeGameOnly());
 	}
 }
 
@@ -489,6 +506,70 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 	ACharacter* C = Player.Get();
 	if (!C || !PC || PC->GetPawn() != C || bFrozen)
 	{
+		return;
+	}
+	const bool bRunKey = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Left);
+	// Shooting (both modes): left mouse / F / right trigger; hold for automatic weapons.
+	if (!EquippedWeapon(TEXT("player")).IsEmpty())
+	{
+		const TSharedPtr<FJsonObject>* W = WeaponDefs.Find(EquippedWeapon(TEXT("player")));
+		bool bAuto = false;
+		if (W)
+		{
+			(*W)->TryGetBoolField(TEXT("auto"), bAuto);
+		}
+		const bool bDown = PC->IsInputKeyDown(EKeys::LeftMouseButton) || PC->IsInputKeyDown(EKeys::F) || PC->GetInputAnalogKeyState(EKeys::Gamepad_RightTriggerAxis) > 0.5f;
+		const bool bPressed = PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) || PC->WasInputKeyJustPressed(EKeys::F) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightTrigger);
+		if (bAuto ? bDown : bPressed)
+		{
+			FString Err;
+			FireWeapon(TEXT("player"), FString(), nullptr, Err);
+		}
+		FString ReloadKey;
+		PlayerDef->TryGetStringField(TEXT("reload_key"), ReloadKey);
+		if (!ReloadKey.IsEmpty() && PC->WasInputKeyJustPressed(FKey(*ReloadKey)) && W)
+		{
+			StartReload(TEXT("player"), *W, WeaponStates.FindOrAdd(TEXT("player")));
+		}
+	}
+	if (IsTopDown())
+	{
+		FVector Move = FVector::ZeroVector;
+		if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up)) Move.X += 1;
+		if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down)) Move.X -= 1;
+		if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) Move.Y += 1;
+		if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left)) Move.Y -= 1;
+		const float LX = PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftX), LY = PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+		if (FMath::Abs(LX) > 0.2f || FMath::Abs(LY) > 0.2f)
+		{
+			Move = FVector(LY, LX, 0);
+		}
+		C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PlayerDef, TEXT("speed"), 650.0) * (bRunKey ? 1.5 : 1.0));
+		if (!Move.IsNearlyZero())
+		{
+			C->AddMovementInput(Move.GetClampedToMaxSize(1.0), 1.f, true);
+		}
+		const FVector P = C->GetActorLocation();
+		FVector WL, WD;
+		const float RX = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX), RY = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+		if (FMath::Abs(RX) > 0.3f || FMath::Abs(RY) > 0.3f)
+		{
+			AimPoint = P + FVector(RY, RX, 0).GetSafeNormal() * 600.0;
+		}
+		else if (PC->DeprojectMousePositionToWorld(WL, WD) && FMath::Abs(WD.Z) > 1e-3)
+		{
+			const double T = (P.Z - WL.Z) / WD.Z;
+			if (T > 0)
+			{
+				AimPoint = WL + WD * T;
+			}
+		}
+		const FVector Dir = (AimPoint - P).GetSafeNormal2D();
+		if (!Dir.IsNearlyZero())
+		{
+			AimDir = Dir;
+			C->SetActorRotation(FRotator(0.0, Dir.Rotation().Yaw, 0.0));
+		}
 		return;
 	}
 	float Axis = 0.f;
@@ -728,6 +809,16 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		return;
 	}
 	const FVector P = C->GetActorLocation();
+	if (IsTopDown())
+	{
+		const double Pitch = -FMath::Abs(Num(PlayerDef, TEXT("camera_pitch"), 60.0));
+		const double Dist = Num(PlayerDef, TEXT("camera_distance"), 1500.0);
+		const FVector Lead = AimDir * Num(PlayerDef, TEXT("camera_lead"), 150.0);
+		const FVector Goal = P + Lead + FVector(-Dist * FMath::Cos(FMath::DegreesToRadians(-Pitch)), 0.0, Dist * FMath::Sin(FMath::DegreesToRadians(-Pitch)));
+		CamPos = bSnap || Dt <= 0.0 ? Goal : FMath::VInterpTo(CamPos, Goal, Dt, 6.0);
+		Cam->SetActorLocationAndRotation(CamPos, FRotator(Pitch, 0.0, 0.0));
+		return;
+	}
 	const FVector Target = P + FVector(Facing * Num(PlayerDef, TEXT("camera_lead"), 200.0), Num(PlayerDef, TEXT("camera_distance"), 1700.0),
 		Num(PlayerDef, TEXT("camera_height"), 250.0));
 	if (bSnap || Dt <= 0.0)
@@ -748,6 +839,7 @@ void FLogicWorld::TickPlay(double Dt)
 	PlayTime += Dt;
 	TickTweens(Dt);
 	TickMotion();
+	TickCombat(Dt);
 	if (ACharacter* C = Player.Get())
 	{
 		const double KillZ = Num(PlayerDef, TEXT("kill_z"), SpawnPoint.Z - 1500.0);

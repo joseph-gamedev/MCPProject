@@ -56,6 +56,20 @@ PLATFORMERS / ACTION GAMES:
    Typical rules: coin touch -> hide + coins+1; enemy touch from_above -> hide enemy + bounce + score; enemy touch
    otherwise -> lives-1 + respawn (lives==0 -> freeze + game over text); fall -> same as hit; flag touch -> win + freeze;
    checkpoint touch -> {"player":"checkpoint"}; key R or button -> restart (keep high score).
+TOP-DOWN / SHOOTERS: logic.spawn_player {mode:"topdown", location, speed} -> WASD moves on the ground, the hero faces
+   the mouse cursor, an overhead camera follows (camera_distance, camera_pitch). Left mouse / F / right trigger fires.
+   logic.define_health {targets:["player"] or ["tag:enemy"], max, invulnerable (s after a hit), resistances:{fire:0.5},
+      on_death: hide|squash|release|respawn|freeze|none, points_var, points}. Rules: on:"damaged"/"died" target:"player"
+      or "tag:enemy" with event.amount/health/max/type/instigator/location. Expressions: health.player, hp(id), alive(id).
+   logic.define_hitzone {targets:["tag:lava"], damage, damage_max, type, affects:"player"|"tag:x"|"any", mode:"enter"|"stay",
+      interval, knockback} -> automatic damage on overlap (spikes, lava, explosions, melee areas).
+   logic.define_weapon {name, mode:"projectile"|"hitscan", damage, rate (shots/s), auto, burst, burst_gap, magazine, reload,
+      ammo_var (reserve), per_shot, spread (deg), spread_mode:"random"|"fan", speed, lifetime, range, knockback, hits:
+      "tag:enemy"|"player"|"any", bullet:{size, color} or pool:"name"}. logic.equip {owner:"player" or "tag:turret", weapon}.
+   Actions: {"fire":"event.target","at":"pos('player')"} (enemies shoot), {"damage":"event.target","amount":"3"},
+   {"heal":"'player'","amount":"25"}. Events fired / reloaded. Functions: pos(id), hp(id), alive(id), nodes('tag:x'),
+   dist(a,b). Typical enemy fire rule: on timer repeat -> for e in nodes('tag:enemy') -> if alive(e) && dist(pos(e),
+   pos('player')) < 1500 -> {"fire":"e","at":"pos('player')"}. HUD: "HP {health.player}  AMMO {ammo.player}/{reserve}".
 TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.12,"ease":"out_quad","loop":"yoyo"}
    fields: location|move (relative), rotation|rotate (relative), scale (number or [x,y,z]), color [r,g,b], duration, delay,
    ease (linear in_quad out_quad in_out_quad in_cubic out_cubic in_out_cubic in_sine out_sine in_out_sine in_back out_back
@@ -484,12 +498,194 @@ static void Import(FToolInvocation& Inv)
 }
 
 
+static TArray<FString> TargetsArg(FToolInvocation& Inv)
+{
+	TArray<FString> T = Inv.GetStringArray(TEXT("targets"));
+	return T;
+}
+
+static TSharedRef<FJsonObject> ArgsWithout(FToolInvocation& Inv, std::initializer_list<const TCHAR*> Drop)
+{
+	TSharedRef<FJsonObject> Def = RuntimeJson::Parse(RuntimeJson::Write(Inv.GetArgs())).ToSharedRef();
+	for (const TCHAR* F : Drop)
+	{
+		Def->RemoveField(F);
+	}
+	return Def;
+}
+
+static void DefineHealth(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = TargetsArg(Inv);
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("targets")});
+	if (EditDefinitions(Inv, TEXT("define health"), [&](FLogicWorld& L, FString& Err)
+	{
+		for (const FString& T : Targets)
+		{
+			if (T != TEXT("player"))
+			{
+				TArray<FString> Ids;
+				if (!L.ResolveNodes({T}, Ids, Err))
+				{
+					return false;
+				}
+			}
+			L.HealthDefs.Add(T, Def);
+		}
+		L.RebuildHealths(false);
+		return true;
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetField(TEXT("health"), Logic(Inv)->HealthMap().ToJson());
+		Inv.Succeed(Out);
+	}
+}
+
+static void DefineHitZone(FToolInvocation& Inv)
+{
+	const TArray<FString> Targets = TargetsArg(Inv);
+	const TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("targets")});
+	if (EditDefinitions(Inv, TEXT("define hit zone"), [&](FLogicWorld& L, FString& Err)
+	{
+		for (const FString& T : Targets)
+		{
+			TArray<FString> Ids;
+			if (!L.ResolveNodes({T}, Ids, Err))
+			{
+				return false;
+			}
+			L.HitZoneDefs.Add(T, Def);
+		}
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void DefineWeapon(FToolInvocation& Inv)
+{
+	const FString Name = Inv.GetString(TEXT("name"));
+	TSharedRef<FJsonObject> Def = ArgsWithout(Inv, {TEXT("name"), TEXT("bullet")});
+	const TSharedPtr<FJsonObject> Bullet = Inv.GetObject(TEXT("bullet"));
+	if (EditDefinitions(Inv, TEXT("define weapon"), [&](FLogicWorld& L, FString& Err)
+	{
+		FString Pool;
+		if (!Def->TryGetStringField(TEXT("pool"), Pool) || Pool.IsEmpty())
+		{
+			// A default glowing bullet in its own pool.
+			const double Size = Bullet.IsValid() && Bullet->HasField(TEXT("size")) ? Bullet->GetNumberField(TEXT("size")) : 24.0;
+			FVector Color(1.0, 0.8, 0.2);
+			if (Bullet.IsValid())
+			{
+				RuntimeJson::ToVector(Bullet->TryGetField(TEXT("color")), Color);
+			}
+			TSharedRef<FJsonObject> Args = Obj();
+			const bool bHitscan = Def->HasField(TEXT("mode")) && Def->GetStringField(TEXT("mode")) == TEXT("hitscan");
+			Args->SetStringField(TEXT("shape"), bHitscan ? TEXT("box") : TEXT("sphere"));
+			Args->SetField(TEXT("size"), RuntimeJson::Vec(bHitscan ? FVector(Size * 3, Size * 0.4, Size * 0.4) : FVector(Size)));
+			Args->SetField(TEXT("location"), RuntimeJson::Vec(FVector(0, 0, -100000)));
+			Args->SetStringField(TEXT("name"), TEXT("bullet_") + Name);
+			Args->SetStringField(TEXT("pivot"), TEXT("center"));
+			Args->SetStringField(TEXT("material"), TEXT("light"));
+			Args->SetField(TEXT("color"), RuntimeJson::Vec(Color));
+			Args->SetField(TEXT("emissive"), RuntimeJson::Vec(Color));
+			Args->SetNumberField(TEXT("emissive_strength"), 12.0);
+			FToolCallerContext Caller;
+			Caller.SessionId = Inv.GetCaller().SessionId;
+			const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(TEXT("build.create_primitive"), Args, Caller, Inv.GetDepth() + 1);
+			FString TemplateId;
+			if (!R.IsOk() || !R.Payload->TryGetStringField(TEXT("id"), TemplateId))
+			{
+				Err = TEXT("could not create the bullet: ") + R.Message;
+				return false;
+			}
+			Pool = TEXT("bullets_") + Name;
+			TSharedRef<FJsonObject> P = Obj();
+			P->SetStringField(TEXT("template"), TemplateId);
+			P->SetNumberField(TEXT("size"), Def->HasField(TEXT("pool_size")) ? Def->GetNumberField(TEXT("pool_size")) : 40.0);
+			L.Pools.Add(Pool, P);
+			Def->SetStringField(TEXT("pool"), Pool);
+		}
+		else if (!L.Pools.Contains(Pool))
+		{
+			Err = FString::Printf(TEXT("no pool '%s' (logic.define_pool)"), *Pool);
+			return false;
+		}
+		L.WeaponDefs.Add(Name, Def);
+		return L.EnsurePool(Pool, Err);
+	}))
+	{
+		TSharedRef<FJsonObject> Out = Obj();
+		Out->SetStringField(TEXT("weapon"), Name);
+		Out->SetStringField(TEXT("pool"), Logic(Inv)->WeaponDefs[Name]->GetStringField(TEXT("pool")));
+		Inv.Succeed(Out);
+	}
+}
+
+static void Equip(FToolInvocation& Inv)
+{
+	const FString Owner = Inv.GetString(TEXT("owner"));
+	const FString Weapon = Inv.GetString(TEXT("weapon"));
+	if (EditDefinitions(Inv, TEXT("equip"), [&](FLogicWorld& L, FString& Err)
+	{
+		if (!Weapon.IsEmpty() && !L.WeaponDefs.Contains(Weapon))
+		{
+			Err = FString::Printf(TEXT("no weapon '%s' (logic.define_weapon)"), *Weapon);
+			return false;
+		}
+		if (Owner != TEXT("player"))
+		{
+			TArray<FString> Ids;
+			if (!L.ResolveNodes({Owner}, Ids, Err))
+			{
+				return false;
+			}
+		}
+		if (Weapon.IsEmpty())
+		{
+			L.EquipDefs.Remove(Owner);
+		}
+		else
+		{
+			L.EquipDefs.Add(Owner, Weapon);
+		}
+		return true;
+	}))
+	{
+		Inv.Succeed();
+	}
+}
+
+static void DamageTool(FToolInvocation& Inv)
+{
+	FLogicWorld& L = *Logic(Inv);
+	FString Target = Inv.GetString(TEXT("target"));
+	if (Target != TEXT("player"))
+	{
+		TArray<FString> Ids;
+		FString Err;
+		if (!L.ResolveNodes({Target}, Ids, Err))
+		{
+			Inv.Fail(ERuntimeToolError::NotFound, Err);
+			return;
+		}
+		Target = Ids[0];
+	}
+	const bool bApplied = L.ApplyDamage(Target, Inv.GetNumber(TEXT("amount"), 1.0), Inv.GetString(TEXT("type")), TEXT("tool"), FVector::ZeroVector);
+	TSharedRef<FJsonObject> Out = Obj();
+	Out->SetBoolField(TEXT("applied"), bApplied);
+	Out->SetField(TEXT("health"), L.HealthMap().ToJson());
+	Inv.Succeed(Out);
+}
+
 static TSharedPtr<FJsonObject> PlayerDefFromArgs(FToolInvocation& Inv)
 {
 	TSharedRef<FJsonObject> Def = Obj();
 	for (const TCHAR* F : {TEXT("location"), TEXT("radius"), TEXT("height"), TEXT("speed"), TEXT("jump"), TEXT("jump_hold"), TEXT("gravity"),
 			 TEXT("air_control"), TEXT("body"), TEXT("camera_distance"), TEXT("camera_height"), TEXT("camera_lead"), TEXT("camera_pitch"), TEXT("fov"),
-			 TEXT("kill_z")})
+			 TEXT("kill_z"), TEXT("mode"), TEXT("reload_key")})
 	{
 		if (Inv.Has(F))
 		{
@@ -714,9 +910,82 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		.Undoable().RequiresWorld()
 		.Handle(&DefinePool);
 
+	B.Tool(TEXT("define_health"), TEXT("Give 'player' or nodes health: max, invulnerability after hits, resistances by damage type, what happens on death."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("'player', node ids/paths/names or tag:x"), 100).Required())
+			.Add(TEXT("max"), FToolParam::Number(TEXT("Max health (default 10)"), 0.001))
+			.Add(TEXT("initial"), FToolParam::Number(TEXT("Starting health (default max)"), 0.0))
+			.Add(TEXT("invulnerable"), FToolParam::Number(TEXT("Seconds immune after a hit (player default 1)"), 0.0, 60.0))
+			.Add(TEXT("resistances"), FToolParam::Object(TEXT("{damage type: multiplier}, e.g. {fire: 0.5, explosion: 2}")))
+			.Add(TEXT("on_death"), FToolParam::Enum(TEXT("What happens at 0"), {TEXT("hide"), TEXT("squash"), TEXT("release"), TEXT("respawn"), TEXT("freeze"), TEXT("none")}))
+			.Add(TEXT("points_var"), FToolParam::String(TEXT("Variable that gets 'points' on death"), 64))
+			.Add(TEXT("points"), FToolParam::Number(TEXT("Points on death"))))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineHealth);
+
+	B.Tool(TEXT("define_hitzone"), TEXT("Nodes that damage what overlaps them (spikes, lava, explosions, melee areas): on enter or every interval while inside."))
+		.Args(FToolSchema()
+			.Add(TEXT("targets"), FToolParam::StringArray(TEXT("Zone nodes: ids/paths/names or tag:x"), 100).Required())
+			.Add(TEXT("damage"), FToolParam::Number(TEXT("Damage (default 1)")))
+			.Add(TEXT("damage_max"), FToolParam::Number(TEXT("Random damage up to this")))
+			.Add(TEXT("type"), FToolParam::String(TEXT("Damage type (for resistances)"), 32))
+			.Add(TEXT("affects"), FToolParam::String(TEXT("'player', 'any' or tag:x (default any)"), 128))
+			.Add(TEXT("mode"), FToolParam::Enum(TEXT("enter: once per entry; stay: every interval"), {TEXT("enter"), TEXT("stay")}))
+			.Add(TEXT("interval"), FToolParam::Number(TEXT("Seconds between hits in stay mode"), 0.05, 60.0))
+			.Add(TEXT("knockback"), FToolParam::Number(TEXT("Push the player away (cm/s)"), 0.0)))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineHitZone);
+
+	B.Tool(TEXT("define_weapon"), TEXT("A projectile or hitscan weapon: damage, fire rate, burst, magazine/reload/ammo, shots per trigger, spread, bullets from a pool."))
+		.Args(FToolSchema()
+			.Add(TEXT("name"), FToolParam::String(TEXT("Weapon name"), 64).Required())
+			.Add(TEXT("mode"), FToolParam::Enum(TEXT("projectile or hitscan"), {TEXT("projectile"), TEXT("hitscan")}))
+			.Add(TEXT("damage"), FToolParam::Number(TEXT("Per hit (default 1)")))
+			.Add(TEXT("type"), FToolParam::String(TEXT("Damage type"), 32))
+			.Add(TEXT("rate"), FToolParam::Number(TEXT("Shots per second (default 4)"), 0.01, 100.0))
+			.Add(TEXT("auto"), FToolParam::Boolean(TEXT("Hold to keep firing (player)")))
+			.Add(TEXT("burst"), FToolParam::Integer(TEXT("Shots per trigger pull"), 1, 50))
+			.Add(TEXT("burst_gap"), FToolParam::Number(TEXT("Seconds between burst shots"), 0.0, 5.0))
+			.Add(TEXT("magazine"), FToolParam::Integer(TEXT("Rounds per magazine (0 = unlimited)"), 0, 10000))
+			.Add(TEXT("reload"), FToolParam::Number(TEXT("Reload seconds"), 0.0, 60.0))
+			.Add(TEXT("auto_reload"), FToolParam::Boolean(TEXT("Reload when empty (default true)")))
+			.Add(TEXT("ammo_var"), FToolParam::String(TEXT("Variable holding reserve ammo"), 64))
+			.Add(TEXT("per_shot"), FToolParam::Integer(TEXT("Projectiles per shot (shotgun)"), 1, 64))
+			.Add(TEXT("spread"), FToolParam::Number(TEXT("Degrees either side"), 0.0, 180.0))
+			.Add(TEXT("spread_mode"), FToolParam::Enum(TEXT("random or even fan"), {TEXT("random"), TEXT("fan")}))
+			.Add(TEXT("speed"), FToolParam::Number(TEXT("Projectile speed cm/s (default 2500)"), 1.0))
+			.Add(TEXT("lifetime"), FToolParam::Number(TEXT("Projectile seconds (default 1.5)"), 0.01, 60.0))
+			.Add(TEXT("range"), FToolParam::Number(TEXT("Hitscan range cm (default 3000)"), 1.0))
+			.Add(TEXT("radius"), FToolParam::Number(TEXT("Projectile hit radius cm (default 12)"), 0.0))
+			.Add(TEXT("knockback"), FToolParam::Number(TEXT("Push on hit (cm/s)"), 0.0))
+			.Add(TEXT("muzzle"), FToolParam::Number(TEXT("Spawn distance in front of the shooter (default 60)")))
+			.Add(TEXT("hits"), FToolParam::String(TEXT("What it can damage: tag:enemy, player or any (default any but the shooter)"), 128))
+			.Add(TEXT("pool"), FToolParam::String(TEXT("Pool of bullet objects (default: a glowing bullet)"), 64))
+			.Add(TEXT("pool_size"), FToolParam::Integer(TEXT("Default bullet pool size"), 1, 500))
+			.Add(TEXT("bullet"), FToolParam::Object(TEXT("Default bullet look {size, color}"))))
+		.Undoable().RequiresWorld()
+		.Handle(&DefineWeapon);
+
+	B.Tool(TEXT("equip"), TEXT("Give 'player' or nodes (tag:x) a weapon (empty weapon removes it)."))
+		.Args(FToolSchema()
+			.Add(TEXT("owner"), FToolParam::String(TEXT("'player', node or tag:x"), 256).Required())
+			.Add(TEXT("weapon"), FToolParam::String(TEXT("Weapon name"), 64)))
+		.Undoable().RequiresWorld()
+		.Handle(&Equip);
+
+	B.Tool(TEXT("damage"), TEXT("Damage 'player' or a node now (testing)."))
+		.Args(FToolSchema()
+			.Add(TEXT("target"), FToolParam::String(TEXT("'player' or node"), 256).Required())
+			.Add(TEXT("amount"), FToolParam::Number(TEXT("Damage")).Default(1.0))
+			.Add(TEXT("type"), FToolParam::String(TEXT("Damage type"), 32)))
+		.RequiresWorld()
+		.Handle(&DamageTool);
+
 	B.Tool(TEXT("spawn_player"), TEXT("Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y."))
 		.Args(FToolSchema()
 			.Add(TEXT("location"), FToolParam::Vec3(TEXT("Start point (feet) [x,0,z]")).Required())
+			.Add(TEXT("mode"), FToolParam::Enum(TEXT("side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse"), {TEXT("side"), TEXT("topdown")}))
+			.Add(TEXT("reload_key"), FToolParam::String(TEXT("Key that reloads (optional, e.g. Q)"), 32))
 			.Add(TEXT("body"), FToolParam::Target(TEXT("Optional model node (feet at z=0, facing +X); default: a hero")))
 			.Add(TEXT("radius"), FToolParam::Number(TEXT("Collision radius cm"), 10.0, 300.0))
 			.Add(TEXT("height"), FToolParam::Number(TEXT("Height cm"), 40.0, 600.0))
@@ -728,7 +997,7 @@ void FLogicToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 			.Add(TEXT("camera_distance"), FToolParam::Number(TEXT("cm (default 1700)"), 100.0, 20000.0))
 			.Add(TEXT("camera_height"), FToolParam::Number(TEXT("cm above the player (default 250)"), -5000.0, 5000.0))
 			.Add(TEXT("camera_lead"), FToolParam::Number(TEXT("cm ahead in the facing direction (default 200)"), 0.0, 5000.0))
-			.Add(TEXT("camera_pitch"), FToolParam::Number(TEXT("degrees (default -6)"), -89.0, 89.0))
+			.Add(TEXT("camera_pitch"), FToolParam::Number(TEXT("degrees (side default -6, top-down default 60 looking down)"), -89.0, 89.0))
 			.Add(TEXT("fov"), FToolParam::Number(TEXT("Field of view (default 55)"), 10.0, 120.0))
 			.Add(TEXT("kill_z"), FToolParam::Number(TEXT("Falling below this fires 'fall' (default start z - 1500)"))))
 		.Undoable().RequiresWorld()

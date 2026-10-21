@@ -1,5 +1,5 @@
 {
-	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer player, moving objects, start/restart",
+	"description": "Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer or top-down player, health, damage zones, weapons, tweens, pools, start/restart",
 	"name": "logic",
 	"tools": [
 		{
@@ -206,6 +206,393 @@
 			"undoable": true
 		},
 		{
+			"description": "Give 'player' or nodes health: max, invulnerability after hits, resistances by damage type, what happens on death.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"initial":
+					{
+						"description": "Starting health (default max)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"invulnerable":
+					{
+						"description": "Seconds immune after a hit (player default 1)",
+						"maximum": 60,
+						"minimum": 0,
+						"type": "number"
+					},
+					"max":
+					{
+						"description": "Max health (default 10)",
+						"minimum": 0.001,
+						"type": "number"
+					},
+					"on_death":
+					{
+						"description": "What happens at 0",
+						"enum": [
+							"hide",
+							"squash",
+							"release",
+							"respawn",
+							"freeze",
+							"none"
+						],
+						"type": "string"
+					},
+					"points":
+					{
+						"description": "Points on death",
+						"type": "number"
+					},
+					"points_var":
+					{
+						"description": "Variable that gets 'points' on death",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"resistances":
+					{
+						"description": "{damage type: multiplier}, e.g. {fire: 0.5, explosion: 2}",
+						"type": "object"
+					},
+					"targets":
+					{
+						"description": "'player', node ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 100,
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_health",
+			"undoable": true
+		},
+		{
+			"description": "Nodes that damage what overlaps them (spikes, lava, explosions, melee areas): on enter or every interval while inside.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"affects":
+					{
+						"description": "'player', 'any' or tag:x (default any)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"damage":
+					{
+						"description": "Damage (default 1)",
+						"type": "number"
+					},
+					"damage_max":
+					{
+						"description": "Random damage up to this",
+						"type": "number"
+					},
+					"interval":
+					{
+						"description": "Seconds between hits in stay mode",
+						"maximum": 60,
+						"minimum": 0.050000000000000003,
+						"type": "number"
+					},
+					"knockback":
+					{
+						"description": "Push the player away (cm/s)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"mode":
+					{
+						"description": "enter: once per entry; stay: every interval",
+						"enum": [
+							"enter",
+							"stay"
+						],
+						"type": "string"
+					},
+					"targets":
+					{
+						"description": "Zone nodes: ids/paths/names or tag:x",
+						"items":
+						{
+							"maxLength": 256,
+							"type": "string"
+						},
+						"maxItems": 100,
+						"type": "array"
+					},
+					"type":
+					{
+						"description": "Damage type (for resistances)",
+						"maxLength": 32,
+						"type": "string"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_hitzone",
+			"undoable": true
+		},
+		{
+			"description": "A projectile or hitscan weapon: damage, fire rate, burst, magazine/reload/ammo, shots per trigger, spread, bullets from a pool.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"ammo_var":
+					{
+						"description": "Variable holding reserve ammo",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"auto":
+					{
+						"description": "Hold to keep firing (player)",
+						"type": "boolean"
+					},
+					"auto_reload":
+					{
+						"description": "Reload when empty (default true)",
+						"type": "boolean"
+					},
+					"bullet":
+					{
+						"description": "Default bullet look {size, color}",
+						"type": "object"
+					},
+					"burst":
+					{
+						"description": "Shots per trigger pull",
+						"maximum": 50,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"burst_gap":
+					{
+						"description": "Seconds between burst shots",
+						"maximum": 5,
+						"minimum": 0,
+						"type": "number"
+					},
+					"damage":
+					{
+						"description": "Per hit (default 1)",
+						"type": "number"
+					},
+					"hits":
+					{
+						"description": "What it can damage: tag:enemy, player or any (default any but the shooter)",
+						"maxLength": 128,
+						"type": "string"
+					},
+					"knockback":
+					{
+						"description": "Push on hit (cm/s)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"lifetime":
+					{
+						"description": "Projectile seconds (default 1.5)",
+						"maximum": 60,
+						"minimum": 0.01,
+						"type": "number"
+					},
+					"magazine":
+					{
+						"description": "Rounds per magazine (0 = unlimited)",
+						"maximum": 10000,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"mode":
+					{
+						"description": "projectile or hitscan",
+						"enum": [
+							"projectile",
+							"hitscan"
+						],
+						"type": "string"
+					},
+					"muzzle":
+					{
+						"description": "Spawn distance in front of the shooter (default 60)",
+						"type": "number"
+					},
+					"name":
+					{
+						"description": "Weapon name",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"per_shot":
+					{
+						"description": "Projectiles per shot (shotgun)",
+						"maximum": 64,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"pool":
+					{
+						"description": "Pool of bullet objects (default: a glowing bullet)",
+						"maxLength": 64,
+						"type": "string"
+					},
+					"pool_size":
+					{
+						"description": "Default bullet pool size",
+						"maximum": 500,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"radius":
+					{
+						"description": "Projectile hit radius cm (default 12)",
+						"minimum": 0,
+						"type": "number"
+					},
+					"range":
+					{
+						"description": "Hitscan range cm (default 3000)",
+						"minimum": 1,
+						"type": "number"
+					},
+					"rate":
+					{
+						"description": "Shots per second (default 4)",
+						"maximum": 100,
+						"minimum": 0.01,
+						"type": "number"
+					},
+					"reload":
+					{
+						"description": "Reload seconds",
+						"maximum": 60,
+						"minimum": 0,
+						"type": "number"
+					},
+					"speed":
+					{
+						"description": "Projectile speed cm/s (default 2500)",
+						"minimum": 1,
+						"type": "number"
+					},
+					"spread":
+					{
+						"description": "Degrees either side",
+						"maximum": 180,
+						"minimum": 0,
+						"type": "number"
+					},
+					"spread_mode":
+					{
+						"description": "random or even fan",
+						"enum": [
+							"random",
+							"fan"
+						],
+						"type": "string"
+					},
+					"type":
+					{
+						"description": "Damage type",
+						"maxLength": 32,
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.define_weapon",
+			"undoable": true
+		},
+		{
+			"description": "Give 'player' or nodes (tag:x) a weapon (empty weapon removes it).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"owner":
+					{
+						"description": "'player', node or tag:x",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"weapon":
+					{
+						"description": "Weapon name",
+						"maxLength": 64,
+						"type": "string"
+					}
+				},
+				"required": [
+					"owner"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.equip",
+			"undoable": true
+		},
+		{
+			"description": "Damage 'player' or a node now (testing).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"amount":
+					{
+						"default": 1,
+						"description": "Damage",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "'player' or node",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"type":
+					{
+						"description": "Damage type",
+						"maxLength": 32,
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "logic.damage"
+		},
+		{
 			"description": "Playable side-scrolling character with a follow camera (A/D run, Space jump). Level runs along +X, camera on +Y.",
 			"input_schema":
 			{
@@ -248,7 +635,7 @@
 					},
 					"camera_pitch":
 					{
-						"description": "degrees (default -6)",
+						"description": "degrees (side default -6, top-down default 60 looking down)",
 						"maximum": 89,
 						"minimum": -89,
 						"type": "number"
@@ -304,12 +691,27 @@
 						"minItems": 3,
 						"type": "array"
 					},
+					"mode":
+					{
+						"description": "side: side-scroller (level along +X); topdown: WASD on the ground, aim with the mouse",
+						"enum": [
+							"side",
+							"topdown"
+						],
+						"type": "string"
+					},
 					"radius":
 					{
 						"description": "Collision radius cm",
 						"maximum": 300,
 						"minimum": 10,
 						"type": "number"
+					},
+					"reload_key":
+					{
+						"description": "Key that reloads (optional, e.g. Q)",
+						"maxLength": 32,
+						"type": "string"
 					},
 					"speed":
 					{
@@ -865,5 +1267,5 @@
 			"undoable": true
 		}
 	],
-	"version": "1.1.0"
+	"version": "1.2.0"
 }

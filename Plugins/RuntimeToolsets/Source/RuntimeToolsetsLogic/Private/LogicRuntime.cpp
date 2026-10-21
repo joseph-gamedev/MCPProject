@@ -25,14 +25,14 @@ namespace
 	const TArray<FString>& EventNames()
 	{
 		static const TArray<FString> Names = {TEXT("start"), TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"),
-			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall")};
+			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded")};
 		return Names;
 	}
 
 	const TArray<FString>& ActionNames()
 	{
 		static const TArray<FString> Names = {TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
-			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release")};
+			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire")};
 		return Names;
 	}
 
@@ -220,6 +220,28 @@ namespace
 				{
 					OutError = At + TEXT(": ") + Err;
 					return false;
+				}
+			}
+			if (Kind == TEXT("damage") || Kind == TEXT("heal") || Kind == TEXT("fire"))
+			{
+				FString Expr;
+				if (!(*A)->TryGetStringField(Kind, Expr) || !CheckExpr(Expr, At + TEXT(" ") + Kind, OutError))
+				{
+					OutError = OutError.IsEmpty() ? At + FString::Printf(TEXT(": '%s' needs an expression giving a node id or 'player'"), *Kind) : OutError;
+					return false;
+				}
+				if (Kind != TEXT("fire") && !(*A)->HasField(TEXT("amount")))
+				{
+					OutError = At + FString::Printf(TEXT(": '%s' needs \"amount\""), *Kind);
+					return false;
+				}
+				for (const TCHAR* F : {TEXT("amount"), TEXT("at")})
+				{
+					FString X;
+					if ((*A)->TryGetStringField(F, X) && !CheckExpr(X, At + TEXT(" ") + F, OutError))
+					{
+						return false;
+					}
 				}
 			}
 			if (Kind == TEXT("spawn") && !(*A)->HasField(TEXT("at")))
@@ -459,6 +481,24 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 		Po->SetObjectField(P.Key, P.Value);
 	}
 	J->SetObjectField(TEXT("pools"), Po);
+	auto Section = [&J](const TCHAR* Field, const TMap<FString, TSharedPtr<FJsonObject>>& Map)
+	{
+		TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+		for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Map)
+		{
+			O->SetObjectField(P.Key, P.Value);
+		}
+		J->SetObjectField(Field, O);
+	};
+	Section(TEXT("health"), HealthDefs);
+	Section(TEXT("hitzones"), HitZoneDefs);
+	Section(TEXT("weapons"), WeaponDefs);
+	TSharedRef<FJsonObject> Eq = MakeShared<FJsonObject>();
+	for (const TPair<FString, FString>& P : EquipDefs)
+	{
+		Eq->SetStringField(P.Key, P.Value);
+	}
+	J->SetObjectField(TEXT("equip"), Eq);
 	return J;
 }
 
@@ -559,6 +599,34 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 			}
 		}
 	}
+	auto ReadSection = [&J](const TCHAR* Field, TMap<FString, TSharedPtr<FJsonObject>>& Map)
+	{
+		Map.Reset();
+		const TSharedPtr<FJsonObject>* O = nullptr;
+		if (J->TryGetObjectField(Field, O))
+		{
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*O)->Values)
+			{
+				if (P.Value->Type == EJson::Object)
+				{
+					Map.Add(P.Key, P.Value->AsObject());
+				}
+			}
+		}
+	};
+	ReadSection(TEXT("health"), HealthDefs);
+	ReadSection(TEXT("hitzones"), HitZoneDefs);
+	ReadSection(TEXT("weapons"), WeaponDefs);
+	EquipDefs.Reset();
+	const TSharedPtr<FJsonObject>* Eq = nullptr;
+	if (J->TryGetObjectField(TEXT("equip"), Eq))
+	{
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& P : (*Eq)->Values)
+		{
+			EquipDefs.Add(P.Key, P.Value->AsString());
+		}
+	}
+	RebuildHealths(false);
 	TMap<FString, bool> NewSolid;
 	const TSharedPtr<FJsonObject>* So = nullptr;
 	if (J->TryGetObjectField(TEXT("solid"), So))
@@ -605,6 +673,7 @@ FLogicScope FLogicWorld::MakeScope(FFrame& Frame)
 {
 	FLogicScope Scope;
 	Scope.Random = &Random;
+	Scope.World = [this](const FString& Name, TArray<FLogicValue>& Args, FLogicValue& Out, FString& Err) { return CallWorldFunction(Name, Args, Out, Err); };
 	Scope.Lookup = [this, &Frame](const FString& Name) -> const FLogicValue*
 	{
 		if (const FLogicValue* L = Frame.Locals.Find(Name))
@@ -630,6 +699,11 @@ FLogicScope FLogicWorld::MakeScope(FFrame& Frame)
 			}
 			Frame.Locals.Add(TEXT("player"), P);
 			return Frame.Locals.Find(TEXT("player"));
+		}
+		if (Name == TEXT("health") || Name == TEXT("ammo"))
+		{
+			Frame.Locals.Add(Name, Name == TEXT("health") ? HealthMap() : AmmoMap());
+			return Frame.Locals.Find(Name);
 		}
 		if (Name == TEXT("time"))
 		{
@@ -806,6 +880,22 @@ bool FLogicWorld::Matches(const FLogicRule& Rule, const FLogicEvent& E) const
 	if (E.On == TEXT("fall"))
 	{
 		return true;
+	}
+	if (E.On == TEXT("damaged") || E.On == TEXT("died") || E.On == TEXT("fired") || E.On == TEXT("reloaded"))
+	{
+		if (!Rule.Filter.IsEmpty() && (E.On == TEXT("fired") || E.On == TEXT("reloaded")) && Rule.Filter != E.Name)
+		{
+			return false;
+		}
+		if (Rule.Target.IsEmpty())
+		{
+			return true;
+		}
+		if (Rule.Target == TEXT("player"))
+		{
+			return E.Target.IsEmpty();
+		}
+		return !E.Target.IsEmpty() && NodeMatches(E.Target, Rule.Target);
 	}
 	if (E.On == TEXT("key"))
 	{
@@ -1383,6 +1473,80 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 		ReleaseToPool(V.Type == FLogicValue::EType::Map && V.M->Contains(TEXT("id")) ? V.M->FindRef(TEXT("id")).ToText() : V.ToText());
 		return true;
 	}
+	if (A->TryGetStringField(TEXT("damage"), Name) || A->TryGetStringField(TEXT("heal"), Name) || A->TryGetStringField(TEXT("fire"), Name))
+	{
+		const FString Kind = A->HasField(TEXT("damage")) ? TEXT("damage") : A->HasField(TEXT("heal")) ? TEXT("heal") : TEXT("fire");
+		FLogicScope Scope = MakeScope(Frame);
+		const FLogicValue V = LogicExpr::Evaluate(Name, Scope);
+		if (!Scope.Error.IsEmpty())
+		{
+			OutError = Scope.Error;
+			return false;
+		}
+		TArray<FString> Keys;
+		auto KeyOf = [](const FLogicValue& X) { return X.Type == FLogicValue::EType::Map && X.M->Contains(TEXT("id")) ? X.M->FindRef(TEXT("id")).ToText() : X.ToText(); };
+		if (V.Type == FLogicValue::EType::List)
+		{
+			for (const FLogicValue& X : *V.L)
+			{
+				Keys.Add(KeyOf(X));
+			}
+		}
+		else
+		{
+			Keys.Add(KeyOf(V));
+		}
+		for (const FString& K : Keys)
+		{
+			if (Kind == TEXT("fire"))
+			{
+				FVector AtPoint;
+				bool bAt = false;
+				if (A->HasField(TEXT("at")))
+				{
+					FLogicValue AtV;
+					if (!EvalField(A, TEXT("at"), Frame, AtV, OutError))
+					{
+						return false;
+					}
+					bAt = RuntimeJson::ToVector(AtV.ToJson(), AtPoint);
+				}
+				FString Weapon;
+				A->TryGetStringField(TEXT("weapon"), Weapon);
+				FString Err;
+				if (!FireWeapon(K, Weapon, bAt ? &AtPoint : nullptr, Err) && !Err.IsEmpty())
+				{
+					OutError = Err;
+					return false;
+				}
+				continue;
+			}
+			FLogicValue Amount;
+			if (!EvalField(A, TEXT("amount"), Frame, Amount, OutError))
+			{
+				return false;
+			}
+			if (Kind == TEXT("heal"))
+			{
+				Heal(K, Amount.N);
+				continue;
+			}
+			FString Type;
+			A->TryGetStringField(TEXT("type"), Type);
+			FVector Push = FVector::ZeroVector;
+			if (A->HasField(TEXT("push")))
+			{
+				FLogicValue PV;
+				if (!EvalField(A, TEXT("push"), Frame, PV, OutError))
+				{
+					return false;
+				}
+				RuntimeJson::ToVector(PV.ToJson(), Push);
+			}
+			ApplyDamage(K, Amount.N, Type, Frame.Rule, Push);
+		}
+		return true;
+	}
 	if (A->TryGetStringField(TEXT("player"), Name))
 	{
 		ACharacter* C = GetPlayer();
@@ -1705,6 +1869,15 @@ TSharedRef<FJsonObject> FLogicWorld::GetState(int32 LogLimit) const
 	}
 	J->SetArrayField(TEXT("hidden"), HiddenList);
 	J->SetNumberField(TEXT("tweens"), Tweens.Num());
+	J->SetNumberField(TEXT("projectiles"), Projectiles.Num());
+	if (Healths.Num() > 0)
+	{
+		J->SetField(TEXT("health"), HealthMap().ToJson());
+	}
+	if (WeaponStates.Num() > 0)
+	{
+		J->SetField(TEXT("ammo"), AmmoMap().ToJson());
+	}
 	TSharedRef<FJsonObject> PoolState = MakeShared<FJsonObject>();
 	for (const TPair<FString, TSharedPtr<FJsonObject>>& P : Pools)
 	{

@@ -50,6 +50,8 @@ struct FLogicScope
 	/** Returns the value of an identifier or nullptr when unknown. */
 	TFunction<const FLogicValue*(const FString&)> Lookup;
 	FRandomStream* Random = nullptr;
+	/** World functions (pos, hp, alive, nodes): 1 handled, 0 not a world function, -1 error (in Error). */
+	TFunction<int32(const FString& Name, TArray<FLogicValue>& Args, FLogicValue& Out, FString& Error)> World;
 	/** First error, if any. Evaluation returns null after an error. */
 	FString Error;
 };

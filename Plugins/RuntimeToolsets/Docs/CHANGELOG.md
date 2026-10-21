@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.0 — 2026-10-21
+
+- **Combat in `logic`:**
+  - top-down player mode (WASD, mouse/stick aim, overhead camera);
+  - `define_health`: resistances, invulnerability, death handling, points;
+  - `define_hitzone`: on-enter or interval damage, knockback;
+  - `define_weapon`: projectile/hitscan, rate, auto, burst, magazine/reload/reserve ammo, spread (random/fan), knockback, hit filter, automatic bullet pool;
+  - `equip` and `damage` tools; `fire`/`damage`/`heal` actions; `damaged`/`died`/`fired`/`reloaded` events;
+  - the `health` and `ammo` expression variables, plus the world functions `pos`, `hp`, `alive`, `nodes` and `dist`.
+- **`Scripts/examples/topdown_shooter.py`.**
+- **Tests:** 140 automation tests.
+
 ## 0.9.0 — 2026-10-21
 
 - **Platformer support in `logic`:**

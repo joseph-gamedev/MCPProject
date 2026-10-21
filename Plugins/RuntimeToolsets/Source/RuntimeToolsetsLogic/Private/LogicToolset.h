@@ -9,8 +9,8 @@ public:
 	virtual FName GetName() const override { return TEXT("logic"); }
 	virtual FString GetDescription() const override
 	{
-		return TEXT("Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer player, moving objects, start/restart");
+		return TEXT("Make the scene playable (call logic.get_guide first): variables, rules (when click/key/button/timer/touch/start -> if -> actions), HUD, buttons, platformer or top-down player, health, damage zones, weapons, tweens, pools, start/restart");
 	}
-	virtual FString GetVersion() const override { return TEXT("1.1.0"); }
+	virtual FString GetVersion() const override { return TEXT("1.2.0"); }
 	virtual void RegisterTools(FRuntimeToolsetBuilder& B) override;
 };

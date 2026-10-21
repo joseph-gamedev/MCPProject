@@ -226,6 +226,84 @@ void FLogicToolsetSpec::Define()
 		H->CallFails(TEXT("logic.define_rules"), TEXT(R"({"rules":[{"name":"x","on":"start","actions":[{"spawn":"pop"}]}]})"), ERuntimeToolError::InvalidArguments);
 	});
 
+	It("handles health, resistances, invulnerability and damage zones", [this]()
+	{
+		const FString Dummy = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[100,100,100],"location":[0,0,0],"name":"dummy","tags":["dummy"]})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[300,300,20],"location":[0,0,0],"name":"lava","tags":["lava"]})J"));
+		H->CallOk(TEXT("logic.set_solid"), TEXT(R"J({"targets":["tag:lava","tag:dummy"],"solid":false})J"));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["tag:dummy"],"max":20,"resistances":{"fire":0.5},"on_death":"hide"})J"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"hurt":0,"dead":0}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[
+			{"name":"h","on":"damaged","target":"tag:dummy","actions":[{"set":"hurt","value":"hurt + event.amount"}]},
+			{"name":"d","on":"died","target":"tag:dummy","actions":[{"set":"dead","value":"dead + 1"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.damage"), FString::Printf(TEXT(R"J({"target":"%s","amount":4,"type":"fire"})J"), *Dummy));
+		TestEqual(TEXT("resistance halves fire"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"hp('%s')"})J"), *Dummy))->GetNumberField(TEXT("value")), 18.0);
+		H->CallOk(TEXT("logic.define_hitzone"), TEXT(R"J({"targets":["tag:lava"],"damage":3,"mode":"stay","interval":0.5,"affects":"tag:dummy"})J"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":1.05})J"));
+		const double Hp = H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"hp('%s')"})J"), *Dummy))->GetNumberField(TEXT("value"));
+		TestTrue(TEXT("lava hurts every 0.5 s"), Hp <= 12.0 && Hp >= 9.0);
+		TestTrue(TEXT("damaged rule"), Vars()->GetNumberField(TEXT("hurt")) >= 8.0);
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":3})J"));
+		TestEqual(TEXT("died once"), static_cast<int32>(Vars()->GetNumberField(TEXT("dead"))), 1);
+		TestTrue(TEXT("hidden on death"), H->GetGraph()->Find(Dummy)->Actor->IsHidden());
+		TestEqual(TEXT("alive() false"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"alive('%s')"})J"), *Dummy))->GetBoolField(TEXT("value")), false);
+		H->CallOk(TEXT("logic.start"));
+		TestEqual(TEXT("restart refills"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"hp('%s')"})J"), *Dummy))->GetNumberField(TEXT("value")), 20.0);
+		TestFalse(TEXT("restart shows it"), H->GetGraph()->Find(Dummy)->Actor->IsHidden());
+	});
+
+	It("shoots projectiles and hitscan with magazines, reloads and kills", [this]()
+	{
+		H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[60,60,60],"location":[0,0,0],"name":"turret","tags":["turret"]})J"));
+		const FString Enemy = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[100,100,100],"location":[800,0,0],"pivot":"center","name":"enemy","tags":["enemy"]})J"))->GetStringField(TEXT("id"));
+		const FString Enemy2 = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[100,100,100],"location":[0,700,0],"pivot":"center","name":"enemy2","tags":["enemy"]})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.set_solid"), TEXT(R"J({"targets":["tag:enemy","tag:turret"],"solid":false})J"));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["tag:enemy"],"max":3,"on_death":"hide"})J"));
+		H->CallOk(TEXT("logic.define_weapon"), TEXT(R"J({"name":"gun","damage":1,"rate":20,"speed":4000,"magazine":2,"reload":0.5,"hits":"tag:enemy"})J"));
+		H->CallOk(TEXT("logic.define_weapon"), TEXT(R"J({"name":"laser","mode":"hitscan","damage":5,"rate":1,"hits":"tag:enemy"})J"));
+		H->CallOk(TEXT("logic.equip"), TEXT(R"J({"owner":"tag:turret","weapon":"gun"})J"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"kills":0}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[
+			{"name":"shoot","on":"button","filter":"shoot","actions":[{"fire":"nodes('tag:turret')","at":"event.at"}]},
+			{"name":"zap","on":"button","filter":"zap","actions":[{"fire":"nodes('tag:turret')","weapon":"laser","at":"event.at"}]},
+			{"name":"kill","on":"died","target":"tag:enemy","actions":[{"set":"kills","value":"kills + 1"}]}]})J"));
+		H->CallOk(TEXT("logic.start"));
+		const FString At1 = TEXT(R"J({"on":"button","name":"shoot","data":{"at":[800,0,0]}})J");
+		H->CallOk(TEXT("logic.fire_event"), At1);
+		TestEqual(TEXT("bullet flying"), static_cast<int32>(H->CallOk(TEXT("logic.get_state"))->GetNumberField(TEXT("projectiles"))), 1);
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.4})J"));
+		TestEqual(TEXT("hit"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"hp('%s')"})J"), *Enemy))->GetNumberField(TEXT("value")), 2.0);
+		H->CallOk(TEXT("logic.fire_event"), At1); // last round: auto reload starts
+		H->CallOk(TEXT("logic.fire_event"), At1); // reloading: no shot
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.4})J"));
+		TestEqual(TEXT("second hit only"), H->CallOk(TEXT("logic.eval"), FString::Printf(TEXT(R"J({"expr":"hp('%s')"})J"), *Enemy))->GetNumberField(TEXT("value")), 1.0);
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.3})J"));
+		H->CallOk(TEXT("logic.fire_event"), At1); // reloaded
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.4})J"));
+		TestEqual(TEXT("kill counted"), static_cast<int32>(Vars()->GetNumberField(TEXT("kills"))), 1);
+		TestTrue(TEXT("enemy hidden"), H->GetGraph()->Find(Enemy)->Actor->IsHidden());
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"zap","data":{"at":[0,700,0]}})J"));
+		TestEqual(TEXT("hitscan kills instantly"), static_cast<int32>(Vars()->GetNumberField(TEXT("kills"))), 2);
+		TestTrue(TEXT("enemy2 hidden"), H->GetGraph()->Find(Enemy2)->Actor->IsHidden());
+		H->CallFails(TEXT("logic.equip"), TEXT(R"J({"owner":"player","weapon":"nope"})J"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("logic.define_rules"), TEXT(R"J({"rules":[{"name":"x","on":"start","actions":[{"damage":"'player'"}]}]})J"), ERuntimeToolError::InvalidArguments);
+	});
+
+	It("spawns a top-down player with health and invulnerability", [this]()
+	{
+		const TSharedRef<FJsonObject> P = H->CallOk(TEXT("logic.spawn_player"), TEXT(R"J({"location":[0,0,0],"mode":"topdown"})J"));
+		TestTrue(TEXT("player"), P->GetBoolField(TEXT("exists")));
+		H->CallOk(TEXT("logic.define_health"), TEXT(R"J({"targets":["player"],"max":5,"invulnerable":1})J"));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":1.6})J")); // spawn invulnerability ends
+		H->CallOk(TEXT("logic.damage"), TEXT(R"J({"target":"player","amount":2})J"));
+		const TSharedRef<FJsonObject> Again = H->CallOk(TEXT("logic.damage"), TEXT(R"J({"target":"player","amount":2})J"));
+		TestFalse(TEXT("invulnerable right after a hit"), Again->GetBoolField(TEXT("applied")));
+		TestEqual(TEXT("health 3"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"health.player"})J"))->GetNumberField(TEXT("value")), 3.0);
+		H->CallOk(TEXT("logic.remove_player"));
+	});
+
 	It("detects a draw", [this]()
 	{
 		BuildTicTacToe();

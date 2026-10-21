@@ -657,6 +657,37 @@ namespace
 			}
 			return A[i].L.Get();
 		};
+		if (Scope.World)
+		{
+			FLogicValue Out;
+			FString Err;
+			const int32 R = Scope.World(Name, A, Out, Err);
+			if (R > 0)
+			{
+				return Out;
+			}
+			if (R < 0)
+			{
+				return FailExpr(Scope, Name + TEXT(": ") + Err);
+			}
+		}
+		if (Name == TEXT("dist"))
+		{
+			if (!Need(2, 2)) return {};
+			auto Vec = [&](const FLogicValue& V, FVector& Out) -> bool
+			{
+				if (V.Type != FLogicValue::EType::List || V.L->Num() < 2) return false;
+				Out = FVector((*V.L)[0].N, (*V.L)[1].N, V.L->Num() > 2 ? (*V.L)[2].N : 0.0);
+				return true;
+			};
+			FVector P, Q;
+			if (!Vec(A[0], P) || !Vec(A[1], Q)) return FailExpr(Scope, TEXT("dist: arguments must be [x,y,z] lists"));
+			return FLogicValue::MakeNumber(FVector::Dist(P, Q));
+		}
+		if (Name == TEXT("pos") || Name == TEXT("hp") || Name == TEXT("alive") || Name == TEXT("nodes"))
+		{
+			return FailExpr(Scope, Name + TEXT(" needs a running game world"));
+		}
 		FRandomStream Fallback(FPlatformTime::Cycles());
 		FRandomStream& Rand = Scope.Random ? *Scope.Random : Fallback;
 
@@ -1008,7 +1039,7 @@ namespace LogicExpr
 		static const TArray<FString> Names = {TEXT("len"), TEXT("abs"), TEXT("floor"), TEXT("ceil"), TEXT("round"), TEXT("sqrt"), TEXT("min"), TEXT("max"),
 			TEXT("rand"), TEXT("rand_int"), TEXT("str"), TEXT("num"), TEXT("list"), TEXT("range"), TEXT("contains"), TEXT("index_of"), TEXT("count"),
 			TEXT("indices"), TEXT("pick"), TEXT("sum"), TEXT("join"), TEXT("set"), TEXT("keys"), TEXT("upper"), TEXT("lower"), TEXT("grid_lines"),
-			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move")};
+			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move"), TEXT("dist"), TEXT("pos"), TEXT("hp"), TEXT("alive"), TEXT("nodes")};
 		return Names;
 	}
 

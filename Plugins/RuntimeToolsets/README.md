@@ -118,6 +118,27 @@ Turns a scene into a playable game with no code. The game runs inside the engine
 
 ![platformer](Docs/images/platformer_run.jpg)
 
+**Top-down shooters and combat** (systems modelled on a top-down shooter engine's design):
+- **Player:** `spawn_player mode:"topdown"` gives WASD movement, aiming at the mouse (or right stick) and an overhead follow camera. Left mouse, F or the right trigger fires; an optional reload key.
+- **`define_health`** for the player or any nodes:
+  - max and starting health;
+  - invulnerability after a hit;
+  - resistances by damage type;
+  - on death: hide, squash, release, respawn, freeze or nothing; points.
+  - Fires `damaged` and `died` events, and expressions can read `health.player`, `hp(id)` and `alive(id)`.
+- **`define_hitzone`:** lava, spikes, explosions and melee areas that damage whatever overlaps them, once on entry or at an interval, with knockback.
+- **`define_weapon`:**
+  - projectile or hitscan; fire rate, automatic fire, burst;
+  - magazine, reload time and reserve ammo held in a variable;
+  - several shots per trigger with random or fan spread;
+  - knockback, and a filter for who it can hit;
+  - bullets come from a pool, created automatically if you don't supply one.
+- **`equip`** gives a weapon to the player or tagged nodes. The `fire`, `damage` and `heal` actions and the `fired`/`reloaded` events go with it.
+- **World functions in expressions:** `pos(id)`, `nodes('tag:x')` and `dist(a,b)`, so enemies can be scripted ("shoot the player when within 14 m").
+- **Example:** `Scripts/examples/topdown_shooter.py` is an arena with cover, six patrolling robots that shoot back, lava, medkits and ammo crates, an exit that opens when every robot is destroyed, a HUD, and win/lose screens with restart.
+
+![top-down shooter](Docs/images/topdown_shooter.jpg)
+
 ## Using it from C++ (connector API)
 
 ```cpp
