@@ -182,16 +182,20 @@ def _fire_escape(cx, bay, z0, fh, last):
 
 def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None,
            shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False,
-           balconies=(), rail="metal", oriels=(), fire_escape=None):
+           balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False):
     """One wall with real openings. Recipe knobs (so neighbours differ):
     wtype punched | paired | ribbon | tall | square | wide; bands every | base | thick | none; piers (projecting pilasters);
-    cornice cornice | heavy | parapet | none; attic (short top floor); balconies / oriels: bay indices; fire_escape: bay index."""
+    cornice cornice | heavy | parapet | none; attic (short top floor); balconies / oriels: bay indices; fire_escape: bay index;
+    upper: no ground floor or plinth (a block standing on another block's roof)."""
     rng = rng or random
+    if upper:
+        ground_h, shop, door_bay = floor_h, False, None
     bays = bays or max(1, int(width / 330))
     bay = width / bays
     P = []
     height = ground_h + (floors - 1) * floor_h
-    P.append(box([width + 6, wall_t + 8, 60], [0, (wall_t - 8) / 2 - 4, 0], m=trim))                  # plinth
+    if not upper:
+        P.append(box([width + 6, wall_t + 8, 60], [0, (wall_t - 8) / 2 - 4, 0], m=trim))              # plinth
     for f in range(floors):
         z0 = 0 if f == 0 else ground_h + (f - 1) * floor_h
         fh = ground_h if f == 0 else floor_h
@@ -208,7 +212,7 @@ def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red"
                 P.append(box([(bay - 134) / 2, wall_t, fh], [cx + bay / 2 - (bay - 134) / 4, wall_t / 2, z0], m=wall))
                 P.append(box([134, wall_t, fh - 246], [cx, wall_t / 2, z0 + 246], m=wall))
                 continue
-            if f == 0:
+            if f == 0 and not upper:
                 wins, wh, sill = [(0, win_w or min(140, bay * 0.45))], win_h or min(190, fh * 0.52), None
                 wz = z0 + max(90, (fh - wh) * 0.55)
             else:
@@ -217,7 +221,7 @@ def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red"
                     wins = [(0, win_w)]
                 if win_h and wtype == "punched":
                     wh = win_h
-                balcony = b in balconies and not (attic and top_floor)
+                balcony = b in balconies and not (attic and top_floor)  # noqa: F841
                 if balcony:                                                        # French door onto the balcony
                     wins, wh, sill = [(0, min(150, bay * 0.5))], fh * 0.72, 8
                 if attic and top_floor:
@@ -230,11 +234,12 @@ def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red"
                 if wtype == "ribbon" and f > 0 and w >= 200:                        # ribbon mullions
                     P += [box([5, 6, wh], [cx + dx - w / 2 + k * w / int(w / 140), min(20, wall_t * 0.7) - 3, wz], m=frame)
                           for k in range(1, int(w / 140))]
-            if f > 0 and b in balconies and not (attic and top_floor):
+            typical = f > 0 or upper
+            if typical and b in balconies and not (attic and top_floor):
                 P += _balcony(cx, min(bay - 20, 260), z0, rail, trim)
-            if f > 0 and b in oriels and not top_floor:
+            if typical and b in oriels and not top_floor:
                 P += _oriel(cx, wins[0][1] if len(wins) == 1 else bay * 0.6, wz, wh, wall, frame)
-            if f > 0 and b == fire_escape:
+            if typical and b == fire_escape:
                 P += _fire_escape(cx, bay, z0, fh, top_floor)
         if f > 0:
             if bands == "every" or (bands == "base" and f == 1):
@@ -265,11 +270,12 @@ def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red"
 # ------------------------------------------------------------------ buildings
 
 def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None,
-             win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None):
+             win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None, massing=None):
     """A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or hip),
     downspouts. style: a STYLES name (brick | plaster | stone | office | glass | your add_style) or a style dict.
     Proportions: win_w / win_h (window size cm), bay (window spacing cm), wall_t (wall thickness).
-    Glass towers also take setbacks [(height fraction, inset cm), ...] and crown "spire" | "flat". Returns parts."""
+    Glass towers also take setbacks [(height fraction, inset cm), ...] and crown "spire" | "flat".
+    massing: box | stepped | podium | L | U | split | turret (default: a random shape suited to the style). Returns parts."""
     rng = random.Random(seed)
     S = style if isinstance(style, dict) else STYLES[style]
     wall = rng.choice(S["wall"])
@@ -293,53 +299,144 @@ def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=
     bal_mode = rng.choice(["all", "alternate", "centre"]) if rng.random() < prefs["balconies"] else None
     oriel_mode = rng.choice(["alternate", "pair"]) if rng.random() < prefs["oriels"] and wtype != "ribbon" else None
     fire = rng.random() < prefs["fire_escape"] and floors >= 4
+    recipe = dict(wall=wall, trim=trim, frame=frame, wtype=wtype, bands=bands, piers=piers, cornice=cornice, rail=rail, bal_mode=bal_mode,
+                  oriel_mode=oriel_mode, fire=fire, bay=bay, wall_t=t, win_w=win_w, win_h=win_h, floor_h=floor_h, ground_h=ground_h)
+    massing = massing or rng.choice(MASSING_PREFS.get(style if isinstance(style, str) else "", ["box"]))
+    blocks = _massing(massing, width, depth, floors, ground_h, floor_h, rng)
+    tops = [z + (ground_h if not up else floor_h) + (n - 1) * floor_h for _, _, _, _, z, n, up in blocks]
+    top_z = max(tops)
+    top_i = tops.index(top_z)
+    for i, (w, d, x, y, z, n, up) in enumerate(blocks):
+        is_top = i == top_i
+        P += transform(_block(w, d, n, rng, recipe, shop=shop and i == 0 and not up, upper=up, attic=attic and is_top, roof=roof if is_top else "flat",
+                              extras=is_top), (x, y, z), 0)
+    if massing == "turret":
+        P += _turret(width, depth, top_z, floor_h, wall, trim, rng)
+    for x in (-width / 2 + 25, width / 2 - 25):                                                               # downspouts
+        P.append(cyl(10, blocks[0][5] * floor_h, [x, -depth / 2 - 10, 0], m="metal_dark"))
+    return P
+
+
+# Which shapes each style uses (box = one block).
+MASSING_PREFS = {
+    "brick": ["box", "box", "L", "split", "turret"], "painted": ["box", "box", "split", "L"], "loft": ["box", "L", "split"],
+    "plaster": ["box", "L", "U", "split"], "stone": ["box", "stepped", "podium", "turret", "U"], "deco": ["stepped", "stepped", "podium", "box"],
+    "office": ["box", "podium", "stepped", "L"], "residential": ["L", "U", "stepped", "split", "box"], "brutalist": ["podium", "stepped", "box"],
+}
+
+
+def _massing(kind, W, D, F, ground_h, floor_h, rng):
+    """Blocks [(w, d, x, y, z, floors, upper)] for a massing kind; front is -Y. Falls back to one box when too small."""
+    def h_of(n, up=False):
+        return (floor_h if up else ground_h) + (n - 1) * floor_h
+    box1 = [(W, D, 0, 0, 0, F, False)]
+    if kind == "stepped" and F >= 5:
+        k1 = rng.randint(1, max(1, F // 3))
+        f1 = F - k1
+        s_front, s_side = rng.choice((200, 300, 400)), rng.choice((0, 150, 250))
+        out = [(W, D, 0, 0, 0, f1, False), (W - 2 * s_side, D - s_front, 0, s_front / 2, h_of(f1), k1, True)]
+        if F >= 10 and rng.random() < 0.6:                                     # a second step
+            k2 = rng.randint(1, max(1, k1 // 2 + 1))
+            w2, d2 = W - 2 * s_side - 2 * rng.choice((150, 250)), D - s_front - rng.choice((200, 300))
+            out = [(W, D, 0, 0, 0, f1, False), (W - 2 * s_side, D - s_front, 0, s_front / 2, h_of(f1), k1, True),
+                   (w2, d2, 0, s_front / 2 + (D - s_front - d2) / 2, h_of(f1) + k1 * floor_h, k2, True)]
+        return out
+    if kind == "podium" and F >= 5 and W > 1100 and D > 1000:
+        inset = rng.choice((150, 250, 350))
+        return [(W, D, 0, 0, 0, 2, False), (W - 2 * inset, D - 2 * inset, 0, 0, h_of(2), F - 2, True)]
+    if kind == "L" and W >= 1200 and D >= 1000:
+        d1, w2, side = D * rng.uniform(0.4, 0.55), W * rng.uniform(0.3, 0.45), rng.choice((-1, 1))
+        f2 = max(2, F - rng.choice((0, 0, 1, 2)))
+        return [(W, d1, 0, -D / 2 + d1 / 2, 0, F, False), (w2, D - d1, side * (W / 2 - w2 / 2), -D / 2 + d1 + (D - d1) / 2, 0, f2, False)]
+    if kind == "U" and W >= 1600 and D >= 1100:
+        d1, w2 = D * rng.uniform(0.38, 0.5), W * rng.uniform(0.25, 0.32)
+        f2 = max(2, F - rng.choice((0, 1)))
+        return [(W, d1, 0, -D / 2 + d1 / 2, 0, F, False)] + [(w2, D - d1, s * (W / 2 - w2 / 2), -D / 2 + d1 + (D - d1) / 2, 0, f2, False) for s in (-1, 1)]
+    if kind == "split" and W >= 1200:
+        a = rng.uniform(0.4, 0.6)
+        f2 = max(2, F + rng.choice((-3, -2, 2, 3)))
+        wa, wb = W * a, W * (1 - a)
+        return [(wa, D, -W / 2 + wa / 2, 0, 0, F, False), (wb, D, W / 2 - wb / 2, 0, 0, f2, False)]
+    return box1
+
+
+def _block(width, depth, floors, rng, r, shop=False, upper=False, attic=False, roof="flat", extras=True):
+    """One rectangular block: four facades from the building's recipe r, roof slab and (on the top block) roof extras."""
+    t, bay, floor_h = r["wall_t"], r["bay"], r["floor_h"]
+    ground_h = floor_h if upper else r["ground_h"]
+    height = ground_h + (floors - 1) * floor_h
+    P = []
     sides = [(width, (0, -depth / 2, 0), 0), (depth, (width / 2, 0, 0), 90), (width, (0, depth / 2, 0), 180), (depth, (-width / 2, 0, 0), 270)]
     for k, (w, off, yaw) in enumerate(sides):
         front = k == 0
         bays = max(1, int(w / bay))
         long_side = k % 2 == 0
         balconies = ()
-        if bal_mode and long_side:
-            balconies = set(range(bays)) if bal_mode == "all" else {b for b in range(bays) if b % 2 == 1} if bal_mode == "alternate" else {bays // 2}
+        if r["bal_mode"] and long_side:
+            m = r["bal_mode"]
+            balconies = set(range(bays)) if m == "all" else {b for b in range(bays) if b % 2 == 1} if m == "alternate" else {bays // 2}
         oriels = ()
-        if oriel_mode and long_side:
-            oriels = {b for b in range(bays) if b % 2 == 0} if oriel_mode == "alternate" else {0, bays - 1}
+        if r["oriel_mode"] and long_side:
+            oriels = {b for b in range(bays) if b % 2 == 0} if r["oriel_mode"] == "alternate" else {0, bays - 1}
             oriels -= set(balconies)
-        f = facade(w - (0 if k % 2 == 0 else 2 * t), floors, floor_h, ground_h, bays, wall, trim, frame,
-                   door_bay=(bays // 2 if front and not shop else None), shop=shop and front, win_w=win_w, win_h=win_h, wall_t=t, rng=rng,
-                   wtype=wtype, bands=bands, piers=piers, cornice=cornice, attic=attic, balconies=balconies, rail=rail, oriels=oriels,
-                   fire_escape=(1 if bays > 2 else 0) if fire and front else None)
+        f = facade(w - (0 if k % 2 == 0 else 2 * t), floors, floor_h, ground_h, bays, r["wall"], r["trim"], r["frame"],
+                   door_bay=(bays // 2 if front and not shop and not upper else None), shop=shop and front, win_w=r["win_w"], win_h=r["win_h"],
+                   wall_t=t, rng=rng, wtype=r["wtype"], bands=r["bands"], piers=r["piers"], cornice=r["cornice"], attic=attic, balconies=balconies,
+                   rail=r["rail"], oriels=oriels, fire_escape=(1 if bays > 2 else 0) if r["fire"] and front and not upper else None, upper=upper)
         P += transform(f, off, yaw)
     P.append(box([width - 2 * t, depth - 2 * t, 20], [0, 0, height - 20], m="roof_flat"))                     # roof slab
     if roof == "gable":
         P.append(gable(width + 60, depth + 60, min(width, depth) * 0.35, [0, 0, height + 28], m=rng.choice(["roof_tile", "roof_slate"])))
-    elif roof == "hip":
+        return P
+    if roof == "hip":
         P.append({"shape": "pyramid", "size": [width + 60, depth + 60, min(width, depth) * 0.3], "location": [0, 0, height + 28],
                   **mat(rng.choice(["roof_slate", "roof_tile"]))})
+        return P
+    P.append(box([width - 2 * t, depth - 2 * t, 4], [0, 0, height], m="tar"))
+    if not extras:
+        return P
+    for _ in range(rng.randint(1, 3)):                                                                       # rooftop units
+        ux, uy = rng.uniform(-width / 3, width / 3), rng.uniform(-depth / 3, depth / 3)
+        P.append(box([rng.choice([120, 160, 220]), rng.choice([90, 120]), rng.choice([90, 120, 150])], [ux, uy, height + 4], m="metal"))
+    if rng.random() < 0.4:
+        P.append(cyl(220, 260, [rng.uniform(-width / 4, width / 4), rng.uniform(-depth / 4, depth / 4), height + 4], m="frame_wood"))
+    P.append(box([180, 140, 260], [width / 2 - 200, depth / 2 - 160, height + 4], m=r["wall"]))                 # stair head
+    extra = rng.random()
+    if floors >= 4 and extra < 0.25 and width > 900 and depth > 900:                                         # set-back penthouse
+        pw, pd = width - 400, depth - 400
+        P.append(box([pw, pd, floor_h - 20], [0, 0, height + 4], m=rng.choice(["glass_dark", r["wall"], "aluminium"])))
+        P.append(box([pw + 60, pd + 60, 20], [0, 0, height + floor_h - 16], m=r["trim"]))
+        P.append(box([width - 40, 4, 100], [0, -depth / 2 + 20, height + 4], m="glass"))                     # terrace railing
+    elif extra < 0.45:                                                                                       # roof garden + pergola
+        P.append(box([width * 0.5, depth * 0.4, 40], [-width * 0.1, 0, height + 4], m="soil"))
+        P.append(box([width * 0.48, depth * 0.38, 12], [-width * 0.1, 0, height + 44], m="grass"))
+        for i in range(5):
+            P.append(box([10, depth * 0.4, 10], [-width * 0.35 + i * width * 0.12, 0, height + 260], m="frame_wood"))
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                P.append(box([12, 12, 256], [-width * 0.1 + sx * width * 0.24, sy * depth * 0.18, height + 4], m="frame_wood"))
+    return P
+
+
+def _turret(W, D, top_z, floor_h, wall, trim, rng):
+    """Round corner turret (late-Victorian / beaux-arts corner): rises a storey above the roof, windows each floor,
+    conical or domed cap."""
+    dia = min(480, W * 0.28, D * 0.4)
+    sx = rng.choice((-1, 1))
+    x, y = sx * (W / 2 - dia * 0.25), -D / 2 + dia * 0.25
+    h = top_z + floor_h * rng.uniform(0.8, 1.3)
+    P = [cyl(dia, h, [x, y, 0], m=wall), cyl(dia + 30, 30, [x, y, top_z - 30], m=trim), cyl(dia + 24, 24, [x, y, h - 24], m=trim)]
+    for f in range(1, int(h // floor_h)):
+        z = f * floor_h + 90
+        for ang in (-150, -110, -70, -30) if sx > 0 else (-150, -110, -70, -30):
+            a = math.radians(ang if sx < 0 else -180 - ang)
+            P.append(box([70, 8, min(170, floor_h * 0.5)], [x + math.cos(a) * (dia / 2 + 1), y + math.sin(a) * (dia / 2 + 1), z],
+                         rot=[0, math.degrees(a) + 90, 0], m="glass"))
+    if rng.random() < 0.6:
+        P.append(cone(dia + 40, dia * rng.uniform(0.8, 1.2), [x, y, h], m=rng.choice(["roof_slate", M("verdigris", (90, 140, 120)), M("copper", (160, 100, 64))])))
     else:
-        P.append(box([width - 2 * t, depth - 2 * t, 4], [0, 0, height], m="tar"))
-        for _ in range(rng.randint(1, 3)):                                                                   # rooftop units
-            ux, uy = rng.uniform(-width / 3, width / 3), rng.uniform(-depth / 3, depth / 3)
-            P.append(box([rng.choice([120, 160, 220]), rng.choice([90, 120]), rng.choice([90, 120, 150])], [ux, uy, height + 4], m="metal"))
-        if rng.random() < 0.4:
-            P.append(cyl(220, 260, [rng.uniform(-width / 4, width / 4), rng.uniform(-depth / 4, depth / 4), height + 4], m="frame_wood"))
-        P.append(box([180, 140, 260], [width / 2 - 200, depth / 2 - 160, height + 4], m=wall))             # stair head
-        extra = rng.random()
-        if floors >= 5 and extra < 0.25 and width > 900 and depth > 900:                                     # set-back penthouse
-            pw, pd = width - 400, depth - 400
-            P.append(box([pw, pd, floor_h - 20], [0, 0, height + 4], m=rng.choice(["glass_dark", wall, "aluminium"])))
-            P.append(box([pw + 60, pd + 60, 20], [0, 0, height + floor_h - 16], m=trim))
-            P.append(box([width - 40, 4, 100], [0, -depth / 2 + 20, height + 4], m="glass"))                 # terrace railing
-        elif extra < 0.45:                                                                                   # roof garden + pergola
-            P.append(box([width * 0.5, depth * 0.4, 40], [-width * 0.1, 0, height + 4], m="soil"))
-            P.append(box([width * 0.48, depth * 0.38, 12], [-width * 0.1, 0, height + 44], m="grass"))
-            for i in range(5):
-                P.append(box([10, depth * 0.4, 10], [-width * 0.35 + i * width * 0.12, 0, height + 260], m="frame_wood"))
-            for sx in (-1, 1):
-                for sy in (-1, 1):
-                    P.append(box([12, 12, 256], [-width * 0.1 + sx * width * 0.24, sy * depth * 0.18, height + 4], m="frame_wood"))
-    for x in (-width / 2 + 25, width / 2 - 25):                                                               # downspouts
-        P.append(cyl(10, height, [x, -depth / 2 - 10, 0], m="metal_dark"))
+        P.append(part("dome", [dia + 20, dia + 20, dia * 0.5], [x, y, h], m=rng.choice([M("verdigris", (90, 140, 120)), "roof_slate"])))
+    P.append(cyl(12, 160, [x, y, h + dia * 0.5], m="metal_dark"))
     return P
 
 

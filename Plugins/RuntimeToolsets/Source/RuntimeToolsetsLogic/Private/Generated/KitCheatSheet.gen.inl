@@ -104,12 +104,12 @@ add_style(name, wall, trim, frame, roof=("roof_flat",), door=("door_wood",))  # 
 bench(x, y, yaw=0)
 bin_(x, y)
 bollard(x, y)
-building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None, win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None)  # A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or 
+building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None, win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None, massing=None)  # A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or 
 car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark glass, four wheels, lights.
 city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
 door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
-facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None)  # One wall with real openings. Recipe knobs (so neighbours differ):
+facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe knobs (so neighbours differ):
 glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
 lamp_post(x, y, yaw=0)
 plaza(width=2000, depth=2000, seed=None)  # Paved square with a lawn, trees, benches and lamps.
@@ -126,8 +126,8 @@ lose_life(respawn_delay=1.2)  # Actions for 'the player got hit': lives - 1, fee
 patrol(targets, axis=(1, 0, 0), distance=600, speed=150, face=True)  # Simple back-and-forth movers (platforms, simple enemies).
 pickups(targets, points=10, name=None, effect=True)  # Collectibles: touching one hides it and adds points (restored on restart).
 pool(name, template, size=10)
-score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a )KIT"))
-	+ FString(TEXT(R"KIT(game-over panel with a restart button, R to restart,
+score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives )KIT"))
+	+ FString(TEXT(R"KIT(/ over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
 side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
 third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
