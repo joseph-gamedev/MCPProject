@@ -5,6 +5,7 @@
 #include "RuntimeToolsetsLog.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
+#include "Engine/PostProcessVolume.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
@@ -269,6 +270,13 @@ void FRuntimeSceneGraph::SoftDelete(const FString& Id)
 		Node->bCollisionBeforeDelete = Actor->GetActorEnableCollision();
 		Actor->SetActorHiddenInGame(true);
 		Actor->SetActorEnableCollision(false);
+		// Volumes are always hidden in game, so hiding does not stop a post-process volume: switch it off too, or a
+		// deleted volume keeps grading the image (and lighting tools would find and reuse it until it is destroyed).
+		if (APostProcessVolume* Volume = Cast<APostProcessVolume>(Actor))
+		{
+			Node->bVolumeEnabledBeforeDelete = Volume->bEnabled;
+			Volume->bEnabled = false;
+		}
 	}
 }
 
@@ -284,6 +292,10 @@ void FRuntimeSceneGraph::Restore(const FString& Id)
 	{
 		Actor->SetActorHiddenInGame(Node->bHiddenBeforeDelete);
 		Actor->SetActorEnableCollision(Node->bCollisionBeforeDelete);
+		if (APostProcessVolume* Volume = Cast<APostProcessVolume>(Actor))
+		{
+			Volume->bEnabled = Node->bVolumeEnabledBeforeDelete;
+		}
 	}
 	// A sibling may have taken the name meanwhile.
 	if (IsNameTaken(Node->ParentId, Node->Name, Id))

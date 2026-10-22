@@ -34,6 +34,8 @@ struct FRuntimeSceneNode
 	/** Collision state captured when soft-deleted. */
 	bool bCollisionBeforeDelete = true;
 	bool bHiddenBeforeDelete = false;
+	/** Post-process volumes ignore hidden-in-game, so soft-delete disables them; this is their state before. */
+	bool bVolumeEnabledBeforeDelete = true;
 };
 
 /** Registry of tool-created nodes for one world. Game thread only. */

@@ -67,6 +67,7 @@ private:
 		FString Ref;
 		bool bWasHidden = false;
 		bool bHadCollision = true;
+		bool bVolumeWasEnabled = true;
 	};
 	FString Label;
 	TArray<FEntry> Entries;

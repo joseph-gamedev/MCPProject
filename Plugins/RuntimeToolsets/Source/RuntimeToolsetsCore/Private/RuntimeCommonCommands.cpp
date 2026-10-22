@@ -1,4 +1,5 @@
 #include "RuntimeCommonCommands.h"
+#include "Engine/PostProcessVolume.h"
 #include "RuntimeJson.h"
 #include "RuntimeObjectResolver.h"
 #include "RuntimePropertyPath.h"
@@ -141,6 +142,11 @@ bool FSoftDeleteActorsCommand::Do(FRuntimeCommandContext& Context, FString& OutE
 			E.bHadCollision = A->GetActorEnableCollision();
 			A->SetActorHiddenInGame(true);
 			A->SetActorEnableCollision(false);
+			if (APostProcessVolume* Volume = Cast<APostProcessVolume>(A))  // hiding does not switch a volume off
+			{
+				E.bVolumeWasEnabled = Volume->bEnabled;
+				Volume->bEnabled = false;
+			}
 		}
 	}
 	return true;
@@ -166,6 +172,10 @@ bool FSoftDeleteActorsCommand::Undo(FRuntimeCommandContext& Context)
 		{
 			A->SetActorHiddenInGame(E.bWasHidden);
 			A->SetActorEnableCollision(E.bHadCollision);
+			if (APostProcessVolume* Volume = Cast<APostProcessVolume>(A))
+			{
+				Volume->bEnabled = E.bVolumeWasEnabled;
+			}
 		}
 	}
 	return bAll;

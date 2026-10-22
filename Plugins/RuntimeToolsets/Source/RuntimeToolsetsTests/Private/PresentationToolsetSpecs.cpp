@@ -382,6 +382,29 @@ void FLightingToolsetSpec::Define()
 			H->CallFails(TEXT("lighting.apply_mood"), TEXT("{\"mood\":\"stormy\"}"), ERuntimeToolError::InvalidArguments);
 		});
 
+		// Regression: clear_all soft-deletes the tool-made volume; it must stop grading the image and must not be
+		// reused, or it vanishes (and exposure resets) when the clear leaves history hundreds of commands later.
+		It("does not reuse a cleared post-process volume", [this]()
+		{
+			TestTrue(TEXT("first volume"), H->CallOk(TEXT("lighting.set_post_process"), TEXT("{\"exposure_min\":14,\"exposure_max\":14}"))->GetBoolField(TEXT("created_volume")));
+			APostProcessVolume* First = nullptr;
+			for (TActorIterator<APostProcessVolume> It(H->GetWorld()); It; ++It)
+			{
+				First = *It;
+			}
+			if (!TestNotNull(TEXT("volume"), First))
+			{
+				return;
+			}
+			H->CallOk(TEXT("scene.clear_all"), TEXT("{\"confirm\":true}"));
+			TestFalse(TEXT("cleared volume switched off"), First->bEnabled);
+			TestTrue(TEXT("environment no longer reports it"), H->CallOk(TEXT("lighting.get_environment"))->GetObjectField(TEXT("post_process"))->GetStringField(TEXT("actor")).IsEmpty());
+			TestTrue(TEXT("a new volume is made"), H->CallOk(TEXT("lighting.set_post_process"), TEXT("{\"exposure_min\":14,\"exposure_max\":14}"))->GetBoolField(TEXT("created_volume")));
+			H->CallOk(TEXT("history.undo"));
+			H->CallOk(TEXT("history.undo"));
+			TestTrue(TEXT("undoing the clear switches it back on"), First->bEnabled);
+		});
+
 		It("sets sky light, atmosphere and clouds", [this]()
 		{
 			PresentationSpawn(*H, TEXT("/Script/Engine.SkyLight"));
