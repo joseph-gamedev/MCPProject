@@ -8,7 +8,7 @@ public class RuntimeToolsetsCoreTools : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"RenderCore", "RHI", "ImageCore", "ImageWrapper", "Projects"
+			"RenderCore", "RHI", "ImageCore", "ImageWrapper", "Projects", "SlateCore"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

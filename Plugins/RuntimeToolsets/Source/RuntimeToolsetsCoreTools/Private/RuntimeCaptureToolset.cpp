@@ -11,6 +11,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/App.h"
 #include "UnrealClient.h"
+#include "Widgets/SWindow.h"
 
 namespace
 {
@@ -64,6 +65,16 @@ URuntimeCaptureImageResult* URuntimeCaptureToolset::Screenshot(bool bShowUi, int
 	if (!FApp::CanEverRender() || !GEngine || !GEngine->GameViewport)
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::Unsupported, TEXT("no game viewport (null RHI or server)"), TEXT("Use capture.scene_capture"));
+		return nullptr;
+	}
+	// A minimized window shrinks the back buffer to a few pixels while the viewport keeps its size; reading it back
+	// then asserts in the RHI and takes the whole game down. Refuse instead.
+	const TSharedPtr<SWindow> Window = GEngine->GameViewport->GetWindow();
+	const FIntPoint ViewSize = GEngine->GameViewport->Viewport ? GEngine->GameViewport->Viewport->GetSizeXY() : FIntPoint::ZeroValue;
+	if ((Window.IsValid() && Window->IsWindowMinimized()) || ViewSize.X < 16 || ViewSize.Y < 16)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::WrongState, TEXT("the game window is minimized, so there is no frame to read"),
+			TEXT("Restore the window, or use capture.scene_capture (renders off screen)"));
 		return nullptr;
 	}
 	URuntimeCaptureImageResult* Result = NewObject<URuntimeCaptureImageResult>();

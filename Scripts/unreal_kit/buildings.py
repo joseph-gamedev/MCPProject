@@ -709,15 +709,422 @@ def _l_shape(kind, rng, wa, wb, depth, floors, corner):
     return P
 
 
-def building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None):
+def building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None,
+             massing=None, party=None, street=("-y",)):
     """A complete building of a type, varied by seed.
     shape rect: front facade on the street (-Y), back, sides, roof; origin = front centre at ground.
     shape L (corner building): two street facades meeting at the origin, wing A along +X (facing -Y), wing B along +Y
       (facing -X); width = wing A length, wing = wing B length; corner = square | chamfer | tower | balconies (default:
       chosen by the seed).
+    massing: a massing model (see MASSINGS, or "auto" to let the type and seed pick): the building is composed of
+      volumes on a lot (width x depth, front edge at y = 0, centred on x = 0) and every exposed face gets a facade.
+      party: lot sides that touch neighbours and stay blank ("-x", "+x"); street: faces that get the shop / entrance
+      ground floor and the main facade.
     Returns parts."""
     rng = random.Random(seed)
+    if massing:
+        return massed(kind, massing, rng, width, depth, floors, party, street)
     if shape in ("L", "corner"):
         corner = corner or rng.choice(("square", "chamfer", "tower", "balconies"))
         return _l_shape(kind, rng, width, wing, depth, floors, corner)
     return _rect(kind, rng, width, depth, floors)
+
+
+# ------------------------------------------------------------------ 4. massing models
+# A massing model is the building's overall volume before any detail: boxes on a lot (podium + tower, setbacks,
+# courtyard, bars, stacked or notched blocks). Volumes share one storey grid so floors line up across them; every
+# face that is not hidden by a neighbour gets a facade for exactly the storeys it shows, roofs get parapets, and a
+# roof that another volume steps back from becomes a terrace with railings and planters.
+# Depth rules (daylight): housing bars 10-14 m, office bars 14-20 m, tower plates 18-32 m.
+
+def _vol(x0, y0, x1, y1, f0, n, tag="main"):
+    return {"x0": min(x0, x1), "x1": max(x0, x1), "y0": min(y0, y1), "y1": max(y0, y1), "f0": int(f0), "n": max(1, int(n)), "tag": tag}
+
+
+def _m_block(w, d, n, rng, b):
+    return [_vol(-w / 2, 0, w / 2, d, 0, n)]
+
+
+def _m_slab(w, d, n, rng, b):
+    """Long thin bar (Corbusian slab): depth b, often a recessed glazed ground floor."""
+    return [_vol(-w / 2, 0, w / 2, b, 0, n)]
+
+
+def _m_podium_tower(w, d, n, rng, b):
+    """Point tower on a 2-4 storey podium that fills the lot; tower set back from the street, optional slimmer crown."""
+    npod = rng.randint(2, 4)
+    nt = max(n, rng.randint(10, 22))
+    tw = max(1400, min(w - 400, w * rng.uniform(0.45, 0.65)))
+    td = max(1400, min(d - 600, d * rng.uniform(0.5, 0.7)))
+    sb = rng.uniform(400, max(450, d - td - 200))
+    ox = rng.uniform(-(w - tw) / 2 + 200, (w - tw) / 2 - 200) if w - tw > 500 else 0
+    V = [_vol(-w / 2, 0, w / 2, d, 0, npod, "podium")]
+    crown = rng.random() < 0.5
+    top = nt - (2 if crown else 0)
+    V.append(_vol(ox - tw / 2, sb, ox + tw / 2, sb + td, npod, top - npod, "tower"))
+    if crown:
+        i = rng.choice((200, 300))
+        V.append(_vol(ox - tw / 2 + i, sb + i, ox + tw / 2 - i, sb + td - i, top, 2, "tower"))
+    return V
+
+
+def _m_twin(w, d, n, rng, b):
+    """Two towers on a shared podium."""
+    npod = rng.randint(2, 3)
+    gap = rng.uniform(800, 1400)
+    tw = max(1200, (w - gap - 400) / 2)
+    td = max(1200, min(d - 600, d * rng.uniform(0.5, 0.7)))
+    sb = rng.uniform(300, max(350, d - td - 200))
+    V = [_vol(-w / 2, 0, w / 2, d, 0, npod, "podium")]
+    na, nb = max(n, rng.randint(9, 18)), max(n, rng.randint(9, 18))
+    V.append(_vol(-gap / 2 - tw, sb, -gap / 2, sb + td, npod, na - npod, "tower"))
+    V.append(_vol(gap / 2, sb, gap / 2 + tw, sb + td, npod, nb - npod, "tower"))
+    return V
+
+
+def _m_setback(w, d, n, rng, b):
+    """Wedding cake (New York 1916 zoning): the block steps back from the street and sides as it rises."""
+    n = max(n, rng.randint(9, 16))
+    tiers = rng.randint(2, 4)
+    s = rng.uniform(300, 500)
+    base = max(2, int(n * rng.uniform(0.35, 0.5)))
+    rest = n - base
+    V, f, inset = [], 0, 0
+    counts = [base] + [max(1, rest // (tiers - 1))] * (tiers - 1)
+    counts[-1] += n - sum(counts)
+    for k, c in enumerate(counts):
+        if c <= 0:
+            continue
+        x0, x1 = -w / 2 + inset, w / 2 - inset
+        if x1 - x0 < 900:
+            break
+        V.append(_vol(x0, inset, x1, d, f, c, "tower" if k else "main"))
+        f += c
+        inset += s
+    return V
+
+
+def _m_terraced(w, d, n, rng, b):
+    """Terraced: every 1-2 storeys the front steps back, each roof a terrace for the floor above."""
+    n = min(max(n, 4), 8)
+    step = rng.uniform(250, 380)
+    per = rng.choice((1, 1, 2))
+    V, f, k = [], 0, 0
+    while f < n:
+        c = min(per if f else max(1, per), n - f)
+        y0 = k * step
+        if d - y0 < 600:
+            break
+        V.append(_vol(-w / 2, y0, w / 2, d, f, c))
+        f += c
+        k += 1
+    return V
+
+
+def _m_courtyard(w, d, n, rng, b):
+    """Perimeter block around a courtyard (European city block)."""
+    V = [_vol(-w / 2, 0, w / 2, b, 0, n), _vol(-w / 2, d - b, w / 2, d, 0, n + rng.choice((0, 0, -1, 1)))]
+    V += [_vol(-w / 2, b, -w / 2 + b, d - b, 0, n), _vol(w / 2 - b, b, w / 2, d - b, 0, n + rng.choice((0, -1)))]
+    return V
+
+
+def _m_u(w, d, n, rng, b):
+    """U plan: a street bar with two wings back, open court behind."""
+    nw = n - rng.choice((0, 0, 1))
+    return [_vol(-w / 2, 0, w / 2, b, 0, n), _vol(-w / 2, b, -w / 2 + b, d, 0, nw), _vol(w / 2 - b, b, w / 2, d, 0, nw)]
+
+
+def _m_l(w, d, n, rng, b):
+    """L plan on one street: street bar plus a wing back along one side."""
+    s = rng.choice((-1, 1))
+    x0 = s * w / 2
+    ww = min(b, w * 0.5)
+    return [_vol(-w / 2, 0, w / 2, b, 0, n), _vol(x0, b, x0 - s * ww, d, 0, max(1, n - rng.choice((0, 1))))]
+
+
+def _m_t(w, d, n, rng, b):
+    """T plan: street bar with a narrower stem behind (rear extension)."""
+    sw = min(w * 0.5, max(b * 0.8, w * 0.35))
+    return [_vol(-w / 2, 0, w / 2, b, 0, n), _vol(-sw / 2, b, sw / 2, d, 0, max(1, n - rng.choice((0, 1, 2))))]
+
+
+def _m_h(w, d, n, rng, b):
+    """H plan: two wings running back from the street joined by a lower link."""
+    lb = b * rng.uniform(0.7, 0.9)
+    return [_vol(-w / 2, 0, -w / 2 + b, d, 0, n), _vol(w / 2 - b, 0, w / 2, d, 0, n),
+            _vol(-w / 2 + b, d / 2 - lb / 2, w / 2 - b, d / 2 + lb / 2, 0, max(1, n - rng.choice((0, 1, 2))))]
+
+
+def _m_stacked(w, d, n, rng, b):
+    """Stacked boxes: groups of storeys shifted against each other (cantilevers), contemporary housing."""
+    n = max(n, rng.randint(5, 9))
+    bw, bd = w * rng.uniform(0.75, 0.85), d * rng.uniform(0.8, 0.9)
+    V, f, k = [], 0, 0
+    while f < n:
+        g = min(rng.randint(2, 3), n - f)
+        dx = 0 if k == 0 else rng.choice((-1, 1)) * rng.uniform(150, (w - bw) / 2)
+        dy = (d - bd) / 2 + (0 if k == 0 else rng.uniform(-(d - bd) / 2, (d - bd) / 2))
+        V.append(_vol(dx - bw / 2, dy, dx + bw / 2, dy + bd, f, g, "stack"))
+        f += g
+        k += 1
+    return V
+
+
+def _m_notched(w, d, n, rng, b):
+    """A block split by a recessed slot (subtractive): two masses and a set-back glazed middle."""
+    rw = rng.uniform(300, 500)
+    rd = rng.uniform(220, 380)
+    off = rng.uniform(-w / 6, w / 6)
+    return [_vol(-w / 2, 0, off - rw / 2, d, 0, n), _vol(off - rw / 2, rd, off + rw / 2, d, 0, n + rng.choice((0, 0, 1)), "recess"),
+            _vol(off + rw / 2, 0, w / 2, d, 0, n + rng.choice((0, -1, 1)))]
+
+
+def _m_stepped(w, d, n, rng, b):
+    """Height steps across the street front: 2-3 parts of falling height (skyline variety in one building)."""
+    k = rng.choice((2, 3))
+    cuts = sorted(rng.uniform(0.3, 0.7) * w - w / 2 for _ in range(k - 1))
+    xs = [-w / 2] + cuts + [w / 2]
+    heights = sorted({max(2, n - i * rng.randint(1, 3)) for i in range(k)}, reverse=True)
+    while len(heights) < k:
+        heights.append(max(1, heights[-1] - 1))
+    if rng.random() < 0.5:
+        heights.reverse()
+    return [_vol(xs[i], 0, xs[i + 1], d, 0, heights[i]) for i in range(k)]
+
+
+MASSINGS = {"block": _m_block, "slab": _m_slab, "podium_tower": _m_podium_tower, "twin_towers": _m_twin, "setback": _m_setback,
+            "terraced": _m_terraced, "courtyard": _m_courtyard, "U": _m_u, "L": _m_l, "T": _m_t, "H": _m_h, "stacked": _m_stacked,
+            "notched": _m_notched, "stepped": _m_stepped}
+KIND_MASSINGS = {
+    "apartment": ["block", "slab", "podium_tower", "courtyard", "U", "T", "terraced", "stacked", "notched", "stepped", "setback"],
+    "office": ["block", "podium_tower", "twin_towers", "setback", "H", "notched", "stacked", "stepped", "slab"],
+    "loft": ["block", "courtyard", "U", "L", "stepped", "setback", "notched"],
+    "townhouse": ["block", "T", "L", "terraced"],
+    "shophouse": ["block", "T", "terraced"],
+    "villa": ["block", "L", "T", "H", "U"],
+}
+# lot size each massing needs (min width, min depth) and how deep a bar is for each type (cm)
+_LOT = {"podium_tower": (2600, 2400), "twin_towers": (4200, 2400), "setback": (2400, 2000), "courtyard": (3200, 3200), "U": (2800, 2600),
+        "H": (2800, 2600), "L": (2200, 2400), "T": (1800, 2600), "slab": (4500, 0), "stacked": (1800, 1400), "notched": (2000, 1200),
+        "stepped": (2400, 1200), "terraced": (1200, 1400)}
+_BAR = {"apartment": (1100, 1400), "office": (1500, 1900), "loft": (1300, 1600), "townhouse": (900, 1100), "shophouse": (900, 1200), "villa": (900, 1100)}
+
+
+def _faces(v):
+    return [("-y", v["y0"], v["x0"], v["x1"]), ("+y", v["y1"], v["x0"], v["x1"]), ("-x", v["x0"], v["y0"], v["y1"]), ("+x", v["x1"], v["y0"], v["y1"])]
+
+
+def _covers(V, v, dirn, plane, zl, zh, Z):
+    """Rectangles (u0, u1, z0, z1) of the face plane hidden by other volumes that touch or pass through it."""
+    out = []
+    for o in V:
+        if o is v:
+            continue
+        if dirn in ("-y", "+y"):
+            lo, hi, u0, u1 = o["y0"], o["y1"], o["x0"], o["x1"]
+            touch = (abs(hi - plane) < 2 and dirn == "-y") or (abs(lo - plane) < 2 and dirn == "+y") or (lo < plane - 1 and hi > plane + 1)
+        else:
+            lo, hi, u0, u1 = o["x0"], o["x1"], o["y0"], o["y1"]
+            touch = (abs(hi - plane) < 2 and dirn == "-x") or (abs(lo - plane) < 2 and dirn == "+x") or (lo < plane - 1 and hi > plane + 1)
+        if not touch:
+            continue
+        za, zb = max(Z(o["f0"]), zl), min(Z(o["f0"] + o["n"]), zh)
+        if zb - za > 0.5:
+            out.append((u0, u1, za, zb))
+    return out
+
+
+def _free(lo, hi, ivs):
+    out, cur = [], lo
+    for a, b in sorted(ivs):
+        if a > cur + 0.5:
+            out.append((cur, min(a, hi)))
+        cur = max(cur, b)
+        if cur >= hi:
+            break
+    if hi > cur + 0.5:
+        out.append((cur, hi))
+    return out
+
+
+def _exposed(ua, ub, covers, zl, zh):
+    """Splits a face along u into runs with the same visible height ranges."""
+    cuts = sorted({ua, ub} | {min(max(c[0], ua), ub) for c in covers} | {min(max(c[1], ua), ub) for c in covers})
+    runs = []
+    for a, b in zip(cuts, cuts[1:]):
+        if b - a < 1:
+            continue
+        mid = (a + b) / 2
+        fr = _free(zl, zh, [(c[2], c[3]) for c in covers if c[0] < mid < c[1]])
+        key = [(round(x), round(y)) for x, y in fr]
+        if runs and runs[-1][2] == key and abs(runs[-1][1] - a) < 1:
+            runs[-1][1] = b
+        else:
+            runs.append([a, b, key])
+    return runs
+
+
+def _put(P, parts, dirn, plane, u, z):
+    pos = {"-y": ((u, plane, z), 0), "+y": ((u, plane, z), 180), "-x": ((plane, u, z), -90), "+x": ((plane, u, z), 90)}[dirn]
+    P += transform(parts, *pos)
+
+
+def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",)):
+    """Builds a building of type `kind` from a massing model (name in MASSINGS or "auto")."""
+    if massing == "auto":
+        massing = rng.choice(KIND_MASSINGS.get(kind, ["block"]))
+    gen = MASSINGS[massing]
+    plan, w0, d0, roof, bay = _recipe(kind, rng, depth, floors)
+    n = len(plan["floors"])
+    bar = rng.uniform(*_BAR.get(kind, (1100, 1400)))
+    mw, md = _LOT.get(massing, (0, 0))
+    # open space between wings: at least 12 m and ~0.7 x the building height (daylight in the court)
+    court = max(1200, 0.7 * sum(f["h"] for f in plan["floors"]))
+    need = {"courtyard": (2 * bar + court * 1.4, 2 * bar + court * 1.4), "U": (2 * bar + court, bar + court), "H": (2 * bar + court, 2.2 * bar),
+            "L": (bar + court, bar + court), "T": (bar * 2.2, bar + court)}.get(massing)
+    if need:
+        mw, md = max(mw, need[0]), max(md, need[1])
+    row = kind in ("townhouse", "shophouse")               # row houses keep their narrow plot; wings grow back, not sideways
+    w = width or (w0 if row else max(w0, mw))
+    d = depth or max(d0 if massing in ("block", "stepped", "notched", "stacked", "terraced", "setback") else 0, md, bar)
+    if party is None:
+        party = ("-x", "+x") if kind in ("townhouse", "shophouse") and massing in ("block", "T", "terraced") else ()
+    V = gen(w, d, n, rng, min(bar, d))
+    # one storey grid for the whole building: ground, the recipe's storeys, then its typical storey repeated
+    pf = plan["floors"]
+    typical = pf[-2] if len(pf) > 2 else (pf[1] if len(pf) > 1 else dict(pf[0], kind="window", balcony=None))
+    top_f = pf[-1] if len(pf) > 1 else typical
+    if typical["kind"] != "window":
+        typical = dict(typical, kind="window")
+    top_n = max(v["f0"] + v["n"] for v in V)
+    H = [pf[i]["h"] if i < len(pf) - 1 else typical["h"] for i in range(top_n + 1)]
+    H[0] = pf[0]["h"]
+    zs = [0]
+    for h in H:
+        zs.append(zs[-1] + h)
+
+    def Z(i):
+        return zs[min(i, len(zs) - 1)]
+
+    # tall volumes of modern types may get a curtain-wall skin
+    curtain = kind in ("apartment", "office") and massing in ("podium_tower", "twin_towers", "setback", "stacked") and rng.random() < 0.6
+    cw_win = {"kind": "modern", "frame": rng.choice(("frame_alu", "frame_dark")), "sill": None, "head": "none", "curtain": False}
+
+    def storey(i, v):
+        last = i == v["f0"] + v["n"] - 1
+        if i == 0:
+            f = dict(pf[0])
+        elif last and top_n > 1 and i == top_n - 1 and len(pf) > 2:
+            f = dict(top_f)
+        elif i < len(pf) - 1:
+            f = dict(pf[i])
+        else:
+            f = dict(typical)
+        if f["kind"] not in ("window", "shop", "entrance", "blank"):
+            f["kind"] = "window"
+        f["h"] = H[i]
+        if i > 0 and curtain and v["tag"] in ("tower", "stack"):
+            f.update(kind="window", w=bay - 30, wh=H[i] - 45, sill=22, window=cw_win, balcony=f.get("balcony") if kind == "apartment" else None,
+                     balcony_kind="continuous", rail="glass", rail_mat="steel")
+        if v["tag"] == "recess" and i > 0:                  # the slot is glazed
+            f.update(kind="window", w=bay - 40, wh=H[i] - 60, sill=30, window=cw_win, balcony=None)
+        return f
+
+    t = plan.get("t", 30)
+    wall = m(plan["wall"])
+    trim = m(plan.get("trim", "concrete"))
+    rail = next((f.get("rail") for f in pf if f.get("rail")), "glass" if kind in ("apartment", "office") else "bars")
+    rail_mat = "steel" if rail in ("glass", "cable") else ("stone" if rail == "balustrade" else "iron")
+    P = []
+    bounds = (-w / 2, w / 2)
+    for v in V:
+        z0, z1 = Z(v["f0"]), Z(v["f0"] + v["n"])
+        for dirn, plane, ua, ub in _faces(v):
+            on_lot_side = (dirn == "-x" and v["x0"] <= bounds[0] + 1) or (dirn == "+x" and v["x1"] >= bounds[1] - 1)
+            role = "party" if (dirn in party and on_lot_side) else ("front" if dirn in street else "back")
+            for a, b, free in _exposed(ua, ub, _covers(V, v, dirn, plane, z0, z1, Z), z0, z1):
+                W = b - a
+                for za, zb in free:
+                    # snap the visible range to whole storeys; leftovers are plain wall
+                    i = next((k for k in range(v["f0"], v["f0"] + v["n"] + 1) if Z(k) >= za - 1), None)
+                    j = next((k for k in range(v["f0"] + v["n"], v["f0"] - 1, -1) if Z(k) <= zb + 1), None)
+                    segs = []
+                    if role == "party" or W < bay * 0.55 or i is None or j is None or j <= i:
+                        segs.append(("wall", za, zb))
+                    else:
+                        if Z(i) - za > 1:
+                            segs.append(("wall", za, Z(i)))
+                        segs.append(("facade", i, j))
+                        if zb - Z(j) > 1:
+                            segs.append(("wall", Z(j), zb))
+                    for sg in segs:
+                        if sg[0] == "wall":
+                            _put(P, [box([W, t, sg[2] - sg[1]], [0, t / 2, 0], m=wall)], dirn, plane, (a + b) / 2, sg[1])
+                            continue
+                        fi, fj = sg[1], sg[2]
+                        q = dict(plan, floors=[storey(k, v) for k in range(fi, fj)])
+                        if fi > 0:
+                            q["plinth"] = None
+                        if fj < v["f0"] + v["n"]:
+                            q["cornice"] = None
+                        if role == "back":
+                            q = _back(q)
+                        q = _with_width(q, W, bay)
+                        fp, _ = facade(W, q, rng)
+                        _put(P, fp, dirn, plane, (a + b) / 2, Z(fi))
+        # floor plate under every volume (soffit of a cantilever, ground slab at street level)
+        cx, cy, vw, vd = (v["x0"] + v["x1"]) / 2, (v["y0"] + v["y1"]) / 2, v["x1"] - v["x0"], v["y1"] - v["y0"]
+        P.append(box([vw - 1, vd - 1, 4 if z0 == 0 else 22], [cx, cy, z0 + (0.5 if z0 == 0 else -2)], m=MAT["concrete"]))
+        # roof: terrace (something stands on it), pitched (low top volumes of pitched types) or flat with parapet
+        carries = any(o is not v and abs(Z(o["f0"]) - z1) < 2 and o["x0"] < v["x1"] - 1 and o["x1"] > v["x0"] + 1 and o["y0"] < v["y1"] - 1
+                      and o["y1"] > v["y0"] + 1 for o in V)
+        if roof in ("hip", "gable") and not carries and massing not in ("stacked", "setback", "podium_tower", "twin_towers"):
+            e = 50
+            tile = rng.choice([M("roof_tile", (160, 80, 56)), M("slate_roof", (72, 74, 80)), M("roof_tile", (120, 70, 52))])
+            if roof == "hip":
+                P.append({"shape": "pyramid", "size": [vw + 2 * e, vd + 2 * e, min(vw, vd) * 0.42], "location": [cx, cy, z1], **tile})
+            elif vw >= vd:
+                P.append({"shape": "roof", "size": [vd + 2 * e, vw + 2 * e, vd * 0.42], "location": [cx, cy, z1], "rotation": [0, 90, 0], **tile})
+            else:
+                P.append({"shape": "roof", "size": [vw + 2 * e, vd + 2 * e, vw * 0.42], "location": [cx, cy, z1], **tile})
+            P.append(box([vw + 2 * e, vd + 2 * e, 14], [cx, cy, z1 - 14], m=MAT["frame_white"]))         # eaves board
+            continue
+        P.append(box([vw, vd, 20], [cx, cy, z1], m=MAT["concrete"]))
+        for dirn, plane, ua, ub in _faces(v):
+            inward = 1 if dirn in ("-y", "-x") else -1
+            for a, b, free in _exposed(ua, ub, _covers(V, v, dirn, plane, z1 - 2, z1 - 1, Z), z1 - 2, z1 - 1):
+                if not free:
+                    continue
+                L, u = b - a, (a + b) / 2
+                if carries:                                  # terrace edge: low upstand, railing, planters
+                    if dirn in ("-y", "+y"):
+                        yy = plane + inward * 12
+                        P.append(box([L, 24, 30], [u, plane + inward * 12, z1], m=trim))
+                        P += railing_run(a + 10, yy, b - 10, yy, z1 + 30, 100, rail, rail_mat)
+                    else:
+                        xx = plane + inward * 12
+                        P.append(box([24, L, 30], [plane + inward * 12, u, z1], m=trim))
+                        P += railing_run(xx, a + 10, xx, b - 10, z1 + 30, 100, rail, rail_mat)
+                    for k in range(int(L / 400)):
+                        if rng.random() < 0.45:
+                            pu = a + 200 + k * 400
+                            pos = [pu, plane + inward * 50, z1 + 20] if dirn in ("-y", "+y") else [plane + inward * 50, pu, z1 + 20]
+                            size = [140, 45, 50] if dirn in ("-y", "+y") else [45, 140, 50]
+                            P.append(box(size, pos, m=M("concrete", (120, 116, 110))))
+                            P.append(box([size[0] - 10, size[1] - 10, 25], [pos[0], pos[1], z1 + 70], m=M("grass", (70, 110, 50))))
+                else:                                        # parapet with coping
+                    if dirn in ("-y", "+y"):
+                        P += [box([L, t, 90], [u, plane + inward * t / 2, z1], m=wall), box([L + 8, t + 10, 8], [u, plane + inward * t / 2, z1 + 90], m=trim)]
+                    else:
+                        P += [box([t, L, 90], [plane + inward * t / 2, u, z1], m=wall), box([t + 10, L + 8, 8], [plane + inward * t / 2, u, z1 + 90], m=trim)]
+        if not carries:                                      # rooftop plant on the highest roofs
+            plant = M("steel", (170, 172, 172), roughness=0.5)
+            for _ in range(rng.randint(1, 3)):
+                P.append(box([rng.choice((120, 180)), rng.choice((90, 120)), rng.choice((90, 140))],
+                             [cx + rng.uniform(-vw / 4, vw / 4), cy + rng.uniform(-vd / 4, vd / 4), z1 + 20], m=plant))
+            if v["n"] + v["f0"] >= 6 and vw > 800 and vd > 800:
+                P.append(box([420, 320, 300], [cx + rng.uniform(-vw / 6, vw / 6), cy, z1 + 20], m=wall))     # lift / stair overrun
+                if kind == "apartment" and rng.random() < 0.5:
+                    P.append(cyl(260, 240, [cx - vw / 4, cy + vd / 5, z1 + 120], m=M("wood", (110, 80, 56))))  # water tank
+                    P += [box([12, 12, 100], [cx - vw / 4 + sx * 90, cy + vd / 5 + sy * 90, z1 + 20], m=MAT["iron"]) for sx in (-1, 1) for sy in (-1, 1)]
+    return P

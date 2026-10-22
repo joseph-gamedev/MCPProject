@@ -142,7 +142,7 @@ URuntimeRealisticSceneSkill::URuntimeRealisticSceneSkill()
 	Description = TEXT("Apply when the scene should look real (cities, streets, houses, interiors, landscapes, product shots): real scale, "
 		"physical light and exposure, believable materials, detail and wear, eye-level cameras, and a screenshot review loop.");
 	Toolsets = {TEXT("build"), TEXT("lighting"), TEXT("style"), TEXT("camera"), TEXT("capture"), TEXT("materials")};
-	Instructions = TEXT(R"SKILL(# Realistic scenes
+	Instructions = FString(TEXT(R"SKILL(# Realistic scenes
 
 Realism comes from many small truths at once. Missing any one of these reads as "CG": wrong scale, flat light,
 pure colours, perfectly sharp edges, perfectly clean surfaces, empty ground, a camera nobody would stand at.
@@ -154,9 +154,19 @@ roofs, landmarks, street life) and build those; a generic city with a new name i
 ## Fastest path: a generator script
 With Python, use the kit shipped with the game (skill python_kit). Its example script kit_examples/city.py already
 follows every rule below (buildings with recessed windows, cornices, rooftop clutter, streets with curbs and props,
-whole districts): copy and adapt it instead of starting from zero. Then save finished pieces with
+whole districts): copy and adapt it instead of starting from zero.
+For close-up, detailed buildings use uk.buildings (from unreal_kit import buildings as B): B.building(kind, seed=,
+width=, floors=) gives a finished building with real windows (reveals, sashes, sills, heads, shutters, glass with rooms
+behind), railings, balconies, doors and shopfronts; kinds apartment, townhouse, shophouse, villa, office, loft.
+shape="L" makes a corner building (corner=square|chamfer|tower|balconies); wing A runs +X facing -Y, wing B +Y facing -X.
+Rect buildings: origin = front centre at ground, front faces -Y. Place many with uk.place_many([(name, parts, (x,y,z)), ...]);
+rotate with uk.parts.transform(parts, (0,0,0), yaw). Change seeds per lot so neighbours differ.
+Massing (the building's overall form) first: B.building(kind, seed=, massing="auto" | podium_tower | twin_towers |
+setback | terraced | slab | courtyard | U | L | T | H | stacked | notched | stepped, width=lot width, depth=lot depth,
+party=("-x","+x") for row buildings, street=("-y",) or ("-y","-x") on corners). Volumes share one storey grid; every
+visible face gets a facade, step-backs become terraces with railings. Mix massings along a street for a real skyline. Then save finished pieces with
 scene.save_template so later scenes reuse them (scene.place_template).
-
+)SKILL")) + FString(TEXT(R"SKILL(
 ## Effort levels (ask or pick by the request)
 - quick: blockout with correct scale and light, one review pass.
 - balanced (default): full facade detail, street furniture, two review passes.
@@ -234,7 +244,7 @@ checked and what you fixed; do not say "done" from code alone.
 ## 7 Budget
 A district of 6 blocks is about 50000 parts / 2.3M triangles and builds in about 30 s. Use detail "low" on small
 round parts, one assembly per building (not one actor per part), and ops.run_batch / unreal_kit.place_many.
-)SKILL");
+)SKILL"));
 }
 
 URuntimePythonKitSkill::URuntimePythonKitSkill()

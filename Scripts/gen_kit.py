@@ -140,7 +140,7 @@ def write_cheatsheet():
 
     import unreal_kit as uk
     describe(uk, "unreal_kit (import unreal_kit as uk)", ["connect", "call", "batch", "place", "place_many", "check_parts", "save_image"])
-    for m in ("parts", "assets", "rules", "ui", "look"):
+    for m in ("parts", "assets", "rules", "ui", "look", "buildings"):
         describe(importlib.import_module("unreal_kit." + m), f"uk.{m}")
     for m in ("city", "game_pieces", "combat_presets"):
         describe(importlib.import_module(m), f"examples: {m}.py")
@@ -150,6 +150,10 @@ def write_cheatsheet():
     lines.append("PRESETS: " + ", ".join(parts.PRESETS))
     lines.append("PALETTE: " + ", ".join(sorted(parts.PALETTE)))
     lines.append("city STYLES: " + ", ".join(city.STYLES))
+    from unreal_kit import buildings
+    lines.append("buildings TYPES: " + ", ".join(buildings.TYPES) + "; L corners: square, chamfer, tower, balconies")
+    lines.append("buildings MASSINGS: " + ", ".join(buildings.MASSINGS) + "; per type (auto picks): "
+                 + "; ".join(f"{k}: {', '.join(v)}" for k, v in buildings.KIND_MASSINGS.items()))
     text = "\n".join(lines) + "\n"
     chunks = [text[i:i + 6000] for i in range(0, len(text), 6000)]  # MSVC: a wide string literal holds at most ~8000 chars
     pieces = "\n\t+ ".join('FString(TEXT(R"KIT(' + c + ')KIT"))' for c in chunks)
