@@ -22,7 +22,7 @@ import math
 import random
 
 import unreal_kit as uk
-from unreal_kit.parts import M, PALETTE, box, cone, cyl, gable, mat, sphere, transform  # noqa: F401
+from unreal_kit.parts import M, PALETTE, beam, box, cone, cyl, extrude, gable, mat, part, sphere, transform  # noqa: F401
 
 place, place_many = uk.place, uk.place_many
 
@@ -176,30 +176,165 @@ def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=
     return P
 
 
-def glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None):
-    """Curtain-wall tower: dark glass, aluminium mullions and floor bands, podium; setbacks [(height fraction, inset cm)]
-    step the tower in (art deco / 1930s skyscrapers); crown "spire" adds a tapering spire, "flat" a plain top."""
-    height = floors * floor_h
-    steps = [(0.0, 0.0)] + sorted(setbacks or [])
-    P = [box([width + 200, depth + 200, 500], [0, 0, -5], m="stone_light")]
-    for k, (frac, inset) in enumerate(steps):
-        z0 = height * frac
-        z1 = height * (steps[k + 1][0] if k + 1 < len(steps) else 1.0)
-        w, d = max(300, width - 2 * inset), max(300, depth - 2 * inset)
-        h = z1 - z0
-        P.append(box([w, d, h], [0, 0, z0], m="glass_dark"))
-        for f in range(int(h // floor_h) + 1):
-            P.append(box([w + 10, d + 10, 14], [0, 0, z0 + f * floor_h - 7], m="aluminium"))
-        for side, (sw, yaw) in enumerate([(w, 0), (d, 90), (w, 180), (d, 270)]):
-            n = max(2, int(sw / 150))
-            off = [(0, -d / 2, z0), (w / 2, 0, z0), (0, d / 2, z0), (-w / 2, 0, z0)][side]
-            P += transform([box([8, 14, h], [-sw / 2 + i * sw / n, -6, 0], m="aluminium") for i in range(n + 1)], off, yaw)
-        P.append(box([w + 20, d + 20, 60], [0, 0, z1 - 60], m="metal_dark"))
-    top_w = max(300, width - 2 * steps[-1][1])
-    if crown == "spire":
-        P.append(cone(top_w * 0.35, height * 0.18, [0, 0, height], m="aluminium", top_ratio=0.02))
+# Tower vocabulary: every tower picks a tint, a skin, a shape, a top and a podium, so no two look alike.
+TOWER_TINTS = {"blue": (38, 66, 96), "green": (40, 84, 78), "grey": (62, 66, 72), "bronze": (96, 74, 52), "black": (20, 22, 26),
+               "silver": (126, 134, 142), "teal": (32, 78, 92), "champagne": (150, 134, 108), "forest": (34, 64, 50), "smoke": (44, 46, 50)}
+TOWER_SKINS = ["grid", "unitized", "fins", "bands", "ribbon", "frame", "diagrid"]
+TOWER_SHAPES = ["box", "setback", "taper", "chamfer", "round"]
+TOWER_TOPS = ["mech", "spire", "slant", "pyramid", "lattice", "stepped", "helipad"]
+TOWER_PODIUMS = ["stone", "glass", "plaza"]
+
+
+def _glass(tint):
+    r, g, b = TOWER_TINTS[tint] if isinstance(tint, str) else tint
+    return M("steel", (r, g, b), roughness=0.05, metallic=0.0)
+
+
+def _face_skin(skin, w, h, floor_h, metal, solid, rng):
+    """Skin parts for one rectangular face in face space: x along the face (centred), y outward is negative, z from 0."""
+    P = []
+    floors = max(1, int(h // floor_h))
+    if skin in ("grid", "unitized", "fins", "bands"):
+        step = {"grid": 150, "unitized": 300, "fins": 300, "bands": 300}[skin]
+        n = max(2, int(w / step))
+        depth, thick = (70, 14) if skin == "fins" else (14, 8 if skin == "unitized" else 10)
+        P += [box([thick, depth, h], [-w / 2 + i * w / n, -depth / 2 + 2, 0], m=metal) for i in range(n + 1)]
+    if skin == "bands":   # opaque spandrel band on every floor
+        P += [box([w + 4, 10, floor_h * 0.32], [0, -5, f * floor_h], m=solid) for f in range(floors)]
+    elif skin == "ribbon":  # thick white bands, glass ribbons between
+        P += [box([w + 16, 26, floor_h * 0.45], [0, -12, f * floor_h], m=solid) for f in range(floors)]
+    elif skin == "frame":   # concrete / stone grid: piers and spandrels, punched glass
+        bay = rng.choice((300, 360))
+        n = max(2, int(w / bay))
+        P += [box([60, 34, h], [-w / 2 + i * w / n, -15, 0], m=solid) for i in range(n + 1)]
+        P += [box([w, 30, floor_h * 0.3], [0, -13, f * floor_h], m=solid) for f in range(floors)]
+    elif skin == "diagrid":  # steel diagonals between ring beams every 4 floors
+        span = 4 * floor_h
+        n = max(2, int(w / 600))
+        for k in range(int(h // span)):
+            z = k * span
+            P.append(box([w + 10, 30, 40], [0, -14, z], m=metal))
+            for i in range(n):
+                x0, x1 = -w / 2 + i * w / n, -w / 2 + (i + 1) * w / n
+                a, b2 = ((x0, z), (x1, z + span)) if (i + k) % 2 == 0 else ((x1, z), (x0, z + span))
+                P.append(beam([a[0], -16, a[1]], [b2[0], -16, b2[1]], 34, m=metal))
+    else:  # thin floor lines for the mullion skins
+        P += [box([w + 6, 12, 12], [0, -6, f * floor_h - 6], m=metal) for f in range(1, floors)]
+    return P
+
+
+def _rect_segment(w, d, z0, h, floor_h, glass, skin, metal, solid, rng):
+    P = [box([w, d, h], [0, 0, z0], m=glass)]
+    for sw, off, yaw in ((w, (0, -d / 2, z0), 0), (d, (w / 2, 0, z0), 90), (w, (0, d / 2, z0), 180), (d, (-w / 2, 0, z0), 270)):
+        P += transform(_face_skin(skin, sw, h, floor_h, metal, solid, rng), off, yaw)
+    P.append(box([w + 30, d + 30, 50], [0, 0, z0 + h - 50], m=metal))            # cornice band at the top of the segment
+    return P
+
+
+def _octagon(w, d, c):
+    return [[-w / 2 + c, -d / 2], [w / 2 - c, -d / 2], [w / 2, -d / 2 + c], [w / 2, d / 2 - c], [w / 2 - c, d / 2], [-w / 2 + c, d / 2],
+            [-w / 2, d / 2 - c], [-w / 2, -d / 2 + c]]
+
+
+def glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None):
+    """Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
+    tint   TOWER_TINTS name or (r, g, b); skin grid | unitized | fins | bands | ribbon | frame | diagrid;
+    shape  box | setback | taper | chamfer | round; crown mech | spire | slant | pyramid | lattice | stepped | helipad
+           (old names: "flat" = mech); podium stone | glass | plaza; setbacks [(height fraction, inset cm)].
+    Returns parts (centred on the footprint, ground at z 0)."""
+    tint = tint or rng.choice(list(TOWER_TINTS))
+    skin = skin or rng.choice(TOWER_SKINS)
+    shape = shape or ("setback" if setbacks else rng.choice(TOWER_SHAPES))
+    crown = {"flat": "mech", None: None}.get(crown, crown) or rng.choice(TOWER_TOPS)
+    podium = podium or rng.choice(TOWER_PODIUMS)
+    glass = _glass(tint)
+    metal = rng.choice(["aluminium", "aluminium", "metal_dark", M("bronze", (110, 86, 60), roughness=0.4)])
+    solid = rng.choice(["concrete", "stone_light", "trim_white", M("limestone", (214, 206, 190)), M("granite", (90, 90, 92))])
+    if skin == "frame":
+        glass = _glass(rng.choice(("black", "grey", "blue")))
+    P = []
+    # --- podium: 2-3 storeys covering the lot, or an open plaza with planters
+    pod_h = 0.0
+    if podium == "stone":
+        pod_h = rng.choice((900, 1200))
+        P.append(box([width + 300, depth + 300, pod_h], [0, 0, 0], m=rng.choice(["stone_light", "stone_warm", M("granite", (110, 108, 104))])))
+        P += [box([width + 320, 30, 340], [0, -(depth + 300) / 2 - 10, 60], m=_glass("black"))]                  # shop glazing
+        P.append(box([width + 330, depth + 330, 40], [0, 0, pod_h - 40], m=metal))
+    elif podium == "glass":
+        pod_h = 600
+        P.append(box([width + 400, depth + 400, pod_h], [0, 0, 0], m=_glass(rng.choice(("grey", "smoke", "black")))))
+        P.append(box([width + 420, depth + 420, 30], [0, 0, pod_h - 30], m=metal))
+        P.append(box([800, 300, 25], [0, -(depth + 400) / 2 - 150, 420], m=metal))                                 # entrance canopy
     else:
-        P.append(box([top_w * 0.6, top_w * 0.6, 300], [0, 0, height], m="metal_dark"))
+        P.append(box([width + 1200, depth + 1200, 15], [0, 0, 0], m=M("granite", (150, 148, 142))))                # plaza paving
+        for sx in (-1, 1):
+            P.append(box([300, 300, 60], [sx * (width / 2 + 400), -(depth / 2 + 400), 15], m="concrete"))
+            P.append(box([280, 280, 10], [sx * (width / 2 + 400), -(depth / 2 + 400), 75], m="grass"))
+        P.append(box([width + 60, depth + 60, 500], [0, 0, 0], m=_glass("black")))                                 # double-height lobby
+    height = pod_h + floors * floor_h
+    # --- shaft
+    if shape in ("box", "setback", "taper"):
+        if shape == "taper":
+            steps = [(k / 5, k * rng.choice((80, 120))) for k in range(5)]
+        else:
+            steps = [(0.0, 0.0)] + sorted(setbacks or ([(rng.uniform(0.5, 0.7), rng.choice((200, 300)))] if shape == "setback" else []))
+        for k, (frac, inset) in enumerate(steps):
+            z0 = pod_h + floors * floor_h * frac
+            z1 = pod_h + floors * floor_h * (steps[k + 1][0] if k + 1 < len(steps) else 1.0)
+            w, d = max(400, width - 2 * inset), max(400, depth - 2 * inset)
+            P += _rect_segment(w, d, z0, z1 - z0, floor_h, glass, skin, metal, solid, rng)
+        top_w, top_d = max(400, width - 2 * steps[-1][1]), max(400, depth - 2 * steps[-1][1])
+    elif shape == "chamfer":
+        c = min(width, depth) * rng.uniform(0.15, 0.25)
+        h = floors * floor_h
+        P.append(extrude(_octagon(width, depth, c), h, [0, 0, pod_h], m=glass))
+        for f in range(1, floors):  # floor lines: thin slightly larger octagons
+            if f % (1 if skin in ("bands", "ribbon", "frame") else 1) == 0:
+                hh = floor_h * (0.32 if skin in ("bands", "ribbon", "frame") else 0.04)
+                P.append(extrude(_octagon(width + 16, depth + 16, c + 3), hh, [0, 0, pod_h + f * floor_h], m=solid if skin in ("bands", "ribbon", "frame") else metal))
+        for x, y in _octagon(width + 10, depth + 10, c + 2):
+            P.append(box([16, 16, h], [x, y, pod_h], m=metal))
+        top_w, top_d = width, depth
+    else:  # round
+        dia = min(width, depth)
+        h = floors * floor_h
+        P.append(cyl(dia, h, [0, 0, pod_h], m=glass))
+        heavy = skin in ("bands", "ribbon", "frame")
+        for f in range(1, floors):
+            P.append(cyl(dia + 20, floor_h * (0.3 if heavy else 0.04), [0, 0, pod_h + f * floor_h], m=solid if heavy else metal))
+        n = max(12, int(math.pi * dia / 300))
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            P.append(box([14, 40 if skin == "fins" else 14, h], [math.cos(a) * dia / 2, math.sin(a) * dia / 2, pod_h], rot=[0, math.degrees(a), 0], m=metal))
+        top_w = top_d = dia * 0.75
+    # --- top
+    if crown == "spire":
+        P.append(box([top_w * 0.5, top_d * 0.5, 600], [0, 0, height], m=metal))
+        P.append(cone(min(top_w, top_d) * 0.3, height * 0.15, [0, 0, height + 600], m="aluminium", top_ratio=0.02))
+    elif crown == "slant":
+        P.append(part("wedge", [top_w, top_d, min(top_w, top_d) * rng.uniform(0.35, 0.6)], [0, 0, height], m=glass, rot=[0, rng.choice((0, 90, 180, 270)), 0]))
+    elif crown == "pyramid":
+        P.append(box([top_w * 0.8, top_d * 0.8, 400], [0, 0, height], m=solid))
+        P.append(part("pyramid", [top_w * 0.8, top_d * 0.8, max(top_w, top_d) * 0.45], [0, 0, height + 400], m=rng.choice([metal, M("verdigris", (90, 140, 120)), M("copper", (170, 110, 70))])))
+    elif crown == "lattice":  # the facade fins carry on 8 m above the roof as an open screen
+        for sw, off, yaw in ((top_w, (0, -top_d / 2, height), 0), (top_d, (top_w / 2, 0, height), 90), (top_w, (0, top_d / 2, height), 180),
+                             (top_d, (-top_w / 2, 0, height), 270)):
+            n = max(3, int(sw / 200))
+            P += transform([box([14, 60, 800], [-sw / 2 + i * sw / n, -20, 0], m=metal) for i in range(n + 1)] + [box([sw, 40, 30], [0, -20, 780], m=metal)], off, yaw)
+        P.append(box([top_w * 0.5, top_d * 0.5, 450], [0, 0, height], m="metal_dark"))
+    elif crown == "stepped":
+        for k, f in enumerate((0.8, 0.6, 0.4)):
+            P.append(box([top_w * f, top_d * f, 350], [0, 0, height + k * 350], m=glass if k % 2 == 0 else solid))
+        P.append(cyl(30, 900, [0, 0, height + 1050], m="metal"))
+    elif crown == "helipad":
+        P.append(box([top_w * 0.6, top_d * 0.6, 300], [0, 0, height], m="metal_dark"))
+        P.append(cyl(min(top_w, top_d) * 0.75, 30, [0, 0, height + 300], m=M("concrete", (90, 92, 92))))
+        P.append(cyl(min(top_w, top_d) * 0.45, 32, [0, 0, height + 300], m="marking"))
+        P.append(cyl(min(top_w, top_d) * 0.4, 34, [0, 0, height + 300], m=M("concrete", (90, 92, 92))))
+    else:  # mech: plant screen and units
+        P.append(box([top_w * 0.6, top_d * 0.6, 450], [0, 0, height], m="metal_dark"))
+        for _ in range(rng.randint(1, 3)):
+            P.append(box([rng.choice((200, 300)), rng.choice((150, 250)), 200], [rng.uniform(-top_w / 4, top_w / 4), rng.uniform(-top_d / 4, top_d / 4), height + 450], m="metal"))
     return P
 
 
@@ -313,13 +448,13 @@ def plaza(width=2000, depth=2000, seed=None):
 # ------------------------------------------------------------------ districts
 
 def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0,
-               make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True):
+               make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None):
     """Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
     make_building(width, depth, rng, tall) -> parts replaces the default building (your own building types).
     Returns a list of (parts, location, name) so each building can be its own object."""
     rng = random.Random(seed)
     out = []
-    lot_depth = min(1400, depth * 0.4)
+    lot_depth = lot_depth or min(1400, depth * 0.4)
     for side, (length, yaw, off) in enumerate([(width, 0, (0, -depth / 2 + lot_depth / 2)), (width, 180, (0, depth / 2 - lot_depth / 2))]):
         x = -length / 2
         i = 0
@@ -351,7 +486,7 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
 
 def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City",
          max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil",
-         street_trees=None):
+         street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True):
     """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
     Hooks for a specific place: make_building(width, depth, rng, tall) -> parts (your building types),
     make_street(length, width, sidewalk, rng) -> parts (your street dressing), extras(rng, pitch_x, pitch_y) ->
@@ -373,7 +508,7 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
             bx = (i - (blocks_x - 1) / 2) * pitch_x
             by = (j - (blocks_y - 1) / 2) * pitch_y
             for parts, loc, name in city_block(block_w, block_d, seed=rng.randint(0, 10 ** 6), towers=towers, max_floors=max_floors, styles=styles,
-                                               make_building=make_building):
+                                               make_building=make_building, lots=lots, lot_depth=lot_depth, courtyard=courtyard):
                 jobs.append((f"{name}_{i}_{j}", parts, (bx + loc[0], by + loc[1], 0)))
     for j in range(blocks_y + 1):
         y = (j - blocks_y / 2) * pitch_y
