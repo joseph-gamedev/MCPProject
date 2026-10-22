@@ -1,5 +1,5 @@
 {
-	"description": "Builder: realistic objects and landmarks from parametric parts at true scale (cm, Z up), as editable meshes with\nprocedural PBR materials. Every create tool is one undo step and rebuilds exactly from its recipe (undo, duplicate,\nexport).\nWorkflow: get_guide (READ FIRST) -> create_assembly (up to 512 parts per call: the fast way) or create_primitive /\ncreate_profile_solid -> boolean_op / array / mirror -> set_material -> capture_view, check_overlaps, measure,\nget_build_stats to verify -> refine.\nMaterial fields (on every create tool, per assembly part and in set_material): material (preset from list_materials or\nan allowed material path), color [r,g,b] linear 0-1, roughness, metallic, emissive [r,g,b], emissive_strength, opacity,\nvariation, style, tile (pattern cm), relief (bump cm). Numeric material and generator fields left at -1 (or 0 for counts)\nkeep the preset's or the shape's own value.",
+	"description": "",
 	"name": "build",
 	"tools": [
 		{
@@ -1586,6 +1586,131 @@
 							}
 						},
 						"title": "BuildToolCopiesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Places a packaged static mesh asset (a real tree, rock or prop made in Blender) as a scene node. For many copies use pcg.scatter with asset items (GPU instances). Undoable. Fails if the asset is not a packaged static mesh.\nReturns: {id, name, path, triangles}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"asset":
+					{
+						"description": "Static mesh path, e.g. \"/Game/RuntimeFoliage/Trees/SM_Oak_01\" (level.find_assets with asset_class StaticMesh lists them).",
+						"type": "string"
+					},
+					"collision":
+					{
+						"default": true,
+						"description": "Block movement and traces.",
+						"type": "boolean"
+					},
+					"location":
+					{
+						"description": "World location cm (relative to the parent when one is given). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (default: the asset name).",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"rotation":
+					{
+						"description": "[pitch,yaw,roll] degrees. ([pitch, yaw, roll] (degrees))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"scale":
+					{
+						"description": "[x,y,z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"asset"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.place_mesh",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{id, name, path, triangles}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the new object (pass it to other tools).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name (unique among its siblings).",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path, e.g. \"temple/columns/col_3\".",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "True when snap_to_ground moved the object onto the ground below.",
+								"type": "boolean"
+							},
+							"triangles":
+							{
+								"description": "Triangles in the generated mesh.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolNodeResult",
 						"type": "object"
 					}
 				},

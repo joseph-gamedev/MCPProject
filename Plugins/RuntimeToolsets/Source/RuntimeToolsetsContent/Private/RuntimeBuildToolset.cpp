@@ -8,7 +8,8 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SceneCapture2D.h"
-#include "Engine/StaticMesh.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "Misc/App.h"
@@ -494,6 +495,74 @@ FBuildToolAssemblyResult URuntimeBuildToolset::CreateAssembly(const TArray<FRunt
 	}
 	CreateFromRecipe(Recipe, Name.IsEmpty() ? TEXT("Assembly") : Name, Parent, BuildArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
 	return Out;
+}
+
+FBuildToolNodeResult URuntimeBuildToolset::PlaceMesh(const FString& Asset, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
+	const TArray<FString>& Tags, const FString& Name, AActor* Parent, bool bCollision)
+{
+	FBuildToolNodeResult Out;
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Asset);
+	if (!Mesh)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no static mesh asset '%s'"), *Asset),
+			TEXT("level.find_assets {\"asset_class\":\"StaticMesh\"} lists packaged meshes"));
+		return Out;
+	}
+	FString ParentId;
+	if (Parent)
+	{
+		const FRuntimeSceneNode* P = BuildRequireNode(Parent, TEXT("parent"));
+		if (!P)
+		{
+			return Out;
+		}
+		ParentId = P->Id;
+	}
+	const FString Source = FString::Printf(TEXT("mesh:%s%s"), bCollision ? TEXT("") : TEXT("nocollision:"), *Mesh->GetPathName());
+	const FString NodeName = Name.IsEmpty() ? Mesh->GetName() : Name;
+	const FTransform Transform = BuildArgTransform(Location, Rotation, Scale);
+	auto Spawn = [Source, Transform, NodeName](FRuntimeCommandContext& Ctx, FString& Err) { return RuntimeMeshAssets::SpawnFromSource(Ctx.World, Source, Transform, NodeName, Err); };
+	TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(FString::Printf(TEXT("place %s"), *NodeName), Spawn, NodeName, ParentId, ERuntimeNodeKind::Actor,
+		Source, ToNames(Tags));
+	FCreateNodeCommand* Raw = Cmd.Get();
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
+	{
+		return Out;
+	}
+	FRuntimeSceneGraph* Graph = RuntimeToolCall::GetGraph();
+	Out.Id = Raw->GetNodeId();
+	Out.Path = Graph->GetPath(Out.Id);
+	if (const FRuntimeSceneNode* Node = Graph->Find(Out.Id))
+	{
+		Out.Name = Node->Name;
+	}
+	Out.Triangles = Mesh->GetNumTriangles(0);
+	return Out;
+}
+
+AActor* RuntimeMeshAssets::SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+{
+	FString Path = Source.Mid(5);  // after "mesh:"
+	const bool bNoCollision = Path.RemoveFromStart(TEXT("nocollision:"));
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+	if (!Mesh)
+	{
+		OutError = FString::Printf(TEXT("no static mesh asset '%s'"), *Path);
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AStaticMeshActor* Actor = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), Transform, Params);
+	if (!Actor)
+	{
+		OutError = TEXT("could not spawn a static mesh actor");
+		return nullptr;
+	}
+	UStaticMeshComponent* Comp = Actor->GetStaticMeshComponent();
+	Comp->SetMobility(EComponentMobility::Movable);
+	Comp->SetStaticMesh(Mesh);
+	Comp->SetCollisionProfileName(bNoCollision ? TEXT("NoCollision") : TEXT("BlockAll"));
+	return Actor;
 }
 
 // ---- modify -------------------------------------------------------------------------------------------------------------

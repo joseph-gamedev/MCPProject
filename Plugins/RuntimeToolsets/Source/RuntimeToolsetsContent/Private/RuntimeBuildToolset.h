@@ -372,6 +372,12 @@ struct FBuildToolMaterialList
  * variation, style, tile (pattern cm), relief (bump cm). Numeric material and generator fields left at -1 (or 0 for counts)
  * keep the preset's or the shape's own value.
  */
+/** "mesh:<asset path>" sources: packaged static meshes placed by build.place_mesh (export, duplicate, templates). */
+namespace RuntimeMeshAssets
+{
+	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError);
+}
+
 UCLASS()
 class URuntimeBuildToolset : public URuntimeToolsetDefinition
 {
@@ -518,6 +524,24 @@ public:
 		const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, const FString& Name = TEXT("Assembly"), AActor* Parent = nullptr,
 		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
 		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, bool bRepairCoplanar = true, bool bSnapToGround = false);
+
+	/**
+	 * Places a packaged static mesh asset (a real tree, rock or prop made in Blender) as a scene node. For many copies use
+	 * pcg.scatter with asset items (GPU instances). Undoable. Fails if the asset is not a packaged static mesh.
+	 *
+	 * @param Asset - Static mesh path, e.g. "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets with asset_class StaticMesh lists them).
+	 * @param Location - World location cm (relative to the parent when one is given).
+	 * @param Rotation - [pitch,yaw,roll] degrees.
+	 * @param Scale - [x,y,z].
+	 * @param Tags - Node tags.
+	 * @param Name - Node name (default: the asset name).
+	 * @param Parent - Parent group.
+	 * @param bCollision - Block movement and traces.
+	 * @return {id, name, path, triangles}.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Rotation,Scale,Tags"), Category = "Build|Create")
+	static FBuildToolNodeResult PlaceMesh(const FString& Asset, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
+		const TArray<FString>& Tags, const FString& Name = TEXT(""), AActor* Parent = nullptr, bool bCollision = true);
 
 	/**
 	 * Cuts, joins or intersects two builder objects. The result is recorded in the target's recipe (rebuildable); the tool

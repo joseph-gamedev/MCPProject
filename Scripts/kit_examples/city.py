@@ -259,7 +259,7 @@ def car(x, y, yaw=0, rng=None):
     return transform(P, (x, y, 0), yaw)
 
 
-def street(length=6000, width=1050, sidewalk=320, seed=None, props=True, cars=0.3):
+def street(length=6000, width=1050, sidewalk=320, seed=None, props=True, cars=0.3, trees=True):
     """Street along X centred on y = 0: asphalt with lane markings, 15 cm curbs, block-paved sidewalks,
     lamp posts every 25 m, trees in pits, bollards, benches, bins and parked cars."""
     rng = random.Random(seed)
@@ -276,7 +276,7 @@ def street(length=6000, width=1050, sidewalk=320, seed=None, props=True, cars=0.
             x = -length / 2 + 300 + k * 2500
             P += lamp_post(x, s * (width / 2 + 60), 90 if s < 0 else 270)
             tx = x + 1250
-            if tx < length / 2 - 200:
+            if trees and tx < length / 2 - 200:
                 P.append(box([140, 140, 2], [tx, s * (width / 2 + 120), 10], m="soil"))
                 P += tree(tx, s * (width / 2 + 120), rng=rng)
         for k in range(int(length / 1800)):
@@ -350,11 +350,20 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
 
 
 def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City",
-         max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil"):
+         max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil",
+         street_trees=None):
     """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
     Hooks for a specific place: make_building(width, depth, rng, tall) -> parts (your building types),
     make_street(length, width, sidewalk, rng) -> parts (your street dressing), extras(rng, pitch_x, pitch_y) ->
-    [(name, parts, location)] (landmarks, parks, water...). Everything else stays the same."""
+    [(name, parts, location)] (landmarks, parks, water...). Everything else stays the same.
+    street_trees = {species: weight} plants REAL trees (unreal_kit.assets) along every street, e.g. {"maple": 2, "oak": 1};
+    default: real trees when the game has them, else simple ones."""
+    if street_trees is None:
+        try:
+            uk.assets.catalog()
+            street_trees = {"maple": 2, "oak": 1, "birch": 1}
+        except Exception:
+            street_trees = {}
     rng = random.Random(seed)
     pitch_x = block_w + street_w + 2 * sidewalk
     pitch_y = block_d + street_w + 2 * sidewalk
@@ -368,17 +377,28 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
                 jobs.append((f"{name}_{i}_{j}", parts, (bx + loc[0], by + loc[1], 0)))
     for j in range(blocks_y + 1):
         y = (j - blocks_y / 2) * pitch_y
-        sx = make_street(blocks_x * pitch_x, street_w, sidewalk, rng) if make_street else street(blocks_x * pitch_x, street_w, sidewalk, seed=rng.randint(0, 999))
+        sx = make_street(blocks_x * pitch_x, street_w, sidewalk, rng) if make_street else street(blocks_x * pitch_x, street_w, sidewalk, seed=rng.randint(0, 999),
+                                                                                                 trees=not street_trees)
         jobs.append((f"street_x_{j}", sx, (0, y, 0)))
     for i in range(blocks_x + 1):
         x = (i - blocks_x / 2) * pitch_x
         ln = blocks_y * pitch_y - street_w - 2 * sidewalk
-        sy = make_street(ln, street_w, sidewalk, rng) if make_street else street(ln, street_w, sidewalk, seed=rng.randint(0, 999), cars=0.15)
+        sy = make_street(ln, street_w, sidewalk, rng) if make_street else street(ln, street_w, sidewalk, seed=rng.randint(0, 999), cars=0.15, trees=not street_trees)
         jobs.append((f"street_y_{i}", transform(sy, (0, 0, 0), 90), (x, 0, 0)))
     jobs.append(("ground", [box([blocks_x * pitch_x + 8000, blocks_y * pitch_y + 8000, 30], [0, 0, -34], m=ground)], (0, 0, 0)))
     if extras:
         jobs += extras(rng, pitch_x, pitch_y)
     place_many(jobs, group=group)
+    if street_trees:  # real trees in the sidewalk band of every street (GPU instances)
+        band = (street_w / 2 + 90, street_w / 2 + 160)
+        for j in range(blocks_y + 1):
+            y = (j - blocks_y / 2) * pitch_y
+            uk.assets.along([[-blocks_x * pitch_x / 2, y], [blocks_x * pitch_x / 2, y]], street_trees, spacing=1100, offset=band, seed=rng.randint(0, 999),
+                            name=f"trees_x_{j}")
+        for i in range(blocks_x + 1):
+            x = (i - blocks_x / 2) * pitch_x
+            uk.assets.along([[x, -blocks_y * pitch_y / 2], [x, blocks_y * pitch_y / 2]], street_trees, spacing=1100, offset=band, seed=rng.randint(0, 999),
+                            name=f"trees_y_{i}")
     return group
 
 

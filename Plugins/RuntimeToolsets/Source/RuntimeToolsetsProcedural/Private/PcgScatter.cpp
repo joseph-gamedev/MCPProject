@@ -330,7 +330,9 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 	{
 		const TSharedPtr<FJsonObject> J = V->AsObject();
 		FItem It;
-		It.Template = J->GetStringField(TEXT("template"));
+		FString AssetPath;
+		const bool bAsset = J->TryGetStringField(TEXT("asset"), AssetPath) && !AssetPath.IsEmpty();
+		It.Template = bAsset ? AssetPath : J->GetStringField(TEXT("template"));
 		It.Weight = FMath::Max(0.0, Num(J, TEXT("weight"), 1.0));
 		It.Scale = Range(J, TEXT("scale"), FVector2D(1, 1));
 		J->TryGetBoolField(TEXT("align"), It.bAlign);
@@ -338,7 +340,23 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 		J->TryGetBoolField(TEXT("random_yaw"), It.bRandomYaw);
 		It.ZOffset = Num(J, TEXT("z_offset"), 0.0);
 		J->TryGetBoolField(TEXT("collision"), It.bCollision);
-		It.Mesh = TemplateMesh(NodeActor(World, It.Template), It.Materials, OutError);
+		if (bAsset)
+		{
+			It.Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+			if (!It.Mesh)
+			{
+				OutError = FString::Printf(TEXT("no static mesh asset '%s'"), *AssetPath);
+				return nullptr;
+			}
+			for (const FStaticMaterial& M : It.Mesh->GetStaticMaterials())
+			{
+				It.Materials.Add(M.MaterialInterface);
+			}
+		}
+		else
+		{
+			It.Mesh = TemplateMesh(NodeActor(World, It.Template), It.Materials, OutError);
+		}
 		if (!It.Mesh)
 		{
 			return nullptr;

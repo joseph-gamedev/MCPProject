@@ -17,7 +17,7 @@ import os
 import urllib.error
 import urllib.request
 
-__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look"]
+__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look", "assets"]
 
 last_images = []  # images (base64 + mimeType) returned by the last call: screenshots, captures
 
@@ -219,4 +219,4 @@ def place_many(jobs, group=None, per_request=16):
 
 
 from . import tools  # noqa: E402  (generated: one function per tool)
-from . import look, parts, rules, ui  # noqa: E402,F401  (generic helpers; content examples are in kit_examples/)
+from . import assets, look, parts, rules, ui  # noqa: E402,F401  (generic helpers; content examples are in kit_examples/)

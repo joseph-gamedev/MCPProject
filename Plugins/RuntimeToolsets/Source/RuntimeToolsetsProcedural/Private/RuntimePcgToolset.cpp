@@ -1,4 +1,5 @@
 ﻿#include "RuntimePcgToolset.h"
+#include "Engine/StaticMesh.h"
 #include "PcgScatter.h"
 #include "SplineCore.h"
 #include "RuntimeCommand.h"
@@ -1207,14 +1208,27 @@ FPcgScatterResult URuntimePcgToolset::Scatter(AActor* Spline, const TArray<FPcgS
 	TArray<TSharedPtr<FJsonValue>> ItemJson;
 	for (const FPcgScatterItem& It : Items)
 	{
-		const FRuntimeSceneNode* T = RuntimeToolCall::NodeOf(It.Template);
-		if (!T)
-		{
-			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("each item needs a template node (a build.* object)"));
-			return Result;
-		}
 		TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
-		J->SetStringField(TEXT("template"), T->Id);
+		if (!It.Asset.IsEmpty())
+		{
+			if (!LoadObject<UStaticMesh>(nullptr, *It.Asset))
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no static mesh asset '%s'"), *It.Asset),
+					TEXT("level.find_assets {\"asset_class\":\"StaticMesh\"} lists packaged meshes"));
+				return Result;
+			}
+			J->SetStringField(TEXT("asset"), It.Asset);
+		}
+		else
+		{
+			const FRuntimeSceneNode* T = RuntimeToolCall::NodeOf(It.Template);
+			if (!T)
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("each item needs a template node (a build.* object) or an asset path"));
+				return Result;
+			}
+			J->SetStringField(TEXT("template"), T->Id);
+		}
 		J->SetNumberField(TEXT("weight"), It.Weight);
 		J->SetField(TEXT("scale"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(It.Scale.X), MakeShared<FJsonValueNumber>(It.Scale.Y)}));
 		J->SetBoolField(TEXT("align"), It.bAlign);

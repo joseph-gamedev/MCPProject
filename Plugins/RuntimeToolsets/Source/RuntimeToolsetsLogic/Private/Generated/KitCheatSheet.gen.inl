@@ -13,12 +13,15 @@ save_image(path, index=0)  # Writes an image from the last call (capture.screens
 ### uk.parts
 M(preset, rgb=None, **kw)  # Material: a builder preset (PRESETS) or a PALETTE name, with an optional real sRGB colour 0-255 and fields.
 beam(a, b, thickness, m="metal", **kw)  # Square member from point a to point b (trusses, struts, railings, branches).
+blob(size, at, m="leaves", seed=0, bumpiness=0.25, detail=2, flat_bottom=0.0, smooth=60, yaw=0.0, **kw)  # Irregular organic lump: foliage clumps, bushes, rocks, clouds, snow piles. size = [x, y, z] diameter (or one n
 box(size, at, rot=None, m="concrete", **kw)
 cone(diameter, height, at, m="leaves", top_ratio=0.0, **kw)
+curve(start, direction, length, bend=(0, 0, 0), segments=5, wobble=0.0, seed=0)  # Points along a bending path: start, initial direction [x, y, z], length; bend is added to the direction a bit 
 cyl(diameter, height, at, m="metal", **kw)
 extrude(outline, height, at=(0, 0, 0), m="concrete", **kw)  # Footprint [[x, y], ...] pushed up by height (any floor plan, walls with odd shapes).
 gable(width, depth, height, at, rot=None, m="roof_tile", **kw)
 grid(count_x, count_y, spacing_x, spacing_y, make)  # Calls make(x, y, i, j) on a centred grid and concatenates the part lists it returns.
+limb(path, r0, r1=None, m="bark", sides=7, flat=1.0, **kw)  # Tapered tube along a path [[x, y, z], ...]: trunks, branches, roots, horns, tentacles, vines, fronds.
 mat(name)  # A PALETTE entry or a plain preset name.
 part(shape, size, at, m="concrete", rot=None, **kw)  # Any builder shape (pyramid, torus, wedge, capsule, dome, tube, arch, steps, tiers, column ...).
 ring(count, radius, make, start=0.0)  # Calls make(x, y, angle_degrees, i) around a circle and concatenates the results.
@@ -26,6 +29,13 @@ sphere(diameter, at, m="leaves", scale=None, **kw)
 srgb(r, g, b)
 sweep(profile, path, m="metal", closed=False, **kw)  # 2D profile [[x, y]] swept along a 3D path [[x, y, z]] (rails, pipes, cables, mouldings).
 transform(parts, offset=(0, 0, 0), yaw=0.0)  # Rotates parts around Z by yaw degrees, then moves them by offset (returns new dicts).
+### uk.assets
+along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row")  # Plants along a path [[x, y], ...]: street trees, palm avenues, hedges. offset = [min, max] cm beside the line.
+catalog(refresh=False)  # {species: [static mesh paths]} from the packaged foliage (cached).
+forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None)  # Fill a closed area [[x, y], ...] with a weighted species mix {species: weight}. GPU instances: thousands are c
+ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover")  # Dense grass / flowers / ferns inside an area (no collision).
+place(species, at, yaw=None, scale=1.0, seed=None, name=None, collision=True)  # One plant (a random variant of the species) as a scene node; returns its id.
+variants(species)
 ### uk.rules
 add(var, amount)
 add_rules(rules, replace=False)
@@ -66,7 +76,8 @@ divider()
 grid(children, columns=3, gap=8, cell=None, **kw)  # cell = [width, height] gives every cell the same size.
 hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")], bars = [(label, value_expr, max_expr, fill)].
 inventory(name, list_var, columns=5, visible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
-menu(name, heading, buttons, visible_if=None, subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
+menu(name, heading, buttons, visible_if=None,)KIT"))
+	+ FString(TEXT(R"KIT( subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
 panel(name, children, anchor="center", visible_if=None, width=None, padding=16, gap=10, **kw)  # A top-level window/card. Every screen is a panel with a name.
 panel_message(name, heading, body=None, button=None, visible_if=None)  # Centred dialog: heading, optional body text and one button (name, label).
 remove(names)
@@ -83,8 +94,7 @@ fog(density=0.02, start=0, color=None, volumetric=False)
 frame(targets, direction=None, fov=None)
 mood(name="Noon")  # Physical light preset (sun lux, sky, locked exposure, AO, contact shadows, fog). See MOODS.
 orbit_view(center, distance, yaw=-135, pitch=-22, fov=50)  # Three-quarter view of something: yaw around it, pitch looking down.
-review(folder, targets=None, center=None, size=None, prefix="review")  # Self-check set: overview (3/4 from above), two ey)KIT"))
-	+ FString(TEXT(R"KIT(e-level views and a close detail view. Returns the image
+review(folder, targets=None, center=None, size=None, prefix="review")  # Self-check set: overview (3/4 from above), two eye-level views and a close detail view. Returns the image
 screenshot(path, max_dim=1600, show_ui=False, wait=1.0)  # Saves what the camera sees (waits a moment for lighting/streaming to settle).
 style(preset="realistic", weathering=None, **material)  # Visual style preset; weathering (0 clean - 1 grimy) applies scene-wide dirt, streaks and dust.
 time_of_day(hour, yaw=None)
@@ -95,7 +105,7 @@ bin_(x, y)
 bollard(x, y)
 building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None, win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None)  # A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or 
 car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark glass, four wheels, lights.
-city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil")  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
+city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
 door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
 facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None)  # One wall with real openings: piers between bays, spandrels under windows, string courses, plinth and cornice.
@@ -103,7 +113,7 @@ glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None)  # Cu
 lamp_post(x, y, yaw=0)
 plaza(width=2000, depth=2000, seed=None)  # Paved square with a lawn, trees, benches and lamps.
 shopfront(x, w, h=320, m_frame="frame_dark", sign=None)  # Ground-floor shop: large recessed glazing, stall riser, sign band and an awning.
-street(length=6000, width=1050, sidewalk=320, seed=None, props=True, cars=0.3)  # Street along X centred on y = 0: asphalt with lane markings, 15 cm curbs, block-paved sidewalks,
+street(length=6000, width=1050, sidewalk=320, seed=None, props=True, cars=0.3, trees=True)  # Street along X centred on y = 0: asphalt with lane markings, 15 cm curbs, block-paved sidewalks,
 tree(x, y, height=None, rng=None)  # Street/park tree: tapered trunk, branch stubs and several overlapping, varied foliage clumps.
 window(x, z, w=120, h=160, recess=18, frame="frame_white", sill="trim_stone", lintel="trim_stone", glass="glass", wall_t=30, mullion=True)  # Window opening centred at x with its sill at height z: recessed glass, frame, stone sill and lintel.
 ### examples: game_pieces.py
@@ -118,7 +128,8 @@ pool(name, template, size=10)
 score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
 side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
-third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
+third_person_player(at, walk_speed=500, run_speed=900, camera_)KIT"))
+	+ FString(TEXT(R"KIT(distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
 topdown_player(at, walk_speed=600, camera_height=1500, camera_back=900, aim_with_mouse=True, body=None, **movement)  # Top-down / twin-stick player: WASD move, faces the mouse (or movement), camera above and behind.
 win(message="YOU WIN!")
 ### examples: combat_presets.py
@@ -131,8 +142,7 @@ enemy_gun(name="enemy_gun", damage=10, rate=1.2, speed=2500, **kw)
 equip(owner, weapon)
 feel_presets()  # Standard game-feel presets: hit (shake + red flash + short freeze), death, shot (tiny shake), pickup (pop text
 guard_brain(name="guard", sight=2500, fov=90, speed=250, chase_speed=450, weapon=None, backend="Native")  # Patrol -> chase when it sees the player (fires if armed) -> search the last known spot -> return home.
-health(targets, max_=50, points=0)KIT"))
-	+ FString(TEXT(R"KIT(, points_var="score", loot=None, on_death=None, resistances=None)
+health(targets, max_=50, points=0, points_var="score", loot=None, on_death=None, resistances=None)
 interactable(targets, prompt, key="E", requires=None, locked_prompt=None, once=False)  # Doors, chests, switches: a key prompt nearby; rules {"on": "interact", "target": ...} do the effect.
 missiles(name="missiles", damage=60, rate=0.8, homing=180, hits="tag:enemy", **kw)
 player_health(max_=100, invulnerable=1.0, bar=True)  # Player health with hit feedback; adds a health bar to the HUD layer when bar=True.

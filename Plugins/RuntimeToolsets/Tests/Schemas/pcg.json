@@ -1474,6 +1474,11 @@
 									"description": "Face along the spline (fences, lamps).",
 									"type": "boolean"
 								},
+								"asset":
+								{
+									"description": "A packaged static mesh instead of a template, e.g. a real tree \"/Game/RuntimeFoliage/Trees/SM_Oak_01\" (level.find_assets lists them).",
+									"type": "string"
+								},
 								"collision":
 								{
 									"description": "Block movement and traces.",
@@ -1497,7 +1502,7 @@
 								},
 								"template":
 								{
-									"description": "Node with a builder mesh to copy (build.create_assembly / create_primitive); keep it out of sight. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+									"description": "Node with a builder mesh to copy (build.create_assembly / create_primitive); keep it out of sight. Or use asset. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 									"type": "string"
 								},
 								"weight":

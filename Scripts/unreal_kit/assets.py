@@ -1,0 +1,101 @@
+"""Real assets packaged with the game: trees, palms, bushes, ferns and grass made in Blender (Sapling Tree Gen and our
+own generators), placed as single objects or scattered by the thousand as GPU instances.
+
+    from unreal_kit import assets as a
+    a.catalog()                                        # {"oak": [paths...], "palm_coconut": [...], "grass": [...], ...}
+    a.place("oak", at=[0, 0, 0], seed=2)               # one tree (a random variant), scene node
+    a.forest([[-5000, -5000], [5000, -5000], [5000, 5000], [-5000, 5000]], {"oak": 3, "birch": 2, "fir": 1})
+    a.along([[0, 0], [10000, 0]], {"palm_coconut": 1}, spacing=900, offset=(600, 800))   # palms beside a road
+    a.ground_cover(area, {"grass": 6, "wildflowers": 1, "fern": 1}, spacing=120)          # dense grass
+
+Use these for nature in realistic scenes instead of primitive blobs. Sizes are real (oak 18 m, palm 9-14 m, bush 1-2 m,
+grass 0.3-1 m); scale ranges add variety. All use scanned bark and leaf textures.
+Generated species: aspen, birch, maple, japanese_maple, oak, pine, fir, willow, bottlebrush, palm_coconut, palm_date,
+bush, boxwood, flower_bush, fern, grass, tall_grass, wildflowers.
+Scanned models (Poly Haven, CC0): island_tree, jacaranda_tree, nettle_plant, pachira_aquatica, grass_medium,
+grass_bermuda, fern, dandelion, celandine, periwinkle_plant, boulder, rock.  catalog() shows what the build has.
+"""
+
+import random
+import re
+
+from . import call
+
+ROOT = "/Game/RuntimeFoliage"
+_CATALOG = None
+
+
+def _key(asset_name):
+    """SM_PalmCoconut_02 -> palm_coconut; SM_PH_IslandTree01 -> island_tree (scanned Poly Haven models)."""
+    base = re.sub(r"^SM_(PH_)?", "", asset_name)
+    base = re.sub(r"_?\d+$", "", base)
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", base).lower()
+
+
+def catalog(refresh=False):
+    """{species: [static mesh paths]} from the packaged foliage (cached)."""
+    global _CATALOG
+    if _CATALOG is None or refresh:
+        res = call("level.find_assets", asset_class="StaticMesh", folder_path=ROOT, recursive=True, limit=1000)
+        cat = {}
+        for a in res.get("assets", []):
+            path = a["path"].split(".")[0]
+            cat.setdefault(_key(path.rsplit("/", 1)[-1]), []).append(path)
+        _CATALOG = {k: sorted(v) for k, v in cat.items()}
+    return _CATALOG
+
+
+def variants(species):
+    cat = catalog()
+    if species not in cat:
+        raise KeyError(f"no foliage '{species}' (have: {', '.join(sorted(cat))})")
+    return cat[species]
+
+
+def place(species, at, yaw=None, scale=1.0, seed=None, name=None, collision=True):
+    """One plant (a random variant of the species) as a scene node; returns its id."""
+    rng = random.Random(seed)
+    path = rng.choice(variants(species))
+    args = {"asset": path, "location": list(at) + [0] * (3 - len(at)), "rotation": [0, rng.uniform(0, 360) if yaw is None else yaw, 0],
+            "scale": [scale] * 3, "collision": collision}
+    if name:
+        args["name"] = name
+    return call("build.place_mesh", **args)["id"]
+
+
+def _items(mix, scale, collision):
+    out = []
+    for species, weight in mix.items():
+        paths = variants(species)
+        for p in paths:
+            out.append({"asset": p, "weight": weight / len(paths), "scale": list(scale), "collision": collision, "random_yaw": True})
+    return out
+
+
+def _spline(points, closed, name):
+    pts = [list(p) + [0] * (3 - len(p)) for p in points]
+    res = call("spline.create_spline", points=pts, closed=closed, name=name)
+    sp = res.get("spline")
+    return sp.get("ref") or sp.get("id") if isinstance(sp, dict) else res.get("id")
+
+
+def forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None):
+    """Fill a closed area [[x, y], ...] with a weighted species mix {species: weight}. GPU instances: thousands are cheap.
+    keep < 1 thins by noise (clearings); exclude = [{"spline": id, "clearance": cm}] keeps roads clear."""
+    args = {"spline": _spline(area, True, name + "Area"), "items": _items(mix, scale, collision), "mode": "Inside", "spacing": spacing,
+            "keep": keep, "seed": seed, "ground": True, "name": name}
+    if exclude:
+        args["exclude"] = exclude
+    return call("pcg.scatter", **args)
+
+
+def along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row"):
+    """Plants along a path [[x, y], ...]: street trees, palm avenues, hedges. offset = [min, max] cm beside the line."""
+    return call("pcg.scatter", spline=_spline(path, False, name + "Line"), items=_items(mix, scale, collision), mode="Along", spacing=spacing,
+                offset=list(offset), side=side, seed=seed, ground=True, name=name)
+
+
+def ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover"):
+    """Dense grass / flowers / ferns inside an area (no collision)."""
+    return forest(area, mix or {"grass": 6, "tall_grass": 1, "wildflowers": 1}, spacing=spacing, scale=scale, keep=keep, seed=seed,
+                  collision=False, name=name)

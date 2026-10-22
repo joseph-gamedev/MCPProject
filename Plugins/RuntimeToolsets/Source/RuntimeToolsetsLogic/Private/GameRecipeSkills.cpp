@@ -188,6 +188,17 @@ style.apply material {Weathering: 0.2-0.4}: dirt at the wall base, rain streaks,
 - Ground is never empty: curbs, markings, lamps, trees with pits, benches, bins, bollards, parked cars, grass edges.
 - Repetition kills realism: vary width, height, colour, window type and roof between neighbours.
 
+## 4b Nature: real assets, never blobs
+Trees, palms, bushes, ferns, grass and rocks are real meshes packaged with the game, all with scanned bark and leaf
+textures. Generated in Blender (3 variants each, real heights): aspen, birch, maple, japanese_maple, oak, pine, fir,
+willow, bottlebrush, palm_coconut, palm_date, bush, boxwood, flower_bush, fern, grass, tall_grass, wildflowers.
+Scanned models (Poly Haven): island_tree (3), jacaranda_tree, nettle_plant, pachira_aquatica, grass_medium (2),
+grass_bermuda, fern, dandelion, celandine, periwinkle_plant, boulder, rock - best for close-up hero spots. level.find_assets {asset_class:"StaticMesh",
+folder_path:"/Game/RuntimeFoliage"} lists them. One: build.place_mesh {asset}. Many: pcg.scatter with items
+[{asset, weight, scale:[0.85,1.15]}] inside a closed spline (forest, lawn) or along a spline with offset (street
+trees, palm avenue). Python: uk.assets.forest / along / ground_cover / place. Mix 2-4 species that fit the place
+(palms for tropics/Dubai, oak+maple+birch for Europe, fir+pine for mountains); add grass/ferns under trees.
+
 ## 5 Camera
 People see the world from 160-170 cm with a 60-75 degree FOV. Shoot hero images at eye level, slightly
 off-axis, with something in the foreground. High aerials show layout but look like a model. No tilted horizons.
@@ -220,6 +231,7 @@ session_get_build_info -> scripting.kit (zip next to the game) and scripting.exa
     import sys; sys.path[:0] = [r"<kit>", r"<examples>"]
     import unreal_kit as uk, city
 It connects to the game on this machine by itself. Do not download code; do not print environment variables.
+Nature (trees, palms, bushes, grass): uk.assets uses real packaged meshes - never build plants from spheres.
 Everything you need is in the cheat sheet below: do not inspect modules or read example files unless you must.
 
 ## Make it SPECIFIC, never a clone of the example

@@ -238,9 +238,13 @@ struct FPcgScatterItem
 {
 	GENERATED_BODY()
 
-	/** Node with a builder mesh to copy (build.create_assembly / create_primitive); keep it out of sight. */
+	/** Node with a builder mesh to copy (build.create_assembly / create_primitive); keep it out of sight. Or use asset. */
 	UPROPERTY()
 	TObjectPtr<AActor> Template = nullptr;
+
+	/** A packaged static mesh instead of a template, e.g. a real tree "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets lists them). */
+	UPROPERTY()
+	FString Asset;
 
 	/** Relative chance of being picked. */
 	UPROPERTY()

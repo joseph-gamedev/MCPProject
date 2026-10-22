@@ -13,6 +13,7 @@ or a dict like M("brick", (140, 87, 70), roughness=0.8). Every builder accepts e
 """
 
 import math
+import random
 
 # ------------------------------------------------------------------ materials (physical sRGB values -> linear)
 
@@ -185,3 +186,110 @@ def ring(count, radius, make, start=0.0):
         a = start + 360.0 * i / count
         out += make(math.cos(math.radians(a)) * radius, math.sin(math.radians(a)) * radius, a, i)
     return out
+
+
+# ------------------------------------------------------------------ organic shapes (trees, rocks, bushes, creatures)
+
+def _noise(x, y, z, seed):
+    """Smooth pseudo-random field in [-1, 1] (sum of seeded sines; cheap and deterministic)."""
+    r = (seed * 9301 + 49297) % 233280 / 233280.0
+    v = 0.0
+    for k, (fx, fy, fz) in enumerate(((1.3, 0.7, 1.1), (2.9, 3.3, 2.1), (5.7, 4.9, 6.3))):
+        ph = r * 6.283 * (k + 1)
+        v += math.sin(x * fx + ph) * math.sin(y * fy + ph * 1.7) * math.sin(z * fz + ph * 2.3) / (k + 1)
+    return v / 1.8
+
+
+def _icosphere(level):
+    t = (1 + 5 ** 0.5) / 2
+    V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]]
+    V = [[c / math.sqrt(sum(q * q for q in v)) for c in v] for v in V]
+    F = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+         [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]]
+    for _ in range(level):
+        cache, F2 = {}, []
+
+        def mid(a, b):
+            key = (min(a, b), max(a, b))
+            if key not in cache:
+                m = [(V[a][i] + V[b][i]) / 2 for i in range(3)]
+                n = math.sqrt(sum(q * q for q in m))
+                V.append([q / n for q in m])
+                cache[key] = len(V) - 1
+            return cache[key]
+        for a, b, c in F:
+            ab, bc, ca = mid(a, b), mid(b, c), mid(c, a)
+            F2 += [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]
+        F = F2
+    return V, F
+
+
+_ICO = {}
+
+
+def blob(size, at, m="leaves", seed=0, bumpiness=0.25, detail=2, flat_bottom=0.0, smooth=60, yaw=0.0, **kw):
+    """Irregular organic lump: foliage clumps, bushes, rocks, clouds, snow piles. size = [x, y, z] diameter (or one number);
+    bumpiness 0 = smooth ellipsoid, 0.4 = very lumpy; flat_bottom 0-1 flattens the underside (rocks, bushes on ground).
+    Every seed gives a different shape. at = centre; yaw turns it around Z (stretch along a branch with size x > y)."""
+    sx, sy, sz = (size, size, size) if isinstance(size, (int, float)) else size
+    if detail not in _ICO:
+        _ICO[detail] = _icosphere(detail)
+    V, F = _ICO[detail]
+    verts = []
+    for x, y, z in V:
+        d = 1 + bumpiness * _noise(x * 1.7, y * 1.7, z * 1.7, seed)
+        zz = z * d
+        if flat_bottom and zz < -1 + flat_bottom * 2:
+            zz = -1 + flat_bottom * 2 + (zz + 1 - flat_bottom * 2) * 0.15
+        px, py = x * d * sx / 2, y * d * sy / 2
+        if yaw:
+            ca, sa = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+            px, py = px * ca - py * sa, px * sa + py * ca
+        verts.append([round(at[0] + px, 1), round(at[1] + py, 1), round(at[2] + zz * sz / 2, 1)])
+    d = {"shape": "raw", "vertices": verts, "triangles": [list(f) for f in F], "smooth_angle": smooth}
+    d.update(mat(m) if isinstance(m, str) else m)
+    d.update(kw)
+    return d
+
+
+def limb(path, r0, r1=None, m="bark", sides=7, flat=1.0, **kw):
+    """Tapered tube along a path [[x, y, z], ...]: trunks, branches, roots, horns, tentacles, vines, fronds.
+    r0 = radius at the start, r1 at the end (default r0 * 0.3); flat < 1 squashes the section (leaves, fronds, blades)."""
+    r1 = r0 * 0.3 if r1 is None else r1
+    n = len(path)
+    rings = []
+    up_ref = [0.0, 0.0, 1.0]
+    for i, p in enumerate(path):
+        a = path[max(0, i - 1)]
+        b = path[min(n - 1, i + 1)]
+        t = [b[k] - a[k] for k in range(3)]
+        tl = math.sqrt(sum(q * q for q in t)) or 1.0
+        t = [q / tl for q in t]
+        ref = up_ref if abs(t[2]) < 0.9 else [1.0, 0.0, 0.0]
+        u = [t[1] * ref[2] - t[2] * ref[1], t[2] * ref[0] - t[0] * ref[2], t[0] * ref[1] - t[1] * ref[0]]
+        ul = math.sqrt(sum(q * q for q in u)) or 1.0
+        u = [q / ul for q in u]
+        v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+        r = r0 + (r1 - r0) * (i / (n - 1) if n > 1 else 0)
+        rings.append([[round(p[k] + r * (math.cos(2 * math.pi * j / sides) * u[k] + flat * math.sin(2 * math.pi * j / sides) * v[k]), 1) for k in range(3)]
+                      for j in range(sides)])
+    d = {"shape": "loft", "sections": rings, "closed": True, "cap": True, "smooth_angle": 70}
+    d.update(mat(m) if isinstance(m, str) else m)
+    d.update(kw)
+    return d
+
+
+def curve(start, direction, length, bend=(0, 0, 0), segments=5, wobble=0.0, seed=0):
+    """Points along a bending path: start, initial direction [x, y, z], length; bend is added to the direction a bit at
+    every step (gravity droop = (0, 0, -1), wind = (1, 0, 0)); wobble adds natural irregularity."""
+    rnd = random.Random(seed)
+    dl = math.sqrt(sum(q * q for q in direction)) or 1.0
+    dvec = [q / dl for q in direction]
+    pts = [list(start)]
+    step = length / segments
+    for _ in range(segments):
+        dvec = [dvec[k] + bend[k] / segments + rnd.uniform(-wobble, wobble) for k in range(3)]
+        dl = math.sqrt(sum(q * q for q in dvec)) or 1.0
+        dvec = [q / dl for q in dvec]
+        pts.append([pts[-1][k] + dvec[k] * step for k in range(3)])
+    return pts
