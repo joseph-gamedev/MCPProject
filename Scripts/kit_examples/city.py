@@ -1,67 +1,22 @@
-"""World building: parametric, real-world-scaled buildings, streets, props, nature and districts.
+"""EXAMPLE: realistic buildings, streets, props and a whole district, built from unreal_kit.parts.
 
-    from unreal_kit.world import *
-    setup(mood="Noon", weathering=0.3)      # physical light + matching exposure + scene weathering
-    place("Corner", building(width=1800, depth=1400, floors=5, style="brick"), at=[0, 0, 0])
-    place("Main St", street(length=6000), at=[0, -1600, 0])
-    city(blocks_x=3, blocks_y=2, seed=7)    # whole district: streets, curbs, props, varied buildings
-    eye_camera([-3000, -2400], look_at=[0, 0, 600])
+Read it, copy what you need, change it. Run from the kit folder's parent:
+    import sys; sys.path.insert(0, r"<build folder>/unreal_kit.zip"); sys.path.insert(0, r"<build folder>/kit_examples")
+    import unreal_kit as uk, city
+    uk.place("Corner", city.building(1800, 1400, 5, "brick", seed=3))
+    city.city(blocks_x=3, blocks_y=2, seed=4)          # about 30 s, 50000 parts
 
-Everything is in centimetres, Z up. Generators return lists of part dicts (plain data): mix, move and extend them,
-then place() sends them in 512-part assemblies (several per request). Facades: local X along the wall, -Y is the
-outside, Z up; buildings are centred on their footprint with the ground at z = 0.
-
-Realism rules built in: real dimensions (storey 3.2 m, ground floor 4.2 m, door 2.3 m, sill 0.9 m, curb 15 cm),
-recessed windows with frames, sills and lintels, cornices and plinths, rooftop clutter, physical PBR colours
-(no pure white/black), per-building colour variation, bevelled edges (builder default) and weathering (material).
+Shows: real dimensions (storey 3.2 m, door 2.3 m, sill 0.9 m, curb 15 cm), recessed windows with frames, sills and
+lintels, cornices, rooftop clutter, varied colours per building, street furniture, one object per building.
 """
 
 import math
 import random
 
-from . import call, place, place_many, ToolError  # noqa: F401
+import unreal_kit as uk
+from unreal_kit.parts import M, PALETTE, box, cone, cyl, gable, mat, sphere, transform  # noqa: F401
 
-
-# ------------------------------------------------------------------ materials (physical sRGB values -> linear)
-
-def srgb(r, g, b):
-    def lin(c):
-        c /= 255.0
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    return [round(lin(r), 4), round(lin(g), 4), round(lin(b), 4)]
-
-
-def M(preset, rgb=None, **kw):
-    d = {"material": preset}
-    if rgb:
-        d["color"] = srgb(*rgb)
-    d.update(kw)
-    return d
-
-
-PALETTE = {
-    # walls
-    "brick_red": M("brick", (140, 87, 70)), "brick_brown": M("brick", (118, 80, 62)), "brick_buff": M("brick", (188, 160, 118)),
-    "plaster_white": M("plaster", (222, 218, 208)), "plaster_cream": M("plaster", (218, 202, 166)), "plaster_ochre": M("plaster", (198, 160, 104)),
-    "plaster_terracotta": M("plaster", (176, 112, 84)), "plaster_grey": M("plaster", (170, 168, 162)),
-    "stone_light": M("limestone", (200, 190, 168)), "stone_warm": M("sandstone", (196, 168, 128)), "concrete": M("concrete", (160, 158, 150)),
-    # trims and details
-    "trim_white": M("plaster", (226, 224, 216), roughness=0.55), "trim_stone": M("limestone", (186, 178, 160)),
-    "frame_dark": M("painted_iron", (46, 46, 49), roughness=0.45), "frame_white": M("plaster", (224, 222, 216), roughness=0.4),
-    "frame_wood": M("wood", (96, 66, 44)), "door_wood": M("wood", (86, 56, 36)), "door_green": M("painted_iron", (40, 72, 56), roughness=0.4),
-    "glass": M("tinted_glass"), "glass_dark": M("steel", (28, 34, 40), roughness=0.06, metallic=0.0),
-    "metal": M("steel", (192, 194, 196), roughness=0.45), "metal_dark": M("painted_iron", (52, 54, 56), roughness=0.5),
-    "aluminium": M("steel", (232, 232, 230), roughness=0.3),
-    # roofs
-    "roof_slate": M("slate_roof", (72, 74, 80)), "roof_tile": M("roof_tile", (150, 80, 58)), "roof_flat": M("concrete", (118, 116, 110)),
-    "tar": M("asphalt", (48, 48, 50)),
-    # ground
-    "asphalt": M("asphalt", (56, 56, 58)), "sidewalk": M("concrete", (166, 162, 154), style="blocks", tile=60),
-    "curb": M("granite", (150, 150, 146)), "marking": M("plaster", (226, 224, 210), roughness=0.6), "grass": M("grass", (88, 104, 54)),
-    "soil": M("sand", (98, 80, 60)), "cobble": M("cobblestone", (130, 124, 116)),
-    # nature
-    "bark": M("wood", (78, 60, 46), roughness=0.9), "leaves": M("grass", (58, 84, 40), roughness=0.8), "leaves_light": M("grass", (82, 108, 52), roughness=0.8),
-}
+place, place_many = uk.place, uk.place_many
 
 STYLES = {
     "brick": {"wall": ["brick_red", "brick_brown", "brick_buff"], "trim": ["trim_stone", "trim_white"], "frame": ["frame_white", "frame_dark"],
@@ -76,73 +31,6 @@ STYLES = {
               "door": ["glass_dark"]},
 }
 
-
-def mat(name):
-    return dict(PALETTE[name])
-
-
-# ------------------------------------------------------------------ primitives (local frame)
-
-def box(size, at, rot=None, m="concrete", **kw):
-    d = {"shape": "box", "size": [round(float(v), 2) for v in size], "location": [round(float(v), 2) for v in at], "pivot": "base"}
-    if rot:
-        d["rotation"] = list(rot)
-    d.update(mat(m) if isinstance(m, str) else m)
-    d.update(kw)
-    return d
-
-
-def cyl(diameter, height, at, m="metal", **kw):
-    d = {"shape": "cylinder", "size": [diameter, diameter, height], "location": list(at)}
-    if diameter < 100:
-        d["detail"] = "low"  # poles, pipes, wheels: low resolution is invisible and much cheaper
-    d.update(mat(m) if isinstance(m, str) else m)
-    d.update(kw)
-    return d
-
-
-def cone(diameter, height, at, m="leaves", top_ratio=0.0, **kw):
-    d = {"shape": "cone", "size": [diameter, diameter, height], "location": list(at), "top_ratio": top_ratio, "detail": "low"}
-    d.update(mat(m) if isinstance(m, str) else m)
-    d.update(kw)
-    return d
-
-
-def sphere(diameter, at, m="leaves", scale=None, **kw):
-    d = {"shape": "sphere", "size": [diameter, diameter, diameter], "location": list(at)}
-    if diameter < 150:
-        d["detail"] = "low"
-    if scale:
-        d["scale"] = list(scale)
-    d.update(mat(m) if isinstance(m, str) else m)
-    d.update(kw)
-    return d
-
-
-def gable(width, depth, height, at, rot=None, m="roof_tile", **kw):
-    d = {"shape": "roof", "size": [width, depth, height], "location": list(at)}
-    if rot:
-        d["rotation"] = list(rot)
-    d.update(mat(m) if isinstance(m, str) else m)
-    d.update(kw)
-    return d
-
-
-def transform(parts, offset=(0, 0, 0), yaw=0.0):
-    """Rotates parts around Z by yaw degrees, then moves them by offset (returns new dicts)."""
-    a = math.radians(yaw)
-    ca, sa = math.cos(a), math.sin(a)
-    out = []
-    for p in parts:
-        q = dict(p)
-        x, y, z = p.get("location", [0, 0, 0])
-        q["location"] = [round(x * ca - y * sa + offset[0], 2), round(x * sa + y * ca + offset[1], 2), round(z + offset[2], 2)]
-        if yaw:
-            r = list(p.get("rotation", [0, 0, 0]))
-            r[1] = (r[1] + yaw) % 360
-            q["rotation"] = r
-        out.append(q)
-    return out
 
 
 # ------------------------------------------------------------------ facade details (facade plane y = 0, outside -Y)
@@ -448,20 +336,3 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
     return group
 
 
-# ------------------------------------------------------------------ scene setup and review
-
-def setup(mood="Noon", weathering=0.3, clear=False):  # also in unreal_kit.look
-    """Physical light for the mood (sun lux, sky, matching locked exposure, AO, fog) and scene weathering."""
-    if clear:
-        call("scene.clear_all", confirm=True)
-    call("lighting.apply_mood", mood=mood)
-    call("style.apply", material={"Weathering": weathering}, lighting_enabled=False)
-
-
-def eye_camera(at_xy, look_at, height=165, fov=65):
-    """A person's view: camera 1.65 m above the ground, 65 degree FOV (realistic; avoid high wide shots)."""
-    call("camera.set_camera", location=[at_xy[0], at_xy[1], height], look_at=list(look_at), fov=fov)
-
-
-def stats():
-    return call("build.get_build_stats")

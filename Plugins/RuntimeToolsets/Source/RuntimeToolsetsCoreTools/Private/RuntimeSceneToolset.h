@@ -476,4 +476,48 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Scene")
 	static FRuntimeImportResult ImportTree(const FRuntimeToolJson& Tree, AActor* Parent = nullptr);
+
+	/**
+	 * Saves a node and everything under it as a named, reusable template (kept on this machine across sessions and
+	 * games). Place copies with place_template. Use it for anything worth reusing: a generated house, a hand-built tree,
+	 * a script-built bridge. Fails for an invalid name or more than 2000 nodes.
+	 *
+	 * @param Target - Root node to save (a group saves its whole subtree).
+	 * @param Name - Template name: letters, digits, _ and -.
+	 * @param Description - What it is and when to use it (shown by list_templates).
+	 * @return {name, nodes, file}.
+	 */
+	UFUNCTION(meta = (AICallable, RequiresWorld), Category = "Scene|Templates")
+	static FRuntimeToolJson SaveTemplate(AActor* Target, const FString& Name, const FString& Description);
+
+	/**
+	 * Places a copy of a saved or built-in template, as one undo step. Fails if the template does not exist.
+	 *
+	 * @param Name - Template name (list_templates).
+	 * @param Location - Where its root goes, cm (relative to the parent when one is given).
+	 * @param Yaw - Turn around Z, degrees.
+	 * @param NewName - Name of the placed root (default: the template's).
+	 * @param Parent - Parent group.
+	 * @return {roots, nodes}.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location"), Category = "Scene|Templates")
+	static FRuntimeImportResult PlaceTemplate(const FString& Name, const FVector& Location, float Yaw = 0.f, const FString& NewName = TEXT(""),
+		AActor* Parent = nullptr);
+
+	/**
+	 * Lists templates: saved ones and the ones shipped with the game in Content/RuntimeTemplates.
+	 *
+	 * @return {name: {description, nodes, builtin}}.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Scene|Templates")
+	static FRuntimeToolJson ListTemplates();
+
+	/**
+	 * Deletes a saved template. Built-in templates cannot be deleted. Fails if it does not exist.
+	 *
+	 * @param Name - Template name.
+	 * @return {deleted}.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Scene|Templates")
+	static FRuntimeToolJson DeleteTemplate(const FString& Name);
 };

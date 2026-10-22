@@ -107,6 +107,11 @@ def main():
         for fn in sorted(os.listdir(KIT)):
             if fn.endswith(".py"):
                 z.write(os.path.join(KIT, fn), f"unreal_kit/{fn}")
+    # examples ship next to the zip as plain, readable scripts
+    import shutil
+    ex = os.path.join(DIST, "kit_examples")
+    shutil.rmtree(ex, ignore_errors=True)
+    shutil.copytree(os.path.join(HERE, "kit_examples"), ex, ignore=shutil.ignore_patterns("__pycache__"))
     relay = os.path.join(HERE, "..", "..", "Relay", "src")
     if os.path.isdir(relay):  # the relay serves it at /s/<code>/kit.zip (redeploy the relay after changes)
         import shutil

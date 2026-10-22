@@ -1,6 +1,6 @@
-"""Combat and AI: weapons, enemies with brains, health, damage zones, spawners and game-feel presets.
+"""EXAMPLE presets for combat and AI: weapons, enemies with brains, health, damage zones, spawners and game-feel presets.
 
-    from unreal_kit import combat as c
+    import combat_presets as c
     c.feel_presets()                                   # "hit", "death", "shot", "pickup" feedback presets
     c.player_health(100)
     c.blaster("blaster"); tools.logic.equip(owner="player", weapon="blaster")
@@ -11,7 +11,7 @@
 All of it is data for logic.* tools; rules can react to "damaged", "died", "state" (brain state changes) events.
 """
 
-from . import tools
+from unreal_kit import tools
 
 
 def _list(t):

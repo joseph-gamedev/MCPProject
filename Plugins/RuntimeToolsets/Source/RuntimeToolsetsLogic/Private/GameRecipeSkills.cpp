@@ -146,14 +146,11 @@ URuntimeRealisticSceneSkill::URuntimeRealisticSceneSkill()
 Realism comes from many small truths at once. Missing any one of these reads as "CG": wrong scale, flat light,
 pure colours, perfectly sharp edges, perfectly clean surfaces, empty ground, a camera nobody would stand at.
 
-## Fastest path: the Python kit
-session_get_build_info -> scripting.kit. With it (see the python_kit skill):
-    import unreal_kit as uk; from unreal_kit import world as w, look
-    look.mood("Morning"); look.style("realistic", weathering=0.3)
-    w.city(blocks_x=3, blocks_y=2, seed=4)              # streets, curbs, props, varied buildings, ground (about 30 s)
-    uk.place("Shop", w.building(1600, 1200, 4, "brick", shop=True), at=[x, y, 0])
-    look.review("shots", targets="City")                # then LOOK at the images and fix
-The generators already follow every rule below. Without the kit, follow the rules by hand.
+## Fastest path: a generator script
+With Python, use the kit shipped with the game (skill python_kit). Its example script kit_examples/city.py already
+follows every rule below (buildings with recessed windows, cornices, rooftop clutter, streets with curbs and props,
+whole districts): copy and adapt it instead of starting from zero. Then save finished pieces with
+scene.save_template so later scenes reuse them (scene.place_template).
 
 ## Effort levels (ask or pick by the request)
 - quick: blockout with correct scale and light, one review pass.
@@ -205,41 +202,39 @@ round parts, one assembly per building (not one actor per part), and ops.run_bat
 
 URuntimePythonKitSkill::URuntimePythonKitSkill()
 {
-	Description = TEXT("Apply when a task needs many objects or many steps (levels, cities, games with lots of rules): use the unreal_kit "
-		"Python package instead of single tool calls.");
-	Toolsets = {TEXT("session"), TEXT("ops")};
-	Instructions = TEXT(R"SKILL(# unreal_kit (Python)
+	Description = TEXT("Apply when a task needs many objects or many steps (levels, cities, games with lots of rules) and you can run Python: "
+		"use the unreal_kit shipped with the game to generate fast, and reuse results as templates.");
+	Toolsets = {TEXT("session"), TEXT("ops"), TEXT("build"), TEXT("scene")};
+	Instructions = TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
-One script replaces hundreds of tool calls, and the generators carry tested know-how.
+Why: one script builds hundreds of parts with loops and sends them in a few requests instead of hundreds of calls.
 
-## Get it
-session_get_build_info -> scripting: "kit" is a URL (relay) or a file path (local game), "kit_how" says how.
-    curl -A agent -o unreal_kit.zip <kit>          (any User-Agent; Python's default is blocked by the relay)
-    import sys; sys.path.insert(0, "unreal_kit.zip"); import unreal_kit as uk
-Connection is automatic: UNREAL_RELAY + UNREAL_TOKEN (set by Connect.bat) or the local game
-(UNREAL_LOCAL_MCP, default http://127.0.0.1:8018/mcp). uk.connect(url=...) to choose.
+## Use it in place (nothing to download or install)
+session_get_build_info -> scripting.kit (the zip next to the game) and scripting.examples (a folder).
+    import sys; sys.path.insert(0, r"<kit>"); sys.path.insert(0, r"<examples>")
+    import unreal_kit as uk
+It connects to the game on this machine by itself (uk.connect(url="http://127.0.0.1:<port>/mcp") for another port).
+Do not download code and do not print environment variables.
 
-## Every tool
-uk.tools.<toolset>.<tool>(**args): uk.tools.lighting.apply_mood(mood="Noon"). help(uk.tools.logic) lists tools and
-arguments. Optional arguments left out use the tool's default. Errors raise uk.ToolError with message and hint.
-uk.call("build.create_primitive", shape="box") also works; uk.batch([...]) runs up to 100 calls per request;
-uk.save_image(path) writes the image of the last capture call.
+## Generic modules
+uk.tools.<toolset>.<tool>(...)  every tool, with arguments and docs (help(uk.tools.build)); errors raise uk.ToolError
+uk.parts   box, cyl, cone, sphere, gable, part(any shape), extrude, sweep, beam(a, b), transform(parts, offset, yaw),
+           grid(nx, ny, sx, sy, make), ring(n, r, make), PALETTE / M(preset, rgb) physical materials
+uk.place(name, parts, at)  one object (500+ parts split under a group); uk.place_many([(name, parts, at), ...])
+           sends many objects per request; uk.batch([...]) up to 100 tool calls per request
+uk.rules   rule/set_/add/if_/for_/emit/timer/tween/player/damage... as data, define_vars, add_rules, start, errors
+uk.ui      panel/row/column/grid/text/button/bar/repeat, hud, banner, menu, inventory, THEMES, define
+uk.look    mood, style(weathering), eye_level, orbit_view, screenshot, capture_from, review (saves check images)
 
-## Generators (help(module) for all of them)
-world: building(width, depth, floors, style=brick|plaster|stone|office|glass, roof=flat|gable|hip, shop), facade,
-       window, door, shopfront, street(length), plaza, tree, lamp_post, bench, car, city_block, city(blocks_x, blocks_y).
-       They return part lists: uk.place(name, parts, at) builds one object (500+ parts are split under a group).
-game:  side_player / topdown_player / third_person_player, climbable, score_and_lives, lose_life, win, pickups,
-       hazard, goal, patrol, every(seconds, actions), rule/set_/add/if_/emit/timer/tween... (rule data), start, state, errors.
-ui:    hud, banner, panel_message, menu, inventory, panel/row/column/grid/text/button/bar, THEMES, define.
-combat: feel_presets, player_health, health, damage_zone, blaster/shotgun/rifle/missiles/enemy_gun, guard_brain,
-       chaser_brain, turret_brain, coward_brain, enemies, waves, interactable.
-look:  mood, style(preset, weathering), fog, eye_level, orbit_view, frame, screenshot, capture_from, review.
+## Examples (read, copy, adapt)
+city.py           realistic buildings, facades, windows, streets, props, trees, cars, city blocks, districts
+game_pieces.py    players (side, top-down, third person), score and lives, pickups, hazards, goals, patrols
+combat_presets.py weapons, enemy brains (guard, chaser, turret, coward), health, waves, interactables
 
 ## Pattern
-1. Write the whole scene/game as one script with functions and a seed; run it; read the printed results.
-2. look.review(...) or screenshots -> look at them -> change parameters -> run again (scripts are cheap to rerun:
-   start with tools.scene.clear_all(confirm=True) or build into a group and delete it).
-3. Extend instead of fighting: copy a generator into your script and change it (they are plain Python).
+1. scene.list_templates: reuse what exists (scene.place_template).
+2. Write one script with functions and a seed; build with place_many; read the printed results.
+3. uk.look.review(...) or screenshots -> look -> change parameters -> run again.
+4. scene.save_template the finished pieces with clear descriptions.
 )SKILL");
 }

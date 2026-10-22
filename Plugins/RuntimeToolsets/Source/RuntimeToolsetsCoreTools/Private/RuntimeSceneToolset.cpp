@@ -2,6 +2,9 @@
 #include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
 #include "Helpers/TreeSerializer.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -812,4 +815,210 @@ FRuntimeImportResult URuntimeSceneToolset::ImportTree(const FRuntimeToolJson& Tr
 		Out.IdMap = IdMap;
 	}
 	return Out;
+}
+
+// ---- templates ------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	FString UserTemplateDir() { return FPaths::ProjectSavedDir() / TEXT("RuntimeToolsets/Templates"); }
+	FString BuiltinTemplateDir() { return FPaths::ProjectContentDir() / TEXT("RuntimeTemplates"); }
+
+	bool ValidTemplateName(const FString& Name)
+	{
+		if (Name.IsEmpty() || Name.Len() > 64)
+		{
+			return false;
+		}
+		for (const TCHAR C : Name)
+		{
+			if (!FChar::IsAlnum(C) && C != TEXT('_') && C != TEXT('-'))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Saved templates win over built-in ones with the same name. */
+	TSharedPtr<FJsonObject> LoadTemplate(const FString& Name)
+	{
+		for (const FString& Dir : {UserTemplateDir(), BuiltinTemplateDir()})
+		{
+			FString Text;
+			if (FFileHelper::LoadFileToString(Text, *(Dir / (Name + TEXT(".json")))))
+			{
+				if (TSharedPtr<FJsonObject> J = RuntimeJson::Parse(Text))
+				{
+					return J;
+				}
+			}
+		}
+		return nullptr;
+	}
+
+	int32 CountTreeNodes(const TArray<TSharedPtr<FJsonValue>>& Nodes)
+	{
+		int32 N = 0;
+		for (const TSharedPtr<FJsonValue>& V : Nodes)
+		{
+			const TSharedPtr<FJsonObject>* O = nullptr;
+			if (V.IsValid() && V->TryGetObject(O))
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Kids = nullptr;
+				N += 1 + ((*O)->TryGetArrayField(TEXT("children"), Kids) ? CountTreeNodes(*Kids) : 0);
+			}
+		}
+		return N;
+	}
+
+	FVector ReadVec(const TSharedPtr<FJsonObject>& O, const TCHAR* Field, const FVector& Default)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		return O->TryGetArrayField(Field, A) && A->Num() == 3 ? FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber()) : Default;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> VecJson(const FVector& V)
+	{
+		return {MakeShared<FJsonValueNumber>(V.X), MakeShared<FJsonValueNumber>(V.Y), MakeShared<FJsonValueNumber>(V.Z)};
+	}
+}
+
+FRuntimeToolJson URuntimeSceneToolset::SaveTemplate(AActor* Target, const FString& Name, const FString& Description)
+{
+	const FRuntimeSceneNode* Node = RequireNode(Target, TEXT("target"));
+	if (!Node)
+	{
+		return {};
+	}
+	if (!ValidTemplateName(Name))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("invalid template name '%s'"), *Name),
+			TEXT("1-64 letters, digits, _ or -, e.g. corner_cafe"));
+		return {};
+	}
+	TSharedRef<FJsonObject> Tree = RuntimeTreeSerializer::Export(*RuntimeToolCall::GetGraph(), Node->Id);
+	const int32 Count = CountTreeNodes(Tree->GetArrayField(TEXT("nodes")));
+	if (Count > MaxTreeNodes)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("%d nodes (max %d)"), Count, MaxTreeNodes));
+		return {};
+	}
+	TSharedRef<FJsonObject> File = MakeShared<FJsonObject>();
+	File->SetStringField(TEXT("description"), Description);
+	File->SetNumberField(TEXT("nodes"), Count);
+	File->SetObjectField(TEXT("tree"), Tree);
+	const FString Path = UserTemplateDir() / (Name + TEXT(".json"));
+	if (!FFileHelper::SaveStringToFile(RuntimeJson::Write(File), *Path))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::Internal, FString::Printf(TEXT("could not write %s"), *Path));
+		return {};
+	}
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	Out->SetStringField(TEXT("name"), Name);
+	Out->SetNumberField(TEXT("nodes"), Count);
+	Out->SetStringField(TEXT("file"), FPaths::ConvertRelativePathToFull(Path));
+	return FRuntimeToolJson::Make(Out);
+}
+
+FRuntimeImportResult URuntimeSceneToolset::PlaceTemplate(const FString& Name, const FVector& Location, float Yaw, const FString& NewName, AActor* Parent)
+{
+	FString ParentId;
+	if (Parent)
+	{
+		const FRuntimeSceneNode* P = RequireNode(Parent, TEXT("parent"));
+		if (!P)
+		{
+			return {};
+		}
+		ParentId = P->Id;
+	}
+	const TSharedPtr<FJsonObject> File = ValidTemplateName(Name) ? LoadTemplate(Name) : nullptr;
+	const TSharedPtr<FJsonObject>* TreePtr = nullptr;
+	if (!File.IsValid() || !File->TryGetObjectField(TEXT("tree"), TreePtr))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no template '%s'"), *Name), TEXT("scene.list_templates shows them"));
+		return {};
+	}
+	// Move the roots so the first one lands at Location, turned by Yaw around it.
+	TSharedRef<FJsonObject> Tree = RuntimeJson::Parse(RuntimeJson::Write(TreePtr->ToSharedRef())).ToSharedRef();
+	const TArray<TSharedPtr<FJsonValue>>& Roots = Tree->GetArrayField(TEXT("nodes"));
+	FVector First = FVector::ZeroVector;
+	const FQuat Turn(FRotator(0.f, Yaw, 0.f));
+	for (int32 i = 0; i < Roots.Num(); ++i)
+	{
+		const TSharedPtr<FJsonObject> R = Roots[i]->AsObject();
+		const FVector Loc = ReadVec(R, TEXT("location"), FVector::ZeroVector);
+		if (i == 0)
+		{
+			First = Loc;
+		}
+		R->SetArrayField(TEXT("location"), VecJson(Location + Turn.RotateVector(Loc - First)));
+		const FVector Rot = ReadVec(R, TEXT("rotation"), FVector::ZeroVector);
+		R->SetArrayField(TEXT("rotation"), VecJson(FVector(Rot.X, Rot.Y + Yaw, Rot.Z)));
+	}
+	TArray<FString> RootIds;
+	FString Err;
+	TUniquePtr<FCompositeCommand> Cmd = RuntimeTreeSerializer::BuildImport(*RuntimeToolCall::GetGraph(), Tree, ParentId, NewName, FVector::ZeroVector, RootIds,
+		nullptr, Err);
+	if (!Cmd.IsValid())
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("template '%s' is broken: %s"), *Name, *Err));
+		return {};
+	}
+	const int32 Count = Cmd->Num();
+	Cmd->SetLabel(FString::Printf(TEXT("place template %s"), *Name));
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
+	{
+		return {};
+	}
+	FRuntimeImportResult Out;
+	Out.Roots = RootIds;
+	Out.Nodes = Count;
+	return Out;
+}
+
+FRuntimeToolJson URuntimeSceneToolset::ListTemplates()
+{
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	for (const bool bBuiltin : {true, false})
+	{
+		const FString Dir = bBuiltin ? BuiltinTemplateDir() : UserTemplateDir();
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *(Dir / TEXT("*.json")), true, false);
+		for (const FString& F : Files)
+		{
+			FString Text;
+			const TSharedPtr<FJsonObject> J = FFileHelper::LoadFileToString(Text, *(Dir / F)) ? RuntimeJson::Parse(Text) : nullptr;
+			if (!J.IsValid())
+			{
+				continue;
+			}
+			TSharedRef<FJsonObject> Info = MakeShared<FJsonObject>();
+			FString Description;
+			J->TryGetStringField(TEXT("description"), Description);
+			Info->SetStringField(TEXT("description"), Description);
+			double Nodes = 0;
+			J->TryGetNumberField(TEXT("nodes"), Nodes);
+			Info->SetNumberField(TEXT("nodes"), Nodes);
+			Info->SetBoolField(TEXT("builtin"), bBuiltin);
+			Out->SetObjectField(FPaths::GetBaseFilename(F), Info);  // saved ones replace built-in ones of the same name
+		}
+	}
+	return FRuntimeToolJson::Make(Out);
+}
+
+FRuntimeToolJson URuntimeSceneToolset::DeleteTemplate(const FString& Name)
+{
+	const FString Path = UserTemplateDir() / (Name + TEXT(".json"));
+	if (!ValidTemplateName(Name) || !FPaths::FileExists(Path))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no saved template '%s'"), *Name),
+			TEXT("Built-in templates cannot be deleted; scene.list_templates shows them"));
+		return {};
+	}
+	IFileManager::Get().Delete(*Path);
+	TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+	Out->SetStringField(TEXT("deleted"), Name);
+	return FRuntimeToolJson::Make(Out);
 }

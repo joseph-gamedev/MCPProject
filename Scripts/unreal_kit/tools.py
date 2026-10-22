@@ -5141,6 +5141,19 @@ def _scene_delete_node(*, target, promote_children=None):
     return call('scene.delete_node', **args)
 
 
+def _scene_delete_template(*, name):
+    """Deletes a saved template. Built-in templates cannot be deleted. Fails if it does not exist.
+    Returns: {deleted}.
+
+    Args:
+        name (str): Required. Template name.
+    """
+    args = {}
+    if name is not None:
+        args['name'] = name
+    return call('scene.delete_template', **args)
+
+
 def _scene_duplicate_node(*, target, name=None, offset=None):
     """Copies a node and its subtree (rebuilt from their spawn recipes) next to the original, as one undo step. Fails for subtrees over 2000 nodes.
     Returns: The copy's root node and the number of nodes copied.
@@ -5231,6 +5244,14 @@ def _scene_import_tree(*, tree, parent=None):
     return call('scene.import_tree', **args)
 
 
+def _scene_list_templates():
+    """Lists templates: saved ones and the ones shipped with the game in Content/RuntimeTemplates.
+    Returns: {name: {description, nodes, builtin}}.
+    """
+    args = {}
+    return call('scene.list_templates', **args)
+
+
 def _scene_list_tree(*, depth=None, fields=None, limit=None, root=None):
     """Returns the node hierarchy, depth-limited. Nodes at the depth limit report child_count instead of children.
     Returns: Nested nodes in tree order, the total live node count and whether the limit cut the tree.
@@ -5276,6 +5297,31 @@ def _scene_move_node(*, target, location=None, offset=None, space=None):
     if space is not None:
         args['space'] = space
     return call('scene.move_node', **args)
+
+
+def _scene_place_template(*, name, location=None, new_name=None, parent=None, yaw=None):
+    """Places a copy of a saved or built-in template, as one undo step. Fails if the template does not exist.
+    Returns: {roots, nodes}.
+
+    Args:
+        name (str): Required. Template name (list_templates).
+        location (list[float]): Where its root goes, cm (relative to the parent when one is given). ([x, y, z] (cm))
+        new_name (str): Name of the placed root (default: the template's). Default "".
+        parent (str): Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)
+        yaw (float): Turn around Z, degrees. Default 0.
+    """
+    args = {}
+    if name is not None:
+        args['name'] = name
+    if location is not None:
+        args['location'] = location
+    if new_name is not None:
+        args['new_name'] = new_name
+    if parent is not None:
+        args['parent'] = parent
+    if yaw is not None:
+        args['yaw'] = yaw
+    return call('scene.place_template', **args)
 
 
 def _scene_rename_node(*, name, target):
@@ -5340,6 +5386,26 @@ def _scene_rotate_node(*, target, delta=None, rotation=None, space=None):
     return call('scene.rotate_node', **args)
 
 
+def _scene_save_template(*, description, name, target):
+    """Saves a node and everything under it as a named, reusable template (kept on this machine across sessions and games). Place copies with place_template. Use it for anything worth reusing: a generated house, a hand-built tree, a script-built bridge. Fails for an invalid name or more than 2000 nodes.
+    Returns: {name, nodes, file}.
+
+    Args:
+        description (str): Required. What it is and when to use it (shown by list_templates).
+        name (str): Required. Template name: letters, digits, _ and -.
+        target (str): Required. Root node to save (a group saves its whole subtree). (Reference to Actor: node id (n12),
+            node path, actor:Name or object path)
+    """
+    args = {}
+    if description is not None:
+        args['description'] = description
+    if name is not None:
+        args['name'] = name
+    if target is not None:
+        args['target'] = target
+    return call('scene.save_template', **args)
+
+
 def _scene_scale_node(*, target, factor=None, scale=None):
     """Sets a node's world scale or multiplies it by a factor (give one). Undoable. Prefer scaling leaves: non-uniform scale on a parent shears rotated children (the result then carries a warning). Fails on zero scale components.
     Returns: The node's resulting world transform.
@@ -5395,7 +5461,7 @@ def _scene_set_pivot(*, target, location=None):
     return call('scene.set_pivot', **args)
 
 
-scene = SimpleNamespace(clear_all=_scene_clear_all, clear_scope=_scene_clear_scope, create_group=_scene_create_group, delete_node=_scene_delete_node, duplicate_node=_scene_duplicate_node, export_tree=_scene_export_tree, find_nodes=_scene_find_nodes, get_node=_scene_get_node, import_tree=_scene_import_tree, list_tree=_scene_list_tree, move_node=_scene_move_node, rename_node=_scene_rename_node, reparent_node=_scene_reparent_node, rotate_node=_scene_rotate_node, scale_node=_scene_scale_node, set_node_tags=_scene_set_node_tags, set_pivot=_scene_set_pivot)
+scene = SimpleNamespace(clear_all=_scene_clear_all, clear_scope=_scene_clear_scope, create_group=_scene_create_group, delete_node=_scene_delete_node, delete_template=_scene_delete_template, duplicate_node=_scene_duplicate_node, export_tree=_scene_export_tree, find_nodes=_scene_find_nodes, get_node=_scene_get_node, import_tree=_scene_import_tree, list_templates=_scene_list_templates, list_tree=_scene_list_tree, move_node=_scene_move_node, place_template=_scene_place_template, rename_node=_scene_rename_node, reparent_node=_scene_reparent_node, rotate_node=_scene_rotate_node, save_template=_scene_save_template, scale_node=_scene_scale_node, set_node_tags=_scene_set_node_tags, set_pivot=_scene_set_pivot)
 scene.__doc__ = 'Scene graph: the hierarchy of nodes (actors and groups) created by the tools. Nodes have stable ids ("n12") and paths'
 
 

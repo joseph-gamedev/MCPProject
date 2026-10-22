@@ -37,44 +37,25 @@ static void GetBuildInfo(FToolInvocation& Inv)
 		const ENetMode NetMode = World->GetNetMode();
 		Out->SetStringField(TEXT("net_mode"), NetMode == NM_Standalone ? TEXT("standalone") : NetMode == NM_Client ? TEXT("client") : TEXT("server"));
 	}
-	// Remote (relay) sessions: a ready Python client for building with scripts (loops, many objects).
-	const FString Client = FPlatformMisc::GetEnvironmentVariable(TEXT("RUNTIMETOOLSETS_SCRIPT_CLIENT"));
 	TSharedRef<FJsonObject> Scripting = Obj();
-	// unreal_kit: every tool as a Python function plus helpers per area (world, game, ui, combat, look).
-	const FString KitHow = TEXT("unreal_kit (recommended for anything bigger than a few objects): add the zip to sys.path and import it - "
-		"import sys; sys.path.insert(0, 'unreal_kit.zip'); import unreal_kit as uk; uk.tools.<toolset>.<tool>(...) for every tool; "
-		"from unreal_kit import world, game, ui, combat, look for ready generators (buildings, streets, cities, players, score/lives, pickups, "
-		"hazards, enemies, weapons, menus, HUDs, moods, review screenshots). help(uk.world) / help(uk.tools.logic) list everything. "
-		"It connects by itself (UNREAL_RELAY + UNREAL_TOKEN, or the local game).");
-	if (!Client.IsEmpty())
+	// Python kit shipped in the build folder (packaged) or the repo (editor): used in place, nothing downloaded or installed.
+	Scripting->SetStringField(TEXT("why"), TEXT("A script builds hundreds of parts and sends them in a few requests: much faster than single tool calls."));
+	for (const FString& Dir : {FPaths::RootDir(), FPaths::ProjectDir() / TEXT("Scripts/dist")})
 	{
-		Scripting->SetStringField(TEXT("kit"), Client.Replace(TEXT("/client.py"), TEXT("/kit.zip")));
-		Scripting->SetStringField(TEXT("kit_how"), KitHow + TEXT(" Download it with a User-Agent header, e.g. curl -A agent -o unreal_kit.zip <kit>."));
-	}
-	else
-	{
-		for (const FString& Candidate : {FPaths::ProjectDir() / TEXT("Scripts/dist/unreal_kit.zip"), FPaths::RootDir() / TEXT("unreal_kit.zip")})
+		if (FPaths::FileExists(Dir / TEXT("unreal_kit.zip")))
 		{
-			if (FPaths::FileExists(Candidate))
-			{
-				Scripting->SetStringField(TEXT("kit"), FPaths::ConvertRelativePathToFull(Candidate));
-				Scripting->SetStringField(TEXT("kit_how"), KitHow + TEXT(" For a game on another port set UNREAL_LOCAL_MCP=http://127.0.0.1:<port>/mcp."));
-				break;
-			}
+			Scripting->SetStringField(TEXT("kit"), FPaths::ConvertRelativePathToFull(Dir / TEXT("unreal_kit.zip")));
+			Scripting->SetStringField(TEXT("examples"), FPaths::ConvertRelativePathToFull(Dir / TEXT("kit_examples")));
+			break;
 		}
 	}
-	if (!Client.IsEmpty())
-	{
-		Scripting->SetStringField(TEXT("client"), Client);
-		Scripting->SetStringField(TEXT("how"), TEXT("Download the client as unreal.py, then: from unreal import call, batch; call(\"build.create_primitive\", shape=\"box\"); "
-			"batch([{\"tool\": ..., \"arguments\": {...}}]) (up to 100 per batch). The token is read from the UNREAL_TOKEN environment variable "
-			"(the Bearer token of your MCP connection). Any other HTTP code must send a User-Agent header (Cloudflare blocks Python's default)."));
-	}
-	else
-	{
-		Scripting->SetStringField(TEXT("how"), TEXT("Local game: POST JSON-RPC to http://127.0.0.1:8018/mcp - send \"initialize\", keep the Mcp-Session-Id header, then "
-			"\"tools/call\" with name \"session_call_tool\" and arguments {name, arguments}. Use ops.run_batch for up to 100 calls per request."));
-	}
+	Scripting->SetStringField(TEXT("how"), TEXT("Python: import sys; sys.path.insert(0, r'<kit>'); import unreal_kit as uk. It connects by itself to the "
+		"game on this machine (uk.connect(url='http://127.0.0.1:<port>/mcp') for another port). uk.tools.<toolset>.<tool>(...) is every tool; "
+		"uk.parts builds part lists (box, cyl, sphere, beam, extrude, sweep, transform, grid, ring, PALETTE materials); uk.place / "
+		"uk.place_many / uk.batch send them in big requests; uk.rules builds game rules; uk.ui builds layout UI; uk.look sets light, "
+		"cameras and takes review images. <examples> has readable example scripts (city, game pieces, combat presets) to copy from. "
+		"Use the files where they are: do not download code and do not print environment variables. Save good results with "
+		"scene.save_template. Skill python_kit has the details."));
 	Out->SetObjectField(TEXT("scripting"), Scripting);
 	Inv.Succeed(Out);
 }

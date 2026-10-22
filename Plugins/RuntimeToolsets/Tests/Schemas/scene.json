@@ -274,6 +274,40 @@
 			"undoable": true
 		},
 		{
+			"description": "Deletes a saved template. Built-in templates cannot be deleted. Fails if it does not exist.\nReturns: {deleted}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Template name.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"name": "scene.delete_template",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{deleted}."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Copies a node and its subtree (rebuilt from their spawn recipes) next to the original, as one undo step. Fails for subtrees over 2000 nodes.\nReturns: The copy's root node and the number of nodes copied.",
 			"input_schema":
 			{
@@ -724,6 +758,32 @@
 			"undoable": true
 		},
 		{
+			"description": "Lists templates: saved ones and the ones shipped with the game in Content/RuntimeTemplates.\nReturns: {name: {description, nodes, builtin}}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "scene.list_templates",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{name: {description, nodes, builtin}}."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Returns the node hierarchy, depth-limited. Nodes at the depth limit report child_count instead of children.\nReturns: Nested nodes in tree order, the total live node count and whether the limit cut the tree.",
 			"input_schema":
 			{
@@ -900,6 +960,98 @@
 							}
 						},
 						"title": "RuntimeTransformResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Places a copy of a saved or built-in template, as one undo step. Fails if the template does not exist.\nReturns: {roots, nodes}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "Where its root goes, cm (relative to the parent when one is given). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Template name (list_templates).",
+						"type": "string"
+					},
+					"new_name":
+					{
+						"default": "",
+						"description": "Name of the placed root (default: the template's).",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"yaw":
+					{
+						"default": 0,
+						"description": "Turn around Z, degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "scene.place_template",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{roots, nodes}.",
+						"properties":
+						{
+							"id_map":
+							{
+								"additionalProperties":
+								{
+									"type": "string"
+								},
+								"description": "Spec id -> new node id (for specs that carry ids, up to 200 entries).",
+								"type": "object"
+							},
+							"nodes":
+							{
+								"description": "Nodes created.",
+								"type": "integer"
+							},
+							"roots":
+							{
+								"description": "Ids of the imported root nodes, in spec order.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeImportResult",
 						"type": "object"
 					}
 				},
@@ -1164,6 +1316,52 @@
 				"type": "object"
 			},
 			"undoable": true
+		},
+		{
+			"description": "Saves a node and everything under it as a named, reusable template (kept on this machine across sessions and games). Place copies with place_template. Use it for anything worth reusing: a generated house, a hand-built tree, a script-built bridge. Fails for an invalid name or more than 2000 nodes.\nReturns: {name, nodes, file}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"description":
+					{
+						"description": "What it is and when to use it (shown by list_templates).",
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "Template name: letters, digits, _ and -.",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Root node to save (a group saves its whole subtree). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"name",
+					"description"
+				],
+				"type": "object"
+			},
+			"name": "scene.save_template",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{name, nodes, file}."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
 		},
 		{
 			"description": "Sets a node's world scale or multiplies it by a factor (give one). Undoable. Prefer scaling leaves: non-uniform scale on a parent shears rotated children (the result then carries a warning). Fails on zero scale components.\nReturns: The node's resulting world transform.",

@@ -3,7 +3,7 @@
     import unreal_kit as uk
     uk.tools.lighting.apply_mood(mood="Noon")            # every tool of every toolset, typed and documented
     uk.batch([...])                                     # up to 100 calls in one request
-    from unreal_kit import world, game, ui, look, ai, physics   # high-level helpers per area
+    uk.parts / uk.rules / uk.ui / uk.look                 # generic helpers (examples: kit_examples/)
 
 Connection (automatic): the relay client (UNREAL_RELAY + UNREAL_TOKEN environment variables, set by Connect.bat),
 otherwise the game on this machine (http://127.0.0.1:8018/mcp, or UNREAL_LOCAL_MCP). uk.connect(url=...) overrides.
@@ -17,7 +17,7 @@ import os
 import urllib.error
 import urllib.request
 
-__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "world", "game", "ui", "combat", "look"]
+__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look"]
 
 last_images = []  # images (base64 + mimeType) returned by the last call: screenshots, captures
 
@@ -186,4 +186,4 @@ def place_many(jobs, group=None, per_request=8):
 
 
 from . import tools  # noqa: E402  (generated: one function per tool)
-from . import combat, game, look, ui, world  # noqa: E402,F401  (helpers per area: uk.world.city(...), help(uk.game))
+from . import look, parts, rules, ui  # noqa: E402,F401  (generic helpers; content examples are in kit_examples/)

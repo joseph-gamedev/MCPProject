@@ -41,6 +41,23 @@ void FSceneGraphToolsetSpec::Define()
 		TestEqual(TEXT("path resolves"), N->GetStringField(TEXT("id")), Box);
 	});
 
+	It("saves, places, lists and deletes templates", [this]()
+	{
+		H->CallOk(TEXT("scene.save_template"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"zz_test_house\",\"description\":\"test\"}"), *House));
+		TestTrue(TEXT("listed"), H->CallOk(TEXT("scene.list_templates"))->HasField(TEXT("zz_test_house")));
+		const TSharedRef<FJsonObject> Placed = H->CallOk(TEXT("scene.place_template"),
+			TEXT("{\"name\":\"zz_test_house\",\"location\":[0,3000,0],\"yaw\":90,\"new_name\":\"house2\"}"));
+		TestEqual(TEXT("group and child"), Placed->GetNumberField(TEXT("nodes")), 2.0);
+		const TSharedRef<FJsonObject> Child = H->CallOk(TEXT("scene.get_node"), TEXT("{\"target\":\"house2/box\"}"));
+		TestTrue(TEXT("placed at the new spot"), ActorOf(Child->GetStringField(TEXT("id")))->GetActorLocation().Equals(FVector(0, 3000, 100), 0.5));
+		H->CallOk(TEXT("history.undo"));
+		H->CallFails(TEXT("scene.get_node"), TEXT("{\"target\":\"house2\"}"), ERuntimeToolError::NotFound);
+		H->CallFails(TEXT("scene.save_template"), FString::Printf(TEXT("{\"target\":\"%s\",\"name\":\"bad name\",\"description\":\"x\"}"), *House),
+			ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("scene.delete_template"), TEXT("{\"name\":\"zz_test_house\"}"));
+		H->CallFails(TEXT("scene.place_template"), TEXT("{\"name\":\"zz_test_house\"}"), ERuntimeToolError::NotFound);
+	});
+
 	It("moves children with the parent", [this]()
 	{
 		H->CallOk(TEXT("scene.move_node"), Target(House, TEXT("\"offset\":[0,500,0]")));

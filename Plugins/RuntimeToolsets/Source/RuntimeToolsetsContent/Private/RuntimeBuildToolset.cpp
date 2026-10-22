@@ -1,4 +1,6 @@
 #include "RuntimeBuildToolset.h"
+#include "RuntimeCommonCommands.h"
+#include "RuntimeToolsetsGroupActor.h"
 #include "PrimitiveMesh.h"
 #include "RuntimeActorUtils.h"
 #include "RuntimeImage.h"
@@ -330,13 +332,13 @@ QUALITY BAR: a recognisable, realistic recreation at TRUE SCALE. Hero landmarks 
 Units: cm, Z up, rotations [pitch,yaw,roll]. Use real dimensions (Eiffel Tower 33000 tall, base 12500 square;
 Great Pyramid base 23040, height 13860; Taj Mahal dome top 7300).
 
-BEST METHOD - write a generator script, send big batches:
-  If you can run code, write a Python script with Scripts/rtbuild.py (helpers: box, beam(a,b,t), cyl, taper, frustum,
-  loft(rings), ring(n,r,z), rect, revolve(profile), onion(r,h), sweep/pipe(path), panel(outline,depth,at,yaw),
-  arch_outline, column, steps, tiers, lattice, polar, spline, mat(preset,..)). Loops make repeated detail cheap:
-  truss bracing, colonnades, window bays, railings, roof tiles, stairs. Runtime().build(name, parts) sends them.
-  Example: Scripts/examples/eiffel_and_pyramid.py (2000 parts, 1.4 s).
+FASTEST - a generator script plus big batches:
+  If you can run Python, use the kit shipped with the game (session_get_build_info -> scripting; skill python_kit):
+  uk.parts builds part dicts with loops (window bays, colonnades, truss bracing, railings, stairs, whole streets),
+  uk.place_many sends many objects per request. Example scripts (a realistic city, game pieces) show the patterns.
   Otherwise call build.create_assembly directly with up to 512 parts per call (one object, one undo step).
+REUSE - scene.save_template {target, name, description} keeps anything you built; scene.place_template places copies
+  in later sessions; scene.list_templates shows what exists. Check it before building something again.
 
 PART SHAPES (create_assembly parts / create_primitive):
   box sphere cylinder cone pyramid torus wedge capsule plane dome tube arch roof(gable)
