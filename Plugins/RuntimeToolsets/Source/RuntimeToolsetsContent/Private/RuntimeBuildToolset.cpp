@@ -543,6 +543,39 @@ FBuildToolNodeResult URuntimeBuildToolset::PlaceMesh(const FString& Asset, const
 	return Out;
 }
 
+FBuildToolNodeResult URuntimeBuildToolset::CreateRiver(const TArray<FVector>& Path, const TArray<FString>& Tags, float Width, float Overlap,
+	EBuildToolWater Water, float FlowSpeed, float Ripple, float Foam, const FString& Name, AActor* Parent)
+{
+	if (Path.Num() < 2)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("a river needs a path of at least 2 points [[x,y,z],...]"),
+			TEXT("Use the path from build.create_terrain rivers[] or your own water-level points, upstream first"));
+		return {};
+	}
+	// the node sits at the first point; the path is stored relative to it so the recipe rebuilds anywhere
+	const FVector Origin = Path[0];
+	TSharedRef<FJsonObject> Recipe = Obj();
+	Recipe->SetStringField(TEXT("shape"), TEXT("river"));
+	TArray<TSharedPtr<FJsonValue>> Local;
+	for (const FVector& P : Path)
+	{
+		Local.Add(RuntimeJson::Vec(P - Origin));
+	}
+	Recipe->SetArrayField(TEXT("path"), Local);
+	Recipe->SetNumberField(TEXT("width"), Width);
+	if (Overlap >= 0.f)
+	{
+		Recipe->SetNumberField(TEXT("overlap"), Overlap);
+	}
+	Recipe->SetStringField(TEXT("water"), BuildEnumText(Water));
+	Recipe->SetNumberField(TEXT("flow_speed"), FlowSpeed);
+	Recipe->SetNumberField(TEXT("ripple"), Ripple);
+	Recipe->SetNumberField(TEXT("foam"), Foam);
+	FBuildToolAssemblyResult Out;
+	CreateFromRecipe(Recipe, Name.IsEmpty() ? TEXT("River") : Name, Parent, FTransform(Origin), Tags, false, Out);
+	return ToNodeResult(Out);
+}
+
 FBuildToolTerrainResult URuntimeBuildToolset::CreateTerrain(const FVector2D& Size, const FVector& Location, const TArray<FRuntimeToolJson>& Hills,
 	const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height,
 	float FeatureSize, float Ridged, float Roughness, int32 Seed, float Edge, EBuildToolBiome Biome, float Resolution, float SnowLine, const FString& Name,

@@ -28,4 +28,14 @@ namespace RuntimeTerrain
 	UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer);
 
 	const TArray<FString>& BiomeNames();
+
+	/** River water surface ("shape": "river"): a ribbon along path [[x,y,z],...] (z = water level), width (+ overlap
+	 *  under the banks). UV U = metres downstream, V = 0..1 across; vertex colour R = bank foam. No collision. */
+	bool IsRiver(const TSharedRef<FJsonObject>& Recipe);
+	bool AppendRiver(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError);
+
+	/** Flowing water material (M_RT_River, single layer water) for the recipe's water kind and flow speed. */
+	UMaterialInterface* MakeRiverMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer);
+
+	const TArray<FString>& WaterNames();
 }

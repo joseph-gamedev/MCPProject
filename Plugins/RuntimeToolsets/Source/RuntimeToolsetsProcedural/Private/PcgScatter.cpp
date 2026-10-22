@@ -460,6 +460,8 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 	}
 	bool bGround = true;
 	R->TryGetBoolField(TEXT("ground"), bGround);
+	// surface: only plant where this actor is the first thing below (not on roofs, roads, walls)
+	const AActor* SurfaceActor = R->HasField(TEXT("surface")) ? NodeActor(World, R->GetStringField(TEXT("surface"))) : nullptr;
 	FCollisionQueryParams Q(TEXT("ScatterGround"), false);
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -525,7 +527,17 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 			FHitResult Hit;
 			if (World->LineTraceSingleByChannel(Hit, L + FVector(0, 0, 20000), L - FVector(0, 0, 50000), ECC_Visibility, Q))
 			{
+				if (SurfaceActor && Hit.GetActor() != SurfaceActor)
+				{
+					++Rejected;
+					continue;
+				}
 				L.Z = Hit.ImpactPoint.Z;
+			}
+			else if (SurfaceActor)
+			{
+				++Rejected;
+				continue;
 			}
 		}
 		// Weighted pick.

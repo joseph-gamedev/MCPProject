@@ -1599,6 +1599,11 @@
 					{
 						"description": "Spline node (spline.create_spline). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
+					},
+					"surface":
+					{
+						"description": "Only place where this node (e.g. the terrain) is the first thing below the point: spots covered by a building, road, wall or roof are dropped instead of being planted on top of it. Implies ground snapping. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
 					}
 				},
 				"required": [

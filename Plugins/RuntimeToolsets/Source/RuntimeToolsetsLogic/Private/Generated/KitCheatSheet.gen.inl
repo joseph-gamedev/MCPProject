@@ -30,10 +30,10 @@ srgb(r, g, b)
 sweep(profile, path, m="metal", closed=False, **kw)  # 2D profile [[x, y]] swept along a 3D path [[x, y, z]] (rails, pipes, cables, mouldings).
 transform(parts, offset=(0, 0, 0), yaw=0.0)  # Rotates parts around Z by yaw degrees, then moves them by offset (returns new dicts).
 ### uk.assets
-along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row")  # Plants along a path [[x, y], ...]: street trees, palm avenues, hedges. offset = [min, max] cm beside the line.
+along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row", surface=None)  # Plants along a path [[x, y], ...]: street trees, palm avenues, hedges. offset = [min, max] cm beside the line.
 catalog(refresh=False)  # {species: [static mesh paths]} from the packaged foliage (cached).
-forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None)  # Fill a closed area [[x, y], ...] with a weighted species mix {species: weight}. GPU instances: thousands are c
-ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover")  # Dense grass / flowers / ferns inside an area (no collision).
+forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None, surface=None)  # Fill a closed area [[x, y], ...] with a weighted species mix {species: weight}. GPU instances: thousands are c
+ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover", surface=None, exclude=None)  # Dense grass / flowers / ferns inside an area (no collision).
 place(species, at, yaw=None, scale=1.0, seed=None, name=None, collision=True)  # One plant (a random variant of the species) as a scene node; returns its id.
 variants(species)
 wind(strength=0.4, speed=0.6, direction=(1.0, 0.35), gustiness=0.5, sway=10.0, flutter=1.0)  # Wind for all foliage (live): strength 0 calm, 0.4 light breeze (default), 1 windy, 2-3 storm; speed how fast i
@@ -75,9 +75,9 @@ column(children, gap=6, align=None, **kw)
 define(items, theme=None, replace=False)  # Creates or updates UI items (merged by name). theme: dict or a THEMES key.
 divider()
 grid(children, columns=3, gap=8, cell=None, **kw)  # cell = [width, height] gives every cell the same size.
-hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")], bars = [(label, value_expr, max_expr, fill)].
-inventory(name, list_var, columns=5, vi)KIT"))
-	+ FString(TEXT(R"KIT(sible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
+hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")], bars = [(label, value_expr, m)KIT"))
+	+ FString(TEXT(R"KIT(ax_expr, fill)].
+inventory(name, list_var, columns=5, visible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
 menu(name, heading, buttons, visible_if=None, subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
 panel(name, children, anchor="center", visible_if=None, width=None, padding=16, gap=10, **kw)  # A top-level window/card. Every screen is a panel with a name.
 panel_message(name, heading, body=None, button=None, visible_if=None)  # Centred dialog: heading, optional body text and one button (name, label).
@@ -126,8 +126,8 @@ lose_life(respawn_delay=1.2)  # Actions for 'the player got hit': lives - 1, fee
 patrol(targets, axis=(1, 0, 0), distance=600, speed=150, face=True)  # Simple back-and-forth movers (platforms, simple enemies).
 pickups(targets, points=10, name=None, effect=True)  # Collectibles: touching one hides it and adds points (restored on restart).
 pool(name, template, size=10)
-score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives )KIT"))
-	+ FString(TEXT(R"KIT(/ over variables, a HUD, a game-over panel with a restart button, R to restart,
+score_and_lives(lives=3, title=No)KIT"))
+	+ FString(TEXT(R"KIT(ne, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
 side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
 third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.

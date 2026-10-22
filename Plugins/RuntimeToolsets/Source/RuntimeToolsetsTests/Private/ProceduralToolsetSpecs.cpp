@@ -145,6 +145,27 @@ void FProceduralToolsetSpec::Define()
 		}
 		TestEqual(TEXT("nothing inside the closed exclusion"), InsideClearing, 0);
 		TestTrue(TEXT("but the rest of the area is planted"), Cl->GetNumberField(TEXT("instances")) >= 10);
+
+		// surface: nothing is planted on top of a building standing on the ground
+		const FString Ground = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[9000,9000,20],"location":[0,0,10],"name":"plot"})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[3000,3000,600],"location":[0,0,30],"name":"house"})J"));
+		const TSharedPtr<FJsonObject> Su = Ret(TEXT("pcg.scatter"), FString::Printf(TEXT(R"J({"spline":"%s","mode":"Inside","spacing":500,"surface":"%s","items":[{"template":"%s"}]})J"), *Area, *Ground, *Tpl));
+		int32 OnRoof = 0, Planted = 0;
+		if (AActor* SuA = NodeActor(Ref(Su, TEXT("scatter"))))
+		{
+			for (UHierarchicalInstancedStaticMeshComponent* Hism : TInlineComponentArray<UHierarchicalInstancedStaticMeshComponent*>(SuA))
+			{
+				for (int32 i = 0; i < Hism->GetInstanceCount(); ++i)
+				{
+					FTransform T;
+					Hism->GetInstanceTransform(i, T, true);
+					++Planted;
+					OnRoof += T.GetLocation().Z > 200;
+				}
+			}
+		}
+		TestEqual(TEXT("nothing on the roof"), OnRoof, 0);
+		TestTrue(FString::Printf(TEXT("the open ground is planted (%d)"), Planted), Planted >= 10);
 	});
 }
 

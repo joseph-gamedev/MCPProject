@@ -793,6 +793,10 @@ namespace RuntimePrimitives
 		{
 			return RuntimeTerrain::Append(Mesh, R, OutError);
 		}
+		if (Shape == TEXT("river"))
+		{
+			return RuntimeTerrain::AppendRiver(Mesh, R, OutError);
+		}
 		const FVector S = ReadSize(R);
 		const int32 D = DetailFactor(R);
 		const EGeometryScriptPrimitiveOriginMode Origin = ReadOrigin(R);
@@ -1423,6 +1427,14 @@ namespace RuntimePrimitives
 	{
 		FString Material = TEXT("white");
 		Recipe->TryGetStringField(TEXT("material"), Material);
+		if (RuntimeTerrain::IsRiver(Recipe) && (!Recipe->HasField(TEXT("material")) || Material == TEXT("water")))
+		{
+			if (UMaterialInterface* Water = RuntimeTerrain::MakeRiverMaterial(Recipe, Outer))
+			{
+				return Water;
+			}
+			Material = TEXT("water");
+		}
 		if (RuntimeTerrain::IsTerrain(Recipe) && (!Recipe->HasField(TEXT("material")) || Material == TEXT("terrain")))
 		{
 			// slope / wetness / bare-earth blended ground for the biome; plain grass if the plugin material is missing
@@ -1604,8 +1616,17 @@ namespace RuntimePrimitives
 
 	/** Collision for a freshly built mesh: one cook (updates were deferred while building). Assemblies use their part boxes;
 	 *  single shapes get fitted simple shapes. Big meshes cook the exact triangles in the background. */
-	static void FinishCollision(UDynamicMeshComponent* Comp, const FKAggregateGeom* Simple, bool bTerrain = false)
+	static void FinishCollision(UDynamicMeshComponent* Comp, const FKAggregateGeom* Simple, bool bTerrain = false, bool bWater = false)
 	{
+		if (bWater)
+		{
+			// water: no blocking collision (wade and swim through; scatter traces reach the river bed); tangents for the
+			// flowing ripple normals that follow the river's bends
+			Comp->SetTangentsType(EDynamicMeshComponentTangentsMode::AutoCalculated);
+			Comp->SetCollisionProfileName(TEXT("NoCollision"));
+			Comp->SetDeferredCollisionUpdatesEnabled(false, false);
+			return;
+		}
 		if (bTerrain)
 		{
 			// ground: the exact surface is the collision (fitted boxes would float things over valleys)
@@ -1657,7 +1678,7 @@ namespace RuntimePrimitives
 			Comp->SetDeferredCollisionUpdatesEnabled(false, true);
 			return false;
 		}
-		FinishCollision(Comp, IsAssembly(Recipe) ? &GAssemblySimple : nullptr, RuntimeTerrain::IsTerrain(Recipe));
+		FinishCollision(Comp, IsAssembly(Recipe) ? &GAssemblySimple : nullptr, RuntimeTerrain::IsTerrain(Recipe), RuntimeTerrain::IsRiver(Recipe));
 		return true;
 	}
 
@@ -1720,7 +1741,7 @@ namespace RuntimePrimitives
 			Actor->Destroy();
 			return nullptr;
 		}
-		FinishCollision(Comp, Built->bHasSimple ? &Built->Simple : nullptr, RuntimeTerrain::IsTerrain(Recipe));
+		FinishCollision(Comp, Built->bHasSimple ? &Built->Simple : nullptr, RuntimeTerrain::IsTerrain(Recipe), RuntimeTerrain::IsRiver(Recipe));
 		return Actor;
 	}
 

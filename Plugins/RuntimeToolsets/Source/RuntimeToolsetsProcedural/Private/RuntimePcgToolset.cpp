@@ -1173,7 +1173,7 @@ FRuntimeToolJson URuntimePcgToolset::GetNodeDataView(AActor* Instance, const FSt
 
 FPcgScatterResult URuntimePcgToolset::Scatter(AActor* Spline, const TArray<FPcgScatterItem>& Items, const TArray<FPcgScatterExclusion>& Exclude,
 	const FVector2D& Offset, EPcgScatterMode Mode, float Spacing, EPcgScatterSide Side, float Jitter, float MinDistance, float Keep, float NoiseScale,
-	bool bGround, int32 Seed, const FString& Name)
+	bool bGround, int32 Seed, const FString& Name, AActor* Surface)
 {
 	FPcgScatterResult Result;
 	const FRuntimeSceneNode* SplineNode = RuntimeToolCall::NodeOf(Spline);
@@ -1204,7 +1204,12 @@ FPcgScatterResult URuntimePcgToolset::Scatter(AActor* Spline, const TArray<FPcgS
 	R->SetNumberField(TEXT("seed"), Seed);
 	R->SetField(TEXT("offset"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(Offset.X), MakeShared<FJsonValueNumber>(Offset.Y)}));
 	R->SetStringField(TEXT("side"), Side == EPcgScatterSide::Left ? TEXT("left") : Side == EPcgScatterSide::Right ? TEXT("right") : TEXT("both"));
-	R->SetBoolField(TEXT("ground"), bGround);
+	R->SetBoolField(TEXT("ground"), bGround || Surface != nullptr);
+	if (Surface)
+	{
+		const FRuntimeSceneNode* SurfaceNode = RuntimeToolCall::NodeOf(Surface);
+		R->SetStringField(TEXT("surface"), SurfaceNode ? SurfaceNode->Id : FString::Printf(TEXT("actor:%s"), *Surface->GetName()));
+	}
 	TArray<TSharedPtr<FJsonValue>> ItemJson;
 	for (const FPcgScatterItem& It : Items)
 	{

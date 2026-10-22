@@ -95,26 +95,32 @@ def _spline(points, closed, name, linear=None):
     return sp.get("ref") or sp.get("id") if isinstance(sp, dict) else res.get("id")
 
 
-def forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None):
+def forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=True, name="Forest", exclude=None, surface=None):
     """Fill a closed area [[x, y], ...] with a weighted species mix {species: weight}. GPU instances: thousands are cheap.
-    keep < 1 thins by noise (clearings); exclude = [{"spline": id, "clearance": cm}] keeps roads clear."""
+    keep < 1 thins by noise (clearings); exclude = [{"spline": id, "clearance": cm}] keeps roads clear.
+    surface = the terrain's id: plant only where the terrain is the first thing below (never on roofs, roads or walls)."""
     args = {"spline": _spline(area, True, name + "Area"), "items": _items(mix, scale, collision), "mode": "Inside", "spacing": spacing,
             "keep": keep, "seed": seed, "ground": True, "name": name}
     if exclude:
         args["exclude"] = exclude
+    if surface:
+        args["surface"] = surface
     return call("pcg.scatter", **args)
 
 
-def along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row"):
+def along(path, mix, spacing=900, offset=(0, 0), side="Both", scale=(0.9, 1.1), seed=1, collision=True, name="Row", surface=None):
     """Plants along a path [[x, y], ...]: street trees, palm avenues, hedges. offset = [min, max] cm beside the line."""
-    return call("pcg.scatter", spline=_spline(path, False, name + "Line"), items=_items(mix, scale, collision), mode="Along", spacing=spacing,
+    args = dict(spline=_spline(path, False, name + "Line"), items=_items(mix, scale, collision), mode="Along", spacing=spacing,
                 offset=list(offset), side=side, seed=seed, ground=True, name=name)
+    if surface:
+        args["surface"] = surface
+    return call("pcg.scatter", **args)
 
 
-def ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover"):
+def ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover", surface=None, exclude=None):
     """Dense grass / flowers / ferns inside an area (no collision)."""
     return forest(area, mix or {"grass": 6, "tall_grass": 1, "wildflowers": 1}, spacing=spacing, scale=scale, keep=keep, seed=seed,
-                  collision=False, name=name)
+                  collision=False, name=name, surface=surface, exclude=exclude)
 
 
 WIND = ROOT + "/Materials/MPC_Wind.MPC_Wind"

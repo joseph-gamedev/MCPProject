@@ -934,6 +934,47 @@ def _build_create_profile_solid(*, kind, profile, angle=None, bevel=None, closed
     return call('build.create_profile_solid', **args)
 
 
+def _build_create_river(*, flow_speed=None, foam=None, name=None, overlap=None, parent=None, path=None, ripple=None, tags=None, water=None, width=None):
+    """Creates a flowing river surface along a path: ripples move downstream following the bends, foam lines the banks, and the water's colour and depth come from how it scatters and absorbs light (muddy, clear, green, blue, dark). Pass the path from build.create_terrain's rivers[] to fill its carved channel. No collision (characters wade, traces reach the bed). One undo step. Fails if the path has fewer than 2 points.
+    Returns: {id, name, path, triangles}.
+
+    Args:
+        flow_speed (float): Current speed: 0 still, 1 gentle river, 3 rapid. Default 1.
+        foam (float): Bank foam 0..2. Default 1.
+        name (str): Node name. Default "River".
+        overlap (float): Extra width cm on each side tucked under the banks (default a quarter of the width). Default
+            -1.
+        parent (str): Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)
+        path (list[list[float]]): Water surface [[x,y,z],...] world cm, upstream first (z = water level at each point).
+        ripple (float): Ripple strength 0..2. Default 1.
+        tags (list[str]): Node tags.
+        water ('Muddy' | 'Clear' | 'Green' | 'Blue' | 'Dark'): Water kind. Default "Clear".
+        width (float): Water width cm between the banks. Default 1500.
+    """
+    args = {}
+    if flow_speed is not None:
+        args['flow_speed'] = flow_speed
+    if foam is not None:
+        args['foam'] = foam
+    if name is not None:
+        args['name'] = name
+    if overlap is not None:
+        args['overlap'] = overlap
+    if parent is not None:
+        args['parent'] = parent
+    if path is not None:
+        args['path'] = path
+    if ripple is not None:
+        args['ripple'] = ripple
+    if tags is not None:
+        args['tags'] = tags
+    if water is not None:
+        args['water'] = water
+    if width is not None:
+        args['width'] = width
+    return call('build.create_river', **args)
+
+
 def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feature_size=None, flatten=None, height=None, hills=None, location=None, material=None, name=None, parent=None, resolution=None, ridged=None, roughness=None, seed=None, size=None, snow_line=None, tags=None):
     """Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step. Fails if the size is out of range or a hill, pad or carve entry is malformed.
     Returns: {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
@@ -1187,7 +1228,7 @@ def _build_set_material(*, targets, color=None, emissive=None, emissive_strength
     return call('build.set_material', **args)
 
 
-build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, create_terrain=_build_create_terrain, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, place_instances=_build_place_instances, place_mesh=_build_place_mesh, set_material=_build_set_material)
+build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, create_river=_build_create_river, create_terrain=_build_create_terrain, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, place_instances=_build_place_instances, place_mesh=_build_place_mesh, set_material=_build_set_material)
 build.__doc__ = 'build'
 
 
@@ -4574,7 +4615,7 @@ def _pcg_reset_graph_instance_params(*, instance, param_names):
     return call('pcg.reset_graph_instance_params', **args)
 
 
-def _pcg_scatter(*, items, spline, exclude=None, ground=None, jitter=None, keep=None, min_distance=None, mode=None, name=None, noise_scale=None, offset=None, seed=None, side=None, spacing=None):
+def _pcg_scatter(*, items, spline, exclude=None, ground=None, jitter=None, keep=None, min_distance=None, mode=None, name=None, noise_scale=None, offset=None, seed=None, side=None, spacing=None, surface=None):
     """Scatters copies of builder objects along a spline (both sides of a road, a fence line) or inside a closed spline (a forest, a field) with a PCG graph (spline or surface sampler, jitter, self pruning), then noise thinning, exclusion zones and ground snapping. Rendered as GPU instances (thousands are cheap). Undoable; same seed, same result.
 
     Args:
@@ -4596,6 +4637,9 @@ def _pcg_scatter(*, items, spline, exclude=None, ground=None, jitter=None, keep=
         seed (int): Random seed. Default 1.
         side ('Both' | 'Left' | 'Right'): along with an offset: which side of the spline. Default "Both".
         spacing (float): Sample spacing in cm. Default 400.
+        surface (str): Only place where this node (e.g. the terrain) is the first thing below the point: spots covered
+            by a building, road, wall or roof are dropped instead of being planted on top of it. Implies ground
+            snapping. (Reference to Actor: node id (n12), node path, actor:Name or object path)
     """
     args = {}
     if items is not None:
@@ -4626,6 +4670,8 @@ def _pcg_scatter(*, items, spline, exclude=None, ground=None, jitter=None, keep=
         args['side'] = side
     if spacing is not None:
         args['spacing'] = spacing
+    if surface is not None:
+        args['surface'] = surface
     return call('pcg.scatter', **args)
 
 

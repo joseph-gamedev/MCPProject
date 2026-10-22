@@ -503,6 +503,156 @@ namespace RuntimeTerrain
 		return true;
 	}
 
+	// ------------------------------------------------------------------------------------------------ rivers
+
+	static const TCHAR* RiverMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_River.M_RT_River");
+
+	const TArray<FString>& WaterNames()
+	{
+		static const TArray<FString> Names = {TEXT("muddy"), TEXT("clear"), TEXT("green"), TEXT("blue"), TEXT("dark")};
+		return Names;
+	}
+
+	bool IsRiver(const TSharedRef<FJsonObject>& Recipe)
+	{
+		FString Shape;
+		return Recipe->TryGetStringField(TEXT("shape"), Shape) && Shape == TEXT("river");
+	}
+
+	bool AppendRiver(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R, FString& OutError)
+	{
+		TArray<FVector> In;
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		if (R->TryGetArrayField(TEXT("path"), A))
+		{
+			for (const TSharedPtr<FJsonValue>& V : *A)
+			{
+				FVector P;
+				if (!RuntimeJson::ToVector(V, P))
+				{
+					OutError = TEXT("river path points are [x,y,z] (z = water level)");
+					return false;
+				}
+				In.Add(P);
+			}
+		}
+		if (In.Num() < 2 || In.Num() > 5000)
+		{
+			OutError = TEXT("river needs a path of 2-5000 points [[x,y,z],...]");
+			return false;
+		}
+		const double Width = FMath::Clamp(Num(R, TEXT("width"), 1500), 50.0, 100000.0);
+		const double Overlap = FMath::Max(0.0, Num(R, TEXT("overlap"), Width * 0.25));
+		const double Foam = FMath::Max(1.0, Num(R, TEXT("foam_width"), FMath::Min(120.0, Width * 0.06)));
+		const double Step = FMath::Clamp(Num(R, TEXT("segment"), FMath::Min(300.0, Width / 3)), 25.0, 5000.0);
+		// resample evenly so the ribbon bends smoothly
+		TArray<FVector> P;
+		for (int32 k = 0; k + 1 < In.Num(); ++k)
+		{
+			const int32 N = FMath::Max(1, FMath::CeilToInt(FVector::Dist2D(In[k], In[k + 1]) / Step));
+			for (int32 s = 0; s < N; ++s)
+			{
+				P.Add(FMath::Lerp(In[k], In[k + 1], double(s) / N));
+			}
+		}
+		P.Add(In.Last());
+		const int32 Across = 8;
+		const double Half = Width / 2 + Overlap;
+		Mesh->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+		{
+			M.Clear();
+			M.EnableAttributes();
+			M.Attributes()->EnablePrimaryColors();
+			UE::Geometry::FDynamicMeshColorOverlay* Colors = M.Attributes()->PrimaryColors();
+			UE::Geometry::FDynamicMeshUVOverlay* UVs = M.Attributes()->PrimaryUV();
+			TArray<int32> V, C, U;
+			double Dist = 0;
+			for (int32 k = 0; k < P.Num(); ++k)
+			{
+				if (k > 0)
+				{
+					Dist += FVector::Dist2D(P[k], P[k - 1]);
+				}
+				const FVector2D Dir = FVector2D(P[FMath::Min(k + 1, P.Num() - 1)] - P[FMath::Max(k - 1, 0)]).GetSafeNormal();
+				const FVector2D Side(-Dir.Y, Dir.X);
+				for (int32 j = 0; j <= Across; ++j)
+				{
+					const double T = double(j) / Across;
+					const double Off = FMath::Lerp(-Half, Half, T);
+					const FVector2D XY = FVector2D(P[k]) + Side * Off;
+					V.Add(M.AppendVertex(FVector3d(XY.X, XY.Y, P[k].Z)));
+					// foam is a thin line at the bank, fading both ways (the overlap strip lies under the banks)
+					const double Edge = Width / 2 - FMath::Abs(Off);
+					const float FoamV = static_cast<float>(1.0 - Smooth(FMath::Abs(Edge) / Foam));
+					C.Add(Colors->AppendElement(FVector4f(FoamV, 0.f, 0.f, 1.f)));
+					U.Add(UVs->AppendElement(FVector2f(static_cast<float>(Dist / 100.0), static_cast<float>(T))));
+				}
+			}
+			const int32 Row = Across + 1;
+			for (int32 k = 0; k + 1 < P.Num(); ++k)
+			{
+				for (int32 j = 0; j < Across; ++j)
+				{
+					const int32 A0 = k * Row + j, B0 = A0 + 1, C0 = A0 + Row, D0 = C0 + 1;
+					for (const UE::Geometry::FIndex3i& T : {UE::Geometry::FIndex3i(A0, D0, B0), UE::Geometry::FIndex3i(A0, C0, D0)})
+					{
+						const int32 Tid = M.AppendTriangle(V[T.A], V[T.B], V[T.C]);
+						if (Tid >= 0)
+						{
+							Colors->SetTriangle(Tid, UE::Geometry::FIndex3i(C[T.A], C[T.B], C[T.C]));
+							UVs->SetTriangle(Tid, UE::Geometry::FIndex3i(U[T.A], U[T.B], U[T.C]));
+						}
+					}
+				}
+			}
+			if (M.TriangleCount() > 0 && M.GetTriNormal(0).Z < 0)
+			{
+				M.ReverseOrientation();
+			}
+			UE::Geometry::FMeshNormals::InitializeOverlayToPerVertexNormals(M.Attributes()->PrimaryNormals(), false);
+		});
+		return true;
+	}
+
+	UMaterialInterface* MakeRiverMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer)
+	{
+		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, RiverMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Base)
+		{
+			return nullptr;
+		}
+		// Single layer water: light scattered back (the water's own colour) and absorbed, per metre.
+		struct FWater { const TCHAR* Name; FLinearColor Scatter, Absorb, Surface; float Rough; };
+		static const FWater Waters[] = {
+			{TEXT("muddy"), {0.32f, 0.20f, 0.09f}, {0.25f, 0.30f, 0.45f}, {0.30f, 0.22f, 0.12f}, 0.08f},   // sediment-laden (Amazon, Mekong)
+			{TEXT("clear"), {0.004f, 0.012f, 0.015f}, {0.35f, 0.06f, 0.025f}, {0.10f, 0.14f, 0.14f}, 0.04f},
+			{TEXT("green"), {0.02f, 0.06f, 0.03f}, {0.40f, 0.12f, 0.20f}, {0.08f, 0.14f, 0.08f}, 0.05f},   // algae, jungle streams
+			{TEXT("blue"), {0.005f, 0.02f, 0.04f}, {0.45f, 0.08f, 0.02f}, {0.05f, 0.10f, 0.16f}, 0.04f},   // glacial, lake blue
+			{TEXT("dark"), {0.03f, 0.02f, 0.012f}, {0.45f, 0.50f, 0.55f}, {0.05f, 0.04f, 0.03f}, 0.05f},   // blackwater (Rio Negro)
+		};
+		FString Name = TEXT("clear");
+		Recipe->TryGetStringField(TEXT("water"), Name);
+		const FWater* W = &Waters[1];
+		for (const FWater& X : Waters)
+		{
+			if (Name == X.Name)
+			{
+				W = &X;
+			}
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Outer);
+		MID->SetVectorParameterValue(TEXT("Scattering"), W->Scatter);
+		MID->SetVectorParameterValue(TEXT("Absorption"), W->Absorb);
+		MID->SetVectorParameterValue(TEXT("SurfaceColor"), W->Surface);
+		MID->SetScalarParameterValue(TEXT("Roughness"), W->Rough);
+		MID->SetScalarParameterValue(TEXT("FlowSpeed"), static_cast<float>(Num(Recipe, TEXT("flow_speed"), 1.0)));
+		MID->SetScalarParameterValue(TEXT("Ripple"), static_cast<float>(Num(Recipe, TEXT("ripple"), 1.0)));
+		MID->SetScalarParameterValue(TEXT("Foam"), static_cast<float>(Num(Recipe, TEXT("foam"), 1.0)));
+		const double Width = Num(Recipe, TEXT("width"), 1500);
+		MID->SetScalarParameterValue(TEXT("WidthM"), static_cast<float>((Width + 2 * Num(Recipe, TEXT("overlap"), Width * 0.25)) / 100.0));
+		return MID;
+	}
+
 	UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer)
 	{
 		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TerrainMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);

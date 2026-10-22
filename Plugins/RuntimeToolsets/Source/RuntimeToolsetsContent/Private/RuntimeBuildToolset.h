@@ -71,6 +71,21 @@ enum class EBuildToolBiome : uint8
 };
 
 UENUM()
+enum class EBuildToolWater : uint8
+{
+	/** Brown, sediment-laden (Amazon, Mekong, flooded rivers). */
+	Muddy,
+	/** Clear: you see the bed in the shallows (mountain streams). */
+	Clear,
+	/** Green (algae, slow jungle streams). */
+	Green,
+	/** Deep blue (glacial rivers, lakes). */
+	Blue,
+	/** Tea-black (blackwater rivers like the Rio Negro). */
+	Dark,
+};
+
+UENUM()
 enum class EBuildToolSolidKind : uint8
 {
 	/** Spin a [radius, height] profile around Z: domes, columns, vases. */
@@ -671,6 +686,29 @@ public:
 		const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height = 2000.f,
 		float FeatureSize = 20000.f, float Ridged = 0.f, float Roughness = 0.5f, int32 Seed = 1, float Edge = 0.f, EBuildToolBiome Biome = EBuildToolBiome::Temperate,
 		float Resolution = 0.f, float SnowLine = 0.f, const FString& Name = TEXT("Terrain"), AActor* Parent = nullptr, const FString& Material = TEXT(""));
+
+	/**
+	 * Creates a flowing river surface along a path: ripples move downstream following the bends, foam lines the banks,
+	 * and the water's colour and depth come from how it scatters and absorbs light (muddy, clear, green, blue, dark). Pass
+	 * the path from build.create_terrain's rivers[] to fill its carved channel. No collision (characters wade, traces reach
+	 * the bed). One undo step. Fails if the path has fewer than 2 points.
+	 *
+	 * @param Path - Water surface [[x,y,z],...] world cm, upstream first (z = water level at each point).
+	 * @param Width - Water width cm between the banks.
+	 * @param Overlap - Extra width cm on each side tucked under the banks (default a quarter of the width).
+	 * @param Water - Water kind.
+	 * @param FlowSpeed - Current speed: 0 still, 1 gentle river, 3 rapid.
+	 * @param Ripple - Ripple strength 0..2.
+	 * @param Foam - Bank foam 0..2.
+	 * @param Tags - Node tags.
+	 * @param Name - Node name.
+	 * @param Parent - Parent group.
+	 * @return {id, name, path, triangles}.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Path,Tags"), Category = "Build|Create")
+	static FBuildToolNodeResult CreateRiver(const TArray<FVector>& Path, const TArray<FString>& Tags, float Width = 1500.f, float Overlap = -1.f,
+		EBuildToolWater Water = EBuildToolWater::Clear, float FlowSpeed = 1.f, float Ripple = 1.f, float Foam = 1.f, const FString& Name = TEXT("River"),
+		AActor* Parent = nullptr);
 
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Tags,CustomData"), Category = "Build|Create")
 	static FBuildToolInstancesResult PlaceInstances(const FString& Asset, const TArray<FRuntimeToolJson>& Instances, const TArray<FRuntimeToolJson>& CustomData,

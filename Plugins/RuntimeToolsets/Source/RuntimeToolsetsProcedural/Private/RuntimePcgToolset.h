@@ -577,10 +577,12 @@ public:
 	 * @param bGround - Snap to the ground below.
 	 * @param Seed - Random seed.
 	 * @param Name - Node name.
+	 * @param Surface - Only place where this node (e.g. the terrain) is the first thing below the point: spots covered by a
+	 *   building, road, wall or roof are dropped instead of being planted on top of it. Implies ground snapping.
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Exclude,Offset"), Category = "PCG|Scatter")
 	static FPcgScatterResult Scatter(AActor* Spline, const TArray<FPcgScatterItem>& Items, const TArray<FPcgScatterExclusion>& Exclude,
 		const FVector2D& Offset, EPcgScatterMode Mode = EPcgScatterMode::Along, float Spacing = 400.f,
 		EPcgScatterSide Side = EPcgScatterSide::Both, float Jitter = -1.f, float MinDistance = -1.f, float Keep = 1.f, float NoiseScale = 3000.f,
-		bool bGround = true, int32 Seed = 1, const FString& Name = TEXT("Scatter"));
+		bool bGround = true, int32 Seed = 1, const FString& Name = TEXT("Scatter"), AActor* Surface = nullptr);
 };

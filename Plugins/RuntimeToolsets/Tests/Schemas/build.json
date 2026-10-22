@@ -1260,6 +1260,143 @@
 			"undoable": true
 		},
 		{
+			"description": "Creates a flowing river surface along a path: ripples move downstream following the bends, foam lines the banks, and the water's colour and depth come from how it scatters and absorbs light (muddy, clear, green, blue, dark). Pass the path from build.create_terrain's rivers[] to fill its carved channel. No collision (characters wade, traces reach the bed). One undo step. Fails if the path has fewer than 2 points.\nReturns: {id, name, path, triangles}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"flow_speed":
+					{
+						"default": 1,
+						"description": "Current speed: 0 still, 1 gentle river, 3 rapid.",
+						"type": "number"
+					},
+					"foam":
+					{
+						"default": 1,
+						"description": "Bank foam 0..2.",
+						"type": "number"
+					},
+					"name":
+					{
+						"default": "River",
+						"description": "Node name.",
+						"type": "string"
+					},
+					"overlap":
+					{
+						"default": -1,
+						"description": "Extra width cm on each side tucked under the banks (default a quarter of the width).",
+						"type": "number"
+					},
+					"parent":
+					{
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"path":
+					{
+						"description": "Water surface [[x,y,z],...] world cm, upstream first (z = water level at each point).",
+						"items":
+						{
+							"description": "[x, y, z] (cm)",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"ripple":
+					{
+						"default": 1,
+						"description": "Ripple strength 0..2.",
+						"type": "number"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"water":
+					{
+						"default": "Clear",
+						"description": "Water kind.",
+						"enum": [
+							"Muddy",
+							"Clear",
+							"Green",
+							"Blue",
+							"Dark"
+						],
+						"type": "string"
+					},
+					"width":
+					{
+						"default": 1500,
+						"description": "Water width cm between the banks.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_river",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{id, name, path, triangles}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the new object (pass it to other tools).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Node name (unique among its siblings).",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path, e.g. \"temple/columns/col_3\".",
+								"type": "string"
+							},
+							"snapped_to_ground":
+							{
+								"description": "True when snap_to_ground moved the object onto the ground below.",
+								"type": "boolean"
+							},
+							"triangles":
+							{
+								"description": "Triangles in the generated mesh.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolNodeResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
 			"description": "Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step. Fails if the size is out of range or a hill, pad or carve entry is malformed.\nReturns: {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.",
 			"input_schema":
 			{
