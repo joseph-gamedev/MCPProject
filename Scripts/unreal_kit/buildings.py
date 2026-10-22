@@ -15,7 +15,7 @@ runs from y = 0 to y = +wall. Sizes in cm, real proportions (storey 300-380, doo
 import math
 import random
 
-from .parts import M, box, cone, cyl, extrude, transform
+from .parts import M, blob, box, cone, cyl, extrude, transform
 
 # ------------------------------------------------------------------ materials (named so recipes read clearly)
 
@@ -65,7 +65,7 @@ def window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2
     # room behind: dark back wall, side jambs of the reveal, a curtain
     P.append(box([w + 20, 4, h + 20], [x, yf + 70, z - 10], m=MAT["room"]))
     if curtain is not False:
-        cur = curtain or rng.choice(CURTAINS)
+        cur = curtain if isinstance(curtain, dict) else rng.choice(CURTAINS)
         open_l, open_r = rng.uniform(0.15, 0.45), rng.uniform(0.15, 0.45)
         P.append(box([w * open_l, 3, h - 10], [x - w / 2 + w * open_l / 2, yf + 25, z + 5], m=cur))
         P.append(box([w * open_r, 3, h - 10], [x + w / 2 - w * open_r / 2, yf + 25, z + 5], m=cur))
@@ -203,6 +203,17 @@ def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
     mx, my = (ax + bx) / 2, (ay + by) / 2
     def along(t):
         return ax + (bx - ax) * t, ay + (by - ay) * t
+    if style == "solid":                                     # solid upstand (brutalist, loggias) with a coping
+        out.append(box([ln, 14, height - 6], [mx, my, z], rot=[0, yaw, 0], m=mt))
+        out.append(box([ln + 2, 20, 6], [mx, my, z + height - 6], rot=[0, yaw, 0], m=mt))
+        return out
+    if style == "tube":                                      # modernist ship rail: posts and three round tubes
+        for k in range(max(1, int(ln / 150)) + 1):
+            px, py = along(k / max(1, int(ln / 150)))
+            out.append(box([4, 4, height], [px, py, z], rot=[0, yaw, 0], m=mt))
+        for hz in (0.33, 0.66, 1.0):
+            out.append(box([ln, 4, 4], [mx, my, z + height * hz - 4], rot=[0, yaw, 0], m=mt))
+        return out
     if style == "glass":
         out.append(box([ln, 2, height - 12], [mx, my, z + 6], rot=[0, yaw, 0], m=MAT["railglass"]))
         out.append(box([ln + 4, 6, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=MAT["steel"]))
@@ -323,72 +334,408 @@ def _wall_bay(cx, bay, z0, fh, opening, wall_m, t):
     return P
 
 
+def _shade(mt, f):
+    """The same material, lighter (f > 1) or darker (f < 1)."""
+    d = dict(m(mt))
+    c = d.get("color") or [0.42, 0.39, 0.35]
+    d["color"] = [round(min(1.0, x * f), 4) for x in c]
+    return d
+
+
+def _skin(pieces, plan, rng):
+    """Cladding laid over the plain wall pieces of a facade: battens, boards, panels, rustication on the base."""
+    out = []
+    for p, ground in pieces:
+        sx, _, sz = p["size"]
+        x, _, z = p["location"]
+        if sx < 3 or sz < 3:
+            continue
+        skin = plan.get("base_skin") if ground and plan.get("base_skin") else plan.get("skin")
+        if not skin:
+            continue
+        sm = m(plan.get("skin_m", plan["wall"]))
+        if skin == "battens":                                # vertical timber slats with shadow gaps
+            n = max(1, int(sx / plan.get("batten_gap", 11)))
+            for k in range(n):
+                out.append(box([4.5, 3, sz], [x - sx / 2 + (k + 0.5) * sx / n, -1.5, z], m=sm))
+        elif skin == "boards":                               # horizontal weatherboarding: shadow lines every board
+            dark = _shade(sm, 0.55)
+            for k in range(1, int(sz / 19)):
+                out.append(box([sx, 1.2, 1.6], [x, -0.6, z + k * 19], m=dark))
+        elif skin == "panels":                               # rainscreen panels in a few tones
+            tones = plan.get("skin_tones") or [sm]
+            pw, ph = plan.get("panel", (120, 60))
+            nx, nz = max(1, round(sx / pw)), max(1, round(sz / ph))
+            for i in range(nx):
+                for j in range(nz):
+                    out.append(box([sx / nx - 1.6, 2, sz / nz - 1.6], [x - sx / 2 + (i + 0.5) * sx / nx, -1, z + j * sz / nz + 0.8], m=rng.choice(tones)))
+        elif skin == "rustication":                          # banded stone base: deep joints every course
+            dark = _shade(m(plan.get("base_wall", plan["wall"])), 0.55)
+            for k in range(1, int(sz / 42) + 1):
+                out.append(box([sx, 1, 2.5], [x, -0.4, z + k * 42 - 1.25], m=dark))
+    return out
+
+
+def _life(x, z_sill, w, plan, wall_m, rng):
+    """Signs of use round a window: flower boxes, an AC unit, rain streaks under the sill."""
+    L = plan.get("life") or {}
+    P = []
+    r = rng.random()
+    if r < L.get("flowers", 0):
+        P.append(box([w + 6, 22, 18], [x, -14, z_sill - 2], m=M("terracotta", (150, 80, 56))))
+        P.append(blob([w, 26, 30], [x, -14, z_sill + 12], m=M("leaves", (58, 104, 40)), seed=rng.randint(0, 999), bumpiness=0.4))
+        for _ in range(rng.randint(2, 4)):
+            P.append(blob([18, 14, 12], [x + rng.uniform(-w / 2.4, w / 2.4), -22, z_sill + 26], seed=rng.randint(0, 999),
+                          m=M("leaves", rng.choice([(200, 40, 60), (230, 120, 160), (240, 200, 60), (250, 250, 250), (190, 60, 150)]))))
+    elif r < L.get("flowers", 0) + L.get("ac", 0):
+        ax = x + rng.choice((-1, 1)) * w * 0.22
+        P += [box([82, 38, 56], [ax, -22, z_sill - 80], m=M("plaster", (226, 226, 220), roughness=0.5)),
+              box([60, 2, 44], [ax - 6, -41.5, z_sill - 74], m=MAT["frame_dark"]),
+              box([4, 40, 4], [ax - 34, -20, z_sill - 84], m=MAT["iron"]), box([4, 40, 4], [ax + 34, -20, z_sill - 84], m=MAT["iron"])]
+    if rng.random() < L.get("streaks", 0):
+        st = _shade(wall_m, 0.8)
+        for sx in (-1, 1):
+            ln = rng.uniform(40, 140)
+            P.append(box([rng.uniform(4, 9), 0.6, ln], [x + sx * (w / 2 - 4), -0.3, z_sill - 8 - ln], m=st))
+    return P
+
+
+def _sys_ribbon(width, z, fh, fl, plan, rng, wall_m, t, W):
+    """Modernist ribbon window: a continuous glazed band between solid spandrels, thin mullions, blinds, optional sunshade."""
+    s, head = fl.get("sill", 95), fl.get("head_h", 35)
+    bh = fh - s - head
+    cm = min(fl.get("corner", 60), width / 4)
+    fr = m(fl.get("window", {}).get("frame", "frame_dark"))
+    P = W([box([width, t, s], [0, t / 2, z], m=wall_m), box([width, t, head], [0, t / 2, z + s + bh], m=wall_m)])
+    P += W([box([cm, t, bh], [sg * (width / 2 - cm / 2), t / 2, z + s], m=wall_m) for sg in (-1, 1)])
+    gw, rv = width - 2 * cm, 10
+    P += [box([gw, 4, bh + 10], [0, rv + 70, z + s - 5], m=MAT["room"]), box([gw, 1.5, bh], [0, rv + 3, z + s], m=MAT["glass"])]
+    n = max(1, round(gw / fl.get("mullion", 130)))
+    P += [box([5, 8, bh], [-gw / 2 + k * gw / n, rv, z + s], m=fr) for k in range(n + 1)]
+    P += [box([gw, 8, 5], [0, rv, z + s], m=fr), box([gw, 8, 5], [0, rv, z + s + bh - 5], m=fr)]
+    blind = M("plaster", (232, 230, 222), roughness=0.7)
+    for k in range(n):
+        x, r = -gw / 2 + (k + 0.5) * gw / n, rng.random()
+        if r < 0.35:
+            drop = bh * rng.uniform(0.15, 0.75)
+            P.append(box([gw / n - 8, 2, drop], [x, rv + 9, z + s + bh - drop - 4], m=blind))
+        elif r < 0.55:
+            P.append(box([gw / n * 0.4, 3, bh - 8], [x - gw / n * 0.28, rv + 25, z + s + 4], m=rng.choice(CURTAINS)))
+        if k % 3 == 1:                                       # an opening light
+            P += _frame(x, rv - 2, z + s + bh * 0.55, gw / n - 12, bh * 0.4, 4, 4, fr)
+    P.append(box([gw + 6, rv + 8, 3], [0, rv / 2 - 4, z + s - 3], m=MAT["steel"]))
+    P += [box([4, rv, bh], [sg * (gw / 2 + 2), rv / 2, z + s], m=wall_m) for sg in (-1, 1)]
+    if fl.get("shade"):                                      # brise-soleil: a thin cantilevered shelf over the band
+        P.append(box([width + 10, 70, 8], [0, -35, z + s + bh + 2], m=m(fl.get("shade_m", "frame_white"))))
+    return P
+
+
+def _sys_curtain(width, z, fh, plan, rng, sysp, lobby=False):
+    """Curtain wall: glass on a mullion grid, opaque spandrel at each slab, optional deep fins, blinds behind."""
+    ms, md = sysp.get("mullion", 150), sysp.get("mullion_d", 12)
+    sp = 0 if lobby else sysp.get("spandrel_h", 90)
+    gm = sysp.get("glass_m") or MAT["glass"]
+    fm = sysp.get("frame_m") or MAT["steel"]
+    P = [box([width, 4, fh], [0, 90, z], m=MAT["room"]), box([width, 1.5, fh - sp], [0, 6, z + sp], m=gm)]
+    if sp:
+        P.append(box([width, 3, sp], [0, 6, z], m=sysp.get("spandrel_m") or MAT["frame_dark"]))
+    n = max(1, round(width / ms))
+    for k in range(n + 1):
+        x = -width / 2 + k * width / n
+        P.append(box([6, md, fh], [x, 6 - md / 2, z], m=fm))
+        if sysp.get("fin_d") and k % sysp.get("fin_every", 1) == 0:
+            P.append(box([4, sysp["fin_d"], fh], [x, 6 - md - sysp["fin_d"] / 2, z], m=sysp.get("fin_m") or fm))
+    P += [box([width, md, 6], [0, 6 - md / 2, z], m=fm), box([width, md, 5], [0, 6 - md / 2, z + sp], m=fm)]
+    if lobby:
+        P.append(box([width, md, 5], [0, 6 - md / 2, z + fh * 0.62], m=fm))
+    else:
+        blind = M("plaster", (226, 224, 216), roughness=0.7)
+        for k in range(n):
+            if rng.random() < 0.3:
+                drop = (fh - sp) * rng.uniform(0.2, 0.7)
+                P.append(box([width / n - 8, 2, drop], [-width / 2 + (k + 0.5) * width / n, 12, z + fh - drop - 4], m=blind))
+    return P
+
+
+def _sys_frame(width, bays, z, fh, fl, plan, rng, t, W):
+    """Structural frame facade: piers and spandrels with recessed infill windows. Proportions make the style:
+    deep piers + recessed spandrels = art deco verticals; equal deep grid = brutalist; brick piers + arches = warehouse."""
+    sp = plan.get("sys", {})
+    pw, pd = sp.get("pier_w", 40), sp.get("pier_d", 30)
+    sh, sd, hh = sp.get("spandrel_h", 90), sp.get("spandrel_d", 0), sp.get("head_h", 25)
+    pm, smat = m(sp.get("pier_m", plan["wall"])), m(sp.get("spandrel_m", plan["wall"]))
+    bay = width / bays
+    P = []
+    for i in range(bays + 1):
+        x = min(max(-width / 2 + i * bay, -width / 2 + pw / 2), width / 2 - pw / 2)
+        P.append(box([pw, t + pd, fh], [x, (t - pd) / 2, z], m=pm))
+    win = dict(fl.get("window", {}))
+    for b in range(bays):
+        cx, iw = -width / 2 + (b + 0.5) * bay, bay - pw
+        P += W([box([iw, t + sd, sh], [cx, (t - sd) / 2, z], m=smat)]) if sd >= 0 else W([box([iw, t + sd, sh], [cx, (t - sd) / 2, z], m=smat)])
+        P.append(box([iw, t, hh], [cx, t / 2, z + fh - hh], m=pm))
+        orn = sp.get("ornament")
+        face = -sd - 1.5
+        if orn == "chevron":                                 # zigzag band on the spandrel (art deco)
+            k = max(2, int(iw / 26))
+            for j in range(k):
+                xx = cx - iw / 2 + (j + 0.5) * iw / k
+                P.append(box([4, 3, sh * 0.5], [xx, face, z + sh * 0.25], rot=[35 if j % 2 else -35, 0, 0], m=_shade(smat, 1.35)))
+        elif orn == "fluted":
+            k = max(2, int(iw / 14))
+            P += [box([5, 3, sh - 20], [cx - iw / 2 + (j + 0.5) * iw / k, face, z + 10], m=_shade(smat, 1.25)) for j in range(k)]
+        wz, wh = z + sh, fh - sh - hh
+        w2 = dict(win, sill=sp.get("win_sill"), head=sp.get("win_head", "none"))
+        if w2["head"] == "arch":
+            w2["sill"] = sp.get("win_sill") or pm
+            wh -= 22
+        P += window(cx, wz, iw - 8, wh, reveal=max(8, t * 0.45), rng=rng, **w2)
+        if w2["head"] == "arch":                             # brick in the arch's haunches
+            P.append(box([iw, t, 22], [cx, t / 2, wz + wh], m=pm))
+        if sp.get("box"):                                    # deep projecting window surround (brutalist)
+            P += _frame(cx, -sp["box"] / 2, wz - 6, iw + 10, wh + 12, 14, sp["box"], pm)
+    return P
+
+
+def _loggia(cx, bay, z, fh, fl, plan, rng, wall_m, t, W):
+    """Inset balcony: an opening cut into the wall, a room-deep recess with lined sides and ceiling, glazed back wall,
+    railing or solid parapet at the face, a plant or a chair."""
+    w = min(bay - 50, fl.get("loggia_w", bay * 0.78))
+    L, oh = fl.get("loggia_d", 150), fh - 45
+    lm = m(fl.get("loggia_m", plan["wall"]))
+    P = W(_wall_bay(cx, bay, z, fh, (0, w, 0, oh), wall_m, t))
+    P += [box([8, L, oh], [cx - w / 2 + 4, L / 2, z], m=lm), box([8, L, oh], [cx + w / 2 - 4, L / 2, z], m=lm),
+          box([w, L, 8], [cx, L / 2, z + oh - 8], m=lm), box([w, L, 5], [cx, L / 2, z], m=MAT["concrete"])]
+    dh = min(240, oh - 12)
+    back = _wall_bay(cx, w, z, oh, (0, w - 40, 0, dh), wall_m, t) + window(cx, z, w - 40, dh, kind="modern",
+                                                                            frame=fl.get("window", {}).get("frame", "frame_dark"), sill=None, head="none",
+                                                                            reveal=8, rng=rng)
+    P += transform(back, (0, L, 0))
+    rail = fl.get("rail", "glass")
+    if rail == "solid":
+        P += railing_run(cx - w / 2 + 2, 7, cx + w / 2 - 2, 7, z, 105, "solid", wall_m)
+    else:
+        P += railing_run(cx - w / 2 + 6, 6, cx + w / 2 - 6, 6, z, 105, rail, fl.get("rail_mat", "steel"))
+    if rng.random() < 0.6:                                   # a potted plant, sometimes a chair
+        px = cx + rng.uniform(-w / 3, w / 3)
+        P += [cyl(40, 40, [px, L * 0.6, z + 5], m=M("terracotta", (150, 84, 60))),
+              blob([60, 60, 80], [px, L * 0.6, z + 45], m=M("leaves", (60, 104, 44)), seed=rng.randint(0, 999), bumpiness=0.45)]
+    if rng.random() < 0.4:
+        px = cx + rng.uniform(-w / 4, w / 4)
+        P += [box([45, 45, 45], [px, L * 0.45, z + 5], m=rng.choice([MAT["wood"], MAT["frame_white"], MAT["frame_dark"]])),
+              box([45, 6, 45], [px, L * 0.45 + 20, z + 50], m=MAT["wood"])]
+    return P
+
+
+def _base_floor(kind, width, bays, z, fh, fl, plan, rng, wall_m, t):
+    """Ground floors that are not a row of openings: arcade (five-foot way), pilotis (columns, recessed lobby), glass lobby."""
+    bay = width / bays
+    P = []
+    trim = m(plan.get("trim", "stone"))
+    if kind == "arcade":
+        D, pw, lt = fl.get("depth", 220), fl.get("pier_w", 55), fl.get("lintel", 60)
+        for i in range(bays + 1):
+            x = min(max(-width / 2 + i * bay, -width / 2 + pw / 2), width / 2 - pw / 2)
+            P += [box([pw, t + 12, fh], [x, t / 2 - 6, z], m=trim), box([pw + 14, t + 20, 18], [x, t / 2 - 10, z + fh - lt - 18], m=trim),
+                  box([pw + 10, t + 18, 20], [x, t / 2 - 9, z], m=trim)]
+        P.append(box([width, t, lt], [0, t / 2, z + fh - lt], m=wall_m))
+        P.append(box([width, D, 10], [0, D / 2, z + fh - 10], m=_shade(wall_m, 1.05)))
+        tiles = [M("terracotta", (170, 96, 70)), M("plaster", (226, 220, 200)), M("plaster", (60, 90, 110))]
+        for i in range(int(width / 60)):
+            P.append(box([60, D, 2], [-width / 2 + (i + 0.5) * 60, D / 2, z], m=tiles[i % len(tiles)] if fl.get("tiles") else MAT["stone_dark"]))
+        for b in range(bays):
+            cx = -width / 2 + (b + 0.5) * bay
+            P += transform(shopfront(cx, bay - pw - 10, fh - 20, frame=fl.get("frame", "frame_wood"), awning=None, rng=rng), (0, D, 0))
+        for sg in (-1, 1):
+            P.append(box([10, D, fh], [sg * (width / 2 - 5), D / 2, z], m=wall_m))
+    elif kind == "pilotis":
+        D = fl.get("depth", 380)
+        P.append(box([width, D + t, 24], [0, (D + t) / 2, z + fh - 24], m=_shade(wall_m, 0.95)))
+        for i in range(bays + 1):
+            x = min(max(-width / 2 + i * bay, -width / 2 + 30), width / 2 - 30)
+            if fl.get("square"):
+                P.append(box([48, 48, fh - 24], [x, 60, z], m=wall_m))
+            else:
+                P.append(cyl(46, fh - 24, [x, 60, z], m=wall_m))
+        gw = width * fl.get("lobby", 0.55)
+        P += transform(_sys_curtain(gw, z, fh - 24, plan, rng, {"mullion": 140, "mullion_d": 8, "frame_m": MAT["frame_dark"]}, lobby=True), (0, D, 0))
+        rest = (width - gw) / 2
+        for sg in (-1, 1):
+            P.append(box([rest, t, fh - 24], [sg * (gw / 2 + rest / 2), D + t / 2, z], m=_shade(wall_m, 0.85)))
+        P.append(box([width, D, 3], [0, D / 2, z], m=MAT["stone_dark"]))
+    elif kind == "lobby":
+        P += _sys_curtain(width, z, fh, plan, rng, dict(plan.get("sys", {}), mullion=200), lobby=True)
+        cw = min(width * 0.6, 700)
+        P += [box([cw, 260, 16], [0, -130, z + fh - 110], m=MAT["steel"]), box([cw - 10, 4, 30], [0, -258, z + fh - 124], m=MAT["frame_dark"])]
+        P += door(0, 200, 250, "glazed", "frame_alu", "stone_dark", reveal=6, rng=rng)
+    return P
+
+
 def facade(width, plan, rng):
     """Builds one facade from a plan:
     plan = {"wall": mat, "t": thickness, "bays": n, "floors": [floor, ...] bottom to top, "trim": mat,
-            "string_courses": bool, "cornice": kind | None, "pilasters": bool, "quoins": bool, "plinth": mat | None}
-    floor = {"h": storey height, "kind": "window" | "shop" | "entrance" | "blank", "window": {...window kwargs...},
-             "w": opening width, "wh": opening height, "sill": sill height, "balcony": None | "all" | "centre" | "alternate" | "ends",
-             "balcony_kind", "rail", "rail_mat", "door_bay": index}"""
+            "string_courses": bool, "cornice": kind | None, "pilasters": bool, "quoins": bool, "plinth": mat | None,
+            "skin": battens | boards | panels | None, "base_skin": rustication, "base_wall": mat, "sys": {frame / curtain params},
+            "life": {"flowers", "ac", "streaks"}, "crown": fascia | screen, "pier_crown": cm, "bay_window": {...},
+            "area_railing": bool, "ground": facade starts at street level, "at_top": facade reaches the roof}
+    floor = {"h": storey height, "kind": "window" | "shop" | "entrance" | "blank" | "arcade" | "pilotis" | "lobby",
+             "system": punched (default) | ribbon | curtain | frame, "window": {...window kwargs...}, "w", "wh", "sill",
+             "jitter": 0-1 (irregular placement), "w_alt": second width, "balcony": None | "all" | "centre" | "alternate" | "ends" | set,
+             "balcony_kind": slab | brackets | continuous | loggia, "rail", "rail_mat", "door_bay": index}"""
     wall_m = m(plan["wall"])
+    base_m = m(plan.get("base_wall", plan["wall"]))
     t = plan.get("t", 30)
     bays = plan["bays"]
     bay = width / bays
     trim = plan.get("trim", "stone")
+    ground = plan.get("ground", True)
     P = []
+    walls = []
+
+    def W(pcs, g=False):
+        walls.extend((p, g) for p in pcs)
+        return pcs
+
     z = 0
     for fi, fl in enumerate(plan["floors"]):
         fh = fl["h"]
+        g = ground and fi == 0
+        wm = base_m if g else wall_m
+        kind = fl["kind"]
+        if kind in ("arcade", "pilotis", "lobby"):
+            P += _base_floor(kind, width, bays, z, fh, fl, plan, rng, wm, t)
+            z += fh
+            continue
+        sysm = fl.get("system")
+        if kind == "window" and sysm in ("ribbon", "curtain", "frame"):
+            if sysm == "ribbon":
+                P += _sys_ribbon(width, z, fh, fl, plan, rng, wm, t, lambda pcs: W(pcs, g))
+                for b in range(bays):
+                    bal = fl.get("balcony")
+                    if bal == "ends" and b in (0, bays - 1) or bal == "all":
+                        P += balcony(-width / 2 + (b + 0.5) * bay, z, bay - 30, fl.get("balcony_depth", 110), "slab", fl.get("rail", "tube"),
+                                     fl.get("rail_mat", "frame_white"), fl.get("slab_mat", plan["wall"]))
+            elif sysm == "curtain":
+                P += _sys_curtain(width, z, fh, plan, rng, plan.get("sys", {}))
+            else:
+                P += _sys_frame(width, bays, z, fh, fl, plan, rng, t, lambda pcs: W(pcs, g))
+            if fi > 0 and plan.get("string_courses"):
+                P.append(box([width + 10, 8, 14], [0, -4, z - 7], m=m(trim)))
+            z += fh
+            continue
+        bal = fl.get("balcony")
+        cont = fl.get("balcony_kind") == "continuous" and bal == "all"
         for b in range(bays):
             cx = -width / 2 + (b + 0.5) * bay
-            kind = fl["kind"]
             if kind == "shop":
-                P += [box([bay, t, 0.01], [cx, t / 2, z], m=wall_m)]
+                if b == fl.get("door_bay", -1):              # the residents' entrance between the shops
+                    dw = min(bay - 60, 140)
+                    P += W(_wall_bay(cx, bay, z, fh, (0, dw, 0, 280), wm, t), g)
+                    P += door(cx, dw, 280, fl.get("door_kind", "double"), fl.get("door_mat", "wood_dark"), trim, reveal=t * 0.6, fanlight=False, rng=rng)
+                    continue
+                P += [box([bay, t, 0.01], [cx, t / 2, z], m=wm)]
                 P += shopfront(cx, bay - 10, fh, frame=fl.get("frame", "frame_dark"), awning=fl.get("awning"), rng=rng)
                 continue
             if kind == "entrance" and b == fl.get("door_bay", bays // 2):
                 dw = fl.get("door_w", 120)
-                P += _wall_bay(cx, bay, z, fh, (0, dw, 0, 230 + (50 if fl.get("fanlight") else 0)), wall_m, t)
+                P += W(_wall_bay(cx, bay, z, fh, (0, dw, 0, 230 + (50 if fl.get("fanlight") else 0)), wm, t), g)
                 P += door(cx, dw, 230, fl.get("door_kind", "panel"), fl.get("door_mat", "wood_dark"), trim, reveal=t * 0.6, fanlight=fl.get("fanlight"), rng=rng)
                 continue
             if kind == "blank":
-                P += _wall_bay(cx, bay, z, fh, None, wall_m, t)
+                P += W(_wall_bay(cx, bay, z, fh, None, wm, t), g)
                 continue
             w, wh, sz = fl.get("w", 120), fl.get("wh", 180), fl.get("sill", 80)
             pairs = fl.get("pair", False)
             win = dict(fl.get("window", plan.get("ground_window", {})))
-            bal = fl.get("balcony")
             has_bal = (bal == "all" or (bal == "centre" and b == bays // 2) or (bal == "alternate" and b % 2 == 1) or (bal == "ends" and b in (0, bays - 1))
                        or (isinstance(bal, (set, list, tuple)) and b in bal))
+            if has_bal and fl.get("balcony_kind") == "loggia":
+                P += _loggia(cx, bay, z, fh, fl, plan, rng, wm, t, lambda pcs: W(pcs, g))
+                continue
+            dx = 0
+            if not has_bal and fl.get("jitter"):             # irregular, staggered openings (contemporary, vernacular)
+                if fl.get("w_alt") and rng.random() < 0.4:
+                    w = fl["w_alt"]
+                dx = rng.uniform(-1, 1) * fl["jitter"] * max(0, (bay - w) / 2 - 25)
             if has_bal:
                 win = dict(win, kind="french")
                 sz, wh = 0, min(fh - 50, 240)
             if pairs and not has_bal:
                 ww = w / 2 - 10
-                P += _wall_bay(cx, bay, z, fh, (0, w, sz, wh), wall_m, t)
-                P.append(box([20, t, wh], [cx, t / 2, z + sz], m=wall_m))                  # central pier
-                for s in (-1, 1):
-                    P += window(cx + s * (ww / 2 + 10), z + sz, ww, wh, reveal=t * 0.5, rng=rng, **win)
+                P += W(_wall_bay(cx, bay, z, fh, (0, w, sz, wh), wm, t), g)
+                P.append(box([20, t, wh], [cx, t / 2, z + sz], m=wm))
+                for sg in (-1, 1):
+                    P += window(cx + sg * (ww / 2 + 10), z + sz, ww, wh, reveal=t * 0.5, rng=rng, **win)
             else:
-                P += _wall_bay(cx, bay, z, fh, (0, w, sz, wh), wall_m, t)
-                P += window(cx, z + sz, w, wh, reveal=t * 0.5, rng=rng, **win)
-            if has_bal:
-                bw = min(bay - 20, w + 120) if fl.get("balcony_kind") != "continuous" else bay
+                P += W(_wall_bay(cx, bay, z, fh, (dx, w, sz, wh), wm, t), g)
+                P += window(cx + dx, z + sz, w, wh, reveal=t * 0.5, rng=rng, **win)
+            if not has_bal and sz > 20:
+                P += _life(cx + dx, z + sz, w, plan, wm, rng)
+            if has_bal and not cont:
+                bw = min(bay - 20, w + 120)
                 P += balcony(cx, z, bw, fl.get("balcony_depth", 120), fl.get("balcony_kind", "slab"), fl.get("rail", "bars"), fl.get("rail_mat", "iron"),
                              fl.get("slab_mat", "concrete"))
+        if cont:                                             # one balcony along the whole front, brackets at every bay line
+            dep = fl.get("balcony_depth", 90)
+            sm = m(fl.get("slab_mat", "concrete"))
+            P += [box([width, dep, 14], [0, -dep / 2, z - 14], m=sm), box([width + 6, 8, 18], [0, -dep - 2, z - 18], m=sm)]
+            for i in range(bays + 1):
+                bx = min(max(-width / 2 + i * bay, -width / 2 + 10), width / 2 - 10)
+                P += [box([14, dep * 0.7, 10], [bx, -dep * 0.35, z - 24], m=sm), box([14, dep * 0.4, 14], [bx, -dep * 0.2, z - 38], m=sm)]
+            P += railing(-width / 2 + 3, width / 2 - 3, -dep + 6, z, 100, fl.get("rail", "ornate"), fl.get("rail_mat", "iron"), return_depth=dep - 8)
         if fi > 0 and plan.get("string_courses"):
             P.append(box([width + 10, 8, 14], [0, -4, z - 7], m=m(trim)))
         z += fh
-    if plan.get("plinth"):
+    P += _skin(walls, plan, rng)
+    bw_ = plan.get("bay_window")
+    if bw_ and ground:                                       # projecting bay windows over the lower storeys (Victorian)
+        k = bw_.get("floors", 2)
+        H = sum(f["h"] for f in plan["floors"][:k])
+        D = bw_.get("depth", 70)
+        for b in bw_.get("bays", []):
+            if b >= bays:
+                continue
+            cx = -width / 2 + (b + 0.5) * bay
+            bwid = bay * 0.8
+            mini = {"wall": plan["wall"], "base_wall": plan.get("base_wall"), "base_skin": plan.get("base_skin"), "t": 16, "bays": 1, "trim": trim,
+                    "floors": [dict(f, kind="window", w=bwid - 50, wh=min(f["h"] - 110, 220), sill=70, balcony=None, jitter=0, system=None,
+                                    window=dict(plan["floors"][-1].get("window", {}), shutters=None)) for f in plan["floors"][:k]]}
+            if not mini["base_wall"]:
+                mini.pop("base_wall")
+            fp, _ = facade(bwid, mini, rng)
+            P += transform(fp, (cx, -D, 0))
+            P += [box([14, D, H], [cx + sg * (bwid / 2 - 7), -D / 2, 0], m=wall_m) for sg in (-1, 1)]
+            P += [box([bwid + 16, D + 16, 14], [cx, -D / 2 - 4, H], m=m(trim)), box([bwid + 4, D + 4, 40], [cx, -D / 2, H + 14], m=MAT["frame_dark"])]
+    if plan.get("area_railing") and ground:                  # railings at the pavement edge with a gap for the steps
+        db = plan["floors"][0].get("door_bay", bays // 2)
+        gx = -width / 2 + (db + 0.5) * bay
+        P += railing_run(-width / 2, -160, gx - 70, -160, 0, 105, "ornate", "iron") + railing_run(gx + 70, -160, width / 2, -160, 0, 105, "ornate", "iron")
+    if plan.get("plinth") and ground:
         P.append(box([width + 6, t + 10, 60], [0, t / 2 - 5, 0], m=m(plan["plinth"])))
     if plan.get("pilasters"):
         for b in range(bays + 1):
-            P += pilaster(-width / 2 + b * width / bays, plan["floors"][0]["h"], z, 36, trim)
+            P += pilaster(-width / 2 + b * width / bays, plan["floors"][0]["h"] if ground else 0, z, 36, trim)
     if plan.get("quoins"):
-        for s in (-1, 1):
-            P += quoins(s * width / 2, 0, z, trim)
-    if plan.get("cornice"):
-        P += cornice(width, z, 40, trim, plan["cornice"])
+        for sg in (-1, 1):
+            P += quoins(sg * width / 2, 0, z, trim)
+    if plan.get("at_top", True):
+        if plan.get("cornice"):
+            P += cornice(width, z, 40, trim, plan["cornice"])
+        if plan.get("crown") == "fascia":                    # heavy concrete band crowning a brutalist block
+            P.append(box([width + 40, t + 40, 130], [0, (t - 40) / 2, z], m=m(trim)))
+        if plan.get("crown") == "screen":                    # curtain wall mullions carried up past the roof as a screen
+            sp = plan.get("sys", {})
+            n = max(1, round(width / sp.get("mullion", 150)))
+            P += [box([6, 30, 160], [-width / 2 + k * width / n, -10, z], m=sp.get("frame_m") or MAT["steel"]) for k in range(n + 1)]
+            P.append(box([width, 30, 8], [0, -10, z + 152], m=sp.get("frame_m") or MAT["steel"]))
+        if plan.get("pier_crown"):                           # art deco: piers rise above the parapet
+            sp = plan.get("sys", {})
+            pw, pd = sp.get("pier_w", 40), sp.get("pier_d", 30)
+            for i in range(bays + 1):
+                x = min(max(-width / 2 + i * bay, -width / 2 + pw / 2), width / 2 - pw / 2)
+                ext = plan["pier_crown"] * (1.0 if i % 2 == 0 else 0.6)
+                P.append(box([pw, t + pd, ext], [x, (t - pd) / 2, z], m=m(sp.get("pier_m", plan["wall"]))))
+                P.append(box([pw + 10, t + pd + 6, 12], [x, (t - pd) / 2, z + ext], m=m(trim)))
     return P, z
 
 
@@ -428,7 +775,7 @@ def _sides(P, w, d, floors_h, wall_m, t, plan, rng):
     back = []
     for f in plan["floors"]:
         b = dict(f, kind="window", balcony=None)
-        if f["kind"] in ("shop", "entrance"):
+        if f["kind"] in ("shop", "entrance", "arcade", "pilotis", "lobby"):
             b.update(w=110, wh=150, sill=90, window={"kind": "casement", "curtain": False, "sill": "concrete", "head": "lintel"})
         back.append(b)
     back_plan = dict(plan, floors=back, pilasters=False, quoins=False)
@@ -553,12 +900,20 @@ def _with_width(plan, width, bay):
 def _back(plan):
     """The plan for a back or courtyard facade: plain windows on every storey, no shops, doors or balconies."""
     floors = []
+    bases = ("shop", "entrance", "arcade", "pilotis", "lobby")
+    sysf = next((f for f in plan["floors"] if f.get("system") in ("curtain", "ribbon", "frame")), None)
+    typ = next((f for f in plan["floors"] if f["kind"] == "window"), None)
     for f in plan["floors"]:
         b = dict(f, kind="window", balcony=None)
-        if f["kind"] in ("shop", "entrance"):
+        if f["kind"] in bases and sysf:                      # the same window system as the storeys above
+            b.update({k: v for k, v in sysf.items() if k not in ("h", "kind", "balcony")})
+        elif f["kind"] in bases and typ:                     # the style's own windows, a little smaller
+            b.update(w=typ.get("w", 110), wh=min(typ.get("wh", 150), f["h"] - 130), sill=90, system=None, jitter=typ.get("jitter", 0),
+                     window=dict(typ.get("window", {}), shutters=None))
+        elif f["kind"] in bases:
             b.update(w=110, wh=150, sill=90, window={"kind": "casement", "curtain": False, "sill": "concrete", "head": "lintel"})
         floors.append(b)
-    return dict(plan, floors=floors, pilasters=False, quoins=False, cornice=None)
+    return dict(plan, floors=floors, pilasters=False, quoins=False, cornice=None, bay_window=None, area_railing=False, base_skin=None)
 
 
 def _place(P, parts, cx, cy, yaw):
@@ -710,7 +1065,7 @@ def _l_shape(kind, rng, wa, wb, depth, floors, corner):
 
 
 def building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None,
-             massing=None, party=None, street=("-y",)):
+             massing=None, party=None, street=("-y",), style=None):
     """A complete building of a type, varied by seed.
     shape rect: front facade on the street (-Y), back, sides, roof; origin = front centre at ground.
     shape L (corner building): two street facades meeting at the origin, wing A along +X (facing -Y), wing B along +Y
@@ -720,10 +1075,12 @@ def building(kind="apartment", seed=None, width=None, depth=None, floors=None, s
       volumes on a lot (width x depth, front edge at y = 0, centred on x = 0) and every exposed face gets a facade.
       party: lot sides that touch neighbours and stay blank ("-x", "+x"); street: faces that get the shop / entrance
       ground floor and the main facade.
+    style: an architectural style (see STYLES, or "auto" to pick one that suits the type): materials, window system,
+      balconies, base, crown and roof. Implies massing="auto" unless a massing is given.
     Returns parts."""
     rng = random.Random(seed)
-    if massing:
-        return massed(kind, massing, rng, width, depth, floors, party, street)
+    if massing or style:
+        return massed(kind, massing or "auto", rng, width, depth, floors, party, street, style)
     if shape in ("L", "corner"):
         corner = corner or rng.choice(("square", "chamfer", "tower", "balconies"))
         return _l_shape(kind, rng, width, wing, depth, floors, corner)
@@ -969,12 +1326,22 @@ def _put(P, parts, dirn, plane, u, z):
     P += transform(parts, *pos)
 
 
-def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",)):
-    """Builds a building of type `kind` from a massing model (name in MASSINGS or "auto")."""
-    if massing == "auto":
+def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",), style=None):
+    """Builds a building of type `kind` from a massing model (name in MASSINGS or "auto") in an architectural style
+    (name in STYLES, "auto", or None for the type's plain recipe)."""
+    plan, w0, d0, roof, bay = _recipe(kind, rng, depth, floors)
+    lang = {}
+    if style:
+        name = rng.choice(KIND_STYLES.get(kind, list(STYLES))) if style == "auto" else style
+        lang = STYLES[name](kind, rng, plan, bay) or {}
+        lang["name"] = name
+        roof = lang.get("roof", roof)
+        if massing in (None, "auto"):
+            ok = [x for x in lang.get("massings", ["block"]) if x in KIND_MASSINGS.get(kind, list(MASSINGS))]
+            massing = rng.choice(ok or ["block"])
+    if massing in (None, "auto"):
         massing = rng.choice(KIND_MASSINGS.get(kind, ["block"]))
     gen = MASSINGS[massing]
-    plan, w0, d0, roof, bay = _recipe(kind, rng, depth, floors)
     n = len(plan["floors"])
     bar = rng.uniform(*_BAR.get(kind, (1100, 1400)))
     mw, md = _LOT.get(massing, (0, 0))
@@ -1007,7 +1374,7 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
         return zs[min(i, len(zs) - 1)]
 
     # tall volumes of modern types may get a curtain-wall skin
-    curtain = kind in ("apartment", "office") and massing in ("podium_tower", "twin_towers", "setback", "stacked") and rng.random() < 0.6
+    curtain = not lang and kind in ("apartment", "office") and massing in ("podium_tower", "twin_towers", "setback", "stacked") and rng.random() < 0.6
     cw_win = {"kind": "modern", "frame": rng.choice(("frame_alu", "frame_dark")), "sill": None, "head": "none", "curtain": False}
 
     def storey(i, v):
@@ -1020,7 +1387,7 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
             f = dict(pf[i])
         else:
             f = dict(typical)
-        if f["kind"] not in ("window", "shop", "entrance", "blank"):
+        if f["kind"] not in ("window", "shop", "entrance", "blank", "arcade", "pilotis", "lobby"):
             f["kind"] = "window"
         f["h"] = H[i]
         if i > 0 and curtain and v["tag"] in ("tower", "stack"):
@@ -1062,7 +1429,7 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
                             _put(P, [box([W, t, sg[2] - sg[1]], [0, t / 2, 0], m=wall)], dirn, plane, (a + b) / 2, sg[1])
                             continue
                         fi, fj = sg[1], sg[2]
-                        q = dict(plan, floors=[storey(k, v) for k in range(fi, fj)])
+                        q = dict(plan, floors=[storey(k, v) for k in range(fi, fj)], ground=fi == 0, at_top=fj == v["f0"] + v["n"])
                         if fi > 0:
                             q["plinth"] = None
                         if fj < v["f0"] + v["n"]:
@@ -1078,9 +1445,21 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
         # roof: terrace (something stands on it), pitched (low top volumes of pitched types) or flat with parapet
         carries = any(o is not v and abs(Z(o["f0"]) - z1) < 2 and o["x0"] < v["x1"] - 1 and o["x1"] > v["x0"] + 1 and o["y0"] < v["y1"] - 1
                       and o["y1"] > v["y0"] + 1 for o in V)
+        rm = lang.get("roof_m") or rng.choice([M("roof_tile", (160, 80, 56)), M("slate_roof", (72, 74, 80)), M("roof_tile", (120, 70, 52))])
+        highest = z1 >= max(Z(o["f0"] + o["n"]) for o in V) - 1
+        if not carries and roof == "mansard":
+            _mansard(P, V, v, z1, Z, plan, rng, bay, rm, lang)
+            continue
+        if not carries and roof == "gable_steep":
+            _gable_steep(P, V, v, z1, Z, plan, rng, rm, lang)
+            continue
+        if not carries and roof == "overhang":
+            P.append(box([vw + 180, vd + 180, 26], [cx, cy, z1], m=lang.get("overhang_m") or MAT["frame_white"]))
+            P.append(box([vw + 184, vd + 184, 6], [cx, cy, z1 + 26], m=MAT["steel"]))
+            continue
         if roof in ("hip", "gable") and not carries and massing not in ("stacked", "setback", "podium_tower", "twin_towers"):
             e = 50
-            tile = rng.choice([M("roof_tile", (160, 80, 56)), M("slate_roof", (72, 74, 80)), M("roof_tile", (120, 70, 52))])
+            tile = rm
             if roof == "hip":
                 P.append({"shape": "pyramid", "size": [vw + 2 * e, vd + 2 * e, min(vw, vd) * 0.42], "location": [cx, cy, z1], **tile})
             elif vw >= vd:
@@ -1117,7 +1496,40 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
                         P += [box([L, t, 90], [u, plane + inward * t / 2, z1], m=wall), box([L + 8, t + 10, 8], [u, plane + inward * t / 2, z1 + 90], m=trim)]
                     else:
                         P += [box([t, L, 90], [plane + inward * t / 2, u, z1], m=wall), box([t + 10, L + 8, 8], [plane + inward * t / 2, u, z1 + 90], m=trim)]
-        if not carries:                                      # rooftop plant on the highest roofs
+        if not carries and roof == "sawtooth":               # north-light factory roof over the parapet
+            td, hh = rng.choice((560, 640)), 250
+            y = v["y0"] + 40
+            while y + td <= v["y1"] - 40:
+                P.append({"shape": "extrude", "profile": [[v["x0"] + 40, y, z1 + 20], [v["x0"] + 40, y + td, z1 + 20], [v["x0"] + 40, y + td, z1 + 20 + hh]],
+                          "direction": [vw - 80, 0, 0], "location": [0, 0, 0], **(lang.get("roof_m") or M("corrugated", (120, 124, 126)))})
+                P.append(box([vw - 90, 3, hh - 30], [cx, y + td - 2, z1 + 32], m=MAT["glass"]))
+                P += [box([5, 6, hh - 30], [v["x0"] + 40 + k * 160, y + td - 3, z1 + 32], m=MAT["frame_dark"]) for k in range(1, int((vw - 80) / 160))]
+                y += td
+        if not carries and lang.get("chimneys"):            # chimney stacks with pots along the party walls
+            brick = M("brick", (130, 76, 60))
+            for sx in (v["x0"] + 45, v["x1"] - 45):
+                for sy in (cy - vd / 4, cy + vd / 4):
+                    P.append(box([70, 110, 190], [sx, sy, z1 + 20], m=brick))
+                    P.append(box([82, 122, 12], [sx, sy, z1 + 200], m=brick))
+                    P += [cyl(22, 40, [sx, sy + o, z1 + 212], m=M("terracotta", (166, 92, 64))) for o in (-30, 0, 30)]
+        if not carries and roof == "pergola":                # roof terrace: timber pergola, table, planters
+            pw, pd = min(vw * 0.5, 650), min(vd * 0.5, 420)
+            px, py = cx + rng.uniform(-vw / 6, vw / 6), cy
+            wood = M("wood", (130, 92, 60))
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    P.append(box([14, 14, 250], [px + sx * pw / 2, py + sy * pd / 2, z1 + 20], m=wood))
+            P += [box([pw + 40, 10, 22], [px, py + sy * pd / 2, z1 + 248], m=wood) for sy in (-1, 1)]
+            P += [box([6, pd + 30, 14], [px - pw / 2 + k * pw / 10, py, z1 + 270], m=wood) for k in range(11)]
+            P += [box([160, 80, 6], [px, py, z1 + 95], m=wood), box([10, 10, 75], [px, py, z1 + 20], m=MAT["iron"])]
+            for k in range(4):
+                P += [box([90, 40, 45], [px - pw / 2 + 60 + k * (pw - 120) / 3, py + pd / 2 + 60, z1 + 20], m=M("terracotta", (150, 84, 60))),
+                      blob([90, 50, 70], [px - pw / 2 + 60 + k * (pw - 120) / 3, py + pd / 2 + 60, z1 + 60], m=M("leaves", (64, 110, 44)), seed=rng.randint(0, 999))]
+        if lang.get("finial") and highest:                   # spire on the top of an art deco tower
+            P += [cyl(min(vw, vd) * 0.35, 160, [cx, cy, z1 + 20], m=m(plan.get("trim", "stone"))),
+                  cone(min(vw, vd) * 0.3, 420, [cx, cy, z1 + 180], m=M("steel", (200, 200, 196), roughness=0.25)),
+                  cyl(12, 520, [cx, cy, z1 + 580], m=MAT["steel"])]
+        if not carries and roof not in ("pergola",):          # rooftop plant on the highest roofs
             plant = M("steel", (170, 172, 172), roughness=0.5)
             for _ in range(rng.randint(1, 3)):
                 P.append(box([rng.choice((120, 180)), rng.choice((90, 120)), rng.choice((90, 140))],
@@ -1128,3 +1540,321 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
                     P.append(cyl(260, 240, [cx - vw / 4, cy + vd / 5, z1 + 120], m=M("wood", (110, 80, 56))))  # water tank
                     P += [box([12, 12, 100], [cx - vw / 4 + sx * 90, cy + vd / 5 + sy * 90, z1 + 20], m=MAT["iron"]) for sx in (-1, 1) for sy in (-1, 1)]
     return P
+
+
+def _edge_open(V, v, dirn, plane, ua, ub, z1, Z):
+    """Share of a roof edge that is open to the sky (not against an equal or taller neighbour)."""
+    runs = _exposed(ua, ub, _covers(V, v, dirn, plane, z1 - 2, z1 - 1, Z), z1 - 2, z1 - 1)
+    return sum(b - a for a, b, free in runs if free) / max(1, ub - ua)
+
+
+def _mansard(P, V, v, z1, Z, plan, rng, bay, rm, lang):
+    """Paris mansard: a steep zinc or slate storey with dormers on every open side, flat top, chimneys."""
+    x0, x1, y0, y1 = v["x0"], v["x1"], v["y0"], v["y1"]
+    h, k = lang.get("mansard_h", 300), lang.get("mansard_in", 110)
+    ins = {d: (k if _edge_open(V, v, d, pl, a, b, z1, Z) > 0.5 else 0) for d, pl, a, b in _faces(v)}
+    zb = z1 + 10
+    bottom = [[x0, y0, zb], [x1, y0, zb], [x1, y1, zb], [x0, y1, zb]]
+    top = [[x0 + ins["-x"], y0 + ins["-y"], zb + h], [x1 - ins["+x"], y0 + ins["-y"], zb + h], [x1 - ins["+x"], y1 - ins["+y"], zb + h],
+           [x0 + ins["-x"], y1 - ins["+y"], zb + h]]
+    P.append({"shape": "loft", "sections": [bottom, top], "location": [0, 0, 0], "closed": True, "cap": True, **rm})
+    P.append(box([x1 - x0 - ins["-x"] - ins["+x"] + 10, y1 - y0 - ins["-y"] - ins["+y"] + 10, 10], [(x0 + ins["-x"] + x1 - ins["+x"]) / 2,
+                                                                                                  (y0 + ins["-y"] + y1 - ins["+y"]) / 2, zb + h], m=MAT["steel"]))
+    frame = lang.get("dormer_frame", "frame_white")
+    trim = m(plan.get("trim", "stone"))
+    for d, pl, a, b in _faces(v):
+        if not ins[d]:
+            continue
+        n = max(1, int((b - a) / bay))
+        for i in range(n):
+            u = a + (i + 0.5) * (b - a) / n
+            dw, dh = 118, 196
+            front = transform(_wall_bay(0, dw, 16, dh, (0, dw - 36, 22, dh - 56), trim, 10)
+                              + window(0, 38, dw - 36, dh - 56, kind="casement", frame=frame, sill=None, head="none", reveal=5, panes=(2, 3), rng=rng),
+                              (0, 16, 0))
+            cheeks = [box([10, 120, dh], [sg * (dw / 2 - 5), 16 + 60, 16], m=rm) for sg in (-1, 1)]
+            top_ = [{"shape": "roof", "size": [dw + 26, 136, 56], "location": [0, 16 + 60, 16 + dh], **rm},
+                    box([dw + 30, 12, 14], [0, 10, 16 + dh - 4], m=trim)]
+            _put(P, front + cheeks + top_, d, pl, u, zb)
+    if lang.get("chimneys", True):
+        brick = M("brick", (150, 92, 70))
+        for sx in (x0 + 50, x1 - 50):
+            P += [box([80, 160, 140], [sx, (y0 + y1) / 2, zb + h - 40], m=brick),
+                  *[cyl(24, 46, [sx, (y0 + y1) / 2 + o, zb + h + 100], m=M("terracotta", (170, 96, 66))) for o in (-50, -16, 18, 52)]]
+
+
+def _gable_steep(P, V, v, z1, Z, plan, rng, rm, lang):
+    """Steep gable without eaves (Nordic): roof along the long side, gable ends in the wall cladding, a ridge cap."""
+    x0, x1, y0, y1 = v["x0"], v["x1"], v["y0"], v["y1"]
+    vw, vd = x1 - x0, y1 - y0
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    pitch = lang.get("pitch", 0.55)
+    gm = m(plan.get("skin_m", plan["wall"]))
+    e = 18
+    if vw >= vd:
+        h = vd * pitch
+        P.append({"shape": "roof", "size": [vd + 2 * e, vw + 2 * e, h], "location": [cx, cy, z1], "rotation": [0, 90, 0], **rm})
+        for gx, dx in ((x0 - 2, 34), (x1 + 2, -34)):
+            P.append({"shape": "extrude", "profile": [[gx, y0, z1], [gx, y1, z1], [gx, cy, z1 + h]], "direction": [dx, 0, 0], "location": [0, 0, 0], **gm})
+        P.append(box([vw + 2 * e, 18, 10], [cx, cy, z1 + h + e * pitch - 4], m=rm))
+    else:
+        h = vw * pitch
+        P.append({"shape": "roof", "size": [vw + 2 * e, vd + 2 * e, h], "location": [cx, cy, z1], **rm})
+        for gy, dy in ((y0 - 2, 34), (y1 + 2, -34)):
+            P.append({"shape": "extrude", "profile": [[x0, gy, z1], [x1, gy, z1], [cx, gy, z1 + h]], "direction": [0, dy, 0], "location": [0, 0, 0], **gm})
+        P.append(box([18, vd + 2 * e, 10], [cx, cy, z1 + h + e * pitch - 4], m=rm))
+
+
+# ------------------------------------------------------------------ 5. architectural styles
+# A style is a facade language: materials and palette, window system and rhythm, balconies, base, crown and roof.
+# Massing gives the silhouette; the style decides what it is made of and how it reads up close. Each function
+# rewrites the type's plan in place and returns {"roof", "massings", ...}.
+
+def _clean(plan, **kw):
+    for k in ("base_wall",):
+        plan.pop(k, None)
+    plan.update(dict(string_courses=False, cornice=None, pilasters=False, quoins=False, plinth=None, skin=None, base_skin=None, sys={}, life={},
+                     crown=None, pier_crown=None, bay_window=None, area_railing=False), **kw)
+
+
+def _rgb(c, f):
+    return tuple(max(0, min(255, int(x * f))) for x in c)
+
+
+def _shop_ground(kind, rng, bay, frame, h=420, awning=None, door=True):
+    g = {"h": h, "kind": "shop", "frame": frame, "awning": awning}
+    if door and kind in ("apartment", "office"):
+        g["door_bay"] = rng.choice((0, 1))
+    return g
+
+
+def _st_haussmann(kind, rng, plan, bay):
+    """Paris, 1853-1914: dressed limestone, rusticated base with shops, wrought-iron balconies on the 2nd and 5th floors,
+    tall French windows with carved surrounds, a cornice, then a zinc mansard with dormers."""
+    stone = rng.choice([(226, 216, 194), (218, 206, 182), (210, 200, 180), (230, 222, 206)])
+    _clean(plan, wall=M("limestone", stone), trim=M("limestone", _rgb(stone, 1.04)), t=42, string_courses=True, cornice=rng.choice(("moulded", "dentils")),
+           base_skin="rustication", life={"flowers": 0.12, "streaks": 0.35})
+    frame = rng.choice(("frame_white", "frame_white", "frame_dark"))
+    win = {"kind": "french", "frame": frame, "sill": "stone", "head": rng.choice(("hood", "keystone", "lintel")), "surround": True, "panes": (2, 4)}
+    plain = {"h": 310, "kind": "window", "w": bay * 0.42, "wh": 215, "sill": 18, "window": win, "balcony": "all", "balcony_kind": "slab",
+             "balcony_depth": 24, "rail": "ornate", "rail_mat": "iron", "slab_mat": M("limestone", stone)}
+    noble = dict(plain, h=350, wh=245, window=dict(win, head="hood"), balcony_kind="continuous", balcony_depth=95)
+    top = dict(plain, h=290, wh=195, balcony_kind="continuous", balcony_depth=62)
+    if kind in ("apartment", "office", "shophouse"):
+        ground = _shop_ground(kind, rng, bay, rng.choice(("frame_dark", "frame_green", "wood_dark")), 430, rng.choice((None, "awning")))
+    else:
+        ground = {"h": 400, "kind": "entrance", "door_kind": "double", "door_mat": rng.choice(("wood_dark", "frame_green")), "fanlight": True,
+                  "w": bay * 0.42, "wh": 260, "sill": 60, "window": dict(win, kind="casement")}
+    n = rng.randint(5, 6) if kind != "townhouse" else 4
+    fl = [ground, dict(plain), noble, dict(plain), dict(plain), top][:n]
+    fl[-1] = top
+    plan["floors"] = fl
+    return {"roof": "mansard", "roof_m": rng.choice([M("steel", (118, 124, 130), roughness=0.45), M("slate_roof", (80, 84, 92))]),
+            "massings": ["block", "courtyard", "L", "U", "T"], "chimneys": True}
+
+
+def _st_warehouse(kind, rng, plan, bay):
+    """19th-century brick warehouse / loft: brick piers, recessed spandrels, segmental-arched steel windows, dentil cornice."""
+    brick = rng.choice([(150, 80, 62), (128, 72, 58), (112, 66, 54), (160, 106, 80), (96, 60, 50)])
+    _clean(plan, wall=M("brick", brick), trim=M("concrete", (176, 170, 160)), t=46, cornice="dentils", plinth=M("granite", (96, 94, 92)),
+           sys={"pier_w": 58, "pier_d": 14, "pier_m": M("brick", _rgb(brick, 0.82)), "spandrel_h": 88, "spandrel_d": -4, "spandrel_m": M("brick", brick),
+                "head_h": 46, "win_head": rng.choice(("arch", "arch", "none")), "win_sill": M("concrete", (176, 170, 160))},
+           life={"streaks": 0.3})
+    frame = rng.choice(("frame_dark", "frame_green", M("painted_iron", (110, 32, 28), roughness=0.5)))
+    win = {"kind": "fixed", "frame": frame, "panes": rng.choice(((4, 4), (3, 4), (4, 3))), "curtain": False}
+    typ = {"h": 380, "kind": "window", "system": "frame", "window": win}
+    ground = _shop_ground(kind, rng, bay, rng.choice(("frame_dark", "frame_green")), 460)
+    n = rng.randint(3, 7)
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    roof = "sawtooth" if n <= 3 and rng.random() < 0.7 else "flat"
+    return {"roof": roof, "massings": ["block", "L", "U", "courtyard", "stepped"]}
+
+
+def _st_brutalist(kind, rng, plan, bay):
+    """1955-1980 brutalism: board-marked concrete, a deep structural grid or inset loggias with solid parapets, pilotis, heavy fascia."""
+    conc = rng.choice([(176, 174, 166), (156, 154, 148), (190, 186, 176), (140, 138, 134)])
+    variant = rng.choice(("grid", "loggia", "fins"))
+    _clean(plan, wall=M("concrete", conc), trim=M("concrete", _rgb(conc, 0.92)), t=50, crown="fascia", life={"streaks": 0.5})
+    win = {"kind": "modern", "frame": "frame_dark", "curtain": rng.random() < 0.5}
+    if variant == "grid":
+        plan["sys"] = {"pier_w": 46, "pier_d": 55, "spandrel_h": 110, "spandrel_d": 55, "head_h": 26, "box": 0}
+        typ = {"h": 320, "kind": "window", "system": "frame", "window": win}
+    elif variant == "fins":
+        plan["sys"] = {"pier_w": 24, "pier_d": 95, "spandrel_h": 100, "spandrel_d": 18, "head_h": 22}
+        typ = {"h": 320, "kind": "window", "system": "frame", "window": win}
+    else:
+        typ = {"h": 320, "kind": "window", "w": bay * 0.5, "wh": 170, "sill": 90, "window": dict(win, sill=None, head="none"), "balcony": "all",
+               "balcony_kind": "loggia", "rail": "solid", "loggia_d": 170, "loggia_w": bay * 0.82}
+    ground = {"h": 400, "kind": "pilotis", "depth": rng.choice((320, 420)), "square": rng.random() < 0.5, "lobby": 0.5}
+    n = rng.randint(4, 12)
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": "flat", "massings": ["slab", "podium_tower", "stacked", "H", "block", "terraced"]}
+
+
+def _st_modernist(kind, rng, plan, bay):
+    """International Style, 1927-1960: smooth white render, ribbon windows, pilotis, thin balcony slabs with tube rails, flat roof terrace."""
+    white = rng.choice([(242, 240, 234), (236, 234, 226), (226, 228, 228), (240, 236, 220)])
+    _clean(plan, wall=M("plaster", white), trim=M("plaster", _rgb(white, 0.97)), t=24, life={"streaks": 0.25})
+    frame = rng.choice(("frame_dark", "frame_dark", "frame_white", M("painted_iron", (40, 70, 100), roughness=0.45)))
+    typ = {"h": 300, "kind": "window", "system": "ribbon", "sill": rng.choice((90, 100, 110)), "head_h": rng.choice((30, 40)), "mullion": rng.choice((100, 120, 150)),
+           "window": {"frame": frame}, "shade": rng.random() < 0.35, "balcony": rng.choice((None, "ends", "ends")), "rail": "tube",
+           "rail_mat": M("painted_iron", (236, 236, 232), roughness=0.4), "balcony_depth": 110, "slab_mat": M("plaster", white)}
+    ground = rng.choice([{"h": 360, "kind": "pilotis", "depth": 360, "lobby": 0.6},
+                         {"h": 360, "kind": "entrance", "door_kind": "glazed", "door_mat": "frame_dark", "w": bay * 0.6, "wh": 190, "sill": 100,
+                          "window": {"kind": "modern", "frame": frame, "sill": None, "head": "none"}}])
+    n = rng.randint(3, 7) if kind != "villa" else 2
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": rng.choice(("overhang", "pergola", "flat")), "massings": ["block", "slab", "stepped", "L", "notched", "terraced"]}
+
+
+def _st_glass(kind, rng, plan, bay):
+    """Contemporary curtain wall: tinted glass on a mullion grid, coloured spandrels, deep fins, glass lobby, crown screen."""
+    tint = rng.choice([(120, 150, 170), (110, 140, 130), (90, 96, 104), (150, 130, 100), (150, 176, 196)])
+    fm = rng.choice([M("steel", (150, 152, 156), roughness=0.3), M("painted_iron", (40, 42, 46), roughness=0.4), M("steel", (110, 100, 86), roughness=0.3)])
+    _clean(plan, wall=M("steel", (60, 62, 66)), trim=fm, t=20, crown=rng.choice(("screen", None)),
+           sys={"mullion": rng.choice((120, 150, 180)), "mullion_d": rng.choice((10, 16)), "fin_d": rng.choice((0, 0, 35, 55)), "fin_every": rng.choice((1, 2)),
+                "spandrel_h": rng.choice((0, 90, 110)), "spandrel_m": M("steel", rng.choice([(40, 42, 46), (70, 64, 56), (50, 70, 80)]), roughness=0.3),
+                "glass_m": M("glass", tint, opacity=0.62, roughness=0.03), "frame_m": fm})
+    typ = {"h": 380, "kind": "window", "system": "curtain"}
+    n = rng.randint(6, 14)
+    plan["floors"] = [{"h": 520, "kind": "lobby"}] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": "flat", "massings": ["podium_tower", "twin_towers", "setback", "block", "stacked", "notched"]}
+
+
+def _st_art_deco(kind, rng, plan, bay):
+    """Art deco, 1925-1940: buff brick or limestone piers soaring past the parapet, recessed bronze or terracotta spandrels
+    with chevrons, polished granite base, stepped setbacks and a spire."""
+    stone = rng.choice([(222, 208, 182), (204, 180, 140), (196, 170, 128), (214, 200, 176)])
+    sp_m = rng.choice([M("bronze", (120, 86, 50), roughness=0.35), M("painted_iron", (40, 70, 62), roughness=0.4), M("terracotta", (170, 104, 76))])
+    _clean(plan, wall=M("brick", _rgb(stone, 0.95)), trim=M("limestone", stone), t=44, base_wall=M("granite", (44, 40, 42), roughness=0.25),
+           plinth=None, pier_crown=rng.choice((150, 220, 300)),
+           sys={"pier_w": 42, "pier_d": 32, "pier_m": M("limestone", stone), "spandrel_h": 96, "spandrel_d": -10, "spandrel_m": sp_m,
+                "ornament": rng.choice(("chevron", "fluted")), "head_h": 22})
+    win = {"kind": "fixed", "frame": rng.choice(("frame_dark", M("bronze", (110, 80, 50), roughness=0.35))), "panes": (2, 3), "curtain": False}
+    typ = {"h": 360, "kind": "window", "system": "frame", "window": win}
+    ground = _shop_ground(kind, rng, bay, M("bronze", (110, 80, 50), roughness=0.35), 500)
+    n = rng.randint(8, 16)
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": "flat", "massings": ["setback", "setback", "podium_tower", "stepped", "block"], "finial": rng.random() < 0.7}
+
+
+def _st_mediterranean(kind, rng, plan, bay):
+    """Southern Europe: pastel lime render, small casements with louvred shutters, iron balconies, flower boxes and AC units,
+    a loggia under the roof, terracotta hip roof or a roof terrace with a pergola."""
+    col = rng.choice([(214, 170, 110), (200, 126, 92), (228, 174, 160), (232, 206, 142), (240, 234, 222), (186, 110, 80), (222, 196, 160)])
+    _clean(plan, wall=M("plaster", col), trim=M("plaster", (238, 232, 216)), t=36, string_courses=rng.random() < 0.5,
+           cornice=rng.choice(("moulded", None)), plinth=M("sandstone", (176, 150, 116)), life={"flowers": 0.35, "ac": 0.12, "streaks": 0.4})
+    shut = rng.choice(SHUTTERS + [M("painted_iron", (120, 150, 110), roughness=0.5), M("painted_iron", (70, 110, 140), roughness=0.5)])
+    win = {"kind": "casement", "frame": rng.choice(("frame_white", "frame_wood")), "sill": "stone", "head": rng.choice(("lintel", "none", "lintel")),
+           "panes": (2, 3), "shutters": shut}
+    typ = {"h": 300, "kind": "window", "w": rng.choice((95, 105, 115)), "wh": rng.choice((145, 160, 170)), "sill": 85, "window": win, "jitter": 0.15,
+           "balcony": rng.choice(("alternate", "centre", None, {0})), "balcony_kind": "brackets", "balcony_depth": 65, "rail": rng.choice(("bars", "ornate")),
+           "rail_mat": "iron", "slab_mat": M("sandstone", (190, 170, 140))}
+    top = dict(typ, balcony="all", balcony_kind="loggia", rail=rng.choice(("bars", "balustrade")), loggia_d=150) if rng.random() < 0.5 else dict(typ)
+    ground = (_shop_ground(kind, rng, bay, rng.choice(("frame_dark", "frame_green", "wood_dark")), 380, rng.choice(("awning", None)))
+              if kind in ("apartment", "shophouse") or rng.random() < 0.3 else
+              {"h": 340, "kind": "entrance", "door_kind": rng.choice(("panel", "double")), "door_mat": rng.choice(("wood_dark", "frame_green", "wood")),
+               "w": 100, "wh": 160, "sill": 100, "window": dict(win)})
+    n = rng.randint(3, 6) if kind != "villa" else 2
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 2)] + [top]
+    return {"roof": rng.choice(("hip", "pergola", "hip")), "roof_m": M("roof_tile", rng.choice([(176, 88, 58), (160, 80, 56), (190, 110, 72)])),
+            "massings": ["block", "T", "L", "stepped", "terraced", "U"]}
+
+
+def _st_nordic(kind, rng, plan, bay):
+    """Scandinavian contemporary: timber battens or painted weatherboards, big picture windows with thin dark frames,
+    inset glass loggias lined in timber, steep metal gable without eaves."""
+    clad = rng.choice([("battens", (34, 34, 36)), ("battens", (78, 58, 42)), ("battens", (176, 136, 96)), ("battens", (138, 134, 126)),
+                       ("boards", (140, 42, 32)), ("boards", (236, 234, 226)), ("boards", (220, 190, 110)), ("boards", (60, 70, 72))])
+    wood = M("wood", clad[1]) if clad[0] == "battens" else M("painted_iron", clad[1], roughness=0.6)
+    _clean(plan, wall=M("plaster", _rgb(clad[1], 0.7)) if clad[0] == "battens" else wood, trim=M("concrete", (120, 118, 114)), t=30, skin=clad[0], skin_m=wood,
+           plinth=M("concrete", (110, 108, 104)))
+    frame = rng.choice(("frame_dark", "frame_dark", "frame_white", "frame_alu"))
+    win = {"kind": "modern", "frame": frame, "sill": None, "head": "none", "curtain": rng.random() < 0.4}
+    typ = {"h": 300, "kind": "window", "w": bay * rng.uniform(0.45, 0.6), "w_alt": bay * 0.3, "wh": rng.choice((170, 190, 210)), "sill": 60, "window": win,
+           "jitter": rng.choice((0.0, 0.35, 0.6)), "balcony": rng.choice(("alternate", None, "ends")), "balcony_kind": "loggia", "rail": "glass",
+           "rail_mat": "steel", "loggia_m": M("wood", (176, 136, 96))}
+    ground = {"h": 330, "kind": "entrance", "door_kind": "glazed", "door_mat": "frame_dark", "w": bay * 0.55, "wh": 200, "sill": 50, "window": win}
+    if kind == "apartment" and rng.random() < 0.4:
+        ground = _shop_ground(kind, rng, bay, "frame_dark", 380)
+    n = rng.randint(3, 6) if kind != "villa" else 2
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": rng.choice(("gable_steep", "gable_steep", "flat")), "roof_m": M("steel", rng.choice([(46, 48, 52), (70, 72, 76), (120, 60, 46)]), roughness=0.45),
+            "massings": ["block", "stepped", "notched", "L", "T", "terraced"], "pitch": rng.choice((0.5, 0.6, 0.75))}
+
+
+def _st_contemporary(kind, rng, plan, bay):
+    """European new-build housing: brick or rainscreen panels in several tones, deep reveals, staggered tall windows of two widths,
+    inset loggias, slim metal coping."""
+    if rng.random() < 0.5:
+        b = rng.choice([(90, 86, 84), (200, 196, 188), (150, 96, 70), (120, 100, 88), (176, 156, 128)])
+        _clean(plan, wall=M("brick", b), trim=M("steel", (90, 92, 94)), t=44)
+    else:
+        base = rng.choice([(186, 180, 168), (120, 124, 120), (170, 120, 90), (210, 206, 196), (70, 80, 86)])
+        tones = [M("concrete", _rgb(base, f), roughness=0.6) for f in (0.92, 1.0, 1.08)]
+        _clean(plan, wall=M("concrete", base), trim=M("steel", (90, 92, 94)), t=40, skin="panels", skin_tones=tones,
+               panel=rng.choice(((120, 60), (60, 120), (90, 300), (300, 60))))
+    frame = rng.choice(("frame_dark", M("bronze", (100, 80, 60), roughness=0.4), "frame_alu"))
+    win = {"kind": "modern", "frame": frame, "sill": None, "head": "none", "curtain": rng.random() < 0.5}
+    typ = {"h": 300, "kind": "window", "w": bay * 0.38, "w_alt": bay * 0.66, "wh": rng.choice((210, 230, 250)), "sill": rng.choice((20, 40, 60)), "window": win,
+           "jitter": rng.choice((0.5, 0.8)), "balcony": rng.choice(("alternate", "ends", {1})), "balcony_kind": "loggia", "rail": rng.choice(("glass", "bars")),
+           "rail_mat": "frame_dark", "life": {}}
+    ground = _shop_ground(kind, rng, bay, "frame_dark", 400) if rng.random() < 0.6 else {"h": 360, "kind": "lobby"}
+    n = rng.randint(4, 8)
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    plan["sys"] = {"mullion": 150, "frame_m": MAT["frame_dark"]}
+    return {"roof": "flat", "massings": ["block", "notched", "stacked", "terraced", "stepped", "U", "courtyard", "L"]}
+
+
+def _st_victorian(kind, rng, plan, bay):
+    """London terrace, 1840-1900: stock brick over a rusticated stucco ground floor, sash windows with stone heads,
+    a two-storey bay window, iron area railings, a parapet with cornice and chimney stacks."""
+    brick = rng.choice([(196, 166, 116), (176, 150, 108), (150, 84, 64), (130, 76, 60)])
+    stucco = rng.choice([(236, 228, 208), (226, 222, 214), (240, 236, 228)])
+    _clean(plan, wall=M("brick", brick), base_wall=M("plaster", stucco), base_skin="rustication", trim=M("plaster", stucco), t=36, cornice="moulded",
+           string_courses=True, area_railing=True, life={"flowers": 0.15, "streaks": 0.25})
+    win = {"kind": "sash", "frame": "frame_white", "sill": "stone", "head": rng.choice(("hood", "keystone", "lintel")), "surround": rng.random() < 0.4,
+           "panes": rng.choice(((2, 2), (2, 4), (1, 2)))}
+    first = {"h": 340, "kind": "window", "w": bay * 0.42, "wh": 230, "sill": 30, "window": win, "balcony": "all", "balcony_kind": "slab", "balcony_depth": 26,
+             "rail": "ornate", "rail_mat": "iron", "slab_mat": M("plaster", stucco)}
+    upper = {"h": 300, "kind": "window", "w": bay * 0.38, "wh": 180, "sill": 80, "window": win}
+    top = dict(upper, h=270, wh=130, window=dict(win, head="lintel"))
+    if kind == "shophouse":
+        ground = _shop_ground(kind, rng, bay, rng.choice(("frame_green", "frame_dark", "wood_dark")), 400, rng.choice(("awning", None)), door=False)
+    else:
+        ground = {"h": 360, "kind": "entrance", "door_kind": "panel", "door_mat": rng.choice(("wood_dark", "frame_green", "frame_dark", M("painted_iron", (120, 30, 30)))),
+                  "fanlight": True, "door_bay": 0, "w": bay * 0.42, "wh": 210, "sill": 70, "window": win}
+        if rng.random() < 0.7:
+            plan["bay_window"] = {"bays": [plan["bays"] - 1] if plan["bays"] > 1 else [], "floors": 2 if rng.random() < 0.6 else 1, "depth": 75}
+    n = rng.randint(3, 5)
+    plan["floors"] = [ground, first] + [dict(upper) for _ in range(n - 3)] + [top]
+    return {"roof": "flat", "massings": ["block", "T"], "chimneys": True}
+
+
+def _st_straits(kind, rng, plan, bay):
+    """Straits / Peranakan shophouse (Singapore, Penang, Malacca): pastel stucco, five-foot-way arcade with tiled floor,
+    paired French windows with timber louvred shutters, pilasters, tiled roof."""
+    col = rng.choice([(170, 210, 190), (230, 180, 180), (240, 214, 150), (160, 190, 214), (200, 220, 160), (240, 232, 214)])
+    _clean(plan, wall=M("plaster", col), trim=M("plaster", (246, 244, 236)), t=30, pilasters=True, string_courses=True, cornice="moulded",
+           life={"flowers": 0.2, "streaks": 0.3})
+    shut = rng.choice([M("wood", (96, 66, 44)), M("painted_iron", (40, 90, 70), roughness=0.5), M("painted_iron", (60, 90, 130), roughness=0.5)])
+    win = {"kind": "french", "frame": rng.choice(("frame_wood", "frame_white")), "sill": None, "head": rng.choice(("arch", "lintel", "hood")),
+           "shutters": shut, "panes": (1, 3)}
+    typ = {"h": 340, "kind": "window", "w": bay * 0.36, "wh": 230, "sill": 25, "window": win, "balcony": None}
+    ground = {"h": 400, "kind": "arcade", "depth": 210, "tiles": True, "frame": rng.choice(("frame_wood", "frame_green", "frame_dark"))}
+    n = rng.randint(2, 3)
+    plan["floors"] = [ground] + [dict(typ) for _ in range(n - 1)]
+    return {"roof": rng.choice(("gable", "hip")), "roof_m": M("roof_tile", rng.choice([(166, 86, 60), (150, 74, 52)])), "massings": ["block", "T"]}
+
+
+STYLES = {"haussmann": _st_haussmann, "warehouse": _st_warehouse, "brutalist": _st_brutalist, "modernist": _st_modernist, "glass": _st_glass,
+          "art_deco": _st_art_deco, "mediterranean": _st_mediterranean, "nordic": _st_nordic, "contemporary": _st_contemporary,
+          "victorian": _st_victorian, "straits": _st_straits}
+KIND_STYLES = {
+    "apartment": ["haussmann", "warehouse", "brutalist", "modernist", "glass", "art_deco", "mediterranean", "nordic", "contemporary"],
+    "office": ["glass", "art_deco", "brutalist", "modernist", "warehouse", "contemporary", "haussmann"],
+    "loft": ["warehouse", "contemporary", "brutalist", "nordic"],
+    "townhouse": ["victorian", "haussmann", "mediterranean", "nordic", "straits", "contemporary"],
+    "shophouse": ["straits", "victorian", "mediterranean", "haussmann"],
+    "villa": ["mediterranean", "modernist", "nordic"],
+}

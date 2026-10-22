@@ -164,7 +164,12 @@ rotate with uk.parts.transform(parts, (0,0,0), yaw). Change seeds per lot so nei
 Massing (the building's overall form) first: B.building(kind, seed=, massing="auto" | podium_tower | twin_towers |
 setback | terraced | slab | courtyard | U | L | T | H | stacked | notched | stepped, width=lot width, depth=lot depth,
 party=("-x","+x") for row buildings, street=("-y",) or ("-y","-x") on corners). Volumes share one storey grid; every
-visible face gets a facade, step-backs become terraces with railings. Mix massings along a street for a real skyline. Then save finished pieces with
+visible face gets a facade, step-backs become terraces with railings. Mix massings along a street for a real skyline.
+Style is what makes buildings differ up close: B.building(kind, seed=, style="auto" | haussmann | warehouse | brutalist |
+modernist | glass | art_deco | mediterranean | nordic | contemporary | victorian | straits). Each style sets materials, window
+system (punched, ribbon, curtain wall, pier-and-spandrel frame, inset loggias), cladding, base (shops, arcade, pilotis,
+glass lobby), crown and roof (mansard with dormers, steep gable, sawtooth, overhang, roof-terrace pergola). Keep one or two
+styles per street (a real place has a character) and vary seeds and widths within it; party=("-x","+x") for terraces. Then save finished pieces with
 scene.save_template so later scenes reuse them (scene.place_template).
 )SKILL")) + FString(TEXT(R"SKILL(
 ## Effort levels (ask or pick by the request)

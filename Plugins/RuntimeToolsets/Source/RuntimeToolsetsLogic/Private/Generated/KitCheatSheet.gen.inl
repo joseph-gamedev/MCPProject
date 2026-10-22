@@ -101,12 +101,12 @@ style(preset="realistic", weathering=None, **material)  # Visual style preset; w
 time_of_day(hour, yaw=None)
 ### uk.buildings
 balcony(x, z, w, depth=120, kind="slab", rail="bars", rail_mat="iron", slab_mat="concrete")  # Balcony on the wall face at floor height z: slab with a moulded edge; brackets (classic) or a clean cantilever
-building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None, massing=None, party=None, street=("-y",))  # A complete building of a type, varied by seed.
+building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None, massing=None, party=None, street=("-y",), style=None)  # A complete building of a type, varied by seed.
 cornice(width, z, depth=40, mat="stone", kind="moulded")  # Cornice band along the facade at height z (moulded = stepped profile, dentils = with a row of dentils).
 door(x, w=110, h=230, kind="panel", mat="wood_dark", frame="stone", reveal=20, fanlight=False, rng=None)  # Entrance door at ground level: panelled, glazed or double; stone surround, step, handle, optional fanlight.
 facade(width, plan, rng)  # Builds one facade from a plan:
 m(x)
-massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",))  # Builds a building of type `kind` from a massing model (name in MASSINGS or "auto").
+massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",), style=None)  # Builds a building of type `kind` from a massing model (name in MASSINGS or "auto") in an architectural style
 pilaster(x, z0, z1, w=40, mat="stone")
 quoins(x, z0, z1, mat="stone", size=40)  # Alternating corner stones up a corner at facade x.
 railing(x0, x1, y, z, height=105, style="bars", mat="iron", return_depth=0)  # Railing from x0 to x1 at depth y, standing on z. style: bars | ornate | glass | balustrade | wood | cable.
@@ -123,9 +123,9 @@ car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark g
 city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
 door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
-facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe knobs (so neighbours differ):
-glass_tower(width, de)KIT"))
-	+ FString(TEXT(R"KIT(pth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
+facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe kn)KIT"))
+	+ FString(TEXT(R"KIT(obs (so neighbours differ):
+glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
 lamp_post(x, y, yaw=0)
 plaza(width=2000, depth=2000, seed=None)  # Paved square with a lawn, trees, benches and lamps.
 shopfront(x, w, h=320, m_frame="frame_dark", sign=None)  # Ground-floor shop: large recessed glazing, stall riser, sign band and an awning.
@@ -170,6 +170,7 @@ PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concre
 PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, plaster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
 city STYLES: brick, plaster, stone, office, glass, loft, deco, residential, brutalist, painted
 buildings TYPES: apartment, townhouse, shophouse, villa, office, loft; L corners: square, chamfer, tower, balconies
-buildings MASSINGS: block, slab, podium_tower, twin_towers, setback, terraced,)KIT"))
-	+ FString(TEXT(R"KIT( courtyard, U, L, T, H, stacked, notched, stepped; per type (auto picks): apartment: block, slab, podium_tower, courtyard, U, T, terraced, stacked, notched, stepped, setback; office: block, podium_tower, twin_towers, setback, H, notched, stacked, stepped, slab; loft: block, courtyard, U, L, stepped, setback, notched; townhouse: block, T, L, terraced; shophouse: block, T, terraced; villa: block, L, T, H, U
+buildings STYLES: haussmann, )KIT"))
+	+ FString(TEXT(R"KIT(warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary, victorian, straits; per type (auto picks): apartment: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary; office: glass, art_deco, brutalist, modernist, warehouse, contemporary, haussmann; loft: warehouse, contemporary, brutalist, nordic; townhouse: victorian, haussmann, mediterranean, nordic, straits, contemporary; shophouse: straits, victorian, mediterranean, haussmann; villa: mediterranean, modernist, nordic
+buildings MASSINGS: block, slab, podium_tower, twin_towers, setback, terraced, courtyard, U, L, T, H, stacked, notched, stepped; per type (auto picks): apartment: block, slab, podium_tower, courtyard, U, T, terraced, stacked, notched, stepped, setback; office: block, podium_tower, twin_towers, setback, H, notched, stacked, stepped, slab; loft: block, courtyard, U, L, stepped, setback, notched; townhouse: block, T, L, terraced; shophouse: block, T, terraced; villa: block, L, T, H, U
 )KIT"));

@@ -152,6 +152,8 @@ def write_cheatsheet():
     lines.append("city STYLES: " + ", ".join(city.STYLES))
     from unreal_kit import buildings
     lines.append("buildings TYPES: " + ", ".join(buildings.TYPES) + "; L corners: square, chamfer, tower, balconies")
+    lines.append("buildings STYLES: " + ", ".join(buildings.STYLES) + "; per type (auto picks): "
+                 + "; ".join(f"{k}: {', '.join(v)}" for k, v in buildings.KIND_STYLES.items()))
     lines.append("buildings MASSINGS: " + ", ".join(buildings.MASSINGS) + "; per type (auto picks): "
                  + "; ".join(f"{k}: {', '.join(v)}" for k, v in buildings.KIND_MASSINGS.items()))
     text = "\n".join(lines) + "\n"
