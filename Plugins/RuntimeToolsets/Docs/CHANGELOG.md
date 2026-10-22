@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.13.0 — 2026-10-22
+
+- **Real Unreal gameplay systems** (Epic's AI/StateTree/GAS/GameplayTags toolsets only inspect editor data; these drive the systems at runtime):
+  - `ai`: navmesh built at runtime over tool-made worlds (`build_navigation`), `find_path`, AI agents for any object (`create_agent`: an AI-controlled character carries it), `move_to`, AI perception (sight, hearing, `report_noise`, `make_perceivable`), behavior trees and blackboards.
+  - `tags`: gameplay tags on any actor, queries, 64 starter tags (State, Team, Damage, Ability, Event, Cue, AI, Status, Noise).
+  - `gas`: Gameplay Ability System on any actor (generic attribute set with damage meta-attribute), effects defined at runtime, abilities, gameplay events, cues, loose tags.
+  - `statetree`: run cooked StateTrees on actors, send events, read active states, describe trees.
+- **Logic on real AI:** `define_brain backend:"ai"` walks the navmesh and senses with AI perception; player shots are AI noise events; `has_tag(target, tag)` and `add_tags` / `remove_tags` actions. The stealth example uses it by default (`--native` for the old steering).
+- **Builder collision:** simple shapes per part (physics and navigation), complex triangles for traces.
+- **Skills:** ai_navigation_and_perception, gameplay_ability_system, state_tree.
+- **Other:** `-RuntimeToolsetsPort=N` command-line override; project config needs `[/Script/NavigationSystem.RecastNavMesh] RuntimeGeneration=Dynamic`.
+- **Tests:** 215 automation tests.
+
 ## 0.12.0 — 2026-10-22
 
 - **Rewritten after Epic's editor toolsets** (`Engine/Plugins/Experimental/ToolsetRegistry` and `Toolsets/*`):

@@ -1,0 +1,443 @@
+{
+	"description": "Gameplay Tags at runtime: browse the tag table (Epic: list_tags, get_tag_info), give any actor tags, and query them.\nTags are hierarchical (\"State.Stunned\" matches \"State\"). Only registered tags can be used: the plugin registers a starter\nset (State, Team, Damage, Ability, Event, Cue, AI, Status); projects add theirs in Config/Tags or project settings.\nLogic rules read them with has_tag(target, 'State.Stunned'); GAS abilities and effects use the same tags.",
+	"name": "tags",
+	"tools": [
+		{
+			"description": "Adds gameplay tags to an actor. Undoable.\nReturns: The actor's tags after the change. Fails if a tag is not registered (lists close matches).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"actor":
+					{
+						"description": "Actor to tag. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Registered tag names, e.g. [\"State.Stunned\", \"Team.Enemy\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"actor",
+					"tags"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "tags.add_actor_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor's tags after the change. Fails if a tag is not registered (lists close matches).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Finds actors whose tags match (same rules as match_tags).\nReturns: Matching actors with their tags, sorted by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"all":
+					{
+						"description": "Required tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"any":
+					{
+						"description": "At least one of these.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum results.",
+						"type": "integer"
+					},
+					"none":
+					{
+						"description": "Forbidden tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"name": "tags.find_actors_with_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Matching actors with their tags, sorted by name.",
+						"items":
+						{
+							"properties":
+							{
+								"actor":
+								{
+									"description": "Actor (null if none)",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"tags":
+								{
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								}
+							},
+							"title": "RuntimeTaggedActor",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "The gameplay tags an actor has (from its own tags, tag components and ability system).\nReturns: Tag names, sorted.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"actor":
+					{
+						"description": "Actor to read. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"actor"
+				],
+				"type": "object"
+			},
+			"name": "tags.get_actor_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Tag names, sorted.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Describes one tag: whether it exists, its parents and children.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"tag_name":
+					{
+						"description": "e.g. \"Damage.Fire\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"tag_name"
+				],
+				"type": "object"
+			},
+			"name": "tags.get_tag_info",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"children":
+							{
+								"description": "Direct children.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"exists":
+							{
+								"description": "The tag is registered (only registered tags can be used).",
+								"type": "boolean"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"parents":
+							{
+								"description": "Parent tags from the root down (\"State\" for \"State.Stunned\").",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeTagInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists registered gameplay tags.\nReturns: Tag names, sorted.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"parent_tag":
+					{
+						"default": "",
+						"description": "Only tags under this one, e.g. \"State\" (empty = all).",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "tags.list_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Tag names, sorted.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Tests an actor's tags: it must have every tag in `all`, at least one of `any` (if given) and none of `none`. Parent tags match children (\"State\" matches \"State.Stunned\").",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"actor":
+					{
+						"description": "Actor to test. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"all":
+					{
+						"description": "Required tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"any":
+					{
+						"description": "At least one of these.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"none":
+					{
+						"description": "Forbidden tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"actor"
+				],
+				"type": "object"
+			},
+			"name": "tags.match_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"matches":
+							{
+								"type": "boolean"
+							},
+							"missing_all":
+							{
+								"description": "Tags from `all` the actor lacks.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"present_none":
+							{
+								"description": "Tags from `none` the actor has.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"tags":
+							{
+								"description": "The actor's tags.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeTagQueryResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes gameplay tags added with add_actor_tags. Undoable.\nReturns: The actor's tags after the change.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"actor":
+					{
+						"description": "Actor to untag. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Tag names.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"actor",
+					"tags"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "tags.remove_actor_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor's tags after the change.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

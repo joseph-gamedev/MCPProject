@@ -204,6 +204,16 @@
 				"additionalProperties": false,
 				"properties":
 				{
+					"backend":
+					{
+						"default": "Native",
+						"description": "Native: built-in steering and vision cone (no navmesh needed). Ai: a real AI agent - walks the navmesh around obstacles (call ai.build_navigation first) and senses with AI perception (sight, hearing of gunshots and ai.report_noise). Ground brains only.",
+						"enum": [
+							"Native",
+							"Ai"
+						],
+						"type": "string"
+					},
 					"decide_every":
 					{
 						"description": "Seconds between transition checks (default: the brain.decide_interval tuning value).",

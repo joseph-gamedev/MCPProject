@@ -1,0 +1,1441 @@
+{
+	"description": "Real Unreal AI at runtime: navigation meshes, AI-controlled agents that walk on them, AI perception (sight and\nhearing), noise events, behavior trees and blackboards. Any builder object can become an agent: it is carried by an\nAI-controlled character. Project characters with their own controllers work too.\nWorkflow: build_navigation (once the level geometry exists) -> create_agent -> move_to / run_behavior_tree ->\nget_perception, report_noise, get_brain_state. Logic brains can use this with define_brain backend \"ai\".\nSee the ai_navigation_and_perception skill.",
+	"name": "ai",
+	"tools": [
+		{
+			"async": true,
+			"description": "Builds a navmesh over an area so agents can find paths, and waits until it is ready. Call it after the walkable geometry exists; it updates by itself when things move later (dynamic generation).\nReturns: Navigation status (navmesh present, building, bounds, a hint if something is missing).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"bounds":
+					{
+						"description": "Area {min:[x,y,z], max:[x,y,z]} in cm; default: everything in the scene plus a margin.",
+						"properties":
+						{
+							"is_valid":
+							{
+								"type": "boolean"
+							},
+							"max":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"min":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "Box",
+						"type": "object"
+					},
+					"margin":
+					{
+						"default": 1000,
+						"description": "Extra space around the automatic bounds (cm).",
+						"type": "number"
+					},
+					"timeout_seconds":
+					{
+						"default": 60,
+						"description": "Give up waiting after this long.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ai.build_navigation",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"bounds_max":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"bounds_min":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"building":
+							{
+								"description": "Tiles are still being generated.",
+								"type": "boolean"
+							},
+							"dynamic":
+							{
+								"description": "The navmesh rebuilds at runtime when geometry changes (RecastNavMesh RuntimeGeneration = Dynamic).",
+								"type": "boolean"
+							},
+							"has_nav_mesh":
+							{
+								"description": "A navmesh exists in the world.",
+								"type": "boolean"
+							},
+							"hint":
+							{
+								"description": "What to do next when something is missing.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNavigationStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Makes an actor an AI agent: builder objects are carried by an AI-controlled character sized to them (they keep their node id); pawns get an AI controller. Configures movement speed and perception. Undoable.\nReturns: The agent.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"settings":
+					{
+						"description": "{max_speed, sight_radius, lose_sight_radius, sight_half_angle, hearing_range, memory_seconds, turn_rate}.",
+						"properties":
+						{
+							"hearing_range":
+							{
+								"description": "How far the agent hears noise events (cm). 0 disables hearing.",
+								"type": "number"
+							},
+							"lose_sight_radius":
+							{
+								"description": "Distance at which a seen target is lost again (cm, at least sight radius).",
+								"type": "number"
+							},
+							"max_speed":
+							{
+								"description": "Walking speed in cm/s.",
+								"type": "number"
+							},
+							"memory_seconds":
+							{
+								"description": "Seconds a perceived stimulus is remembered.",
+								"type": "number"
+							},
+							"sight_half_angle":
+							{
+								"description": "Half angle of the view cone in degrees (90 = 180 degree field of view).",
+								"type": "number"
+							},
+							"sight_radius":
+							{
+								"description": "How far the agent sees (cm). 0 disables sight.",
+								"type": "number"
+							},
+							"turn_rate":
+							{
+								"description": "Turn rate in degrees per second.",
+								"type": "number"
+							}
+						},
+						"title": "RuntimeAgentSettings",
+						"type": "object"
+					},
+					"target":
+					{
+						"description": "Object or pawn to control. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ai.create_agent",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The agent.",
+						"properties":
+						{
+							"agent":
+							{
+								"description": "The agent pawn (pass it, or the object it carries, as `agent`). (Actor (null if none))",
+								"properties":
+								{
+									"class":
+									{
+										"type": "string"
+									},
+									"name":
+									{
+										"type": "string"
+									},
+									"ref":
+									{
+										"description": "Pass this back to tools that take this object",
+										"type": "string"
+									}
+								},
+								"type": "object"
+							},
+							"behavior_tree":
+							{
+								"description": "Behavior tree being run, if any.",
+								"type": "string"
+							},
+							"body":
+							{
+								"description": "The object the agent carries (null for plain characters). (Actor (null if none))",
+								"properties":
+								{
+									"class":
+									{
+										"type": "string"
+									},
+									"name":
+									{
+										"type": "string"
+									},
+									"ref":
+									{
+										"description": "Pass this back to tools that take this object",
+										"type": "string"
+									}
+								},
+								"type": "object"
+							},
+							"id":
+							{
+								"description": "Node id of the carried object, when it is a scene node.",
+								"type": "string"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"movement":
+							{
+								"description": "Idle, Waiting, Paused or Moving.",
+								"type": "string"
+							},
+							"settings":
+							{
+								"properties":
+								{
+									"hearing_range":
+									{
+										"description": "How far the agent hears noise events (cm). 0 disables hearing.",
+										"type": "number"
+									},
+									"lose_sight_radius":
+									{
+										"description": "Distance at which a seen target is lost again (cm, at least sight radius).",
+										"type": "number"
+									},
+									"max_speed":
+									{
+										"description": "Walking speed in cm/s.",
+										"type": "number"
+									},
+									"memory_seconds":
+									{
+										"description": "Seconds a perceived stimulus is remembered.",
+										"type": "number"
+									},
+									"sight_half_angle":
+									{
+										"description": "Half angle of the view cone in degrees (90 = 180 degree field of view).",
+										"type": "number"
+									},
+									"sight_radius":
+									{
+										"description": "How far the agent sees (cm). 0 disables sight.",
+										"type": "number"
+									},
+									"turn_rate":
+									{
+										"description": "Turn rate in degrees per second.",
+										"type": "number"
+									}
+								},
+								"title": "RuntimeAgentSettings",
+								"type": "object"
+							}
+						},
+						"title": "RuntimeAgentInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Describes a behavior tree: every node with depth, kind and class, and its blackboard keys (Epic: list_nodes, get_blackboard).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"tree":
+					{
+						"description": "Behavior tree asset path. (Reference to BehaviorTree: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"tree"
+				],
+				"type": "object"
+			},
+			"name": "ai.describe_behavior_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"blackboard_keys":
+							{
+								"description": "Keys of the tree's blackboard.",
+								"items":
+								{
+									"properties":
+									{
+										"key":
+										{
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Bool, Int, Float, String, Name, Vector, Rotator, Object, Class, Enum.",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Current value as text (\"\" when the agent runs no tree).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeBlackboardEntry",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"nodes":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"depth":
+										{
+											"description": "Depth in the tree (root = 0).",
+											"type": "integer"
+										},
+										"index":
+										{
+											"description": "Execution index (depth-first).",
+											"type": "integer"
+										},
+										"kind":
+										{
+											"description": "Composite, Task, Decorator or Service.",
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										}
+									},
+									"title": "RuntimeBtNode",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeBtDescription",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Finds a walkable path between two points.\nReturns: Found, partial, length (cm) and path corners. Fails if there is no navmesh.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"end":
+					{
+						"description": "[x,y,z] goal. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"start":
+					{
+						"description": "[x,y,z] start (projected onto the navmesh). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"start",
+					"end"
+				],
+				"type": "object"
+			},
+			"name": "ai.find_path",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Found, partial, length (cm) and path corners. Fails if there is no navmesh.",
+						"properties":
+						{
+							"found":
+							{
+								"description": "A path (complete or partial) was found.",
+								"type": "boolean"
+							},
+							"length":
+							{
+								"description": "Path length in cm.",
+								"type": "number"
+							},
+							"partial":
+							{
+								"description": "The path stops short of the goal (goal unreachable).",
+								"type": "boolean"
+							},
+							"points":
+							{
+								"description": "Path corners from start to end.",
+								"items":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeNavPath",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "The agent's running tree, active node and blackboard values.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"name": "ai.get_brain_state",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"active_node":
+							{
+								"description": "The task or node currently executing.",
+								"type": "string"
+							},
+							"behavior_tree":
+							{
+								"type": "string"
+							},
+							"blackboard":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"key":
+										{
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Bool, Int, Float, String, Name, Vector, Rotator, Object, Class, Enum.",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Current value as text (\"\" when the agent runs no tree).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeBlackboardEntry",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"running":
+							{
+								"description": "A behavior tree is running.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeBrainState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Reports whether a navmesh exists, whether it is still building, and the registered bounds.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "ai.get_navigation_status",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"bounds_max":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"bounds_min":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"building":
+							{
+								"description": "Tiles are still being generated.",
+								"type": "boolean"
+							},
+							"dynamic":
+							{
+								"description": "The navmesh rebuilds at runtime when geometry changes (RecastNavMesh RuntimeGeneration = Dynamic).",
+								"type": "boolean"
+							},
+							"has_nav_mesh":
+							{
+								"description": "A navmesh exists in the world.",
+								"type": "boolean"
+							},
+							"hint":
+							{
+								"description": "What to do next when something is missing.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeNavigationStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "What an agent currently sees and hears (and remembers for memory_seconds).\nReturns: Perceived actors with sense, location, age and whether they are sensed right now.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"name": "ai.get_perception",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Perceived actors with sense, location, age and whether they are sensed right now.",
+						"items":
+						{
+							"properties":
+							{
+								"actor":
+								{
+									"description": "Actor (null if none)",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"age":
+								{
+									"description": "Seconds since it was sensed.",
+									"type": "number"
+								},
+								"currently_sensed":
+								{
+									"description": "True while currently sensed (seen now), false when remembered.",
+									"type": "boolean"
+								},
+								"location":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"sense":
+								{
+									"description": "Sight or Hearing.",
+									"type": "string"
+								},
+								"tag":
+								{
+									"description": "Noise tag (hearing).",
+									"type": "string"
+								}
+							},
+							"title": "RuntimePerceivedActor",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists AI-controlled pawns in the world.\nReturns: Agents sorted by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"default": 100,
+						"description": "Maximum number returned.",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "ai.list_agents",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Agents sorted by name.",
+						"items":
+						{
+							"properties":
+							{
+								"agent":
+								{
+									"description": "The agent pawn (pass it, or the object it carries, as `agent`). (Actor (null if none))",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"behavior_tree":
+								{
+									"description": "Behavior tree being run, if any.",
+									"type": "string"
+								},
+								"body":
+								{
+									"description": "The object the agent carries (null for plain characters). (Actor (null if none))",
+									"properties":
+									{
+										"class":
+										{
+											"type": "string"
+										},
+										"name":
+										{
+											"type": "string"
+										},
+										"ref":
+										{
+											"description": "Pass this back to tools that take this object",
+											"type": "string"
+										}
+									},
+									"type": "object"
+								},
+								"id":
+								{
+									"description": "Node id of the carried object, when it is a scene node.",
+									"type": "string"
+								},
+								"location":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"movement":
+								{
+									"description": "Idle, Waiting, Paused or Moving.",
+									"type": "string"
+								},
+								"settings":
+								{
+									"properties":
+									{
+										"hearing_range":
+										{
+											"description": "How far the agent hears noise events (cm). 0 disables hearing.",
+											"type": "number"
+										},
+										"lose_sight_radius":
+										{
+											"description": "Distance at which a seen target is lost again (cm, at least sight radius).",
+											"type": "number"
+										},
+										"max_speed":
+										{
+											"description": "Walking speed in cm/s.",
+											"type": "number"
+										},
+										"memory_seconds":
+										{
+											"description": "Seconds a perceived stimulus is remembered.",
+											"type": "number"
+										},
+										"sight_half_angle":
+										{
+											"description": "Half angle of the view cone in degrees (90 = 180 degree field of view).",
+											"type": "number"
+										},
+										"sight_radius":
+										{
+											"description": "How far the agent sees (cm). 0 disables sight.",
+											"type": "number"
+										},
+										"turn_rate":
+										{
+											"description": "Turn rate in degrees per second.",
+											"type": "number"
+										}
+									},
+									"title": "RuntimeAgentSettings",
+									"type": "object"
+								}
+							},
+							"title": "RuntimeAgentInfo",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists behavior tree assets packaged with the project.\nReturns: Asset paths, sorted.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "ai.list_behavior_trees",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Asset paths, sorted.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lets agents see an object that is not a pawn (pawns, including the player, are visible already). Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Object to make visible to AI sight. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ai.make_perceivable",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"async": true,
+			"description": "Walks an agent to a location or to another actor along the navmesh, and waits until it arrives or fails.\nReturns: Success, Blocked, Aborted, Unreachable or TimedOut, with the final location.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"acceptance_radius":
+					{
+						"default": 50,
+						"description": "How close counts as arrived (cm).",
+						"type": "number"
+					},
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "[x,y,z] goal (ignored when target_actor is set). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"target_actor":
+					{
+						"description": "Follow to this actor instead. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"timeout_seconds":
+					{
+						"default": 30,
+						"description": "Stop waiting after this long (the agent keeps going).",
+						"type": "number"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"name": "ai.move_to",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"result":
+							{
+								"enum": [
+									"Success",
+									"Blocked",
+									"Aborted",
+									"Unreachable",
+									"TimedOut"
+								],
+								"type": "string"
+							},
+							"seconds":
+							{
+								"description": "Seconds the move took.",
+								"type": "number"
+							}
+						},
+						"title": "RuntimeMoveOutcome",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Snaps a point to the nearest walkable navmesh location.\nReturns: The projected point; fails if nothing walkable is within reach.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "[x,y,z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"search_extent":
+					{
+						"default": 500,
+						"description": "How far to search in each axis (cm).",
+						"type": "number"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"name": "ai.project_to_navigation",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The projected point; fails if nothing walkable is within reach.",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Stops AI control of an object made into an agent with create_agent (it stays where it is). Undoable.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ai.remove_agent",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Emits a noise that agents within their hearing range (and max_range) hear: gunshots, footsteps, alarms.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"instigator":
+					{
+						"description": "Who made the noise (agents remember it as the heard actor). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "[x,y,z] where the noise happens. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"loudness":
+					{
+						"default": 1,
+						"description": "Multiplies the agents' hearing range (1 = normal).",
+						"type": "number"
+					},
+					"max_range":
+					{
+						"default": 0,
+						"description": "Hard limit in cm (0 = no limit).",
+						"type": "number"
+					},
+					"tag":
+					{
+						"default": "",
+						"description": "Kind of noise, e.g. \"Gunshot\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"name": "ai.report_noise",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Runs a behavior tree on an agent (replaces the one it runs).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tree":
+					{
+						"description": "Behavior tree asset path. (Reference to BehaviorTree: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent",
+					"tree"
+				],
+				"type": "object"
+			},
+			"name": "ai.run_behavior_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"active_node":
+							{
+								"description": "The task or node currently executing.",
+								"type": "string"
+							},
+							"behavior_tree":
+							{
+								"type": "string"
+							},
+							"blackboard":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"key":
+										{
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Bool, Int, Float, String, Name, Vector, Rotator, Object, Class, Enum.",
+											"type": "string"
+										},
+										"value":
+										{
+											"description": "Current value as text (\"\" when the agent runs no tree).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeBlackboardEntry",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"running":
+							{
+								"description": "A behavior tree is running.",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeBrainState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets a blackboard value on an agent running a behavior tree.\nReturns: The entry after the change.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"key":
+					{
+						"description": "Blackboard key name (see get_brain_state).",
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "Value matching the key type: true, 3, 2.5, \"text\", [x,y,z], or an actor reference for Object keys. (Any JSON value)"
+					}
+				},
+				"required": [
+					"agent",
+					"key",
+					"value"
+				],
+				"type": "object"
+			},
+			"name": "ai.set_blackboard_value",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The entry after the change.",
+						"properties":
+						{
+							"key":
+							{
+								"type": "string"
+							},
+							"type":
+							{
+								"description": "Bool, Int, Float, String, Name, Vector, Rotator, Object, Class, Enum.",
+								"type": "string"
+							},
+							"value":
+							{
+								"description": "Current value as text (\"\" when the agent runs no tree).",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeBlackboardEntry",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Stops the agent's behavior tree.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"name": "ai.stop_behavior_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Stops an agent's current move.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"agent":
+					{
+						"description": "The agent or the object it carries. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"agent"
+				],
+				"type": "object"
+			},
+			"name": "ai.stop_movement",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}

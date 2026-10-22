@@ -444,11 +444,12 @@ FRuntimeAgentInfo URuntimeAiToolset::CreateAgent(AActor* Target, const FRuntimeA
 		*Made = P;
 		return P != nullptr;
 	};
-	auto Undo = [Made, bWasAgent](FRuntimeCommandContext&)
+	auto Undo = [WeakT, bWasAgent](FRuntimeCommandContext&)
 	{
-		if (!bWasAgent && Made->IsValid())
+		// The carrier may have been replaced since (remove_agent + undo): remove whichever carries the object now.
+		if (!bWasAgent && WeakT.IsValid())
 		{
-			RuntimeAgents::RemoveAgent(Made->Get());
+			RuntimeAgents::RemoveAgent(RuntimeAgents::FindAgent(WeakT.Get()));
 		}
 		return true;
 	};
