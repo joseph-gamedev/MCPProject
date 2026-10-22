@@ -4513,7 +4513,8 @@ def _pcg_scatter(*, items, spline, exclude=None, ground=None, jitter=None, keep=
             collision}.
         spline (str): Required. Spline node (spline.create_spline). (Reference to Actor: node id (n12), node path,
             actor:Name or object path)
-        exclude (list[dict]): Keep clear of these splines: {spline, clearance}.
+        exclude (list[dict]): Keep clear of these splines: {spline, clearance}: a band of clearance cm either side; a
+            closed spline also keeps its whole inside clear (clearings, fields, plazas).
         ground (bool): Snap to the ground below. Default true.
         jitter (float): Random position offset in cm (-1 = 35% of spacing). Default -1.
         keep (float): Share of points kept, clumped by noise (1 = all). Default 1.

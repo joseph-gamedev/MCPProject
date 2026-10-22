@@ -126,6 +126,25 @@ void FProceduralToolsetSpec::Define()
 		H->CallOk(TEXT("history.undo"));
 		TestEqual(TEXT("deterministic"), Ret(TEXT("pcg.scatter"), Args)->GetNumberField(TEXT("instances")), N);
 		H->CallFails(TEXT("pcg.scatter"), FString::Printf(TEXT(R"J({"spline":"%s","mode":"Inside","items":[{"template":"%s"}]})J"), *Path, *Tpl), ERuntimeToolError::WrongState);
+
+		// A closed exclusion spline keeps its whole inside clear, not only a band along its outline.
+		const FString Clearing = Ref(Ret(TEXT("spline.create_spline"), TEXT(R"J({"name":"clearing","closed":true,"points":[[-2000,-2000,0],[2000,-2000,0],[2000,2000,0],[-2000,2000,0]]})J")), TEXT("spline"));
+		const TSharedPtr<FJsonObject> Cl = Ret(TEXT("pcg.scatter"), FString::Printf(TEXT(R"J({"spline":"%s","mode":"Inside","spacing":600,"exclude":[{"spline":"%s","clearance":100}],"items":[{"template":"%s"}]})J"), *Area, *Clearing, *Tpl));
+		int32 InsideClearing = 0;
+		if (AActor* CA = NodeActor(Ref(Cl, TEXT("scatter"))))
+		{
+			for (UHierarchicalInstancedStaticMeshComponent* Hism : TInlineComponentArray<UHierarchicalInstancedStaticMeshComponent*>(CA))
+			{
+				for (int32 i = 0; i < Hism->GetInstanceCount(); ++i)
+				{
+					FTransform T;
+					Hism->GetInstanceTransform(i, T, true);
+					InsideClearing += FMath::Abs(T.GetLocation().X) < 1800 && FMath::Abs(T.GetLocation().Y) < 1800;
+				}
+			}
+		}
+		TestEqual(TEXT("nothing inside the closed exclusion"), InsideClearing, 0);
+		TestTrue(TEXT("but the rest of the area is planted"), Cl->GetNumberField(TEXT("instances")) >= 10);
 	});
 }
 

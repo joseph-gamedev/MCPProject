@@ -1435,7 +1435,7 @@
 				{
 					"exclude":
 					{
-						"description": "Keep clear of these splines: {spline, clearance}.",
+						"description": "Keep clear of these splines: {spline, clearance}: a band of clearance cm either side; a closed spline also keeps its whole inside clear (clearings, fields, plazas).",
 						"items":
 						{
 							"properties":

@@ -432,7 +432,8 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 	// Filters: clumping noise, exclusion splines, ground.
 	const double Keep = FMath::Clamp(Num(R, TEXT("keep"), 1.0), 0.0, 1.0);
 	const double NoiseScale = FMath::Max(100.0, Num(R, TEXT("noise_scale"), 3000.0));
-	struct FExclude { const USplineComponent* S; double Clearance; };
+	// Closed exclusion splines keep their whole inside clear (a village clearing, a field); open ones a band either side.
+	struct FExclude { const USplineComponent* S; double Clearance; TArray<FVector2D> Poly; };
 	TArray<FExclude> Excludes;
 	const TArray<TSharedPtr<FJsonValue>>* Ex = nullptr;
 	if (R->TryGetArrayField(TEXT("exclude"), Ex))
@@ -442,7 +443,18 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 			const TSharedPtr<FJsonObject> J = V->AsObject();
 			if (const USplineComponent* XS = RuntimeSplines::FindSpline(NodeActor(World, J->GetStringField(TEXT("spline")))))
 			{
-				Excludes.Add({XS, Num(J, TEXT("clearance"), 300.0)});
+				FExclude E{XS, Num(J, TEXT("clearance"), 300.0), {}};
+				if (XS->IsClosedLoop())
+				{
+					const double Len = XS->GetSplineLength();
+					const int32 N = FMath::Clamp(int32(Len / 200.0), 16, 512);
+					for (int32 i = 0; i < N; ++i)
+					{
+						const FVector P = XS->GetLocationAtDistanceAlongSpline(Len * i / N, ESplineCoordinateSpace::World);
+						E.Poly.Add(FVector2D(P.X, P.Y));
+					}
+				}
+				Excludes.Add(MoveTemp(E));
 			}
 		}
 	}
@@ -483,6 +495,24 @@ AActor* RuntimePcg::SpawnScatterFromSource(UWorld* World, const FString& Source,
 			{
 				bOut = true;
 				break;
+			}
+			if (X.Poly.Num() >= 3)  // even-odd point in polygon
+			{
+				bool bInside = false;
+				for (int32 i = 0, j = X.Poly.Num() - 1; i < X.Poly.Num(); j = i++)
+				{
+					const FVector2D& A = X.Poly[i];
+					const FVector2D& B = X.Poly[j];
+					if ((A.Y > L.Y) != (B.Y > L.Y) && L.X < (B.X - A.X) * (L.Y - A.Y) / (B.Y - A.Y) + A.X)
+					{
+						bInside = !bInside;
+					}
+				}
+				if (bInside)
+				{
+					bOut = true;
+					break;
+				}
 			}
 		}
 		if (bOut)

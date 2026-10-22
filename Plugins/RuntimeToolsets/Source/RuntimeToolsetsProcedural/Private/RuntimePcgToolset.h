@@ -573,7 +573,7 @@ public:
 	 * @param MinDistance - Minimum gap between objects in cm (-1 = 60% of spacing).
 	 * @param Keep - Share of points kept, clumped by noise (1 = all).
 	 * @param NoiseScale - Clump size for keep, in cm.
-	 * @param Exclude - Keep clear of these splines: {spline, clearance}.
+	 * @param Exclude - Keep clear of these splines: {spline, clearance}: a band of clearance cm either side; a closed spline also keeps its whole inside clear (clearings, fields, plazas).
 	 * @param bGround - Snap to the ground below.
 	 * @param Seed - Random seed.
 	 * @param Name - Node name.
