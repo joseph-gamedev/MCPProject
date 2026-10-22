@@ -1,0 +1,813 @@
+{
+	"description": "StateTree at runtime: list and inspect compiled StateTree assets, run them on any actor (a StateTreeComponent is added\nwhen needed), send events and read the active states. Epic's StateTree toolset only inspects editor data; this one\nreads the cooked runtime data (state names, tasks, conditions, transitions and events survive cooking; editor-only\ndetails such as descriptions, colors, comments and property bindings do not).\n\nWorkflow:\n1. statetree.list_state_trees, then statetree.describe_state_tree to learn the states and the events it listens for.\n2. statetree.run_state_tree on an actor (trees using StateTreeComponentSchema).\n3. statetree.send_event with the transition event tags; statetree.get_active_states to see where it is.\n4. statetree.stop_state_tree / statetree.restart_state_tree; undo of run_state_tree removes the added component.\nStateTree assets cannot be authored at runtime (compilation is editor-only): build them in the editor.",
+	"name": "statetree",
+	"tools": [
+		{
+			"description": "Describes a compiled StateTree from its runtime data: schema, global evaluators and tasks, and every state with its tasks, enter conditions and transitions (trigger, event tag, target), plus the event tags it listens for.\nReturns: The structure. Fails if the asset is not a StateTree.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"asset":
+					{
+						"description": "StateTree asset path, e.g. \"/Game/AI/ST_Guard.ST_Guard\". (Reference to StateTree: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"asset"
+				],
+				"type": "object"
+			},
+			"name": "statetree.describe_state_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The structure. Fails if the asset is not a StateTree.",
+						"properties":
+						{
+							"evaluators":
+							{
+								"description": "Global evaluators.",
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"description": "Node name given in the editor (may be empty).",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Node struct type, e.g. \"StateTreeDelayTask\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeStateTreeNode",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"events":
+							{
+								"description": "Event tags any transition or state listens for, sorted.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"global_tasks":
+							{
+								"description": "Global tasks.",
+								"items":
+								{
+									"properties":
+									{
+										"name":
+										{
+											"description": "Node name given in the editor (may be empty).",
+											"type": "string"
+										},
+										"type":
+										{
+											"description": "Node struct type, e.g. \"StateTreeDelayTask\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeStateTreeNode",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"path":
+							{
+								"description": "Asset path.",
+								"type": "string"
+							},
+							"ready_to_run":
+							{
+								"description": "True if the asset is compiled and linked (it can run).",
+								"type": "boolean"
+							},
+							"schema":
+							{
+								"description": "Schema class, e.g. \"StateTreeComponentSchema\" (statetree.run_state_tree needs this one or a child).",
+								"type": "string"
+							},
+							"states":
+							{
+								"description": "States in tree order (parents before children).",
+								"items":
+								{
+									"properties":
+									{
+										"enter_conditions":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"name":
+													{
+														"description": "Node name given in the editor (may be empty).",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Node struct type, e.g. \"StateTreeDelayTask\".",
+														"type": "string"
+													}
+												},
+												"title": "RuntimeStateTreeNode",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"linked_asset":
+										{
+											"description": "Linked StateTree asset path for LinkedAsset states.",
+											"type": "string"
+										},
+										"name":
+										{
+											"description": "State name.",
+											"type": "string"
+										},
+										"path":
+										{
+											"description": "Path from the root, e.g. \"Root/Combat/Attack\" (names joined by /).",
+											"type": "string"
+										},
+										"required_event":
+										{
+											"description": "Event tag required to enter the state (may be empty).",
+											"type": "string"
+										},
+										"selection":
+										{
+											"description": "How children are selected, e.g. TrySelectChildrenInOrder.",
+											"type": "string"
+										},
+										"tag":
+										{
+											"description": "State gameplay tag (may be empty).",
+											"type": "string"
+										},
+										"tasks":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"name":
+													{
+														"description": "Node name given in the editor (may be empty).",
+														"type": "string"
+													},
+													"type":
+													{
+														"description": "Node struct type, e.g. \"StateTreeDelayTask\".",
+														"type": "string"
+													}
+												},
+												"title": "RuntimeStateTreeNode",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"transitions":
+										{
+											"items":
+											{
+												"properties":
+												{
+													"conditions":
+													{
+														"description": "Conditions that must pass.",
+														"items":
+														{
+															"properties":
+															{
+																"name":
+																{
+																	"description": "Node name given in the editor (may be empty).",
+																	"type": "string"
+																},
+																"type":
+																{
+																	"description": "Node struct type, e.g. \"StateTreeDelayTask\".",
+																	"type": "string"
+																}
+															},
+															"title": "RuntimeStateTreeNode",
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"delay":
+													{
+														"description": "Delay in seconds before it fires (0 = immediate).",
+														"type": "number"
+													},
+													"enabled":
+													{
+														"description": "False if disabled in the asset.",
+														"type": "boolean"
+													},
+													"event_tag":
+													{
+														"description": "Event tag that triggers it (OnEvent), empty otherwise. Send it with statetree.send_event.",
+														"type": "string"
+													},
+													"payload_type":
+													{
+														"description": "Payload struct the event must carry (empty = none).",
+														"type": "string"
+													},
+													"priority":
+													{
+														"description": "Low, Normal, Medium, High or Critical.",
+														"type": "string"
+													},
+													"target":
+													{
+														"description": "Target state path, or Succeeded / Failed / Stopped (tree completion), or \"\" for none.",
+														"type": "string"
+													},
+													"trigger":
+													{
+														"description": "When it is tried: OnStateCompleted, OnStateSucceeded, OnStateFailed, OnTick, OnEvent or OnDelegate.",
+														"type": "string"
+													}
+												},
+												"title": "RuntimeStateTreeTransition",
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"type":
+										{
+											"description": "State, Group, Linked, LinkedAsset or Subtree.",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeStateTreeState",
+									"type": "object"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeStateTreeDescription",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the StateTree execution state on an actor: run status and active states.\nReturns: Status, active state names (root to leaf) and paths. Fails if the actor has no StateTreeComponent.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with a StateTreeComponent, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "statetree.get_active_states",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Status, active state names (root to leaf) and paths. Fails if the actor has no StateTreeComponent.",
+						"properties":
+						{
+							"active_paths":
+							{
+								"description": "Active state paths per frame, e.g. [\"Root/Patrol/MoveTo\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"active_states":
+							{
+								"description": "Active state names, root first, leaf last (linked trees add their states).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"added_component":
+							{
+								"description": "True if a StateTree component was added by this call (run_state_tree only).",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							},
+							"paused":
+							{
+								"description": "True if paused.",
+								"type": "boolean"
+							},
+							"running":
+							{
+								"description": "True while the logic runs.",
+								"type": "boolean"
+							},
+							"status":
+							{
+								"description": "Running, Stopped, Succeeded, Failed or Unset.",
+								"type": "string"
+							},
+							"tree":
+							{
+								"description": "StateTree asset path running on the actor.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeStateTreeStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the StateTree assets in the project (asset registry; works in packaged builds).\nReturns: Assets sorted by path.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"default": "",
+						"description": "Optional case-insensitive substring of the path, e.g. \"guard\".",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "statetree.list_state_trees",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Assets sorted by path.",
+						"items":
+						{
+							"properties":
+							{
+								"name":
+								{
+									"description": "Asset name, e.g. \"ST_Guard\".",
+									"type": "string"
+								},
+								"path":
+								{
+									"description": "Object path, e.g. \"/Game/AI/ST_Guard.ST_Guard\" (pass to describe_state_tree or run_state_tree).",
+									"type": "string"
+								}
+							},
+							"title": "RuntimeStateTreeAsset",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Restarts the StateTree on an actor from its root (starts it if stopped).\nReturns: Execution state afterwards. Fails if the actor has no StateTreeComponent or no tree.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with a StateTreeComponent, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "statetree.restart_state_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Execution state afterwards. Fails if the actor has no StateTreeComponent or no tree.",
+						"properties":
+						{
+							"active_paths":
+							{
+								"description": "Active state paths per frame, e.g. [\"Root/Patrol/MoveTo\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"active_states":
+							{
+								"description": "Active state names, root first, leaf last (linked trees add their states).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"added_component":
+							{
+								"description": "True if a StateTree component was added by this call (run_state_tree only).",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							},
+							"paused":
+							{
+								"description": "True if paused.",
+								"type": "boolean"
+							},
+							"running":
+							{
+								"description": "True while the logic runs.",
+								"type": "boolean"
+							},
+							"status":
+							{
+								"description": "Running, Stopped, Succeeded, Failed or Unset.",
+								"type": "string"
+							},
+							"tree":
+							{
+								"description": "StateTree asset path running on the actor.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeStateTreeStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Runs a StateTree on an actor: adds a StateTreeComponent if the actor has none, sets the tree and starts the logic. Undoable (stops it and removes the added component, or restores the previous tree).\nReturns: Execution state after starting (status, active states). Fails if the tree is not compiled, uses another schema, or does not start (missing context data).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"asset":
+					{
+						"description": "StateTree asset path, e.g. \"/Game/AI/ST_Guard.ST_Guard\". Its schema must be StateTreeComponentSchema (or a child). (Reference to StateTree: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "The actor, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"asset"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "statetree.run_state_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Execution state after starting (status, active states). Fails if the tree is not compiled, uses another schema, or does not start (missing context data).",
+						"properties":
+						{
+							"active_paths":
+							{
+								"description": "Active state paths per frame, e.g. [\"Root/Patrol/MoveTo\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"active_states":
+							{
+								"description": "Active state names, root first, leaf last (linked trees add their states).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"added_component":
+							{
+								"description": "True if a StateTree component was added by this call (run_state_tree only).",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							},
+							"paused":
+							{
+								"description": "True if paused.",
+								"type": "boolean"
+							},
+							"running":
+							{
+								"description": "True while the logic runs.",
+								"type": "boolean"
+							},
+							"status":
+							{
+								"description": "Running, Stopped, Succeeded, Failed or Unset.",
+								"type": "string"
+							},
+							"tree":
+							{
+								"description": "StateTree asset path running on the actor.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeStateTreeStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sends an event to the StateTree running on an actor. Transitions listening for the tag fire on the next tree update.\nReturns: Execution state after sending. Fails if the tag is unknown (close matches), the tree is not running, or the payload does not fit.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"origin":
+					{
+						"default": "",
+						"description": "Optional name of the sender.",
+						"type": "string"
+					},
+					"payload":
+					{
+						"description": "Optional payload fields as JSON, converted to the payload struct the tree's transitions expect for this tag, e.g. {\"location\": [100, 0, 0]}. (Any JSON value)"
+					},
+					"tag":
+					{
+						"description": "Event gameplay tag, e.g. \"AI.Event.Alert\" (statetree.describe_state_tree lists the events a tree uses).",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Actor running a StateTree, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"tag"
+				],
+				"type": "object"
+			},
+			"name": "statetree.send_event",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Execution state after sending. Fails if the tag is unknown (close matches), the tree is not running, or the payload does not fit.",
+						"properties":
+						{
+							"active_paths":
+							{
+								"description": "Active state paths per frame, e.g. [\"Root/Patrol/MoveTo\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"active_states":
+							{
+								"description": "Active state names, root first, leaf last (linked trees add their states).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"added_component":
+							{
+								"description": "True if a StateTree component was added by this call (run_state_tree only).",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							},
+							"paused":
+							{
+								"description": "True if paused.",
+								"type": "boolean"
+							},
+							"running":
+							{
+								"description": "True while the logic runs.",
+								"type": "boolean"
+							},
+							"status":
+							{
+								"description": "Running, Stopped, Succeeded, Failed or Unset.",
+								"type": "string"
+							},
+							"tree":
+							{
+								"description": "StateTree asset path running on the actor.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeStateTreeStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Stops the StateTree running on an actor.\nReturns: Execution state afterwards. Fails if the actor has no StateTreeComponent.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with a StateTreeComponent, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "statetree.stop_state_tree",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Execution state afterwards. Fails if the actor has no StateTreeComponent.",
+						"properties":
+						{
+							"active_paths":
+							{
+								"description": "Active state paths per frame, e.g. [\"Root/Patrol/MoveTo\"].",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"active_states":
+							{
+								"description": "Active state names, root first, leaf last (linked trees add their states).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"added_component":
+							{
+								"description": "True if a StateTree component was added by this call (run_state_tree only).",
+								"type": "boolean"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							},
+							"paused":
+							{
+								"description": "True if paused.",
+								"type": "boolean"
+							},
+							"running":
+							{
+								"description": "True while the logic runs.",
+								"type": "boolean"
+							},
+							"status":
+							{
+								"description": "Running, Stopped, Succeeded, Failed or Unset.",
+								"type": "string"
+							},
+							"tree":
+							{
+								"description": "StateTree asset path running on the actor.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeStateTreeStatus",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}

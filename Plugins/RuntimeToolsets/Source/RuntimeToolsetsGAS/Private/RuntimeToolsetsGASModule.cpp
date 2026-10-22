@@ -1,3 +1,4 @@
+#include "RuntimeGasToolset.h"
 #include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
@@ -12,7 +13,7 @@ public:
 	virtual void StartupModule() override
 	{
 		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
-		// Registered = {RuntimeToolReflection::RegisterToolsetClass(U...::StaticClass())};
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeGasToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override
@@ -25,6 +26,7 @@ public:
 			}
 		}
 		Registered.Reset();
+		RuntimeGas::ResetRegistry();
 	}
 
 private:

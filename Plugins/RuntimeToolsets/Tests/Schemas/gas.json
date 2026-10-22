@@ -1,0 +1,1782 @@
+{
+	"description": "Gameplay Ability System at runtime: inspect and drive attributes, gameplay effects, abilities, gameplay events,\nloose tags and cues on any actor, including builder objects with no ability system (Epic GASToolsets inspection,\nplus runtime drivers).\n\nWorkflow:\n1. gas.add_ability_system on the actor (adds an AbilitySystemComponent and the generic attribute set: Health,\n   MaxHealth, Shield, Stamina, MaxStamina, Mana, MaxMana, Speed, Damage). Actors that already own an ability system\n   (project characters) work directly.\n2. gas.define_effect for each buff/debuff/damage (no assets needed), then gas.apply_effect / gas.remove_effect.\n3. Optional abilities: gas.give_ability (a project ability class, or effect = a defined effect for the built-in\n   effect ability), then gas.try_activate_ability or gas.send_gameplay_event (trigger_event).\n4. Inspect with gas.get_attribute_values, gas.get_active_effects, gas.get_active_tags, gas.get_granted_abilities.\nTags must exist in the gameplay tag table; unknown tags fail with close matches.",
+	"name": "gas",
+	"tools": [
+		{
+			"description": "Gives an actor an ability system: adds an AbilitySystemComponent (unless it already has one), initializes its actor info and adds the generic attribute set (Health, MaxHealth, Shield, Stamina, MaxStamina, Mana, MaxMana, Speed, Damage) with initial values. Works on builder objects and any other actor. Undoable. Damage is a meta-attribute: an instant or periodic effect that adds to it subtracts from Shield first, then Health. While Health is 0 the actor has the tag Gas.State.Dead.\nReturns: The actor (id, name), whether a component was added, and the attribute values. Fails if the actor already has the generic attribute set, or on an unknown attribute name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"attributes":
+					{
+						"additionalProperties":
+						{
+							"type": "number"
+						},
+						"description": "Initial values overriding the defaults (Health 100, MaxHealth 100, Shield 0, Stamina 100, MaxStamina 100, Mana 100, MaxMana 100, Speed 600), e.g. {\"Health\": 250, \"MaxHealth\": 250, \"Shield\": 50}. A Health above MaxHealth raises MaxHealth too.",
+						"type": "object"
+					},
+					"target":
+					{
+						"description": "The actor, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.add_ability_system",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actor (id, name), whether a component was added, and the attribute values. Fails if the actor already has the generic attribute set, or on an unknown attribute name.",
+						"properties":
+						{
+							"added_component":
+							{
+								"description": "True if a new AbilitySystemComponent was added (false: the actor already had one).",
+								"type": "boolean"
+							},
+							"attributes":
+							{
+								"description": "Attribute values after initialization, sorted by full name.",
+								"items":
+								{
+									"properties":
+									{
+										"attribute_name":
+										{
+											"description": "Short attribute name, e.g. \"Health\".",
+											"type": "string"
+										},
+										"base_value":
+										{
+											"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+											"type": "number"
+										},
+										"current_value":
+										{
+											"description": "Current value after all active modifiers.",
+											"type": "number"
+										},
+										"full_name":
+										{
+											"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+											"type": "string"
+										},
+										"set_class_name":
+										{
+											"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasAttributeValue",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"id":
+							{
+								"description": "The actor's node id (or actor:Name).",
+								"type": "string"
+							},
+							"name":
+							{
+								"description": "Actor name.",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeGasSystemInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Adds loose gameplay tags to the actor's ability system (states such as stunned or on fire that no effect owns). Undoable.\nReturns: The owned tags afterwards, sorted. Fails on an unknown tag (with close matches).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"tags":
+					{
+						"description": "Existing tags, e.g. [\"Gas.State.Dead\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"tags"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.add_loose_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The owned tags afterwards, sorted. Fails on an unknown tag (with close matches).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Applies a gameplay effect to the actor's ability system. Undoable (removes it again, or restores the base values an instant effect changed).\nReturns: Whether it applied, the active handle (-1 for instant), and attributes and tags afterwards. Fails on an unknown effect (lists defined effects) or a missing SetByCaller magnitude.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"effect":
+					{
+						"description": "A gas.define_effect name (e.g. \"Poison\") or a GameplayEffect class path (e.g. \"/Game/GE/GE_Burn.GE_Burn_C\").",
+						"type": "string"
+					},
+					"instigator":
+					{
+						"description": "Optional actor that caused it (shown in the effect context; drives aggregate_by_source stacking). (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"level":
+					{
+						"default": 1,
+						"description": "Effect level.",
+						"type": "number"
+					},
+					"set_by_caller":
+					{
+						"additionalProperties":
+						{
+							"type": "number"
+						},
+						"description": "Magnitudes for SetByCaller modifiers, e.g. {\"Gas.SetByCaller.Magnitude\": 25}.",
+						"type": "object"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"effect"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.apply_effect",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether it applied, the active handle (-1 for instant), and attributes and tags afterwards. Fails on an unknown effect (lists defined effects) or a missing SetByCaller magnitude.",
+						"properties":
+						{
+							"applied":
+							{
+								"description": "True if the effect was applied (false: blocked by tag requirements or immunity).",
+								"type": "boolean"
+							},
+							"attributes":
+							{
+								"description": "Attribute values after the application, sorted by full name.",
+								"items":
+								{
+									"properties":
+									{
+										"attribute_name":
+										{
+											"description": "Short attribute name, e.g. \"Health\".",
+											"type": "string"
+										},
+										"base_value":
+										{
+											"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+											"type": "number"
+										},
+										"current_value":
+										{
+											"description": "Current value after all active modifiers.",
+											"type": "number"
+										},
+										"full_name":
+										{
+											"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+											"type": "string"
+										},
+										"set_class_name":
+										{
+											"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasAttributeValue",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"effect":
+							{
+								"description": "Effect name.",
+								"type": "string"
+							},
+							"handle":
+							{
+								"description": "Active handle id for duration/infinite effects (pass to gas.remove_effect); -1 for instant effects.",
+								"type": "integer"
+							},
+							"tags":
+							{
+								"description": "Tags owned after the application, sorted.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeGasApplyResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Cancels active abilities with any of the tags, or all active abilities when tags is empty.\nReturns: Number of abilities that were active and are no longer.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"tags":
+					{
+						"description": "Ability tags, e.g. [\"Ability.Dash\"]; empty = all.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "gas.cancel_abilities",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of abilities that were active and are no longer.",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Defines a gameplay effect at runtime (a transient GameplayEffect; no asset needed), stored by name for gas.apply_effect and gas.give_ability. Typical uses: damage (instant, Damage +N), heal (instant, Health +N), poison (has_duration 5 s, period 1, Damage +4), speed buff (has_duration 10 s, Speed multiply 1.5, granted tag), stun (has_duration 2 s, granted tag State.Stunned).\nReturns: The stored definition. Fails on unknown attributes or tags (with candidates), an existing name without replace, or a has_duration effect without a positive duration.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"application_required_tags":
+					{
+						"description": "Tags the target must own for the effect to apply.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"cues":
+					{
+						"description": "Gameplay cue tags to trigger (GameplayCue.*).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"duration":
+					{
+						"default": 0,
+						"description": "Seconds, for has_duration (e.g. 5).",
+						"type": "number"
+					},
+					"duration_policy":
+					{
+						"description": "instant, has_duration or infinite.",
+						"enum": [
+							"Instant",
+							"HasDuration",
+							"Infinite"
+						],
+						"type": "string"
+					},
+					"granted_tags":
+					{
+						"description": "Tags the target owns while the effect is active (duration/infinite only), e.g. [\"Gas.State.Dead\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"modifiers":
+					{
+						"description": "Attribute changes, e.g. [{\"attribute\":\"Damage\",\"op\":\"add\",\"magnitude\":4}] or [{\"attribute\":\"Damage\",\"set_by_caller\":\"Gas.SetByCaller.Magnitude\"}].",
+						"items":
+						{
+							"properties":
+							{
+								"attribute":
+								{
+									"description": "Attribute name, e.g. \"Health\", \"Damage\" or \"MySet.Armor\".",
+									"type": "string"
+								},
+								"magnitude":
+								{
+									"description": "Fixed magnitude (scaled by nothing; ignored when set_by_caller is given).",
+									"type": "number"
+								},
+								"op":
+								{
+									"description": "add (default), multiply, divide, override or add_final.",
+									"enum": [
+										"Add",
+										"Multiply",
+										"Divide",
+										"Override",
+										"AddFinal"
+									],
+									"type": "string"
+								},
+								"set_by_caller":
+								{
+									"description": "Optional SetByCaller tag: the magnitude is supplied at apply time (gas.apply_effect set_by_caller, or the event magnitude via Gas.SetByCaller.Magnitude).",
+									"type": "string"
+								}
+							},
+							"title": "RuntimeGasModifier",
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Effect name, e.g. \"Poison\".",
+						"type": "string"
+					},
+					"period":
+					{
+						"default": 0,
+						"description": "Seconds between executions for periodic effects (0 = not periodic), e.g. 1.",
+						"type": "number"
+					},
+					"replace":
+					{
+						"default": false,
+						"description": "Replace an existing definition with the same name (effects already active keep the old one).",
+						"type": "boolean"
+					},
+					"stack_limit":
+					{
+						"default": 0,
+						"description": "Maximum stacks when stacking (0 = unlimited).",
+						"type": "integer"
+					},
+					"stacking":
+					{
+						"default": "None",
+						"description": "none (each application separate), aggregate_by_source or aggregate_by_target.",
+						"enum": [
+							"None",
+							"AggregateBySource",
+							"AggregateByTarget"
+						],
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"duration_policy"
+				],
+				"type": "object"
+			},
+			"name": "gas.define_effect",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The stored definition. Fails on unknown attributes or tags (with candidates), an existing name without replace, or a has_duration effect without a positive duration.",
+						"properties":
+						{
+							"application_required_tags":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"cues":
+							{
+								"description": "Gameplay cue tags triggered by the effect.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"duration":
+							{
+								"description": "Seconds (HasDuration only).",
+								"type": "number"
+							},
+							"duration_policy":
+							{
+								"enum": [
+									"Instant",
+									"HasDuration",
+									"Infinite"
+								],
+								"type": "string"
+							},
+							"granted_tags":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"modifiers":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"attribute":
+										{
+											"description": "Attribute name, e.g. \"Health\", \"Damage\" or \"MySet.Armor\".",
+											"type": "string"
+										},
+										"magnitude":
+										{
+											"description": "Fixed magnitude (scaled by nothing; ignored when set_by_caller is given).",
+											"type": "number"
+										},
+										"op":
+										{
+											"description": "add (default), multiply, divide, override or add_final.",
+											"enum": [
+												"Add",
+												"Multiply",
+												"Divide",
+												"Override",
+												"AddFinal"
+											],
+											"type": "string"
+										},
+										"set_by_caller":
+										{
+											"description": "Optional SetByCaller tag: the magnitude is supplied at apply time (gas.apply_effect set_by_caller, or the event magnitude via Gas.SetByCaller.Magnitude).",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasModifier",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"name":
+							{
+								"description": "Effect name used by gas.apply_effect and gas.give_ability.",
+								"type": "string"
+							},
+							"period":
+							{
+								"description": "Seconds between executions (0 = not periodic).",
+								"type": "number"
+							},
+							"stack_limit":
+							{
+								"description": "Maximum stacks (0 = unlimited).",
+								"type": "integer"
+							},
+							"stacking":
+							{
+								"enum": [
+									"None",
+									"AggregateBySource",
+									"AggregateByTarget"
+								],
+								"type": "string"
+							}
+						},
+						"title": "RuntimeGasEffectInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Executes a gameplay cue on the actor, non-replicated (Epic: ExecuteCueOnSelectedActor, on any actor). Needs a cue notify for the tag (see gas.list_cues) or an actor that handles cues itself.\nReturns: True when dispatched. Fails if the tag is unknown or not under GameplayCue, or nothing handles it.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"cue_tag":
+					{
+						"description": "Cue tag, e.g. \"GameplayCue.Hit.Spark\".",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "Optional world location for the cue (default: the actor's location). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"normalized_magnitude":
+					{
+						"default": 1,
+						"description": "0..1 magnitude passed to the cue.",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "The actor, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"cue_tag"
+				],
+				"type": "object"
+			},
+			"name": "gas.execute_cue",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "True when dispatched. Fails if the tag is unknown or not under GameplayCue, or nothing handles it.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the attribute set classes available (native and loaded Blueprint), with their attributes. Use it to find attribute names for gas.define_effect modifiers.\nReturns: Attribute set classes sorted by class name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "gas.find_attribute_set_classes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Attribute set classes sorted by class name.",
+						"items":
+						{
+							"properties":
+							{
+								"attributes":
+								{
+									"description": "Attributes defined on the set.",
+									"items":
+									{
+										"properties":
+										{
+											"attribute_name":
+											{
+												"description": "Short attribute name, e.g. \"Health\".",
+												"type": "string"
+											},
+											"full_name":
+											{
+												"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+												"type": "string"
+											},
+											"set_class_name":
+											{
+												"description": "Attribute set class name.",
+												"type": "string"
+											}
+										},
+										"title": "RuntimeGasAttributeInfo",
+										"type": "object"
+									},
+									"type": "array"
+								},
+								"class_name":
+								{
+									"description": "Class name, e.g. \"RuntimeGenericAttributeSet\".",
+									"type": "string"
+								},
+								"class_path":
+								{
+									"description": "Object path of the class (Blueprint classes end in _C).",
+									"type": "string"
+								}
+							},
+							"title": "RuntimeGasAttributeSetClass",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the gameplay effects active on the actor's ability system.\nReturns: Active effects (name, handle, stacks, total/remaining duration, period, granted tags) sorted by effect name. Fails if the actor has no ability system.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "gas.get_active_effects",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Active effects (name, handle, stacks, total/remaining duration, period, granted tags) sorted by effect name. Fails if the actor has no ability system.",
+						"items":
+						{
+							"properties":
+							{
+								"effect_name":
+								{
+									"description": "Effect name: the gas.define_effect name, or the GameplayEffect class name (e.g. \"GE_Burning\").",
+									"type": "string"
+								},
+								"granted_tags":
+								{
+									"description": "Tags granted to the owner while the effect is active.",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"handle":
+								{
+									"description": "Active handle id; pass it to gas.remove_effect.",
+									"type": "integer"
+								},
+								"period":
+								{
+									"description": "Period in seconds (0 = not periodic).",
+									"type": "number"
+								},
+								"remaining_duration":
+								{
+									"description": "Remaining duration in seconds; -1 = infinite.",
+									"type": "number"
+								},
+								"stack_count":
+								{
+									"description": "Current stack count (1 for non-stacking effects).",
+									"type": "integer"
+								},
+								"total_duration":
+								{
+									"description": "Total duration in seconds; -1 = infinite.",
+									"type": "number"
+								}
+							},
+							"title": "RuntimeGasActiveEffect",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the gameplay tags owned by the actor's ability system (loose tags, effect-granted tags, ...).\nReturns: Sorted tag names. Fails if the actor has no ability system.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "gas.get_active_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Sorted tag names. Fails if the actor has no ability system.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the base and current values of every gameplay attribute on the actor's ability system.\nReturns: Attribute values sorted by full name. Fails if the actor has no ability system (see gas.add_ability_system).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\" or \"actor:BP_Hero_C_0\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "gas.get_attribute_values",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Attribute values sorted by full name. Fails if the actor has no ability system (see gas.add_ability_system).",
+						"items":
+						{
+							"properties":
+							{
+								"attribute_name":
+								{
+									"description": "Short attribute name, e.g. \"Health\".",
+									"type": "string"
+								},
+								"base_value":
+								{
+									"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+									"type": "number"
+								},
+								"current_value":
+								{
+									"description": "Current value after all active modifiers.",
+									"type": "number"
+								},
+								"full_name":
+								{
+									"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+									"type": "string"
+								},
+								"set_class_name":
+								{
+									"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+									"type": "string"
+								}
+							},
+							"title": "RuntimeGasAttributeValue",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Returns the abilities granted to the actor's ability system.\nReturns: Granted abilities (name, level, active, tags, effect, trigger events) sorted by ability name. Fails if the actor has no ability system.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "gas.get_granted_abilities",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Granted abilities (name, level, active, tags, effect, trigger events) sorted by ability name. Fails if the actor has no ability system.",
+						"items":
+						{
+							"properties":
+							{
+								"ability_name":
+								{
+									"description": "Ability class name, e.g. \"GA_Sprint\" or \"RuntimeGasEffectAbility\".",
+									"type": "string"
+								},
+								"effect":
+								{
+									"description": "Effect the built-in effect ability applies (empty for other abilities).",
+									"type": "string"
+								},
+								"is_active":
+								{
+									"description": "True while at least one instance is executing.",
+									"type": "boolean"
+								},
+								"level":
+								{
+									"description": "Level the ability was granted at.",
+									"type": "integer"
+								},
+								"tags":
+								{
+									"description": "Ability tags (class asset tags plus tags given by gas.give_ability), usable with gas.try_activate_ability and gas.cancel_abilities.",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"trigger_events":
+								{
+									"description": "Gameplay event tags that activate the ability (class triggers and gas.give_ability trigger_event).",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								}
+							},
+							"title": "RuntimeGasGrantedAbility",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Grants an ability to the actor's ability system. Either a project ability class, or the built-in effect ability: leave ability_class empty and pass effect, and the ability applies that effect to its owner when activated. Undoable.\nReturns: Granted ability name, tags and trigger events. Fails on an unknown class (lists candidates), effect or tag.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"ability_class":
+					{
+						"default": "",
+						"description": "Ability class name or path from gas.list_ability_classes, e.g. \"GA_Dash\"; empty for the built-in effect ability.",
+						"type": "string"
+					},
+					"ability_tags":
+					{
+						"description": "Extra tags on this grant, usable with gas.try_activate_ability and gas.cancel_abilities.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"effect":
+					{
+						"default": "",
+						"description": "For the built-in ability: a gas.define_effect name, e.g. \"Hit\".",
+						"type": "string"
+					},
+					"level":
+					{
+						"default": 1,
+						"description": "Ability level.",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"trigger_event":
+					{
+						"default": "",
+						"description": "Optional gameplay event tag that activates the ability (gas.send_gameplay_event), e.g. \"Gas.Event.Hit\". The event magnitude reaches the effect as SetByCaller Gas.SetByCaller.Magnitude.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.give_ability",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Granted ability name, tags and trigger events. Fails on an unknown class (lists candidates), effect or tag.",
+						"properties":
+						{
+							"ability_name":
+							{
+								"description": "Granted ability class name.",
+								"type": "string"
+							},
+							"tags":
+							{
+								"description": "Ability tags (class and given).",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"trigger_events":
+							{
+								"description": "Event tags that activate it.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeGasGiveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Lists the gameplay ability classes that are loaded or registered (native, Blueprint, packaged).\nReturns: Ability classes (name, path, tags, trigger events) sorted by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"filter":
+					{
+						"default": "",
+						"description": "Optional case-insensitive substring of the name, e.g. \"dash\".",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gas.list_ability_classes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Ability classes (name, path, tags, trigger events) sorted by name.",
+						"items":
+						{
+							"properties":
+							{
+								"name":
+								{
+									"description": "Class name, e.g. \"GA_Dash\" (pass to gas.give_ability).",
+									"type": "string"
+								},
+								"path":
+								{
+									"description": "Class path, e.g. \"/Game/Abilities/GA_Dash.GA_Dash_C\".",
+									"type": "string"
+								},
+								"tags":
+								{
+									"description": "Ability asset tags.",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"trigger_events":
+								{
+									"description": "Gameplay event tags that trigger the ability (from the class).",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								}
+							},
+							"title": "RuntimeGasAbilityClass",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists gameplay cue tags and the notify registered for each (Epic: ListCues + GetCueInfo).\nReturns: Cues sorted by tag.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"parent_tag":
+					{
+						"default": "",
+						"description": "Only cues under this tag, e.g. \"GameplayCue.Character\"; empty = all under GameplayCue.",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gas.list_cues",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Cues sorted by tag.",
+						"items":
+						{
+							"properties":
+							{
+								"notify_path":
+								{
+									"description": "Object path of the GameplayCueNotify handling it (empty when none is registered).",
+									"type": "string"
+								},
+								"tag":
+								{
+									"description": "Cue tag, e.g. \"GameplayCue.Character.Death\".",
+									"type": "string"
+								}
+							},
+							"title": "RuntimeGasCueInfo",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists the effects defined with gas.define_effect.\nReturns: Definitions sorted by name.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "gas.list_effects",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Definitions sorted by name.",
+						"items":
+						{
+							"properties":
+							{
+								"application_required_tags":
+								{
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"cues":
+								{
+									"description": "Gameplay cue tags triggered by the effect.",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"duration":
+								{
+									"description": "Seconds (HasDuration only).",
+									"type": "number"
+								},
+								"duration_policy":
+								{
+									"enum": [
+										"Instant",
+										"HasDuration",
+										"Infinite"
+									],
+									"type": "string"
+								},
+								"granted_tags":
+								{
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"modifiers":
+								{
+									"items":
+									{
+										"properties":
+										{
+											"attribute":
+											{
+												"description": "Attribute name, e.g. \"Health\", \"Damage\" or \"MySet.Armor\".",
+												"type": "string"
+											},
+											"magnitude":
+											{
+												"description": "Fixed magnitude (scaled by nothing; ignored when set_by_caller is given).",
+												"type": "number"
+											},
+											"op":
+											{
+												"description": "add (default), multiply, divide, override or add_final.",
+												"enum": [
+													"Add",
+													"Multiply",
+													"Divide",
+													"Override",
+													"AddFinal"
+												],
+												"type": "string"
+											},
+											"set_by_caller":
+											{
+												"description": "Optional SetByCaller tag: the magnitude is supplied at apply time (gas.apply_effect set_by_caller, or the event magnitude via Gas.SetByCaller.Magnitude).",
+												"type": "string"
+											}
+										},
+										"title": "RuntimeGasModifier",
+										"type": "object"
+									},
+									"type": "array"
+								},
+								"name":
+								{
+									"description": "Effect name used by gas.apply_effect and gas.give_ability.",
+									"type": "string"
+								},
+								"period":
+								{
+									"description": "Seconds between executions (0 = not periodic).",
+									"type": "number"
+								},
+								"stack_limit":
+								{
+									"description": "Maximum stacks (0 = unlimited).",
+									"type": "integer"
+								},
+								"stacking":
+								{
+									"enum": [
+										"None",
+										"AggregateBySource",
+										"AggregateByTarget"
+									],
+									"type": "string"
+								}
+							},
+							"title": "RuntimeGasEffectInfo",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes active gameplay effects from the actor. Undoable (re-applies them with their full duration).\nReturns: Number removed, attributes and tags afterwards. Fails if nothing matches (lists active effects).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"effect":
+					{
+						"description": "Active handle id from gas.apply_effect or gas.get_active_effects (e.g. \"3\"), or an effect name (removes every active instance of it, e.g. \"Poison\").",
+						"type": "string"
+					},
+					"stacks":
+					{
+						"default": -1,
+						"description": "Stacks to remove (-1 = all).",
+						"type": "integer"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"effect"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.remove_effect",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number removed, attributes and tags afterwards. Fails if nothing matches (lists active effects).",
+						"properties":
+						{
+							"attributes":
+							{
+								"description": "Attribute values after the removal, sorted by full name.",
+								"items":
+								{
+									"properties":
+									{
+										"attribute_name":
+										{
+											"description": "Short attribute name, e.g. \"Health\".",
+											"type": "string"
+										},
+										"base_value":
+										{
+											"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+											"type": "number"
+										},
+										"current_value":
+										{
+											"description": "Current value after all active modifiers.",
+											"type": "number"
+										},
+										"full_name":
+										{
+											"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+											"type": "string"
+										},
+										"set_class_name":
+										{
+											"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasAttributeValue",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"removed":
+							{
+								"description": "Number of active effects removed.",
+								"type": "integer"
+							},
+							"tags":
+							{
+								"description": "Tags owned after the removal, sorted.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeGasRemoveResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Removes loose gameplay tags from the actor's ability system (tags granted by effects stay until the effect ends). Undoable.\nReturns: The owned tags afterwards, sorted. Fails on an unknown tag.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"tags":
+					{
+						"description": "Tags to remove, e.g. [\"Gas.State.Dead\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"tags"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.remove_loose_tags",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The owned tags afterwards, sorted. Fails on an unknown tag.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sends a gameplay event to the actor (UAbilitySystemBlueprintLibrary::SendGameplayEventToActor): activates abilities triggered by the event tag (or a parent tag) and notifies listeners.\nReturns: Number of abilities triggered, attributes and tags afterwards. Fails on an unknown tag (with close matches).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"event_tag":
+					{
+						"description": "Event tag, e.g. \"Gas.Event.Hit\".",
+						"type": "string"
+					},
+					"instigator":
+					{
+						"description": "Optional actor that caused the event. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"magnitude":
+					{
+						"default": 0,
+						"description": "Event magnitude, e.g. 25 (the built-in effect ability passes it as SetByCaller Gas.SetByCaller.Magnitude).",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"event_tag"
+				],
+				"type": "object"
+			},
+			"name": "gas.send_gameplay_event",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of abilities triggered, attributes and tags afterwards. Fails on an unknown tag (with close matches).",
+						"properties":
+						{
+							"attributes":
+							{
+								"description": "Attribute values afterwards, sorted by full name.",
+								"items":
+								{
+									"properties":
+									{
+										"attribute_name":
+										{
+											"description": "Short attribute name, e.g. \"Health\".",
+											"type": "string"
+										},
+										"base_value":
+										{
+											"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+											"type": "number"
+										},
+										"current_value":
+										{
+											"description": "Current value after all active modifiers.",
+											"type": "number"
+										},
+										"full_name":
+										{
+											"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+											"type": "string"
+										},
+										"set_class_name":
+										{
+											"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasAttributeValue",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"tags":
+							{
+								"description": "Tags owned afterwards, sorted.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"triggered_abilities":
+							{
+								"description": "Number of abilities the event activated.",
+								"type": "integer"
+							}
+						},
+						"title": "RuntimeGasEventResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets the base value of an attribute (permanent; active modifiers still apply on top). Undoable.\nReturns: The attribute's base and current value afterwards. Fails on an unknown attribute (lists the actor's attributes).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"attribute":
+					{
+						"description": "Attribute name, e.g. \"Health\" or \"RuntimeGenericAttributeSet.MaxMana\".",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"value":
+					{
+						"description": "New base value, e.g. 75. The generic set clamps Health/Stamina/Mana to [0, max].",
+						"type": "number"
+					}
+				},
+				"required": [
+					"target",
+					"attribute",
+					"value"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "gas.set_attribute_base",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The attribute's base and current value afterwards. Fails on an unknown attribute (lists the actor's attributes).",
+						"properties":
+						{
+							"attribute_name":
+							{
+								"description": "Short attribute name, e.g. \"Health\".",
+								"type": "string"
+							},
+							"base_value":
+							{
+								"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+								"type": "number"
+							},
+							"current_value":
+							{
+								"description": "Current value after all active modifiers.",
+								"type": "number"
+							},
+							"full_name":
+							{
+								"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+								"type": "string"
+							},
+							"set_class_name":
+							{
+								"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeGasAttributeValue",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Tries to activate granted abilities, by class name or by tag. Activation runs the ability's own checks (costs, cooldowns, blocked tags); activated false is a normal result, not an error.\nReturns: Whether one activated, which abilities were tried, and attribute values afterwards. Fails if no granted ability matches (lists granted abilities and their tags).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"ability":
+					{
+						"description": "A granted ability class name (e.g. \"GA_Dash\") or an ability tag (e.g. \"Ability.Dash\").",
+						"type": "string"
+					},
+					"target":
+					{
+						"description": "Actor with an ability system, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"ability"
+				],
+				"type": "object"
+			},
+			"name": "gas.try_activate_ability",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Whether one activated, which abilities were tried, and attribute values afterwards. Fails if no granted ability matches (lists granted abilities and their tags).",
+						"properties":
+						{
+							"activated":
+							{
+								"description": "True if at least one ability activated.",
+								"type": "boolean"
+							},
+							"attributes":
+							{
+								"description": "Attribute values afterwards (abilities usually change them), sorted by full name.",
+								"items":
+								{
+									"properties":
+									{
+										"attribute_name":
+										{
+											"description": "Short attribute name, e.g. \"Health\".",
+											"type": "string"
+										},
+										"base_value":
+										{
+											"description": "Permanent base value, unaffected by temporary (duration) modifiers.",
+											"type": "number"
+										},
+										"current_value":
+										{
+											"description": "Current value after all active modifiers.",
+											"type": "number"
+										},
+										"full_name":
+										{
+											"description": "Attribute name with its set class, e.g. \"RuntimeGenericAttributeSet.Health\".",
+											"type": "string"
+										},
+										"set_class_name":
+										{
+											"description": "Attribute set class that owns the attribute, e.g. \"RuntimeGenericAttributeSet\".",
+											"type": "string"
+										}
+									},
+									"title": "RuntimeGasAttributeValue",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"tried":
+							{
+								"description": "Abilities that matched and were tried.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeGasActivateResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}
