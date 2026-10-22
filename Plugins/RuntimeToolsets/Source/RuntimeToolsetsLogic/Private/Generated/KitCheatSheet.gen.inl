@@ -109,7 +109,7 @@ car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark g
 city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
 door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
-facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None)  # One wall with real openings: piers between bays, spandrels under windows, string courses, plinth and cornice.
+facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None)  # One wall with real openings. Recipe knobs (so neighbours differ):
 glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
 lamp_post(x, y, yaw=0)
 plaza(width=2000, depth=2000, seed=None)  # Paved square with a lawn, trees, benches and lamps.
@@ -126,10 +126,10 @@ lose_life(respawn_delay=1.2)  # Actions for 'the player got hit': lives - 1, fee
 patrol(targets, axis=(1, 0, 0), distance=600, speed=150, face=True)  # Simple back-and-forth movers (platforms, simple enemies).
 pickups(targets, points=10, name=None, effect=True)  # Collectibles: touching one hides it and adds points (restored on restart).
 pool(name, template, size=10)
-score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
+score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a )KIT"))
+	+ FString(TEXT(R"KIT(game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
-s)KIT"))
-	+ FString(TEXT(R"KIT(ide_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
+side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
 third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
 topdown_player(at, walk_speed=600, camera_height=1500, camera_back=900, aim_with_mouse=True, body=None, **movement)  # Top-down / twin-stick player: WASD move, faces the mouse (or movement), camera above and behind.
 win(message="YOU WIN!")
@@ -154,5 +154,5 @@ waves(name, template, waves, points=None, around_player=None, interval=1.2, max_
 ### materials
 PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concrete, plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water, grass, sand, asphalt, roof_tile, cobblestone, paving, corrugated, light, white, black, red, green, blue
 PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, plaster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
-city STYLES: brick, plaster, stone, office, glass
+city STYLES: brick, plaster, stone, office, glass, loft, deco, residential, brutalist, painted
 )KIT"));
