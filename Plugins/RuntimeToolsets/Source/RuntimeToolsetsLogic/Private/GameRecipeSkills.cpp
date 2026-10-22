@@ -1,4 +1,5 @@
 #include "GameRecipeSkills.h"
+#include "Generated/KitCheatSheet.gen.inl"
 
 URuntimeArcadeShooterSkill::URuntimeArcadeShooterSkill()
 {
@@ -146,6 +147,10 @@ URuntimeRealisticSceneSkill::URuntimeRealisticSceneSkill()
 Realism comes from many small truths at once. Missing any one of these reads as "CG": wrong scale, flat light,
 pure colours, perfectly sharp edges, perfectly clean surfaces, empty ground, a camera nobody would stand at.
 
+## Specific, not generic
+A named place or thing must be recognisable: list its signature features first (layout, building types, materials,
+roofs, landmarks, street life) and build those; a generic city with a new name is a failure. See skill python_kit.
+
 ## Fastest path: a generator script
 With Python, use the kit shipped with the game (skill python_kit). Its example script kit_examples/city.py already
 follows every rule below (buildings with recessed windows, cornices, rooftop clutter, streets with curbs and props,
@@ -202,44 +207,40 @@ round parts, one assembly per building (not one actor per part), and ops.run_bat
 
 URuntimePythonKitSkill::URuntimePythonKitSkill()
 {
-	Description = TEXT("Apply when a task needs many objects or many steps (levels, cities, games with lots of rules) and you can run Python: "
-		"use the unreal_kit shipped with the game to generate fast, and reuse results as templates.");
+	Description = TEXT("Apply when a task needs many objects or many steps (levels, cities, landmarks, games with lots of rules) and you can run "
+		"Python: use the unreal_kit shipped with the game to generate fast. Includes the full API, so no inspection is needed.");
 	Toolsets = {TEXT("session"), TEXT("ops"), TEXT("build"), TEXT("scene")};
-	Instructions = TEXT(R"SKILL(# unreal_kit: fast generation with Python
+	Instructions = FString(TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
-Why: one script builds hundreds of parts with loops and sends them in a few requests instead of hundreds of calls.
+Why: one short script builds thousands of parts with loops and sends them in a few requests. Time goes into WRITING
+code, so write little: reuse the examples through their hooks and write only what makes this request unique.
 
 ## Use it in place (nothing to download or install)
-session_get_build_info -> scripting.kit (the zip next to the game) and scripting.examples (a folder).
-    import sys; sys.path.insert(0, r"<kit>"); sys.path.insert(0, r"<examples>")
-    import unreal_kit as uk
-It connects to the game on this machine by itself (uk.connect(url="http://127.0.0.1:<port>/mcp") for another port).
-Do not download code and do not print environment variables.
+session_get_build_info -> scripting.kit (zip next to the game) and scripting.examples (folder).
+    import sys; sys.path[:0] = [r"<kit>", r"<examples>"]
+    import unreal_kit as uk, city
+It connects to the game on this machine by itself. Do not download code; do not print environment variables.
+Everything you need is in the cheat sheet below: do not inspect modules or read example files unless you must.
 
-## Generic modules
-uk.tools.<toolset>.<tool>(...)  every tool, with arguments and docs (help(uk.tools.build)); errors raise uk.ToolError
-uk.parts   box, cyl, cone, sphere, gable, part(any shape), extrude, sweep, beam(a, b), transform(parts, offset, yaw),
-           grid(nx, ny, sx, sy, make), ring(n, r, make), PALETTE / M(preset, rgb) physical materials
-uk.place(name, parts, at)  one object (500+ parts split under a group); uk.place_many([(name, parts, at), ...])
-           sends many objects per request; uk.batch([...]) up to 100 tool calls per request
-uk.rules   rule/set_/add/if_/for_/emit/timer/tween/player/damage... as data, define_vars, add_rules, start, errors
-uk.ui      panel/row/column/grid/text/button/bar/repeat, hud, banner, menu, inventory, THEMES, define
-uk.look    mood, style(weathering), eye_level, orbit_view, screenshot, capture_from, review (saves check images)
+## Make it SPECIFIC, never a clone of the example
+1. Before code, write down 5-10 signature features of what was asked (real references, not generic):
+   layout (grid, radial, organic, waterfront), building types and their proportions, materials and colours,
+   roofs and skyline, landmarks, street furniture, vegetation, signage, vehicles, light/mood.
+   New York: long thin blocks on a grid, brownstone rows with stoops, setback art-deco towers with spires, water
+   tanks, yellow cabs, wide avenues. Paris: Haussmann 6-storey cream stone, mansard grey roofs, iron balconies,
+   boulevards with trees, cafe awnings. Tokyo: narrow mixed-height buildings, signs, wires, no front yards.
+2. Encode each feature as a small function or parameter and plug it into the example hooks:
+   city.add_style(...), city.building(style=dict|name, bay, win_w, win_h, setbacks, crown, roof),
+   city.city(block_w, block_d, street_w, make_building=..., make_street=..., extras=...), city_block(lots=...).
+3. Landmarks and anything unique: your own parts with uk.parts (box, cyl, extrude, sweep, beam, grid, ring).
+4. Never deliver the example's defaults unchanged (same style mix, same blocks, same props): that is the clone.
+5. Vary with seeds and ranges so neighbours differ, but keep the place's rules consistent.
 
-## Examples (read, copy, adapt)
-city.py           realistic buildings, facades, windows, streets, props, trees, cars, city blocks, districts
-game_pieces.py    players (side, top-down, third person), score and lives, pickups, hazards, goals, patrols
-combat_presets.py weapons, enemy brains (guard, chaser, turret, coward), health, waves, interactables
-
-## Pattern (speed comes from writing little code)
+## Pattern
 1. scene.list_templates: reuse what exists (scene.place_template).
-2. IMPORT the examples and call or wrap their functions; write only what is different. E.g. a New York look:
-       import city
-       city.city(blocks_x=4, blocks_y=3, towers=0.5, max_floors=12, seed=7)       # dense, many glass towers
-       uk.place("Landmark", my_landmark_parts(), at=[0, 0, 0])                   # only the new piece is your code
-   Do not rewrite a whole generator: a long script costs minutes to write and has more mistakes.
-   Materials: a preset (uk.parts.PRESETS) or a palette name (uk.parts.PALETTE); place_many checks them before building.
-3. uk.look.review(...) or screenshots -> look -> change parameters -> run again.
-4. scene.save_template the finished pieces with clear descriptions.
-)SKILL");
+2. One script: features -> hooks -> uk.place_many / city.city(...). Print counts and ids.
+3. Look: uk.look.review(...) or capture.scene_capture at eye level -> fix -> rerun (clear first).
+4. scene.save_template the finished unique pieces (landmarks, building types) with clear descriptions.
+Materials: a preset (PRESETS) or a palette name (PALETTE); uk.check_parts / place_many reject typos before building.
+)SKILL")) + KitCheatSheet;
 }

@@ -184,7 +184,7 @@ def check_parts(parts, where="parts"):
             raise ToolError("check_parts", {"message": f"{where}[{i}]: unknown shape '{p.get('shape')}'", "hint": ", ".join(sorted(shapes))})
 
 
-def place_many(jobs, group=None, per_request=8):
+def place_many(jobs, group=None, per_request=16):
     """jobs = [(name, parts, location)]: many objects, sent several per request. Returns created node ids.
     Every part is checked first, so a typo fails before anything is built."""
     for name, parts, _ in jobs:

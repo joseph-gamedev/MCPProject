@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Dom/JsonObject.h"
+#include "DynamicMesh/DynamicMesh3.h"
+#include "PhysicsEngine/AggregateGeom.h"
 
 class AActor;
 class UDynamicMesh;
@@ -47,6 +49,21 @@ namespace RuntimePrimitives
 
 	/** Rebuilds mesh, material and collision of an existing builder actor. */
 	bool Rebuild(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError);
+
+	/** A mesh built once (to validate) and reused for the actor, with per-part collision boxes for assemblies. */
+	struct FPrebuilt
+	{
+		UE::Geometry::FDynamicMesh3 Mesh;
+		FKAggregateGeom Simple;
+		bool bHasSimple = false;
+	};
+
+	/** Builds the recipe's mesh without an actor (the build tools validate with it, then spawn from it). */
+	bool BuildPrebuilt(const TSharedRef<FJsonObject>& Recipe, FPrebuilt& Out, FString& OutError);
+
+	/** Spawns a builder actor from an already built mesh: no second build, no source parsing. */
+	AActor* SpawnPrebuilt(UWorld* World, const TSharedRef<const FPrebuilt>& Built, const TSharedRef<FJsonObject>& Recipe, const FTransform& Transform,
+		const FString& Name, FString& OutError);
 
 	/** Source spawner for "prim:{...}" (registered with the core). */
 	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError);

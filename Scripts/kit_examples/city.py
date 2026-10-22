@@ -6,6 +6,14 @@ Read it, copy what you need, change it. Run from the kit folder's parent:
     uk.place("Corner", city.building(1800, 1400, 5, "brick", seed=3))
     city.city(blocks_x=3, blocks_y=2, seed=4)          # about 30 s, 50000 parts
 
+Make it SPECIFIC, not a copy: decide the place's signature features first, then plug them in with small functions:
+    city.add_style("brownstone", wall=[M("sandstone", (110, 72, 56))], trim=["trim_stone"], frame=["frame_dark"])
+    def nyc_building(w, d, rng, tall):
+        if tall: return city.building(w, d, rng.randint(30, 60), "glass", setbacks=[(0.55, 300), (0.8, 550)], crown="spire")
+        return city.building(w, d, rng.randint(4, 6), "brownstone", bay=260, win_h=200, seed=rng.randint(0, 9999))
+    city.city(blocks_x=4, blocks_y=3, block_w=8000, block_d=2400, make_building=nyc_building, extras=my_landmarks)
+Only the hooks are new code; layout, streets, batching and materials are reused.
+
 Shows: real dimensions (storey 3.2 m, door 2.3 m, sill 0.9 m, curb 15 cm), recessed windows with frames, sills and
 lintels, cornices, rooftop clutter, varied colours per building, street furniture, one object per building.
 """
@@ -34,6 +42,12 @@ STYLES = {
 
 
 # ------------------------------------------------------------------ facade details (facade plane y = 0, outside -Y)
+
+def add_style(name, wall, trim, frame, roof=("roof_flat",), door=("door_wood",)):
+    """Registers a facade style: lists of PALETTE names or M(...) dicts, e.g.
+    add_style("brownstone", wall=[M("sandstone", (120, 82, 62))], trim=["trim_stone"], frame=["frame_dark"])."""
+    STYLES[name] = {"wall": list(wall), "trim": list(trim), "frame": list(frame), "roof": list(roof), "door": list(door)}
+
 
 def window(x, z, w=120, h=160, recess=18, frame="frame_white", sill="trim_stone", lintel="trim_stone", glass="glass", wall_t=30, mullion=True):
     """Window opening centred at x with its sill at height z: recessed glass, frame, stone sill and lintel."""
@@ -118,27 +132,30 @@ def facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red"
 
 # ------------------------------------------------------------------ buildings
 
-def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None):
+def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None,
+             win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None):
     """A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or hip),
-    downspouts. style: brick | plaster | stone | office | glass. Returns parts."""
+    downspouts. style: a STYLES name (brick | plaster | stone | office | glass | your add_style) or a style dict.
+    Proportions: win_w / win_h (window size cm), bay (window spacing cm), wall_t (wall thickness).
+    Glass towers also take setbacks [(height fraction, inset cm), ...] and crown "spire" | "flat". Returns parts."""
     rng = random.Random(seed)
-    S = STYLES[style]
+    S = style if isinstance(style, dict) else STYLES[style]
     wall = rng.choice(S["wall"])
     trim = rng.choice(S["trim"])
     frame = rng.choice(S["frame"])
     shop = (rng.random() < 0.5) if shop is None else shop
     ground_h = ground_h or (420 if shop else 340)
     height = ground_h + (floors - 1) * floor_h
-    t = 30
+    t = wall_t
     if style == "glass":
-        return glass_tower(width, depth, floors, floor_h, rng)
+        return glass_tower(width, depth, floors, floor_h, rng, setbacks=setbacks, crown=crown)
     P = []
     sides = [(width, (0, -depth / 2, 0), 0), (depth, (width / 2, 0, 0), 90), (width, (0, depth / 2, 0), 180), (depth, (-width / 2, 0, 0), 270)]
     for k, (w, off, yaw) in enumerate(sides):
         front = k == 0
-        bays = max(1, int(w / 340))
+        bays = max(1, int(w / bay))
         f = facade(w - (0 if k % 2 == 0 else 2 * t), floors, floor_h, ground_h, bays, wall, trim, frame,
-                   door_bay=(bays // 2 if front and not shop else None), shop=shop and front, wall_t=t, rng=rng)
+                   door_bay=(bays // 2 if front and not shop else None), shop=shop and front, win_w=win_w, win_h=win_h, wall_t=t, rng=rng)
         P += transform(f, off, yaw)
     P.append(box([width - 2 * t, depth - 2 * t, 20], [0, 0, height - 20], m="roof_flat"))                     # roof slab
     if roof == "gable":
@@ -159,20 +176,30 @@ def building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=
     return P
 
 
-def glass_tower(width, depth, floors, floor_h, rng):
-    """Curtain-wall tower: recessed dark glass with aluminium mullions and floor bands, solid crown and podium."""
+def glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None):
+    """Curtain-wall tower: dark glass, aluminium mullions and floor bands, podium; setbacks [(height fraction, inset cm)]
+    step the tower in (art deco / 1930s skyscrapers); crown "spire" adds a tapering spire, "flat" a plain top."""
     height = floors * floor_h
-    P = [box([width, depth, height], [0, 0, 0], m="glass_dark")]
-    for f in range(floors + 1):
-        P.append(box([width + 10, depth + 10, 14], [0, 0, f * floor_h - 7], m="aluminium"))
-    for side, (w, yaw) in enumerate([(width, 0), (depth, 90), (width, 180), (depth, 270)]):
-        n = max(2, int(w / 150))
-        for i in range(n + 1):
-            x = -w / 2 + i * w / n
-            off = (0, -depth / 2, 0) if side == 0 else (width / 2, 0, 0) if side == 1 else (0, depth / 2, 0) if side == 2 else (-width / 2, 0, 0)
-            P += transform([box([8, 14, height], [x, -6, 0], m="aluminium")], off, yaw)
-    P.append(box([width + 20, depth + 20, 300], [0, 0, height], m="metal_dark"))
-    P.append(box([width + 200, depth + 200, 500], [0, 0, -5], m="stone_light"))
+    steps = [(0.0, 0.0)] + sorted(setbacks or [])
+    P = [box([width + 200, depth + 200, 500], [0, 0, -5], m="stone_light")]
+    for k, (frac, inset) in enumerate(steps):
+        z0 = height * frac
+        z1 = height * (steps[k + 1][0] if k + 1 < len(steps) else 1.0)
+        w, d = max(300, width - 2 * inset), max(300, depth - 2 * inset)
+        h = z1 - z0
+        P.append(box([w, d, h], [0, 0, z0], m="glass_dark"))
+        for f in range(int(h // floor_h) + 1):
+            P.append(box([w + 10, d + 10, 14], [0, 0, z0 + f * floor_h - 7], m="aluminium"))
+        for side, (sw, yaw) in enumerate([(w, 0), (d, 90), (w, 180), (d, 270)]):
+            n = max(2, int(sw / 150))
+            off = [(0, -d / 2, z0), (w / 2, 0, z0), (0, d / 2, z0), (-w / 2, 0, z0)][side]
+            P += transform([box([8, 14, h], [-sw / 2 + i * sw / n, -6, 0], m="aluminium") for i in range(n + 1)], off, yaw)
+        P.append(box([w + 20, d + 20, 60], [0, 0, z1 - 60], m="metal_dark"))
+    top_w = max(300, width - 2 * steps[-1][1])
+    if crown == "spire":
+        P.append(cone(top_w * 0.35, height * 0.18, [0, 0, height], m="aluminium", top_ratio=0.02))
+    else:
+        P.append(box([top_w * 0.6, top_w * 0.6, 300], [0, 0, height], m="metal_dark"))
     return P
 
 
@@ -285,8 +312,10 @@ def plaza(width=2000, depth=2000, seed=None):
 
 # ------------------------------------------------------------------ districts
 
-def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0):
+def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0,
+               make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True):
     """Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
+    make_building(width, depth, rng, tall) -> parts replaces the default building (your own building types).
     Returns a list of (parts, location, name) so each building can be its own object."""
     rng = random.Random(seed)
     out = []
@@ -295,10 +324,17 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
         x = -length / 2
         i = 0
         while x < length / 2 - 600:
-            w = min(rng.choice([1200, 1500, 1800, 2400]), length / 2 - x)
+            w = min(rng.choice(lots), length / 2 - x)
             if w < 600:
                 break
             tall = rng.random() < towers
+            if make_building:
+                parts = make_building(w - 20, lot_depth, rng, tall)
+                cx = x + w / 2
+                out.append((transform(parts, (0, 0, 0), yaw), (off[0] + (cx if side == 0 else -cx), off[1], 0), f"bldg_{side}_{i}"))
+                x += w
+                i += 1
+                continue
             style = "glass" if tall else rng.choice(styles)
             floors = rng.randint(12, 30) if tall else rng.randint(3, max_floors)
             parts = building(w - 20, lot_depth, floors, style, roof=rng.choice(["flat", "flat", "flat", "gable"]) if style in ("brick", "plaster") and floors <= 4 else "flat",
@@ -308,13 +344,17 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
             out.append((transform(parts, (0, 0, 0), yaw), loc, f"bldg_{side}_{i}"))
             x += w
             i += 1
-    out.append((plaza(width * 0.55, depth - 2 * lot_depth - 200, seed=rng.randint(0, 999)), (0, 0, 0), "courtyard"))
+    if courtyard:
+        out.append((plaza(width * 0.55, depth - 2 * lot_depth - 200, seed=rng.randint(0, 999)), (0, 0, 0), "courtyard"))
     return out
 
 
 def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City",
-         max_floors=8, styles=("brick", "plaster", "stone", "office")):
-    """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group."""
+         max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil"):
+    """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
+    Hooks for a specific place: make_building(width, depth, rng, tall) -> parts (your building types),
+    make_street(length, width, sidewalk, rng) -> parts (your street dressing), extras(rng, pitch_x, pitch_y) ->
+    [(name, parts, location)] (landmarks, parks, water...). Everything else stays the same."""
     rng = random.Random(seed)
     pitch_x = block_w + street_w + 2 * sidewalk
     pitch_y = block_d + street_w + 2 * sidewalk
@@ -323,16 +363,21 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
         for j in range(blocks_y):
             bx = (i - (blocks_x - 1) / 2) * pitch_x
             by = (j - (blocks_y - 1) / 2) * pitch_y
-            for parts, loc, name in city_block(block_w, block_d, seed=rng.randint(0, 10 ** 6), towers=towers, max_floors=max_floors, styles=styles):
+            for parts, loc, name in city_block(block_w, block_d, seed=rng.randint(0, 10 ** 6), towers=towers, max_floors=max_floors, styles=styles,
+                                               make_building=make_building):
                 jobs.append((f"{name}_{i}_{j}", parts, (bx + loc[0], by + loc[1], 0)))
     for j in range(blocks_y + 1):
         y = (j - blocks_y / 2) * pitch_y
-        jobs.append((f"street_x_{j}", street(blocks_x * pitch_x, street_w, sidewalk, seed=rng.randint(0, 999)), (0, y, 0)))
+        sx = make_street(blocks_x * pitch_x, street_w, sidewalk, rng) if make_street else street(blocks_x * pitch_x, street_w, sidewalk, seed=rng.randint(0, 999))
+        jobs.append((f"street_x_{j}", sx, (0, y, 0)))
     for i in range(blocks_x + 1):
         x = (i - blocks_x / 2) * pitch_x
-        jobs.append((f"street_y_{i}", transform(street(blocks_y * pitch_y - street_w - 2 * sidewalk, street_w, sidewalk, seed=rng.randint(0, 999), cars=0.15), (0, 0, 0), 90),
-                     (x, 0, 0)))
-    jobs.append(("ground", [box([blocks_x * pitch_x + 8000, blocks_y * pitch_y + 8000, 30], [0, 0, -34], m="soil")], (0, 0, 0)))
+        ln = blocks_y * pitch_y - street_w - 2 * sidewalk
+        sy = make_street(ln, street_w, sidewalk, rng) if make_street else street(ln, street_w, sidewalk, seed=rng.randint(0, 999), cars=0.15)
+        jobs.append((f"street_y_{i}", transform(sy, (0, 0, 0), 90), (x, 0, 0)))
+    jobs.append(("ground", [box([blocks_x * pitch_x + 8000, blocks_y * pitch_y + 8000, 30], [0, 0, -34], m=ground)], (0, 0, 0)))
+    if extras:
+        jobs += extras(rng, pitch_x, pitch_y)
     place_many(jobs, group=group)
     return group
 

@@ -175,10 +175,10 @@ namespace
 			}
 			ParentId = P->Id;
 		}
-		// Build once into a scratch mesh: errors surface as invalid_arguments, not command failures.
-		UDynamicMesh* Scratch = NewObject<UDynamicMesh>();
+		// Build once: errors surface as invalid_arguments (not command failures) and the same mesh becomes the actor.
+		TSharedRef<RuntimePrimitives::FPrebuilt> Built = MakeShared<RuntimePrimitives::FPrebuilt>();
 		FString Error;
-		if (!RuntimePrimitives::BuildMesh(Scratch, Recipe, Error) || !RuntimePrimitives::ValidateMaterials(Recipe, Error))
+		if (!RuntimePrimitives::BuildPrebuilt(Recipe, *Built, Error) || !RuntimePrimitives::ValidateMaterials(Recipe, Error))
 		{
 			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, Error, TEXT("See build.get_guide and build.list_materials"));
 			return false;
@@ -186,18 +186,19 @@ namespace
 		if (bSnap)
 		{
 			FBox Local(ForceInit);
-			Scratch->ProcessMesh([&Local](const UE::Geometry::FDynamicMesh3& Mesh)
+			const UE::Geometry::FAxisAlignedBox3d B = Built->Mesh.GetBounds();
+			if (!B.IsEmpty())
 			{
-				const UE::Geometry::FAxisAlignedBox3d B = Mesh.GetBounds();
-				if (!B.IsEmpty())
-				{
-					Local = FBox(FVector(B.Min), FVector(B.Max));
-				}
-			});
+				Local = FBox(FVector(B.Min), FVector(B.Max));
+			}
 			Out.bSnappedToGround = BuildSnapToGround(Local, Parent, Transform);
 		}
 		const FString Source = RuntimePrimitives::ToSource(Recipe);
-		auto Spawn = [Source, Transform, Name](FRuntimeCommandContext& Ctx, FString& Err) { return RuntimePrimitives::SpawnFromSource(Ctx.World, Source, Transform, Name, Err); };
+		const TSharedRef<const RuntimePrimitives::FPrebuilt> Shared = Built;
+		auto Spawn = [Shared, Recipe, Transform, Name](FRuntimeCommandContext& Ctx, FString& Err)
+		{
+			return RuntimePrimitives::SpawnPrebuilt(Ctx.World, Shared, Recipe, Transform, Name, Err);
+		};
 		TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(FString::Printf(TEXT("build %s"), *Name), Spawn, Name, ParentId, ERuntimeNodeKind::Actor,
 			Source, ToNames(Tags));
 		FCreateNodeCommand* Raw = Cmd.Get();

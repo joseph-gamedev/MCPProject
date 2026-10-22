@@ -286,8 +286,8 @@ public:
 	virtual TSharedRef<IToolCallHandle> Invoke(const FString& Tool, const TSharedPtr<FJsonObject>& Arguments, const FToolCallerContext& Caller,
 		FOnToolComplete OnComplete, FOnToolProgress OnProgress) override
 	{
-		// Deep copy: validation fills defaults and the caller may reuse its object.
-		TSharedPtr<FJsonObject> Copy = Arguments.IsValid() ? RuntimeJson::Parse(RuntimeJson::Write(Arguments.ToSharedRef())) : MakeShared<FJsonObject>();
+		// Top-level copy: validation fills defaults only at the top level, and a deep copy of big part lists is slow.
+		TSharedPtr<FJsonObject> Copy = Arguments.IsValid() ? MakeShared<FJsonObject>(*Arguments) : MakeShared<FJsonObject>();
 		return Enqueue(Tool, Copy, FString(), Caller, MoveTemp(OnComplete), MoveTemp(OnProgress));
 	}
 
@@ -298,7 +298,7 @@ public:
 		{
 			return FToolResult::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("call depth limit (%d) reached"), MaxCallDepth));
 		}
-		TSharedPtr<FJsonObject> Args = Arguments.IsValid() ? RuntimeJson::Parse(RuntimeJson::Write(Arguments.ToSharedRef())) : MakeShared<FJsonObject>();
+		TSharedPtr<FJsonObject> Args = Arguments.IsValid() ? MakeShared<FJsonObject>(*Arguments) : MakeShared<FJsonObject>();
 		FToolResult PrepareError;
 		TSharedPtr<FToolInvocation> Inv = Prepare(Tool, Args, Caller, Depth, PrepareError);
 		if (!Inv.IsValid())
@@ -349,7 +349,7 @@ public:
 			OnDone(FToolResult::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("call depth limit (%d) reached"), MaxCallDepth)));
 			return []() {};
 		}
-		TSharedPtr<FJsonObject> Args = Arguments.IsValid() ? RuntimeJson::Parse(RuntimeJson::Write(Arguments.ToSharedRef())) : MakeShared<FJsonObject>();
+		TSharedPtr<FJsonObject> Args = Arguments.IsValid() ? MakeShared<FJsonObject>(*Arguments) : MakeShared<FJsonObject>();
 		FToolResult PrepareError;
 		TSharedPtr<FToolInvocation> Inv = Prepare(Tool, Args, Caller, Depth, PrepareError);
 		if (!Inv.IsValid())

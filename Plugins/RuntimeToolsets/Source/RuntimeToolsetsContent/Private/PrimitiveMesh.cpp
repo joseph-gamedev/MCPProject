@@ -19,6 +19,7 @@
 #include "UDynamicMesh.h"
 #include "Algo/Reverse.h"
 #include "DynamicMesh/DynamicMesh3.h"
+#include "DynamicMesh/DynamicMeshAttributeSet.h"
 
 namespace RuntimePrimitives
 {
@@ -156,6 +157,8 @@ namespace RuntimePrimitives
 
 	static FAssemblyStats GAssemblyStats;
 	const FAssemblyStats& LastAssemblyStats() { return GAssemblyStats; }
+	/** Collision boxes of the most recent assembly build, one per part (computed while building: no shape fitting). */
+	static FKAggregateGeom GAssemblySimple;
 
 	FString ToSource(const TSharedRef<FJsonObject>& Recipe)
 	{
@@ -393,35 +396,52 @@ namespace RuntimePrimitives
 
 	static void SplitNormals(UDynamicMesh* Mesh, float AngleDeg);
 
-	/** Box with chamfered edges built directly (24 points, 44 triangles): far cheaper than a polygroup bevel. */
-	static void AppendChamferBox(UDynamicMesh* Mesh, const FVector& Size, bool bCenter, double Bevel)
+	/**
+	 * Box with chamfered edges (24 points, 44 triangles; 8 points and 12 triangles when Bevel is 0), with outward
+	 * triangles and one flat normal per triangle. Local space: centred in X/Y, Z from 0 (base pivot) or centred.
+	 */
+	static void ChamferBoxGeometry(const FVector& Size, bool bCenter, double Bevel, TArray<FVector>& OutVerts, TArray<FIntVector>& OutTris,
+		TArray<FVector3f>& OutNormals)
 	{
 		const FVector H = Size * 0.5;
-		const double B = FMath::Min(Bevel, H.GetMin() * 0.45);
+		const double B = FMath::Clamp(Bevel, 0.0, H.GetMin() * 0.45);
 		const FVector Offset(0, 0, bCenter ? 0.0 : H.Z);
-		// Point on face Axis (0 x, 1 y, 2 z) near the corner with signs S.
-		auto P = [&](int32 Axis, const FIntVector& S) -> FVector
+		int32 Index[24];
+		for (int32& I : Index)
 		{
-			FVector V;
-			for (int32 a = 0; a < 3; ++a)
-			{
-				V[a] = S[a] * (a == Axis ? H[a] : H[a] - B);
-			}
-			return V + Offset;
-		};
-		TArray<FVector> Verts;
-		TMap<int32, int32> Index;  // (axis, corner) -> vertex
+			I = INDEX_NONE;
+		}
+		// Point on face Axis (0 x, 1 y, 2 z) near the corner with signs S.
 		auto Id = [&](int32 Axis, const FIntVector& S) -> int32
 		{
 			const int32 Key = Axis * 8 + (S.X > 0 ? 1 : 0) + (S.Y > 0 ? 2 : 0) + (S.Z > 0 ? 4 : 0);
-			if (const int32* Found = Index.Find(Key))
+			if (Index[Key] == INDEX_NONE)
 			{
-				return *Found;
+				FVector V;
+				for (int32 c = 0; c < 3; ++c)
+				{
+					V[c] = S[c] * (c == Axis ? H[c] : H[c] - B);
+				}
+				Index[Key] = OutVerts.Add(V + Offset);
 			}
-			return Index.Add(Key, Verts.Add(P(Axis, S)));
+			return Index[Key];
 		};
-		TArray<FIntVector> Tris;
-		auto Tri = [&](int32 A, int32 Bv, int32 C) { Tris.Add(FIntVector(A, Bv, C)); };
+		auto Tri = [&](int32 A, int32 Bv, int32 C)
+		{
+			const FVector& PA = OutVerts[A];
+			const FVector& PB = OutVerts[Bv];
+			const FVector& PC = OutVerts[C];
+			const FVector Cross = FVector::CrossProduct(PB - PA, PC - PA);
+			if (Cross.SizeSquared() < 1e-8)
+			{
+				return;  // degenerate (no bevel): edge strips and corners collapse
+			}
+			// Convex: the stored winding has its cross product pointing inward (UE is left-handed).
+			const bool bFlip = FVector::DotProduct(Cross, (PA + PB + PC) / 3.0 - Offset) > 0.0;
+			OutTris.Add(bFlip ? FIntVector(A, C, Bv) : FIntVector(A, Bv, C));
+			const FVector Out = bFlip ? Cross.GetSafeNormal() : -Cross.GetSafeNormal();
+			OutNormals.Add(FVector3f(Out));  // outward
+		};
 		auto Quad = [&](int32 A, int32 Bv, int32 C, int32 D) { Tri(A, Bv, C); Tri(A, C, D); };
 		const int32 Cyc[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
 		for (int32 Axis = 0; Axis < 3; ++Axis)
@@ -440,40 +460,89 @@ namespace RuntimePrimitives
 				}
 				Quad(Q[0], Q[1], Q[2], Q[3]);  // main face
 			}
-			// edges between faces U and V run along Axis
-			for (int32 k = 0; k < 4; ++k)
+			if (B > 0.0)
 			{
-				FIntVector Lo, Hi;
-				Lo[Axis] = -1;
-				Hi[Axis] = 1;
-				Lo[U] = Hi[U] = Cyc[k][0];
-				Lo[V] = Hi[V] = Cyc[k][1];
-				Quad(Id(U, Lo), Id(V, Lo), Id(V, Hi), Id(U, Hi));
+				for (int32 k = 0; k < 4; ++k)  // edges between faces U and V run along Axis
+				{
+					FIntVector Lo, Hi;
+					Lo[Axis] = -1;
+					Hi[Axis] = 1;
+					Lo[U] = Hi[U] = Cyc[k][0];
+					Lo[V] = Hi[V] = Cyc[k][1];
+					Quad(Id(U, Lo), Id(V, Lo), Id(V, Hi), Id(U, Hi));
+				}
 			}
 		}
-		for (int32 c = 0; c < 8; ++c)
+		if (B > 0.0)
 		{
-			const FIntVector S(c & 1 ? 1 : -1, c & 2 ? 1 : -1, c & 4 ? 1 : -1);
-			Tri(Id(0, S), Id(1, S), Id(2, S));  // corner
+			for (int32 c = 0; c < 8; ++c)
+			{
+				const FIntVector S(c & 1 ? 1 : -1, c & 2 ? 1 : -1, c & 4 ? 1 : -1);
+				Tri(Id(0, S), Id(1, S), Id(2, S));  // corner
+			}
 		}
+	}
+
+	/** Appends a (chamfered) box, transformed, into M with flat normals and a material id: no intermediate meshes. */
+	static void AppendBoxDirect(UE::Geometry::FDynamicMesh3& M, const FVector& Size, bool bCenter, double Bevel, const FTransform& T, int32 MaterialId,
+		TArray<int32>* TriPart, int32 PartIndex)
+	{
+		TArray<FVector> Verts;
+		TArray<FIntVector> Tris;
+		TArray<FVector3f> Normals;
+		ChamferBoxGeometry(Size, bCenter, Bevel, Verts, Tris, Normals);
+		const FVector InvScale = FVector(1.0) / T.GetScale3D().ComponentMax(FVector(1e-4));
+		const bool bMirror = T.GetDeterminant() < 0.0;
+		TArray<int32, TInlineAllocator<24>> Ids;
+		for (const FVector& P : Verts)
+		{
+			Ids.Add(M.AppendVertex(FVector3d(T.TransformPosition(P))));
+		}
+		UE::Geometry::FDynamicMeshNormalOverlay* NormalOverlay = M.Attributes()->PrimaryNormals();
+		UE::Geometry::FDynamicMeshMaterialAttribute* MatIds = M.Attributes()->GetMaterialID();
+		for (int32 i = 0; i < Tris.Num(); ++i)
+		{
+			const FIntVector& Tr = Tris[i];
+			const int32 Tid = M.AppendTriangle(bMirror ? UE::Geometry::FIndex3i(Ids[Tr.X], Ids[Tr.Z], Ids[Tr.Y]) : UE::Geometry::FIndex3i(Ids[Tr.X], Ids[Tr.Y], Ids[Tr.Z]));
+			if (Tid < 0)
+			{
+				continue;
+			}
+			const FVector3f N(T.GetRotation().RotateVector(FVector(Normals[i]) * InvScale).GetSafeNormal());
+			NormalOverlay->SetTriangle(Tid, UE::Geometry::FIndex3i(NormalOverlay->AppendElement(N), NormalOverlay->AppendElement(N), NormalOverlay->AppendElement(N)));
+			if (MatIds)
+			{
+				MatIds->SetValue(Tid, MaterialId);
+			}
+			if (TriPart)
+			{
+				TriPart->SetNum(FMath::Max(TriPart->Num(), Tid + 1));
+				(*TriPart)[Tid] = PartIndex;
+			}
+		}
+	}
+
+	/** Box with chamfered edges built directly (24 points, 44 triangles): far cheaper than a polygroup bevel. */
+	static void AppendChamferBox(UDynamicMesh* Mesh, const FVector& Size, bool bCenter, double Bevel)
+	{
 		Mesh->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
 		{
-			TArray<int32> Ids;
-			for (const FVector& Pt : Verts)
-			{
-				Ids.Add(M.AppendVertex(FVector3d(Pt)));
-			}
-			for (const FIntVector& T : Tris)
-			{
-				// Convex: orient each triangle away from the centre (stored winding has its cross product pointing inward).
-				const FVector& A = Verts[T.X];
-				const FVector& Bp = Verts[T.Y];
-				const FVector& C = Verts[T.Z];
-				const bool bFlip = FVector::DotProduct(FVector::CrossProduct(Bp - A, C - A), (A + Bp + C) / 3.0 - Offset) > 0.0;
-				M.AppendTriangle(UE::Geometry::FIndex3i(Ids[T.X], bFlip ? Ids[T.Z] : Ids[T.Y], bFlip ? Ids[T.Y] : Ids[T.Z]));
-			}
+			M.EnableAttributes();
+			AppendBoxDirect(M, Size, bCenter, Bevel, FTransform::Identity, 0, nullptr, 0);
 		});
-		SplitNormals(Mesh, 30.f);
+	}
+
+	/** The bevel a box gets: the recipe's value, or automatic (small chamfer; none on small trims). */
+	static double BoxBevel(const TSharedRef<FJsonObject>& R, const FVector& Size)
+	{
+		double Bevel = -1.0;
+		R->TryGetNumberField(TEXT("bevel"), Bevel);
+		if (Bevel >= 0.0)
+		{
+			return Bevel;
+		}
+		const double Thin = Size.GetMin();
+		return Thin > 2.0 && Size.GetMax() >= 40.0 ? FMath::Clamp(Thin * 0.04, 0.3, 1.5) : 0.0;
 	}
 
 	static void ApplyBevel(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R)
@@ -1143,24 +1212,12 @@ namespace RuntimePrimitives
 			OutError = FString::Printf(TEXT("assembly needs 1-%d parts"), MaxParts);
 			return false;
 		}
-		// Creating a node builds once to validate and once to spawn: keep the last result.
-		static uint32 CachedHash = 0;
-		static int32 CachedLen = -1;
-		static UE::Geometry::FDynamicMesh3 CachedMesh;
-		static FAssemblyStats CachedStats;
-		const FString Key = RuntimeJson::Write(Recipe);
-		const uint32 Hash = GetTypeHash(Key);
-		if (Hash == CachedHash && Key.Len() == CachedLen)
-		{
-			Mesh->SetMesh(CachedMesh);
-			GAssemblyStats = CachedStats;
-			return true;
-		}
-
+		GAssemblySimple.EmptyElements();
 		TArray<TSharedRef<FJsonObject>> Materials;
 		TArray<int32> PartSlot;
 		CollectAssemblyMaterials(Recipe, Materials, PartSlot);
 		UDynamicMesh* Accum = NewObject<UDynamicMesh>();
+		Accum->EditMesh([](UE::Geometry::FDynamicMesh3& M) { M.EnableAttributes(); }, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
 		UGeometryScriptLibrary_MeshMaterialFunctions::EnableMaterialIDs(Accum);
 		UDynamicMesh* Temp = NewObject<UDynamicMesh>();
 		TArray<int32> TriPart;
@@ -1180,6 +1237,36 @@ namespace RuntimePrimitives
 				OutError = FString::Printf(TEXT("part %d: assemblies cannot be nested"), i);
 				return false;
 			}
+			FTransform T = FTransform::Identity;
+			FVector V;
+			FRotator Rot;
+			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("location")), V)) T.SetLocation(V);
+			if (RuntimeJson::ToRotator(Part->TryGetField(TEXT("rotation")), Rot)) T.SetRotation(Rot.Quaternion());
+			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("scale")), V)) T.SetScale3D(V);
+			// Fast path for plain boxes (most parts): triangles go straight into the result.
+			if (Shape == TEXT("box") && !Part->HasField(TEXT("ops")))
+			{
+				const FVector Size = ReadSize(Part);
+				const bool bCenter = ReadOrigin(Part) == EGeometryScriptPrimitiveOriginMode::Center;
+				Accum->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+				{
+					AppendBoxDirect(M, Size, bCenter, BoxBevel(Part, Size), T, PartSlot[i], &TriPart, i);
+				}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
+				const FVector World = Size * T.GetScale3D().GetAbs();
+				if (World.GetMax() >= 20.0 && GAssemblySimple.BoxElems.Num() < 1024)
+				{
+					FKBoxElem Box(World.X, World.Y, World.Z);
+					Box.Center = T.TransformPosition(FVector(0, 0, bCenter ? 0.0 : Size.Z * 0.5));
+					Box.Rotation = T.Rotator();
+					GAssemblySimple.BoxElems.Add(Box);
+				}
+				if (Accum->GetTriangleCount() > MaxAssemblyTriangles)
+				{
+					OutError = FString::Printf(TEXT("assembly exceeds %d triangles at part %d; lower detail/segments or split it"), MaxAssemblyTriangles, i);
+					return false;
+				}
+				continue;
+			}
 			FString PartError;
 			if (!BuildMesh(Temp, Part, PartError))
 			{
@@ -1187,12 +1274,19 @@ namespace RuntimePrimitives
 				return false;
 			}
 			UGeometryScriptLibrary_MeshMaterialFunctions::ClearMaterialIDs(Temp, PartSlot[i]);
-			FTransform T = FTransform::Identity;
-			FVector V;
-			FRotator Rot;
-			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("location")), V)) T.SetLocation(V);
-			if (RuntimeJson::ToRotator(Part->TryGetField(TEXT("rotation")), Rot)) T.SetRotation(Rot.Quaternion());
-			if (RuntimeJson::ToVector(Part->TryGetField(TEXT("scale")), V)) T.SetScale3D(V);
+			// Collision: the part's own box, placed like the part. Small trims (frames, sills) need none.
+			const UE::Geometry::FAxisAlignedBox3d PartBox = Temp->GetMeshRef().GetBounds();
+			if (!PartBox.IsEmpty() && GAssemblySimple.BoxElems.Num() < 1024)
+			{
+				const FVector Size = FVector(PartBox.Diagonal()) * T.GetScale3D().GetAbs();
+				if (Size.GetMax() >= 20.0)
+				{
+					FKBoxElem Box(Size.X, Size.Y, Size.Z);
+					Box.Center = T.TransformPosition(FVector(PartBox.Center()));
+					Box.Rotation = T.Rotator();
+					GAssemblySimple.BoxElems.Add(Box);
+				}
+			}
 			const int32 Before = Accum->GetMeshRef().MaxTriangleID();
 			UGeometryScriptLibrary_MeshBasicEditFunctions::AppendMesh(Accum, Temp, T, true);
 			const int32 After = Accum->GetMeshRef().MaxTriangleID();
@@ -1218,11 +1312,7 @@ namespace RuntimePrimitives
 		GAssemblyStats.Triangles = Accum->GetTriangleCount();
 		GAssemblyStats.Materials = Materials.Num();
 		GAssemblyStats.CoplanarSeparated = Separated;
-		CachedMesh = Accum->GetMeshRef();
-		CachedStats = GAssemblyStats;
-		CachedHash = Hash;
-		CachedLen = Key.Len();
-		Mesh->SetMesh(Accum->GetMeshRef());
+		Accum->EditMesh([Mesh](UE::Geometry::FDynamicMesh3& Built) { Mesh->SetMesh(MoveTemp(Built)); });
 		return true;
 	}
 
@@ -1404,6 +1494,34 @@ namespace RuntimePrimitives
 		return true;
 	}
 
+	/** Collision for a freshly built mesh: one cook (updates were deferred while building). Assemblies use their part boxes;
+	 *  single shapes get fitted simple shapes. Big meshes cook the exact triangles in the background. */
+	static void FinishCollision(UDynamicMeshComponent* Comp, const FKAggregateGeom* Simple)
+	{
+		if (Simple)
+		{
+			Comp->SetSimpleCollisionShapes(*Simple, false);
+		}
+		else
+		{
+			// Simple shapes fitted per part (boxes, spheres, capsules, hulls) for physics and navigation (Recast does not
+			// reliably export complex-only dynamic mesh collision); the exact triangles stay available to complex traces.
+			FGeometryScriptCollisionFromMeshOptions Collision;
+			Collision.bEmitTransaction = false;
+			Collision.Method = EGeometryScriptCollisionGenerationMethod::MinVolumeShapes;
+			Collision.MaxShapeCount = 1024;
+			UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(Comp->GetDynamicMesh(), Comp, Collision);
+		}
+		Comp->bEnableComplexCollision = true;
+		Comp->CollisionType = ECollisionTraceFlag::CTF_UseSimpleAndComplex;
+		// Platforms the player stands on right away stay synchronous; big scenery cooks off the game thread.
+		Comp->bUseAsyncCooking = Comp->GetDynamicMesh()->GetTriangleCount() > 5000;
+		Comp->SetDeferredCollisionUpdatesEnabled(false, false);
+		Comp->UpdateCollision(false);
+		// The navmesh rebuilds around changed geometry (dynamic runtime generation).
+		FNavigationSystem::UpdateComponentData(*Comp);
+	}
+
 	bool Rebuild(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
 	{
 		ADynamicMeshActor* MeshActor = Cast<ADynamicMeshActor>(Actor);
@@ -1413,33 +1531,34 @@ namespace RuntimePrimitives
 			OutError = TEXT("not a builder mesh");
 			return false;
 		}
+		Comp->SetDeferredCollisionUpdatesEnabled(true, false);
 		if (!BuildMesh(Comp->GetDynamicMesh(), Recipe, OutError) || !ApplyMaterial(Actor, Recipe, OutError))
 		{
+			Comp->SetDeferredCollisionUpdatesEnabled(false, true);
 			return false;
 		}
-		// Simple shapes fitted per part (boxes, spheres, capsules, hulls) for physics and navigation (Recast does not
-		// reliably export complex-only dynamic mesh collision); the exact triangles stay available to complex traces.
-		FGeometryScriptCollisionFromMeshOptions Collision;
-		Collision.bEmitTransaction = false;
-		Collision.Method = EGeometryScriptCollisionGenerationMethod::MinVolumeShapes;
-		Collision.MaxShapeCount = 1024;
-		UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(Comp->GetDynamicMesh(), Comp, Collision);
-		Comp->bEnableComplexCollision = true;
-		Comp->CollisionType = ECollisionTraceFlag::CTF_UseSimpleAndComplex;
-		Comp->UpdateCollision(false);
-		// The navmesh rebuilds around changed geometry (dynamic runtime generation).
-		FNavigationSystem::UpdateComponentData(*Comp);
+		FinishCollision(Comp, IsAssembly(Recipe) ? &GAssemblySimple : nullptr);
 		return true;
 	}
 
-	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+	bool BuildPrebuilt(const TSharedRef<FJsonObject>& Recipe, FPrebuilt& Out, FString& OutError)
 	{
-		const TSharedPtr<FJsonObject> Recipe = FromSource(Source);
-		if (!Recipe.IsValid())
+		UDynamicMesh* Scratch = NewObject<UDynamicMesh>();
+		if (!BuildMesh(Scratch, Recipe, OutError))
 		{
-			OutError = TEXT("bad prim: recipe");
-			return nullptr;
+			return false;
 		}
+		Scratch->EditMesh([&Out](UE::Geometry::FDynamicMesh3& Built) { Out.Mesh = MoveTemp(Built); });
+		Out.bHasSimple = IsAssembly(Recipe);
+		if (Out.bHasSimple)
+		{
+			Out.Simple = GAssemblySimple;
+		}
+		return true;
+	}
+
+	static ADynamicMeshActor* SpawnMeshActor(UWorld* World, const FTransform& Transform, const FString& Name, FString& OutError)
+	{
 		FActorSpawnParameters Params;
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		if (!Name.IsEmpty())
@@ -1462,6 +1581,43 @@ namespace RuntimePrimitives
 		}
 		Actor->GetRootComponent()->SetMobility(EComponentMobility::Movable);
 		Actor->GetDynamicMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+		return Actor;
+	}
+
+	AActor* SpawnPrebuilt(UWorld* World, const TSharedRef<const FPrebuilt>& Built, const TSharedRef<FJsonObject>& Recipe, const FTransform& Transform,
+		const FString& Name, FString& OutError)
+	{
+		ADynamicMeshActor* Actor = SpawnMeshActor(World, Transform, Name, OutError);
+		if (!Actor)
+		{
+			return nullptr;
+		}
+		UDynamicMeshComponent* Comp = Actor->GetDynamicMeshComponent();
+		Comp->SetDeferredCollisionUpdatesEnabled(true, false);
+		Comp->GetDynamicMesh()->SetMesh(Built->Mesh);
+		if (!ApplyMaterial(Actor, Recipe, OutError))
+		{
+			Actor->Destroy();
+			return nullptr;
+		}
+		FinishCollision(Comp, Built->bHasSimple ? &Built->Simple : nullptr);
+		return Actor;
+	}
+
+
+	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+	{
+		const TSharedPtr<FJsonObject> Recipe = FromSource(Source);
+		if (!Recipe.IsValid())
+		{
+			OutError = TEXT("bad prim: recipe");
+			return nullptr;
+		}
+		ADynamicMeshActor* Actor = SpawnMeshActor(World, Transform, Name, OutError);
+		if (!Actor)
+		{
+			return nullptr;
+		}
 		if (!Rebuild(Actor, Recipe.ToSharedRef(), OutError))
 		{
 			Actor->Destroy();
