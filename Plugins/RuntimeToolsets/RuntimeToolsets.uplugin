@@ -11,65 +11,143 @@
 	"IsExperimentalVersion": true,
 	"Installed": false,
 	"Plugins": [
-		{ "Name": "EnhancedInput", "Enabled": true },
-		{ "Name": "Niagara", "Enabled": true },
-		{ "Name": "GeometryScripting", "Enabled": true },
-		{ "Name": "PCG", "Enabled": true }
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "GeometryScripting",
+			"Enabled": true
+		},
+		{
+			"Name": "PCG",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
+			"Name": "StateTree",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayStateTree",
+			"Enabled": true
+		}
 	],
 	"Modules": [
 		{
 			"Name": "RuntimeToolsetsCore",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsCoreTools",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsGameplay",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsPresentation",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsContent",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsOps",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsLogic",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsProcedural",
 			"Type": "Runtime",
 			"LoadingPhase": "PostDefault",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
+		},
+		{
+			"Name": "RuntimeToolsetsAI",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
+		},
+		{
+			"Name": "RuntimeToolsetsGAS",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
+		},
+		{
+			"Name": "RuntimeToolsetsStateTree",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		},
 		{
 			"Name": "RuntimeToolsetsTests",
 			"Type": "Runtime",
 			"LoadingPhase": "PostEngineInit",
-			"TargetConfigurationDenyList": [ "Shipping", "Test" ]
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
 		}
 	]
 }
