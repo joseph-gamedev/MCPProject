@@ -1597,6 +1597,128 @@
 			"undoable": true
 		},
 		{
+			"description": "Places many copies of one packaged static mesh as a single node of GPU instances: thousands cost about as much as one (every window of a type in a street, every railing bay, every block of a wall). One undo step. Fails if the asset is not a packaged static mesh or an instance entry is malformed.\nReturns: {id, name, path, instances, triangles}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"asset":
+					{
+						"description": "Static mesh path, e.g. \"/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick\".",
+						"type": "string"
+					},
+					"collision":
+					{
+						"default": true,
+						"description": "Block movement and traces.",
+						"type": "boolean"
+					},
+					"custom_data":
+					{
+						"description": "Optional per-copy floats in the same order, e.g. [[seed,r,g,b,r2,g2,b2]], read by the material (scanned architecture materials: 0 = variation seed, 1-3 = paint A colour such as a front door, 4-6 = paint B such as stucco).",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"instances":
+					{
+						"description": "One entry per copy, relative to Location: [x,y,z], [x,y,z,yaw], [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz] (cm, degrees).",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "World location cm of the group (relative to the parent when one is given). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"default": "",
+						"description": "Node name (default: the asset name).",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"asset",
+					"instances"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.place_instances",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{id, name, path, instances, triangles}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the instance group.",
+								"type": "string"
+							},
+							"instances":
+							{
+								"description": "Copies placed.",
+								"type": "integer"
+							},
+							"name":
+							{
+								"description": "Node name.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path.",
+								"type": "string"
+							},
+							"triangles":
+							{
+								"description": "Triangles in one copy (Nanite renders only what is visible).",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolInstancesResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
 			"description": "Places a packaged static mesh asset (a real tree, rock or prop made in Blender) as a scene node. For many copies use pcg.scatter with asset items (GPU instances). Undoable. Fails if the asset is not a packaged static mesh.\nReturns: {id, name, path, triangles}.",
 			"input_schema":
 			{

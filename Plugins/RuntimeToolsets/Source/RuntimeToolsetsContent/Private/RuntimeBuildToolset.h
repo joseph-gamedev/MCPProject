@@ -114,6 +114,32 @@ enum class EBuildToolImageFormat : uint8
 };
 
 USTRUCT()
+struct FBuildToolInstancesResult
+{
+	GENERATED_BODY()
+
+	/** Node id of the instance group. */
+	UPROPERTY()
+	FString Id;
+
+	/** Node name. */
+	UPROPERTY()
+	FString Name;
+
+	/** Node path. */
+	UPROPERTY()
+	FString Path;
+
+	/** Copies placed. */
+	UPROPERTY()
+	int32 Instances = 0;
+
+	/** Triangles in one copy (Nanite renders only what is visible). */
+	UPROPERTY()
+	int32 Triangles = 0;
+};
+
+USTRUCT()
 struct FBuildToolNodeResult
 {
 	GENERATED_BODY()
@@ -376,6 +402,9 @@ struct FBuildToolMaterialList
 namespace RuntimeMeshAssets
 {
 	AActor* SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError);
+
+	/** "inst:<json>" sources: many copies of one mesh as GPU instances (build.place_instances). */
+	AActor* SpawnInstancesFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError);
 }
 
 UCLASS()
@@ -542,6 +571,25 @@ public:
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Rotation,Scale,Tags"), Category = "Build|Create")
 	static FBuildToolNodeResult PlaceMesh(const FString& Asset, const FVector& Location, const FRotator& Rotation, const FVector& Scale,
 		const TArray<FString>& Tags, const FString& Name = TEXT(""), AActor* Parent = nullptr, bool bCollision = true);
+
+	/**
+	 * Places many copies of one packaged static mesh as a single node of GPU instances: thousands cost about as much as
+	 * one (every window of a type in a street, every railing bay, every block of a wall). One undo step. Fails if the
+	 * asset is not a packaged static mesh or an instance entry is malformed.
+	 *
+	 * @param Asset - Static mesh path, e.g. "/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick".
+	 * @param Instances - One entry per copy, relative to Location: [x,y,z], [x,y,z,yaw], [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz] (cm, degrees).
+	 * @param CustomData - Optional per-copy floats in the same order, e.g. [[seed,r,g,b,r2,g2,b2]], read by the material (scanned architecture materials: 0 = variation seed, 1-3 = paint A colour such as a front door, 4-6 = paint B such as stucco).
+	 * @param Location - World location cm of the group (relative to the parent when one is given).
+	 * @param Tags - Node tags.
+	 * @param Name - Node name (default: the asset name).
+	 * @param Parent - Parent group.
+	 * @param bCollision - Block movement and traces.
+	 * @return {id, name, path, instances, triangles}.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Tags,CustomData"), Category = "Build|Create")
+	static FBuildToolInstancesResult PlaceInstances(const FString& Asset, const TArray<FRuntimeToolJson>& Instances, const TArray<FRuntimeToolJson>& CustomData,
+		const FVector& Location, const TArray<FString>& Tags, const FString& Name = TEXT(""), AActor* Parent = nullptr, bool bCollision = true);
 
 	/**
 	 * Cuts, joins or intersects two builder objects. The result is recorded in the target's recipe (rebuildable); the tool

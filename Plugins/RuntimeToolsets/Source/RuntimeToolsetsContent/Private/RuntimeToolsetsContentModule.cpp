@@ -17,6 +17,7 @@ public:
 		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("prim:"), &RuntimePrimitives::SpawnFromSource);
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("mesh:"), &RuntimeMeshAssets::SpawnFromSource);
+		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("inst:"), &RuntimeMeshAssets::SpawnInstancesFromSource);
 		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeLayoutToolset::StaticClass()),
 			RuntimeToolReflection::RegisterToolsetClass(URuntimeBuildToolset::StaticClass())};
 	}

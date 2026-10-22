@@ -63,7 +63,11 @@ def scanned_master():
     obj = e(m, unreal.MaterialExpressionObjectPositionWS, -1500, -400)
     oxy = e(m, unreal.MaterialExpressionComponentMask, -1350, -400, r=True, g=True, b=False, a=False)
     F.connect(obj, "", oxy, "")
-    h = F.math2(m, unreal.MaterialExpressionDotProduct, oxy, e(m, unreal.MaterialExpressionConstant2Vector, -1350, -300, r=0.0173, g=0.0291), -1200, -400)
+    h0 = F.math2(m, unreal.MaterialExpressionDotProduct, oxy, e(m, unreal.MaterialExpressionConstant2Vector, -1350, -300, r=0.0173, g=0.0291), -1200, -400)
+    # instanced pieces share one component position: per-instance custom data 0 is the seed (one per house)
+    seed = e(m, unreal.MaterialExpressionPerInstanceCustomData, -1350, -500, data_index=0, const_default_value=0.0)
+    h = F.math2(m, unreal.MaterialExpressionAdd, h0, F.math2(m, unreal.MaterialExpressionMultiply, seed,
+                                                              e(m, unreal.MaterialExpressionConstant, -1250, -550, r=13.71), -1150, -520), -1100, -450)
     hs = e(m, unreal.MaterialExpressionSine, -1050, -400)
     F.connect(h, "", hs, "")
     hr = e(m, unreal.MaterialExpressionFrac, -900, -400)
@@ -89,6 +93,16 @@ def scanned_master():
     F.connect(scan, "", base, "B")
     F.connect(pattern, "", base, "Alpha")
     tinted = F.math2(m, unreal.MaterialExpressionMultiply, base, style_tint, -200, 0)
+    # per-instance paint: custom data 1-3 (PaintA, e.g. a front door) and 4-6 (PaintB, e.g. stucco), enabled per material
+    for i, (slot, default) in enumerate((("A", (0.05, 0.12, 0.08)), ("B", (1.0, 1.0, 1.0)))):
+        cd = e(m, unreal.MaterialExpressionPerInstanceCustomData3Vector, -500, 200 + 150 * i, data_index=1 + 3 * i,
+               const_default_value=unreal.LinearColor(default[0], default[1], default[2], 1))
+        use = e(m, unreal.MaterialExpressionScalarParameter, -500, 260 + 150 * i, parameter_name="UsePaint" + slot, default_value=0.0)
+        mix = e(m, unreal.MaterialExpressionLinearInterpolate, -350, 200 + 150 * i)
+        F.connect(e(m, unreal.MaterialExpressionConstant3Vector, -500, 320 + 150 * i, constant=unreal.LinearColor(1, 1, 1, 1)), "", mix, "A")
+        F.connect(cd, "", mix, "B")
+        F.connect(use, "", mix, "Alpha")
+        tinted = F.math2(m, unreal.MaterialExpressionMultiply, tinted, mix, -100, 100 * i)
     mel.connect_material_property(tinted, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(nor, "XYZ Texture", unreal.MaterialProperty.MP_NORMAL)
     rmask = e(m, unreal.MaterialExpressionComponentMask, -800, 900, r=True, g=False, b=False, a=False)
@@ -218,11 +232,94 @@ def modules():
     unreal.log(f"ARCH modules imported: {count}")
 
 
+GT_SRC = os.path.join(SAVED, "Architecture", "Georgian")
+GEORGIAN = ROOT + "/Georgian"
+# GT_<kind> slot -> scanned surface (None = flat), colour, roughness, metallic, tile cm, extra parameters
+GT_KINDS = {
+    # clean, freshly painted Georgian look: painted stucco and stone are flat colours (the geometry carries the
+    # detail: rustication, mouldings); only brick and slate keep their photo textures, lightened
+    "brick": ("brick", (1.25, 1.02, 0.9), 0.95, 0.0, 200, {"Variation": 0.22}),
+    "brick_gauged": ("brick", (1.5, 1.1, 0.88), 0.9, 0.0, 120, {"Variation": 0.08}),
+    "stucco": (None, (0.92, 0.87, 0.76), 0.75, 0.0, 100, {"Variation": 0.03, "UsePaintB": 1.0}),
+    "stone": (None, (0.86, 0.82, 0.74), 0.8, 0.0, 100, {"Variation": 0.04}),
+    "granite": (None, (0.62, 0.62, 0.6), 0.85, 0.0, 100, {"Variation": 0.05}),
+    "slate": ("slate_roof", (0.9, 0.95, 1.05), 0.85, 0.0, 280, {"Variation": 0.1}),
+    "paving": ("paving", (1.45, 1.5, 1.55), 0.95, 0.0, 180, {"Variation": 0.06}),
+    "asphalt": ("asphalt", (1.1, 1.1, 1.1), 1.0, 0.0, 400, {"Variation": 0.05}),
+    "soil": (None, (0.05, 0.045, 0.03), 1.0, 0.0, 100, {"Variation": 0.2}),
+    "lead": (None, (0.12, 0.125, 0.13), 0.75, 0.0, 100, {}),
+    "paint_frame": (None, (0.88, 0.88, 0.86), 0.35, 0.0, 100, {}),
+    "paint_door": (None, (1.0, 1.0, 1.0), 0.22, 0.0, 100, {"UsePaintA": 1.0}),
+    "metal": (None, (0.025, 0.025, 0.028), 0.4, 0.4, 100, {}),
+    "glass": (None, (0.16, 0.18, 0.2), 0.03, 0.85, 100, {}),   # half-metallic: reflects the sky and the street
+    "brass": (None, (0.75, 0.55, 0.22), 0.3, 1.0, 100, {}),
+}
+
+
+def georgian_materials():
+    scanned = unreal.load_asset(MAT + "/M_RT_Scanned")
+    out = {}
+    for kind, (surface, color, rough, metal, tile, extra) in GT_KINDS.items():
+        name = f"MI_GT_{kind}"
+        path = f"{MAT}/{name}"
+        mi = unreal.load_asset(path) if eal.does_asset_exist(path) else tools.create_asset(name, MAT, unreal.MaterialInstanceConstant,
+                                                                                         unreal.MaterialInstanceConstantFactoryNew())
+        mel.set_material_instance_parent(mi, scanned)
+        for param, suffix in (("ScanColor", "diff"), ("ScanNormal", "nor_gl"), ("ScanRough", "rough"), ("ScanAO", "ao")):
+            tex = f"{SURF}/{surface}_{suffix}" if surface else None
+            if tex and eal.does_asset_exist(tex):
+                mel.set_material_instance_texture_parameter_value(mi, param, unreal.load_asset(tex))
+            else:  # flat kind: plain white maps (a reused instance may still hold a photo texture)
+                flat = F.FLAT if param == "ScanNormal" else F.WHITE
+                mel.set_material_instance_texture_parameter_value(mi, param, flat if not isinstance(flat, str) else unreal.load_asset(flat))
+        lc = unreal.LinearColor(color[0], color[1], color[2], 1)
+        mel.set_material_instance_vector_parameter_value(mi, "Color", lc)
+        mel.set_material_instance_vector_parameter_value(mi, "ScanTint", lc)  # flat kinds: white texture x tint = the colour
+        mel.set_material_instance_scalar_parameter_value(mi, "ScanTile", float(tile))
+        mel.set_material_instance_scalar_parameter_value(mi, "RoughnessScale", rough)
+        mel.set_material_instance_scalar_parameter_value(mi, "Metallic", metal)
+        mel.set_material_instance_scalar_parameter_value(mi, "Variation", 0.0)
+        for k, v in extra.items():
+            mel.set_material_instance_scalar_parameter_value(mi, k, float(v))
+        eal.save_loaded_asset(mi)
+        out[kind] = mi
+    return out
+
+
+def georgian():
+    mats = georgian_materials()
+    current = {os.path.splitext(os.path.basename(f))[0] for f in glob.glob(os.path.join(GT_SRC, "SM_GT_*.fbx"))}
+    for path in eal.list_assets(GEORGIAN, recursive=False, include_folder=False) if eal.does_directory_exist(GEORGIAN) else []:
+        if path.rsplit("/", 1)[-1].split(".")[0] not in current:
+            eal.delete_asset(path)
+    count = 0
+    for fbx in sorted(glob.glob(os.path.join(GT_SRC, "SM_GT_*.fbx"))):
+        mesh = F.import_file(fbx, GEORGIAN, F.mesh_options())
+        if not mesh:
+            unreal.log_error(f"ARCH georgian import failed: {fbx}")
+            continue
+        for i, slot in enumerate(mesh.get_editor_property("static_materials")):
+            kind = str(slot.get_editor_property("material_slot_name"))[len("GT_"):]
+            if kind in mats:
+                mesh.set_material(i, mats[kind])
+            else:
+                unreal.log_warning(f"ARCH georgian: no material for slot {kind} in {fbx}")
+        F.finish_mesh(mesh, foliage=False)
+        count += 1
+    unreal.log(f"ARCH georgian imported: {count}")
+
+
+if os.environ.get("ARCH_GT_MATERIALS_ONLY"):
+    georgian_materials()
+    raise SystemExit
 scanned_master()
-if os.environ.get("ARCH_MODULES_ONLY"):
+if os.environ.get("ARCH_GEORGIAN_ONLY"):
+    georgian()
+elif os.environ.get("ARCH_MODULES_ONLY"):
     modules()
 elif not os.environ.get("ARCH_MASTER_ONLY"):
     surfaces()
     props()
     modules()
+    georgian()
 unreal.log("ARCH done")

@@ -125,3 +125,51 @@ def wind(strength=0.4, speed=0.6, direction=(1.0, 0.35), gustiness=0.5, sway=10.
     for name, value in (("WindStrength", strength), ("WindSpeed", speed), ("Gustiness", gustiness), ("SwayAmount", sway), ("LeafFlutter", flutter)):
         call("materials.set_collection_param", collection=WIND, name=name, value=value)
     call("materials.set_collection_param", collection=WIND, name="WindDirection", value=[direction[0], direction[1], 0, 0])
+
+
+class Instancer:
+    """Collects copies of meshes and places each mesh as ONE instance group (build.place_instances): a whole street
+    of windows, railings and blocks costs a few dozen draw calls. Use it for anything repeated more than a few times.
+
+        ins = Instancer("Terrace")
+        ins.add("/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick", (x, y, z), yaw=90, data=[seed, *door_rgb, *stucco_rgb])
+        ins.add_box("brick", center_bottom=(x, y, z), size=(35, 1000, 1600), yaw=90)   # SM_GT_Block_<Kind>, cm
+        ids = ins.flush()
+
+    data: per-copy floats for the material (scanned architecture: 0 = variation seed, 1-3 = paint A e.g. a front
+    door, 4-6 = paint B e.g. stucco). Asset may be a mesh path or a catalog() key.
+    """
+
+    BLOCKS = "/Game/RuntimeArchitecture/Georgian/SM_GT_Block_"
+
+    def __init__(self, name="Instances", collision=True, chunk=5000):
+        self.name, self.collision, self.chunk = name, collision, chunk
+        self.items = {}
+
+    def add(self, asset, at, yaw=0.0, scale=1.0, data=None):
+        path = asset if asset.startswith("/") else variants(asset)[0]
+        s = scale if isinstance(scale, (list, tuple)) else (scale, scale, scale)
+        rows = self.items.setdefault(path, ([], []))
+        rows[0].append([round(at[0], 2), round(at[1], 2), round(at[2] if len(at) > 2 else 0.0, 2), round(yaw, 3), s[0], s[1], s[2]])
+        rows[1].append(list(data) if data else None)
+
+    def add_box(self, kind, center_bottom, size, yaw=0.0, data=None):
+        """A 1 m material block (brick, stucco, stone, granite, slate, lead, paving, asphalt) scaled to size cm."""
+        self.add(self.BLOCKS + kind.title(), center_bottom, yaw, (size[0] / 100.0, size[1] / 100.0, size[2] / 100.0), data)
+
+    def count(self):
+        return sum(len(t) for t, _ in self.items.values())
+
+    def flush(self):
+        ids = []
+        for path, (rows, data) in self.items.items():
+            width = max((len(d) for d in data if d), default=0)
+            for i in range(0, len(rows), self.chunk):
+                args = {"asset": path, "instances": rows[i:i + self.chunk], "collision": self.collision,
+                        "name": f"{self.name}_{path.rsplit('/', 1)[-1]}"}
+                if width:
+                    default = [0.0, 0.05, 0.12, 0.08, 1.0, 1.0, 1.0][:width] + [0.0] * max(0, width - 7)
+                    args["custom_data"] = [(d or default) + default[len(d or default):] for d in data[i:i + self.chunk]]
+                ids.append(call("build.place_instances", **args)["id"])
+        self.items = {}
+        return ids

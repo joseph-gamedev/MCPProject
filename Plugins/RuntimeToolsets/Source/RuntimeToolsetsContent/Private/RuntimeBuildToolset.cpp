@@ -5,10 +5,12 @@
 #include "RuntimeActorUtils.h"
 #include "RuntimeImage.h"
 #include "RuntimeToolHelpers.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SceneCapture2D.h"
-#include "Engine/StaticMesh.h"
+#include "Engine/StaticMesh.h"
+
 #include "Engine/StaticMeshActor.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
@@ -538,6 +540,197 @@ FBuildToolNodeResult URuntimeBuildToolset::PlaceMesh(const FString& Asset, const
 	}
 	Out.Triangles = Mesh->GetNumTriangles(0);
 	return Out;
+}
+
+FBuildToolInstancesResult URuntimeBuildToolset::PlaceInstances(const FString& Asset, const TArray<FRuntimeToolJson>& Instances,
+	const TArray<FRuntimeToolJson>& CustomData, const FVector& Location, const TArray<FString>& Tags, const FString& Name, AActor* Parent, bool bCollision)
+{
+	FBuildToolInstancesResult Out;
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Asset);
+	if (!Mesh)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no static mesh asset '%s'"), *Asset),
+			TEXT("level.find_assets {\"asset_class\":\"StaticMesh\"} lists packaged meshes"));
+		return Out;
+	}
+	constexpr int32 MaxInstances = 200000;
+	if (Instances.Num() == 0 || Instances.Num() > MaxInstances)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("instances must hold 1-%d entries"), MaxInstances));
+		return Out;
+	}
+	if (CustomData.Num() > 0 && CustomData.Num() != Instances.Num())
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments,
+			FString::Printf(TEXT("custom_data has %d entries but instances has %d"), CustomData.Num(), Instances.Num()), TEXT("Give one entry per instance, or none"));
+		return Out;
+	}
+	// Canonical compact source: the node rebuilds from it (undo/redo, duplicate, templates, export).
+	TArray<TSharedPtr<FJsonValue>> T, D;
+	for (int32 i = 0; i < Instances.Num(); ++i)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		if (!Instances[i].IsSet() || !Instances[i].Value->TryGetArray(A) || !(A->Num() == 3 || A->Num() == 4 || A->Num() == 5 || A->Num() == 7))
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments,
+				FString::Printf(TEXT("instances[%d] must be [x,y,z], [x,y,z,yaw], [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz]"), i));
+			return Out;
+		}
+		double V[7] = {0, 0, 0, 0, 1, 1, 1};
+		for (int32 k = 0; k < A->Num(); ++k)
+		{
+			if (!(*A)[k].IsValid() || !(*A)[k]->TryGetNumber(V[k]))
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("instances[%d][%d] is not a number"), i, k));
+				return Out;
+			}
+		}
+		if (A->Num() == 5)
+		{
+			V[5] = V[6] = V[4];
+		}
+		TArray<TSharedPtr<FJsonValue>> Row;
+		for (double X : V)
+		{
+			Row.Add(MakeShared<FJsonValueNumber>(FMath::RoundToDouble(X * 100.0) / 100.0));
+		}
+		T.Add(MakeShared<FJsonValueArray>(Row));
+	}
+	for (int32 i = 0; i < CustomData.Num(); ++i)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		if (!CustomData[i].IsSet() || !CustomData[i].Value->TryGetArray(A) || A->Num() > 16)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("custom_data[%d] must be an array of at most 16 numbers"), i));
+			return Out;
+		}
+		TArray<TSharedPtr<FJsonValue>> Row;
+		for (const TSharedPtr<FJsonValue>& X : *A)
+		{
+			double N = 0;
+			if (!X.IsValid() || !X->TryGetNumber(N))
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("custom_data[%d] holds a non-number"), i));
+				return Out;
+			}
+			Row.Add(MakeShared<FJsonValueNumber>(FMath::RoundToDouble(N * 1000.0) / 1000.0));
+		}
+		D.Add(MakeShared<FJsonValueArray>(Row));
+	}
+	FString ParentId;
+	if (Parent)
+	{
+		const FRuntimeSceneNode* P = BuildRequireNode(Parent, TEXT("parent"));
+		if (!P)
+		{
+			return Out;
+		}
+		ParentId = P->Id;
+	}
+	TSharedRef<FJsonObject> Src = MakeShared<FJsonObject>();
+	Src->SetStringField(TEXT("a"), Mesh->GetPathName());
+	Src->SetBoolField(TEXT("c"), bCollision);
+	Src->SetArrayField(TEXT("t"), T);
+	if (D.Num() > 0)
+	{
+		Src->SetArrayField(TEXT("d"), D);
+	}
+	const FString Source = TEXT("inst:") + RuntimeJson::Write(Src);
+	const FString NodeName = Name.IsEmpty() ? Mesh->GetName() : Name;
+	const FTransform Transform(Location);
+	auto Spawn = [Source, Transform, NodeName](FRuntimeCommandContext& Ctx, FString& Err)
+	{ return RuntimeMeshAssets::SpawnInstancesFromSource(Ctx.World, Source, Transform, NodeName, Err); };
+	TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(FString::Printf(TEXT("place %d x %s"), Instances.Num(), *NodeName), Spawn, NodeName,
+		ParentId, ERuntimeNodeKind::Actor, Source, ToNames(Tags));
+	FCreateNodeCommand* Raw = Cmd.Get();
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
+	{
+		return Out;
+	}
+	FRuntimeSceneGraph* Graph = RuntimeToolCall::GetGraph();
+	Out.Id = Raw->GetNodeId();
+	Out.Path = Graph->GetPath(Out.Id);
+	if (const FRuntimeSceneNode* Node = Graph->Find(Out.Id))
+	{
+		Out.Name = Node->Name;
+	}
+	Out.Instances = Instances.Num();
+	Out.Triangles = Mesh->GetNumTriangles(0);
+	return Out;
+}
+
+AActor* RuntimeMeshAssets::SpawnInstancesFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
+{
+	const TSharedPtr<FJsonObject> Src = RuntimeJson::Parse(Source.Mid(5));  // after "inst:"
+	FString Path;
+	const TArray<TSharedPtr<FJsonValue>>* T = nullptr;
+	if (!Src.IsValid() || !Src->TryGetStringField(TEXT("a"), Path) || !Src->TryGetArrayField(TEXT("t"), T))
+	{
+		OutError = TEXT("malformed instance source");
+		return nullptr;
+	}
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+	if (!Mesh)
+	{
+		OutError = FString::Printf(TEXT("no static mesh asset '%s'"), *Path);
+		return nullptr;
+	}
+	bool bCollision = true;
+	Src->TryGetBoolField(TEXT("c"), bCollision);
+	const TArray<TSharedPtr<FJsonValue>>* D = nullptr;
+	Src->TryGetArrayField(TEXT("d"), D);
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), Transform, Params);
+	if (!Actor)
+	{
+		OutError = TEXT("could not spawn the instance group");
+		return nullptr;
+	}
+	UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(Actor, TEXT("Instances"));
+	Ism->SetMobility(EComponentMobility::Movable);
+	Ism->SetStaticMesh(Mesh);
+	Ism->SetCollisionProfileName(bCollision ? TEXT("BlockAll") : TEXT("NoCollision"));
+	Actor->SetRootComponent(Ism);
+	Ism->RegisterComponent();
+	Actor->AddInstanceComponent(Ism);
+	Actor->SetActorTransform(Transform);
+
+	TArray<FTransform> Xf;
+	Xf.Reserve(T->Num());
+	for (const TSharedPtr<FJsonValue>& Row : *T)
+	{
+		const TArray<TSharedPtr<FJsonValue>>& V = Row->AsArray();
+		auto N = [&V](int32 i, double Def) { return V.IsValidIndex(i) ? V[i]->AsNumber() : Def; };
+		Xf.Add(FTransform(FRotator(0, N(3, 0), 0), FVector(N(0, 0), N(1, 0), N(2, 0)), FVector(N(4, 1), N(5, 1), N(6, 1))));
+	}
+	int32 NumCustom = 0;
+	if (D)
+	{
+		for (const TSharedPtr<FJsonValue>& Row : *D)
+		{
+			NumCustom = FMath::Max(NumCustom, Row->AsArray().Num());
+		}
+	}
+	Ism->SetNumCustomDataFloats(NumCustom);
+	Ism->AddInstances(Xf, false, false);
+	if (D && NumCustom > 0)
+	{
+		TArray<float> Data;
+		for (int32 i = 0; i < D->Num() && i < Xf.Num(); ++i)
+		{
+			const TArray<TSharedPtr<FJsonValue>>& V = (*D)[i]->AsArray();
+			Data.Init(0.f, NumCustom);
+			for (int32 k = 0; k < V.Num() && k < NumCustom; ++k)
+			{
+				Data[k] = float(V[k]->AsNumber());
+			}
+			Ism->SetCustomData(i, Data, false);
+		}
+		Ism->MarkRenderStateDirty();
+	}
+	return Actor;
 }
 
 AActor* RuntimeMeshAssets::SpawnFromSource(UWorld* World, const FString& Source, const FTransform& Transform, const FString& Name, FString& OutError)
