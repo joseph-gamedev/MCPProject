@@ -26,6 +26,8 @@ namespace RuntimePrimitives
 	static const TCHAR* BasicMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	static const TCHAR* PbrMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_PBR.M_RT_PBR");
 	static const TCHAR* GlassMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_Glass.M_RT_Glass");
+	/** Scanned-texture master (project content, from Scripts/architecture/import_architecture.py); used when a preset has textures. */
+	static const TCHAR* ScannedMaterialPath = TEXT("/Game/RuntimeArchitecture/Materials/M_RT_Scanned.M_RT_Scanned");
 	static constexpr int32 MaxOps = 64;
 	static constexpr int32 MaxParts = 512;
 	static constexpr int32 MaxAssemblyTriangles = 400000;
@@ -78,6 +80,8 @@ namespace RuntimePrimitives
 			{TEXT("asphalt"), FLinearColor(0.08f, 0.08f, 0.08f), 0.85f, 0.f, 0.1f},
 			{TEXT("roof_tile"), FLinearColor(0.5f, 0.2f, 0.12f), 0.75f, 0.f, 0.2f},
 			{TEXT("cobblestone"), FLinearColor(0.38f, 0.36f, 0.33f), 0.85f, 0.f, 0.3f},
+			{TEXT("paving"), FLinearColor(0.55f, 0.54f, 0.5f), 0.85f, 0.f, 0.15f},
+			{TEXT("corrugated"), FLinearColor(0.5f, 0.51f, 0.53f), 0.5f, 0.6f, 0.1f},
 			{TEXT("light"), FLinearColor(1.f, 0.9f, 0.7f), 0.5f, 0.f, 0.f, false, 20.f},
 			{TEXT("white"), FLinearColor(0.9f, 0.9f, 0.9f), 0.5f, 0.f, 0.03f},
 			{TEXT("black"), FLinearColor(0.03f, 0.03f, 0.03f), 0.5f, 0.f, 0.03f},
@@ -113,7 +117,7 @@ namespace RuntimePrimitives
 	const TArray<FString>& MaterialFieldNames()
 	{
 		static const TArray<FString> Names = {TEXT("material"), TEXT("color"), TEXT("roughness"), TEXT("metallic"), TEXT("emissive"),
-			TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("style"), TEXT("tile"), TEXT("relief"), TEXT("weathering")};
+			TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("style"), TEXT("tile"), TEXT("relief"), TEXT("weathering"), TEXT("scanned")};
 		return Names;
 	}
 
@@ -150,6 +154,8 @@ namespace RuntimePrimitives
 			{TEXT("painted_iron"), {4, 60.f, 0.05f}},
 			{TEXT("grass"), {9, 250.f, 2.0f}},
 			{TEXT("sand"), {9, 300.f, 1.5f}},
+			{TEXT("paving"), {2, 50.f, 0.6f}},
+			{TEXT("corrugated"), {8, 60.f, 0.05f}},
 		};
 		const FStyle* Found = Map.Find(Preset);
 		return Found ? *Found : FStyle{0, 100.f, 0.f};
@@ -1368,6 +1374,46 @@ namespace RuntimePrimitives
 	}
 
 	/** Material for a set of material fields: a preset (PBR + procedural style) or an allowed material path. */
+	/** Scanned surface textures of a preset (colour, normal, roughness, AO), if the project has them; cached. */
+	struct FScanned
+	{
+		TWeakObjectPtr<UTexture> Color, Normal, Rough, AO;
+		float Tile = 200.f;  // cm one texture repeat covers
+	};
+
+	static const FScanned* ScannedFor(const FString& Preset)
+	{
+		static const TMap<FString, float> Tiles = {
+			{TEXT("brick"), 160.f}, {TEXT("plaster"), 220.f}, {TEXT("concrete"), 260.f}, {TEXT("limestone"), 200.f}, {TEXT("sandstone"), 320.f},
+			{TEXT("granite"), 260.f}, {TEXT("marble"), 260.f}, {TEXT("stone"), 220.f}, {TEXT("roof_tile"), 200.f}, {TEXT("slate_roof"), 160.f},
+			{TEXT("wood"), 160.f}, {TEXT("corrugated"), 200.f}, {TEXT("asphalt"), 400.f},  // steel / painted_iron stay procedural (car paint, frames)
+			{TEXT("cobblestone"), 220.f}, {TEXT("paving"), 220.f}, {TEXT("terracotta"), 200.f}};
+		static TMap<FString, FScanned> Cache;
+		const float* Tile = Tiles.Find(Preset);
+		if (!Tile)
+		{
+			return nullptr;
+		}
+		FScanned* Hit = Cache.Find(Preset);
+		if (!Hit)
+		{
+			auto Load = [&Preset](const TCHAR* Suffix)
+			{
+				const FString Name = FString::Printf(TEXT("%s_%s"), *Preset, Suffix);
+				return TWeakObjectPtr<UTexture>(LoadObject<UTexture>(nullptr, *FString::Printf(TEXT("/Game/RuntimeArchitecture/Surfaces/%s.%s"), *Name, *Name),
+					nullptr, LOAD_NoWarn | LOAD_Quiet));
+			};
+			FScanned S;
+			S.Color = Load(TEXT("diff"));
+			S.Normal = Load(TEXT("nor_gl"));
+			S.Rough = Load(TEXT("rough"));
+			S.AO = Load(TEXT("ao"));
+			S.Tile = *Tile;
+			Hit = &Cache.Add(Preset, S);
+		}
+		return Hit->Color.IsValid() ? Hit : nullptr;
+	}
+
 	static UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer, FString& OutError)
 	{
 		FString Material = TEXT("white");
@@ -1376,6 +1422,54 @@ namespace RuntimePrimitives
 		const bool bColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C);
 		if (const FPreset* Preset = Presets().FindByPredicate([&Material](const FPreset& P) { return P.Name == Material; }))
 		{
+			// Real scanned surfaces when the project has them ("scanned": false keeps the procedural look).
+			bool bWantScan = true;
+			Recipe->TryGetBoolField(TEXT("scanned"), bWantScan);
+			// an explicit surface style picks the matching scan (concrete with style blocks = paving stones)
+			FString ScanKey = Material;
+			FString StyleField;
+			if (Recipe->TryGetStringField(TEXT("style"), StyleField))
+			{
+				static const TMap<FString, FString> StyleScan = {{TEXT("blocks"), TEXT("paving")}, {TEXT("brick"), TEXT("brick")}, {TEXT("planks"), TEXT("wood")},
+					{TEXT("roof_tiles"), TEXT("roof_tile")}, {TEXT("marble"), TEXT("marble")}, {TEXT("plaster"), TEXT("plaster")}, {TEXT("concrete"), TEXT("concrete")}};
+				if (const FString* K = StyleScan.Find(StyleField))
+				{
+					ScanKey = *K;
+				}
+				else
+				{
+					bWantScan = false;  // smooth, brushed, ground ...: keep the procedural surface the recipe asked for
+				}
+			}
+			const FScanned* Scan = !Preset->bGlass && bWantScan ? ScannedFor(ScanKey) : nullptr;
+			const FPreset* ScanPreset = Presets().FindByPredicate([&ScanKey](const FPreset& P) { return P.Name == ScanKey; });
+			const FLinearColor ScanRef = ScanPreset ? ScanPreset->Color : Preset->Color;
+			UMaterialInterface* ScanBase = Scan ? LoadObject<UMaterialInterface>(nullptr, ScannedMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+			if (ScanBase)
+			{
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(ScanBase, Outer);
+				const FLinearColor Color = bColor ? FLinearColor(C.X, C.Y, C.Z) : Preset->Color;
+				// the part colour tints the scan relative to the preset's own colour (default colour = the scan as photographed)
+				auto Ratio = [](float A, float B) { return FMath::Clamp(A / FMath::Max(B, 0.02f), 0.f, 4.f); };
+				MID->SetVectorParameterValue(TEXT("Color"), Color);
+				MID->SetVectorParameterValue(TEXT("ScanTint"), bColor ? FLinearColor(Ratio(Color.R, ScanRef.R), Ratio(Color.G, ScanRef.G),
+					Ratio(Color.B, ScanRef.B)) : FLinearColor::White);
+				MID->SetTextureParameterValue(TEXT("ScanColor"), Scan->Color.Get());
+				if (Scan->Normal.IsValid()) MID->SetTextureParameterValue(TEXT("ScanNormal"), Scan->Normal.Get());
+				if (Scan->Rough.IsValid()) MID->SetTextureParameterValue(TEXT("ScanRough"), Scan->Rough.Get());
+				if (Scan->AO.IsValid()) MID->SetTextureParameterValue(TEXT("ScanAO"), Scan->AO.Get());
+				// "tile" scales the pattern: relative to the preset's procedural tile, so old recipes keep their proportions
+				const double StyleTile = PresetStyle(ScanKey).Tile;
+				MID->SetScalarParameterValue(TEXT("ScanTile"), static_cast<float>(Scan->Tile * Num(Recipe, TEXT("tile"), StyleTile) / FMath::Max(StyleTile, 1.0)));
+				MID->SetScalarParameterValue(TEXT("Variation"), static_cast<float>(Num(Recipe, TEXT("variation"), Preset->Variation)));
+				MID->SetScalarParameterValue(TEXT("RoughnessScale"), static_cast<float>(Num(Recipe, TEXT("roughness"), Preset->Roughness) / FMath::Max(Preset->Roughness, 0.05f)));
+				MID->SetScalarParameterValue(TEXT("Metallic"), static_cast<float>(Num(Recipe, TEXT("metallic"), Preset->Metallic)));
+				FVector E;
+				const bool bEmissiveColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("emissive")), E);
+				MID->SetVectorParameterValue(TEXT("Emissive"), bEmissiveColor ? FLinearColor(E.X, E.Y, E.Z) : Color);
+				MID->SetScalarParameterValue(TEXT("EmissiveStrength"), static_cast<float>(Num(Recipe, TEXT("emissive_strength"), bEmissiveColor ? 5.0 : Preset->Emissive)));
+				return MID;
+			}
 			UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);
 			const bool bPbr = Base != nullptr;
 			if (!Base)

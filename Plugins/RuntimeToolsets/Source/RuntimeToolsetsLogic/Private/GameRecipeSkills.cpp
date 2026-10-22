@@ -202,6 +202,17 @@ Wind (live, all foliage): uk.assets.wind(strength, speed, direction, gustiness, 
 {collection:"/Game/RuntimeFoliage/Materials/MPC_Wind.MPC_Wind", name: WindStrength|WindSpeed|Gustiness|SwayAmount|LeafFlutter|WindDirection}.
 Default 0.4 = light breeze; 0.15 calm; 1 windy; 2-3 storm. Match the mood (still sunset, breezy coast, stormy overcast).
 
+## 4c Architecture: scanned surfaces, modules and props
+Material presets brick, plaster, concrete, marble, wood, paving, roof_tile (and styles blocks/planks/roof_tiles) use
+scanned photo textures automatically, tinted by the part colour; "scanned": false keeps the procedural look.
+Real modules in /Game/RuntimeArchitecture/Modules (build.place_mesh {asset}, or uk.assets.place): door_panel,
+door_painted, door_double, window_sash, window_sash_small, window_shutters, window_tall, window_wide, balcony,
+cornice_2m, string_course_2m, pediment - pivot on the wall plane at the bottom centre, pointing -Y, so place them at the
+wall's front face rotated to its facing; column_tuscan, column_doric, balustrade_2m, railing_iron_2m, steps_entrance,
+chimney, dormer stand free. Props in /Game/RuntimeArchitecture/Props: street_lamp, fire_hydrant, metal_trash_can,
+painted_wooden_bench, planter_box, concrete_road_barrier, wooden_crate and more. Use them for hero and close-up
+buildings; keep the procedural builders for distant blocks.
+
 ## 5 Camera
 People see the world from 160-170 cm with a 60-75 degree FOV. Shoot hero images at eye level, slightly
 off-axis, with something in the foreground. High aerials show layout but look like a model. No tilted horizons.

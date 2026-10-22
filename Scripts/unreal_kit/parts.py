@@ -26,7 +26,7 @@ def srgb(r, g, b):
 
 PRESETS = ["marble", "sandstone", "limestone", "granite", "stone", "brick", "terracotta", "concrete", "plaster", "wood", "slate_roof",
            "copper", "verdigris", "bronze", "gold", "steel", "iron", "painted_iron", "glass", "tinted_glass", "water", "grass", "sand",
-           "asphalt", "roof_tile", "cobblestone", "light", "white", "black", "red", "green", "blue"]
+           "asphalt", "roof_tile", "cobblestone", "paving", "corrugated", "light", "white", "black", "red", "green", "blue"]
 
 
 def M(preset, rgb=None, **kw):

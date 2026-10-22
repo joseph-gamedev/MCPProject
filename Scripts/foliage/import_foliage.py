@@ -489,7 +489,9 @@ def main():
     unreal.log(f"FOLIAGE done: {count} meshes")
 
 
-if not os.environ.get("FOLIAGE_MASTERS_ONLY"):
+if os.environ.get("FOLIAGE_LIBRARY_ONLY"):
+    pass  # imported for its helpers (architecture import)
+elif not os.environ.get("FOLIAGE_MASTERS_ONLY"):
     main()
 else:  # rebuild just the master materials (instances and meshes stay)
     leaf_master(), bark_master(), surface_master()

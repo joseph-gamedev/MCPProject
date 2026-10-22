@@ -152,7 +152,7 @@ shotgun(name="shotgun", damage=12, per_shot=7, spread=12, rate=1.2, magazine=6, 
 turret_brain(name="turret", weapon="enemy_gun", sight=3000)  # Stands still, turns to the player and fires while it sees them.
 waves(name, template, waves, points=None, around_player=None, interval=1.2, max_alive=6, wave_gap=4)  # Spawner with waves: waves = [count, count, ...] or [{count, interval, max_alive}]. template = a node used as t
 ### materials
-PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concrete, plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water, grass, sand, asphalt, roof_tile, cobblestone, light, white, black, red, green, blue
+PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concrete, plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water, grass, sand, asphalt, roof_tile, cobblestone, paving, corrugated, light, white, black, red, green, blue
 PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, plaster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
 city STYLES: brick, plaster, stone, office, glass
 )KIT"));

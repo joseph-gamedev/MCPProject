@@ -13,7 +13,16 @@ grass 0.3-1 m); scale ranges add variety. All use scanned bark and leaf textures
 Generated species: aspen, birch, maple, japanese_maple, oak, pine, fir, willow, bottlebrush, palm_coconut, palm_date,
 bush, boxwood, flower_bush, fern, grass, tall_grass, wildflowers.
 Scanned models (Poly Haven, CC0): island_tree, jacaranda_tree, nettle_plant, pachira_aquatica, grass_medium,
-grass_bermuda, fern, dandelion, celandine, periwinkle_plant, boulder, rock.  catalog() shows what the build has.
+grass_bermuda, fern, dandelion, celandine, periwinkle_plant, boulder, rock.
+Street / building props (scanned): street_lamp (2), fire_hydrant, metal_trash_can, painted_wooden_bench,
+modular_street_seating, concrete_road_barrier, planter_box (2), modular_chainlink_fence, large_castle_door,
+rollershutter_door, rollershutter_window, wooden_picnic_table, outdoor_table_chair_set, wooden_barrels, wooden_crate.
+Architecture modules (real size, cm): door_panel, door_painted, door_double, window_sash, window_sash_small,
+window_shutters, window_tall, window_wide, balcony, cornice_2m, string_course_2m, pediment (wall pieces: pivot on the
+wall plane at the bottom centre, they stick out towards -Y, so put them at the wall's front face with yaw = the wall's
+facing - 0 for a wall facing -Y); column_tuscan (4 m), column_doric (6 m), balustrade_2m, railing_iron_2m,
+steps_entrance, chimney, dormer (free-standing, pivot at the bottom).
+catalog() shows what the build has.
 """
 
 import random
@@ -29,16 +38,21 @@ def _key(asset_name):
     """SM_PalmCoconut_02 -> palm_coconut; SM_PH_IslandTree01 -> island_tree (scanned Poly Haven models)."""
     base = re.sub(r"^SM_(PH_)?", "", asset_name)
     base = re.sub(r"_?\d+$", "", base)
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", base).lower()
+    return re.sub(r"_+", "_", re.sub(r"(?<!^)(?=[A-Z])", "_", base)).lower()
 
 
 def catalog(refresh=False):
     """{species: [static mesh paths]} from the packaged foliage (cached)."""
     global _CATALOG
     if _CATALOG is None or refresh:
-        res = call("level.find_assets", asset_class="StaticMesh", folder_path=ROOT, recursive=True, limit=1000)
         cat = {}
-        for a in res.get("assets", []):
+        found = []
+        for root in (ROOT, "/Game/RuntimeArchitecture/Props", "/Game/RuntimeArchitecture/Modules"):
+            try:
+                found += call("level.find_assets", asset_class="StaticMesh", folder_path=root, recursive=True, limit=1000).get("assets", [])
+            except Exception:
+                pass  # a build without that folder
+        for a in found:
             path = a["path"].split(".")[0]
             cat.setdefault(_key(path.rsplit("/", 1)[-1]), []).append(path)
         _CATALOG = {k: sorted(v) for k, v in cat.items()}
@@ -48,7 +62,7 @@ def catalog(refresh=False):
 def variants(species):
     cat = catalog()
     if species not in cat:
-        raise KeyError(f"no foliage '{species}' (have: {', '.join(sorted(cat))})")
+        raise KeyError(f"no asset '{species}' (have: {', '.join(sorted(cat))})")
     return cat[species]
 
 
