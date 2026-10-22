@@ -1,4 +1,5 @@
 #include "RuntimeBuildToolset.h"
+#include "TerrainMesh.h"
 #include "RuntimeCommonCommands.h"
 #include "RuntimeToolsetsGroupActor.h"
 #include "PrimitiveMesh.h"
@@ -539,6 +540,124 @@ FBuildToolNodeResult URuntimeBuildToolset::PlaceMesh(const FString& Asset, const
 		Out.Name = Node->Name;
 	}
 	Out.Triangles = Mesh->GetNumTriangles(0);
+	return Out;
+}
+
+FBuildToolTerrainResult URuntimeBuildToolset::CreateTerrain(const FVector2D& Size, const FVector& Location, const TArray<FRuntimeToolJson>& Hills,
+	const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height,
+	float FeatureSize, float Ridged, float Roughness, int32 Seed, float Edge, EBuildToolBiome Biome, float Resolution, float SnowLine, const FString& Name,
+	AActor* Parent, const FString& Material)
+{
+	FBuildToolTerrainResult Out;
+	const FVector2D Sz = BuildCall().Has(TEXT("size")) ? Size : FVector2D(20000, 20000);
+	const FVector2D Origin(Location.X, Location.Y);
+	TSharedRef<FJsonObject> Recipe = Obj();
+	Recipe->SetStringField(TEXT("shape"), TEXT("terrain"));
+	Recipe->SetArrayField(TEXT("size"), {MakeShared<FJsonValueNumber>(Sz.X), MakeShared<FJsonValueNumber>(Sz.Y)});
+	auto SetNum = [&Recipe](const TCHAR* F, double V, bool bSet) { if (bSet) Recipe->SetNumberField(F, V); };
+	SetNum(TEXT("height"), BuildCall().Has(TEXT("height")) ? Height : 2000.0, true);
+	SetNum(TEXT("feature_size"), FeatureSize, BuildCall().Has(TEXT("feature_size")));
+	SetNum(TEXT("ridged"), Ridged, BuildCall().Has(TEXT("ridged")));
+	SetNum(TEXT("roughness"), Roughness, BuildCall().Has(TEXT("roughness")));
+	SetNum(TEXT("seed"), Seed, BuildCall().Has(TEXT("seed")));
+	SetNum(TEXT("edge"), Edge, Edge > 0);
+	SetNum(TEXT("resolution"), Resolution, Resolution > 0);
+	// world x,y (and pad heights) -> the terrain's local frame, so the recipe rebuilds anywhere
+	auto ToLocalXY = [&Origin](const TSharedPtr<FJsonValue>& V) -> TSharedPtr<FJsonValue>
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		if (!V.IsValid() || !V->TryGetArray(A) || A->Num() < 2)
+		{
+			return V;
+		}
+		return MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>((*A)[0]->AsNumber() - Origin.X),
+			MakeShared<FJsonValueNumber>((*A)[1]->AsNumber() - Origin.Y)});
+	};
+	auto LocalList = [&](const TArray<FRuntimeToolJson>& In, const TCHAR* Field, const TCHAR* What) -> bool
+	{
+		TArray<TSharedPtr<FJsonValue>> List;
+		for (int32 i = 0; i < In.Num(); ++i)
+		{
+			const TSharedPtr<FJsonObject> J = In[i].AsObject();
+			if (!J.IsValid())
+			{
+				RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("%s[%d] must be an object"), What, i));
+				return false;
+			}
+			TSharedRef<FJsonObject> C = RuntimeJson::Parse(RuntimeJson::Write(J.ToSharedRef())).ToSharedRef();
+			if (C->HasField(TEXT("at")))
+			{
+				C->SetField(TEXT("at"), ToLocalXY(C->TryGetField(TEXT("at"))));
+			}
+			for (const TCHAR* PathField : {TEXT("area"), TEXT("path")})
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Pts = nullptr;
+				if (C->TryGetArrayField(PathField, Pts))
+				{
+					TArray<TSharedPtr<FJsonValue>> Local;
+					for (const TSharedPtr<FJsonValue>& P : *Pts)
+					{
+						Local.Add(ToLocalXY(P));
+					}
+					C->SetArrayField(PathField, Local);
+				}
+			}
+			double Hz;
+			if (C->TryGetNumberField(TEXT("height"), Hz) && FCString::Strcmp(Field, TEXT("flatten")) == 0)
+			{
+				C->SetNumberField(TEXT("height"), Hz - Location.Z);
+			}
+			List.Add(MakeShared<FJsonValueObject>(C));
+		}
+		if (List.Num() > 0)
+		{
+			Recipe->SetArrayField(Field, List);
+		}
+		return true;
+	};
+	if (!LocalList(Hills, TEXT("hills"), TEXT("hills")) || !LocalList(Flatten, TEXT("flatten"), TEXT("flatten")) || !LocalList(Carve, TEXT("carve"), TEXT("carve")))
+	{
+		return Out;
+	}
+	Recipe->SetStringField(TEXT("biome"), BuildEnumText(Biome));
+	SetNum(TEXT("snow_line"), SnowLine - Location.Z, SnowLine != 0);
+	if (!Material.IsEmpty())
+	{
+		Recipe->SetStringField(TEXT("material"), Material);
+	}
+	BuildCopyArg(Recipe, TEXT("color"));
+	TArray<TSharedPtr<FJsonValue>> Rivers;
+	double MinZ = 0, MaxZ = 0;
+	FString Error;
+	if (!RuntimeTerrain::Describe(Recipe, Rivers, MinZ, MaxZ, Error))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, Error, TEXT("size [x,y]; hills [{at,radius,height}]; flatten [{at,radius}|{area}]; carve [{path,width,depth}]"));
+		return Out;
+	}
+	FBuildToolAssemblyResult A;
+	if (!CreateFromRecipe(Recipe, Name.IsEmpty() ? TEXT("Terrain") : Name, Parent, FTransform(Location), Tags, false, A))
+	{
+		return Out;
+	}
+	Out.Id = A.Id;
+	Out.Name = A.Name;
+	Out.Path = A.Path;
+	Out.Triangles = A.Triangles;
+	Out.MinZ = MinZ + Location.Z;
+	Out.MaxZ = MaxZ + Location.Z;
+	for (const TSharedPtr<FJsonValue>& R : Rivers)
+	{
+		const TSharedPtr<FJsonObject> J = R->AsObject();
+		TArray<TSharedPtr<FJsonValue>> World;
+		for (const TSharedPtr<FJsonValue>& P : J->GetArrayField(TEXT("path")))
+		{
+			FVector V;
+			RuntimeJson::ToVector(P, V);
+			World.Add(RuntimeJson::Vec(V + Location));
+		}
+		J->SetArrayField(TEXT("path"), World);
+		Out.Rivers.Add(FRuntimeToolJson::Make(J));
+	}
 	return Out;
 }
 

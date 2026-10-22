@@ -1260,6 +1260,226 @@
 			"undoable": true
 		},
 		{
+			"description": "Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step. Fails if the size is out of range or a hill, pad or carve entry is malformed.\nReturns: {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"biome":
+					{
+						"default": "Temperate",
+						"description": "Ground colours.",
+						"enum": [
+							"Temperate",
+							"Tropical",
+							"Desert",
+							"Savanna",
+							"Alpine",
+							"Arctic"
+						],
+						"type": "string"
+					},
+					"carve":
+					{
+						"description": "Channels (world x,y): [{path:[[x,y],...], kind:\"river\"|\"road\", width, depth, bank}]; rivers are carved downhill from the first point (returns their water surface).",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"color":
+					{
+						"description": "Override the ground-cover colour [r,g,b] linear 0-1. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"edge":
+					{
+						"default": 0,
+						"description": "Fade the relief to the base level over this many cm at the borders (0 = none).",
+						"type": "number"
+					},
+					"feature_size":
+					{
+						"default": 20000,
+						"description": "Typical distance between hills cm: large = rolling, small = rugged.",
+						"type": "number"
+					},
+					"flatten":
+					{
+						"description": "Level pads (world x,y): [{at:[x,y], radius, blend?, height?}] or [{area:[[x,y],...], blend?, height?}]; height defaults to the ground there (world z); bare:false keeps grass.",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"height":
+					{
+						"default": 2000,
+						"description": "Relief cm: the highest hills reach about this far above the base (0 = flat apart from hills, pads and channels).",
+						"type": "number"
+					},
+					"hills":
+					{
+						"description": "Extra hills or basins (world x,y): [{at:[x,y], radius, height}] (negative height digs a basin or lake bed).",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"location":
+					{
+						"description": "Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"material":
+					{
+						"default": "",
+						"description": "Override the ground material (preset or allowed path); default the biome ground.",
+						"type": "string"
+					},
+					"name":
+					{
+						"default": "Terrain",
+						"description": "Node name.",
+						"type": "string"
+					},
+					"parent":
+					{
+						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"resolution":
+					{
+						"default": 0,
+						"description": "Grid cell cm (0 = about 256 cells along the longer side; at most 600 cells per side).",
+						"type": "number"
+					},
+					"ridged":
+					{
+						"default": 0,
+						"description": "0 rounded hills .. 1 sharp mountain ridges.",
+						"type": "number"
+					},
+					"roughness":
+					{
+						"default": 0.5,
+						"description": "Small-scale detail 0..1.",
+						"type": "number"
+					},
+					"seed":
+					{
+						"default": 1,
+						"description": "Same seed, same terrain.",
+						"type": "integer"
+					},
+					"size":
+					{
+						"description": "[x, y] extent cm, centred on location, e.g. [40000, 40000] (500-400000).",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"snow_line":
+					{
+						"default": 0,
+						"description": "Snow above this world z (alpine; 0 = biome default).",
+						"type": "number"
+					},
+					"tags":
+					{
+						"description": "Node tags.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "build.create_terrain",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "{id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.",
+						"properties":
+						{
+							"id":
+							{
+								"description": "Node id of the terrain.",
+								"type": "string"
+							},
+							"max_z":
+							{
+								"description": "Highest ground (world z cm).",
+								"type": "number"
+							},
+							"min_z":
+							{
+								"description": "Lowest ground (world z cm).",
+								"type": "number"
+							},
+							"name":
+							{
+								"description": "Node name.",
+								"type": "string"
+							},
+							"path":
+							{
+								"description": "Node path.",
+								"type": "string"
+							},
+							"rivers":
+							{
+								"description": "One entry per river carve: {path: [[x,y,z],...] water surface downstream (world cm), width}. Feed it to a water surface.",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"triangles":
+							{
+								"description": "Triangles in the surface.",
+								"type": "integer"
+							}
+						},
+						"title": "BuildToolTerrainResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
 			"description": "Counts nodes, triangles, components, materials and estimated draw calls (performance budget of a build).",
 			"input_schema":
 			{
@@ -1597,7 +1817,7 @@
 			"undoable": true
 		},
 		{
-			"description": "Places many copies of one packaged static mesh as a single node of GPU instances: thousands cost about as much as one (every window of a type in a street, every railing bay, every block of a wall). One undo step. Fails if the asset is not a packaged static mesh or an instance entry is malformed.\nReturns: {id, name, path, instances, triangles}.",
+			"description": "",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1605,18 +1825,15 @@
 				{
 					"asset":
 					{
-						"description": "Static mesh path, e.g. \"/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick\".",
 						"type": "string"
 					},
 					"collision":
 					{
 						"default": true,
-						"description": "Block movement and traces.",
 						"type": "boolean"
 					},
 					"custom_data":
 					{
-						"description": "Optional per-copy floats in the same order, e.g. [[seed,r,g,b,r2,g2,b2]], read by the material (scanned architecture materials: 0 = variation seed, 1-3 = paint A colour such as a front door, 4-6 = paint B such as stucco).",
 						"items":
 						{
 							"description": "Any JSON value"
@@ -1625,7 +1842,6 @@
 					},
 					"instances":
 					{
-						"description": "One entry per copy, relative to Location: [x,y,z], [x,y,z,yaw], [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz] (cm, degrees).",
 						"items":
 						{
 							"description": "Any JSON value"
@@ -1634,7 +1850,7 @@
 					},
 					"location":
 					{
-						"description": "World location cm of the group (relative to the parent when one is given). ([x, y, z] (cm))",
+						"description": "[x, y, z] (cm)",
 						"items":
 						{
 							"type": "number"
@@ -1646,17 +1862,15 @@
 					"name":
 					{
 						"default": "",
-						"description": "Node name (default: the asset name).",
 						"type": "string"
 					},
 					"parent":
 					{
-						"description": "Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"description": "Reference to Actor: node id (n12), node path, actor:Name or object path",
 						"type": "string"
 					},
 					"tags":
 					{
-						"description": "Node tags.",
 						"items":
 						{
 							"type": "string"
@@ -1678,7 +1892,6 @@
 				{
 					"returnValue":
 					{
-						"description": "{id, name, path, instances, triangles}.",
 						"properties":
 						{
 							"id":

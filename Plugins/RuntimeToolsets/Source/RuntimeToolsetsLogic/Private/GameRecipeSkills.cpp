@@ -188,6 +188,13 @@ style.apply material {Weathering: 0.2-0.4}: dirt at the wall base, rain streaks,
 - Ground is never empty: curbs, markings, lamps, trees with pits, benches, bins, bollards, parked cars, grass edges.
 - Repetition kills realism: vary width, height, colour, window type and roof between neighbours.
 
+## 4a Ground: real terrain, not a flat floor
+Outdoor scenes start with build.create_terrain {size:[x,y], height (relief cm), feature_size, ridged, biome
+(temperate|tropical|desert|savanna|alpine|arctic), flatten:[{at,radius}] pads for villages and fields, carve:[{path,
+width, depth}] rivers (always downhill; the result's rivers[] gives the water surface) or {kind:"road"}}. Its collision
+is the exact surface, so pcg.scatter, snap_to_ground and characters follow the slopes. Areas for scatter are polygons
+with straight edges (uk.assets.forest does this); a closed exclusion spline keeps its whole inside clear.
+
 ## 4b Nature: real assets, never blobs
 Trees, palms, bushes, ferns, grass and rocks are real meshes packaged with the game, all with scanned bark and leaf
 textures. Generated in Blender (3 variants each, real heights): aspen, birch, maple, japanese_maple, oak, pine, fir,

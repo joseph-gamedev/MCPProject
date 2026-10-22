@@ -86,9 +86,11 @@ def _items(mix, scale, collision):
     return out
 
 
-def _spline(points, closed, name):
+def _spline(points, closed, name, linear=None):
+    """Areas (closed) get straight edges: a curved spline through polygon corners bulges outward and spills the planting
+    past the area. Paths stay smooth unless linear=True."""
     pts = [list(p) + [0] * (3 - len(p)) for p in points]
-    res = call("spline.create_spline", points=pts, closed=closed, name=name)
+    res = call("spline.create_spline", points=pts, closed=closed, name=name, linear=closed if linear is None else linear)
     sp = res.get("spline")
     return sp.get("ref") or sp.get("id") if isinstance(sp, dict) else res.get("id")
 

@@ -179,7 +179,7 @@ def scene(size=36000, seed=4, river_w=3200, village=(0, 0), lighting=True, densi
 
     # ---- vegetation (PCG): exclusion zones keep the river and the clearing open
     def spline(points, closed, name):
-        r = uk.call("spline.create_spline", points=[list(p) + [0] * (3 - len(p)) for p in points], closed=closed, name=name)
+        r = uk.call("spline.create_spline", points=[list(p) + [0] * (3 - len(p)) for p in points], closed=closed, name=name, linear=closed)
         sp = r.get("spline")
         return (sp.get("ref") or sp.get("id")) if isinstance(sp, dict) else r.get("id")
 

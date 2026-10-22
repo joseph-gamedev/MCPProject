@@ -54,6 +54,23 @@ enum class EBuildToolPivot : uint8
 };
 
 UENUM()
+enum class EBuildToolBiome : uint8
+{
+	/** Green grass, brown earth, grey rock. */
+	Temperate,
+	/** Deep green, red laterite earth, dark mud. */
+	Tropical,
+	/** Sand and rock, no green. */
+	Desert,
+	/** Dry golden grass and red earth. */
+	Savanna,
+	/** Short grass, lots of rock, snow above snow_line (default 25 m above the base). */
+	Alpine,
+	/** Snow everywhere, rock on steep slopes. */
+	Arctic,
+};
+
+UENUM()
 enum class EBuildToolSolidKind : uint8
 {
 	/** Spin a [radius, height] profile around Z: domes, columns, vases. */
@@ -137,6 +154,40 @@ struct FBuildToolInstancesResult
 	/** Triangles in one copy (Nanite renders only what is visible). */
 	UPROPERTY()
 	int32 Triangles = 0;
+};
+
+USTRUCT()
+struct FBuildToolTerrainResult
+{
+	GENERATED_BODY()
+
+	/** Node id of the terrain. */
+	UPROPERTY()
+	FString Id;
+
+	/** Node name. */
+	UPROPERTY()
+	FString Name;
+
+	/** Node path. */
+	UPROPERTY()
+	FString Path;
+
+	/** Triangles in the surface. */
+	UPROPERTY()
+	int32 Triangles = 0;
+
+	/** Lowest ground (world z cm). */
+	UPROPERTY()
+	double MinZ = 0;
+
+	/** Highest ground (world z cm). */
+	UPROPERTY()
+	double MaxZ = 0;
+
+	/** One entry per river carve: {path: [[x,y,z],...] water surface downstream (world cm), width}. Feed it to a water surface. */
+	UPROPERTY()
+	TArray<FRuntimeToolJson> Rivers;
 };
 
 USTRUCT()
@@ -587,6 +638,40 @@ public:
 	 * @param bCollision - Block movement and traces.
 	 * @return {id, name, path, instances, triangles}.
 	 */
+	/**
+	 * Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for
+	 * villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The
+	 * collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The
+	 * ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step.
+	 * Fails if the size is out of range or a hill, pad or carve entry is malformed.
+	 *
+	 * @param Size - [x, y] extent cm, centred on location, e.g. [40000, 40000] (500-400000).
+	 * @param Location - Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it).
+	 * @param Height - Relief cm: the highest hills reach about this far above the base (0 = flat apart from hills, pads and channels).
+	 * @param FeatureSize - Typical distance between hills cm: large = rolling, small = rugged.
+	 * @param Ridged - 0 rounded hills .. 1 sharp mountain ridges.
+	 * @param Roughness - Small-scale detail 0..1.
+	 * @param Seed - Same seed, same terrain.
+	 * @param Edge - Fade the relief to the base level over this many cm at the borders (0 = none).
+	 * @param Hills - Extra hills or basins (world x,y): [{at:[x,y], radius, height}] (negative height digs a basin or lake bed).
+	 * @param Flatten - Level pads (world x,y): [{at:[x,y], radius, blend?, height?}] or [{area:[[x,y],...], blend?, height?}]; height defaults to the ground there (world z); bare:false keeps grass.
+	 * @param Carve - Channels (world x,y): [{path:[[x,y],...], kind:"river"|"road", width, depth, bank}]; rivers are carved downhill from the first point (returns their water surface).
+	 * @param Biome - Ground colours.
+	 * @param Resolution - Grid cell cm (0 = about 256 cells along the longer side; at most 600 cells per side).
+	 * @param SnowLine - Snow above this world z (alpine; 0 = biome default).
+	 * @param Tags - Node tags.
+	 * @param Name - Node name.
+	 * @param Parent - Parent group.
+	 * @param Material - Override the ground material (preset or allowed path); default the biome ground.
+	 * @param Color - Override the ground-cover colour [r,g,b] linear 0-1.
+	 * @return {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Size,Location,Hills,Flatten,Carve,Tags,Color"), Category = "Build|Create")
+	static FBuildToolTerrainResult CreateTerrain(const FVector2D& Size, const FVector& Location, const TArray<FRuntimeToolJson>& Hills,
+		const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height = 2000.f,
+		float FeatureSize = 20000.f, float Ridged = 0.f, float Roughness = 0.5f, int32 Seed = 1, float Edge = 0.f, EBuildToolBiome Biome = EBuildToolBiome::Temperate,
+		float Resolution = 0.f, float SnowLine = 0.f, const FString& Name = TEXT("Terrain"), AActor* Parent = nullptr, const FString& Material = TEXT(""));
+
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Tags,CustomData"), Category = "Build|Create")
 	static FBuildToolInstancesResult PlaceInstances(const FString& Asset, const TArray<FRuntimeToolJson>& Instances, const TArray<FRuntimeToolJson>& CustomData,
 		const FVector& Location, const TArray<FString>& Tags, const FString& Name = TEXT(""), AActor* Parent = nullptr, bool bCollision = true);

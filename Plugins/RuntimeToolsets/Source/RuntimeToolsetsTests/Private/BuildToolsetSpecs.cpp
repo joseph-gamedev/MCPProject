@@ -72,6 +72,40 @@ void FBuildToolsetSpec::Define()
 		TestTrue(TEXT("dome above ground"), D.Min.Z > -1.0);
 	});
 
+	It("creates terrain: real collision, downhill rivers, level pads, undo", [this]()
+	{
+		const TSharedRef<FJsonObject> R = H->CallOk(TEXT("build.create_terrain"), TEXT(R"J({"size":[20000,20000],"location":[0,0,100],"height":2500,"feature_size":8000,"seed":3,
+			"flatten":[{"at":[5000,5000],"radius":1200,"height":1100}],
+			"carve":[{"path":[[-9000,-6000],[0,-3000],[9000,-6000]],"width":1200,"depth":200}],"biome":"tropical"})J"));
+		TestTrue(TEXT("triangles"), R->GetNumberField(TEXT("triangles")) > 10000);
+		TestTrue(TEXT("relief"), R->GetNumberField(TEXT("max_z")) - R->GetNumberField(TEXT("min_z")) > 500);
+		const TArray<TSharedPtr<FJsonValue>>& Rivers = R->GetArrayField(TEXT("rivers"));
+		if (TestEqual(TEXT("one river"), Rivers.Num(), 1))
+		{
+			const TArray<TSharedPtr<FJsonValue>>& P = Rivers[0]->AsObject()->GetArrayField(TEXT("path"));
+			bool bDownhill = P.Num() > 5;
+			for (int32 i = 1; i < P.Num(); ++i)
+			{
+				bDownhill &= P[i]->AsArray()[2]->AsNumber() <= P[i - 1]->AsArray()[2]->AsNumber() + 0.01;
+			}
+			TestTrue(TEXT("water only flows downhill"), bDownhill);
+		}
+		UWorld* W = H->GetWorld();
+		auto GroundZ = [W](double X, double Y)
+		{
+			FHitResult Hit;
+			return W->LineTraceSingleByChannel(Hit, FVector(X, Y, 50000), FVector(X, Y, -50000), ECC_Visibility) ? Hit.ImpactPoint.Z : -1e9;
+		};
+		const double Pad = GroundZ(5000, 5000);
+		TestTrue(FString::Printf(TEXT("pad at its height (%.0f)"), Pad), FMath::IsNearlyEqual(Pad, 1100.0, 30.0));
+		TestTrue(TEXT("pad is level"), FMath::IsNearlyEqual(GroundZ(5600, 4700), Pad, 30.0));
+		TestTrue(TEXT("traces hit the surface (complex collision)"), GroundZ(-3000, 7000) > 0);
+		H->CallOk(TEXT("history.undo"));
+		TestTrue(TEXT("undo removes it"), GroundZ(5000, 5000) < 0);
+		H->CallFails(TEXT("build.create_terrain"), TEXT(R"J({"size":[10,10]})J"), ERuntimeToolError::InvalidArguments);
+		H->CallFails(TEXT("build.create_terrain"), TEXT(R"J({"carve":[{"path":[[0,0]]}]})J"), ERuntimeToolError::InvalidArguments);
+	});
+
 	It("creates lathe, extrude and sweep solids", [this]()
 	{
 		H->CallOk(TEXT("build.create_profile_solid"), TEXT("{\"kind\":\"lathe\",\"profile\":[[0,0],[40,0],[30,60],[50,120],[0,130]]}"));

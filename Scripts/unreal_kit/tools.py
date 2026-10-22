@@ -934,6 +934,80 @@ def _build_create_profile_solid(*, kind, profile, angle=None, bevel=None, closed
     return call('build.create_profile_solid', **args)
 
 
+def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feature_size=None, flatten=None, height=None, hills=None, location=None, material=None, name=None, parent=None, resolution=None, ridged=None, roughness=None, seed=None, size=None, snow_line=None, tags=None):
+    """Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step. Fails if the size is out of range or a hill, pad or carve entry is malformed.
+    Returns: {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
+
+    Args:
+        biome ('Temperate' | 'Tropical' | 'Desert' | 'Savanna' | 'Alpine' | 'Arctic'): Ground colours. Default
+            "Temperate".
+        carve (list[any]): Channels (world x,y): [{path:[[x,y],...], kind:"river"|"road", width, depth, bank}]; rivers
+            are carved downhill from the first point (returns their water surface).
+        color (list[float]): Override the ground-cover colour [r,g,b] linear 0-1. ([x, y, z] (cm))
+        edge (float): Fade the relief to the base level over this many cm at the borders (0 = none). Default 0.
+        feature_size (float): Typical distance between hills cm: large = rolling, small = rugged. Default 20000.
+        flatten (list[any]): Level pads (world x,y): [{at:[x,y], radius, blend?, height?}] or [{area:[[x,y],...],
+            blend?, height?}]; height defaults to the ground there (world z); bare:false keeps grass.
+        height (float): Relief cm: the highest hills reach about this far above the base (0 = flat apart from hills,
+            pads and channels). Default 2000.
+        hills (list[any]): Extra hills or basins (world x,y): [{at:[x,y], radius, height}] (negative height digs a basin
+            or lake bed).
+        location (list[float]): Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it). ([x, y, z]
+            (cm))
+        material (str): Override the ground material (preset or allowed path); default the biome ground. Default "".
+        name (str): Node name. Default "Terrain".
+        parent (str): Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)
+        resolution (float): Grid cell cm (0 = about 256 cells along the longer side; at most 600 cells per side).
+            Default 0.
+        ridged (float): 0 rounded hills .. 1 sharp mountain ridges. Default 0.
+        roughness (float): Small-scale detail 0..1. Default 0.5.
+        seed (int): Same seed, same terrain. Default 1.
+        size (list[float]): [x, y] extent cm, centred on location, e.g. [40000, 40000] (500-400000).
+        snow_line (float): Snow above this world z (alpine; 0 = biome default). Default 0.
+        tags (list[str]): Node tags.
+    """
+    args = {}
+    if biome is not None:
+        args['biome'] = biome
+    if carve is not None:
+        args['carve'] = carve
+    if color is not None:
+        args['color'] = color
+    if edge is not None:
+        args['edge'] = edge
+    if feature_size is not None:
+        args['feature_size'] = feature_size
+    if flatten is not None:
+        args['flatten'] = flatten
+    if height is not None:
+        args['height'] = height
+    if hills is not None:
+        args['hills'] = hills
+    if location is not None:
+        args['location'] = location
+    if material is not None:
+        args['material'] = material
+    if name is not None:
+        args['name'] = name
+    if parent is not None:
+        args['parent'] = parent
+    if resolution is not None:
+        args['resolution'] = resolution
+    if ridged is not None:
+        args['ridged'] = ridged
+    if roughness is not None:
+        args['roughness'] = roughness
+    if seed is not None:
+        args['seed'] = seed
+    if size is not None:
+        args['size'] = size
+    if snow_line is not None:
+        args['snow_line'] = snow_line
+    if tags is not None:
+        args['tags'] = tags
+    return call('build.create_terrain', **args)
+
+
 def _build_get_build_stats(*, under=None):
     """Counts nodes, triangles, components, materials and estimated draw calls (performance budget of a build).
 
@@ -999,22 +1073,17 @@ def _build_mirror(*, target, axis=None, point=None):
 
 
 def _build_place_instances(*, asset, instances, collision=None, custom_data=None, location=None, name=None, parent=None, tags=None):
-    """Places many copies of one packaged static mesh as a single node of GPU instances: thousands cost about as much as one (every window of a type in a street, every railing bay, every block of a wall). One undo step. Fails if the asset is not a packaged static mesh or an instance entry is malformed.
-    Returns: {id, name, path, instances, triangles}.
+    """
 
     Args:
-        asset (str): Required. Static mesh path, e.g. "/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick".
-        instances (list[any]): Required. One entry per copy, relative to Location: [x,y,z], [x,y,z,yaw],
-            [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz] (cm, degrees).
-        collision (bool): Block movement and traces. Default true.
-        custom_data (list[any]): Optional per-copy floats in the same order, e.g. [[seed,r,g,b,r2,g2,b2]], read by the
-            material (scanned architecture materials: 0 = variation seed, 1-3 = paint A colour such as a front door, 4-6
-            = paint B such as stucco).
-        location (list[float]): World location cm of the group (relative to the parent when one is given). ([x, y, z]
-            (cm))
-        name (str): Node name (default: the asset name). Default "".
-        parent (str): Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)
-        tags (list[str]): Node tags.
+        asset (str): Required.
+        instances (list[any]): Required.
+        collision (bool):  Default true.
+        custom_data (list[any]):
+        location (list[float]): [x, y, z] (cm)
+        name (str):  Default "".
+        parent (str): Reference to Actor: node id (n12), node path, actor:Name or object path
+        tags (list[str]):
     """
     args = {}
     if asset is not None:
@@ -1118,7 +1187,7 @@ def _build_set_material(*, targets, color=None, emissive=None, emissive_strength
     return call('build.set_material', **args)
 
 
-build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, place_instances=_build_place_instances, place_mesh=_build_place_mesh, set_material=_build_set_material)
+build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, create_terrain=_build_create_terrain, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, place_instances=_build_place_instances, place_mesh=_build_place_mesh, set_material=_build_set_material)
 build.__doc__ = 'build'
 
 

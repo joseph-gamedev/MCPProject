@@ -1,4 +1,5 @@
 #include "PrimitiveMesh.h"
+#include "TerrainMesh.h"
 #include "RuntimeJson.h"
 #include "RuntimeToolsetsSettings.h"
 #include "Components/DynamicMeshComponent.h"
@@ -788,6 +789,10 @@ namespace RuntimePrimitives
 			OutError = TEXT("recipe has no shape");
 			return false;
 		}
+		if (Shape == TEXT("terrain"))
+		{
+			return RuntimeTerrain::Append(Mesh, R, OutError);
+		}
 		const FVector S = ReadSize(R);
 		const int32 D = DetailFactor(R);
 		const EGeometryScriptPrimitiveOriginMode Origin = ReadOrigin(R);
@@ -1418,6 +1423,15 @@ namespace RuntimePrimitives
 	{
 		FString Material = TEXT("white");
 		Recipe->TryGetStringField(TEXT("material"), Material);
+		if (RuntimeTerrain::IsTerrain(Recipe) && (!Recipe->HasField(TEXT("material")) || Material == TEXT("terrain")))
+		{
+			// slope / wetness / bare-earth blended ground for the biome; plain grass if the plugin material is missing
+			if (UMaterialInterface* Ground = RuntimeTerrain::MakeMaterial(Recipe, Outer))
+			{
+				return Ground;
+			}
+			Material = TEXT("grass");
+		}
 		FVector C;
 		const bool bColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C);
 		if (const FPreset* Preset = Presets().FindByPredicate([&Material](const FPreset& P) { return P.Name == Material; }))
@@ -1590,8 +1604,20 @@ namespace RuntimePrimitives
 
 	/** Collision for a freshly built mesh: one cook (updates were deferred while building). Assemblies use their part boxes;
 	 *  single shapes get fitted simple shapes. Big meshes cook the exact triangles in the background. */
-	static void FinishCollision(UDynamicMeshComponent* Comp, const FKAggregateGeom* Simple)
+	static void FinishCollision(UDynamicMeshComponent* Comp, const FKAggregateGeom* Simple, bool bTerrain = false)
 	{
+		if (bTerrain)
+		{
+			// ground: the exact surface is the collision (fitted boxes would float things over valleys)
+			Comp->SetSimpleCollisionShapes(FKAggregateGeom(), false);
+			Comp->bEnableComplexCollision = true;
+			Comp->CollisionType = ECollisionTraceFlag::CTF_UseComplexAsSimple;
+			Comp->bUseAsyncCooking = false;  // scatter and snap_to_ground trace it right after creation
+			Comp->SetDeferredCollisionUpdatesEnabled(false, false);
+			Comp->UpdateCollision(false);
+			FNavigationSystem::UpdateComponentData(*Comp);
+			return;
+		}
 		if (Simple)
 		{
 			Comp->SetSimpleCollisionShapes(*Simple, false);
@@ -1631,7 +1657,7 @@ namespace RuntimePrimitives
 			Comp->SetDeferredCollisionUpdatesEnabled(false, true);
 			return false;
 		}
-		FinishCollision(Comp, IsAssembly(Recipe) ? &GAssemblySimple : nullptr);
+		FinishCollision(Comp, IsAssembly(Recipe) ? &GAssemblySimple : nullptr, RuntimeTerrain::IsTerrain(Recipe));
 		return true;
 	}
 
@@ -1694,7 +1720,7 @@ namespace RuntimePrimitives
 			Actor->Destroy();
 			return nullptr;
 		}
-		FinishCollision(Comp, Built->bHasSimple ? &Built->Simple : nullptr);
+		FinishCollision(Comp, Built->bHasSimple ? &Built->Simple : nullptr, RuntimeTerrain::IsTerrain(Recipe));
 		return Actor;
 	}
 
