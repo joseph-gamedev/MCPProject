@@ -114,10 +114,26 @@ def _result(tool, status, body):
 _transport = None
 
 
+def _local_up(url):
+    import socket
+    from urllib.parse import urlparse
+    u = urlparse(url)
+    try:
+        socket.create_connection((u.hostname, u.port or 80), timeout=0.5).close()
+        return True
+    except OSError:
+        return False
+
+
 def connect(url=None, relay=None, token=None):
-    """Chooses the connection: relay=<https://.../s/CODE> + token, or url=<local MCP URL>. Default: environment."""
+    """Chooses the connection: url=<local MCP URL>, or relay=<https://.../s/CODE> + token. Default: the game on this
+    machine when it is running (fastest), otherwise the relay from the environment (UNREAL_RELAY + UNREAL_TOKEN)."""
     global _transport
-    relay = relay or (None if url else os.environ.get("UNREAL_RELAY"))
+    local = url or os.environ.get("UNREAL_LOCAL_MCP", "http://127.0.0.1:8018/mcp")
+    if not relay and (url or _local_up(local)):
+        _transport = _Local(local)
+        return _transport
+    relay = relay or os.environ.get("UNREAL_RELAY")
     if relay:
         _transport = _Relay(relay, token or os.environ.get("UNREAL_TOKEN", ""))
     else:
@@ -154,8 +170,25 @@ def place(name, parts, at=(0, 0, 0), group=None):
     return place_many([(name, parts, at)], group=group)
 
 
+def check_parts(parts, where="parts"):
+    """Raises ToolError for unknown materials or shapes before anything is built (no half-built scenes)."""
+    from .parts import PRESETS
+    shapes = {"box", "sphere", "cylinder", "cone", "pyramid", "torus", "wedge", "capsule", "plane", "dome", "tube", "arch", "roof", "lattice",
+              "steps", "tiers", "column", "openings", "revolve", "extrude", "sweep", "loft", "raw"}
+    for i, p in enumerate(parts):
+        m = p.get("material")
+        if m is not None and m not in PRESETS:
+            raise ToolError("check_parts", {"message": f"{where}[{i}]: material '{m}' is not a preset",
+                                            "hint": "Use a preset (unreal_kit.parts.PRESETS) or M('<palette name>') / mat('<palette name>')"})
+        if p.get("shape") not in shapes:
+            raise ToolError("check_parts", {"message": f"{where}[{i}]: unknown shape '{p.get('shape')}'", "hint": ", ".join(sorted(shapes))})
+
+
 def place_many(jobs, group=None, per_request=8):
-    """jobs = [(name, parts, location)]: many objects, sent several per request. Returns created node ids."""
+    """jobs = [(name, parts, location)]: many objects, sent several per request. Returns created node ids.
+    Every part is checked first, so a typo fails before anything is built."""
+    for name, parts, _ in jobs:
+        check_parts(parts, name)
     if group:
         try:
             group = call("scene.create_group", name=group).get("path", group)

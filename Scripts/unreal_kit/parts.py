@@ -23,8 +23,17 @@ def srgb(r, g, b):
     return [round(lin(r), 4), round(lin(g), 4), round(lin(b), 4)]
 
 
+PRESETS = ["marble", "sandstone", "limestone", "granite", "stone", "brick", "terracotta", "concrete", "plaster", "wood", "slate_roof",
+           "copper", "verdigris", "bronze", "gold", "steel", "iron", "painted_iron", "glass", "tinted_glass", "water", "grass", "sand",
+           "asphalt", "roof_tile", "cobblestone", "light", "white", "black", "red", "green", "blue"]
+
+
 def M(preset, rgb=None, **kw):
-    d = {"material": preset}
+    """Material: a builder preset (PRESETS) or a PALETTE name, with an optional real sRGB colour 0-255 and fields."""
+    if preset not in PRESETS and preset in globals().get("PALETTE", {}):
+        d = dict(PALETTE[preset])
+    else:
+        d = {"material": preset}
     if rgb:
         d["color"] = srgb(*rgb)
     d.update(kw)
@@ -56,7 +65,8 @@ PALETTE = {
 }
 
 def mat(name):
-    return dict(PALETTE[name])
+    """A PALETTE entry or a plain preset name."""
+    return dict(PALETTE[name]) if name in PALETTE else {"material": name}
 
 
 # ------------------------------------------------------------------ primitives (local frame)

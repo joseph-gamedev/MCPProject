@@ -231,9 +231,14 @@ city.py           realistic buildings, facades, windows, streets, props, trees, 
 game_pieces.py    players (side, top-down, third person), score and lives, pickups, hazards, goals, patrols
 combat_presets.py weapons, enemy brains (guard, chaser, turret, coward), health, waves, interactables
 
-## Pattern
+## Pattern (speed comes from writing little code)
 1. scene.list_templates: reuse what exists (scene.place_template).
-2. Write one script with functions and a seed; build with place_many; read the printed results.
+2. IMPORT the examples and call or wrap their functions; write only what is different. E.g. a New York look:
+       import city
+       city.city(blocks_x=4, blocks_y=3, towers=0.5, max_floors=12, seed=7)       # dense, many glass towers
+       uk.place("Landmark", my_landmark_parts(), at=[0, 0, 0])                   # only the new piece is your code
+   Do not rewrite a whole generator: a long script costs minutes to write and has more mistakes.
+   Materials: a preset (uk.parts.PRESETS) or a palette name (uk.parts.PALETTE); place_many checks them before building.
 3. uk.look.review(...) or screenshots -> look -> change parameters -> run again.
 4. scene.save_template the finished pieces with clear descriptions.
 )SKILL");

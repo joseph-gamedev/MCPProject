@@ -312,7 +312,8 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
     return out
 
 
-def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City"):
+def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City",
+         max_floors=8, styles=("brick", "plaster", "stone", "office")):
     """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group."""
     rng = random.Random(seed)
     pitch_x = block_w + street_w + 2 * sidewalk
@@ -322,7 +323,7 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
         for j in range(blocks_y):
             bx = (i - (blocks_x - 1) / 2) * pitch_x
             by = (j - (blocks_y - 1) / 2) * pitch_y
-            for parts, loc, name in city_block(block_w, block_d, seed=rng.randint(0, 10 ** 6), towers=towers):
+            for parts, loc, name in city_block(block_w, block_d, seed=rng.randint(0, 10 ** 6), towers=towers, max_floors=max_floors, styles=styles):
                 jobs.append((f"{name}_{i}_{j}", parts, (bx + loc[0], by + loc[1], 0)))
     for j in range(blocks_y + 1):
         y = (j - blocks_y / 2) * pitch_y
