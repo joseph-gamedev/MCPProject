@@ -99,3 +99,15 @@ def ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=
     """Dense grass / flowers / ferns inside an area (no collision)."""
     return forest(area, mix or {"grass": 6, "tall_grass": 1, "wildflowers": 1}, spacing=spacing, scale=scale, keep=keep, seed=seed,
                   collision=False, name=name)
+
+
+WIND = ROOT + "/Materials/MPC_Wind.MPC_Wind"
+
+
+def wind(strength=0.4, speed=0.6, direction=(1.0, 0.35), gustiness=0.5, sway=10.0, flutter=1.0):
+    """Wind for all foliage (live): strength 0 calm, 0.4 light breeze (default), 1 windy, 2-3 storm; speed how fast it
+    moves; direction (x, y) where it blows to; gustiness 0 steady - 1 strong gusts; sway cm the tree tops move per
+    unit of strength; flutter cm of leaf / frond / grass flutter. Calm scene: wind(0.15); storm: wind(2.5, 1.2, gustiness=0.9)."""
+    for name, value in (("WindStrength", strength), ("WindSpeed", speed), ("Gustiness", gustiness), ("SwayAmount", sway), ("LeafFlutter", flutter)):
+        call("materials.set_collection_param", collection=WIND, name=name, value=value)
+    call("materials.set_collection_param", collection=WIND, name="WindDirection", value=[direction[0], direction[1], 0, 0])

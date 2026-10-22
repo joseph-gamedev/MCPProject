@@ -198,6 +198,9 @@ folder_path:"/Game/RuntimeFoliage"} lists them. One: build.place_mesh {asset}. M
 [{asset, weight, scale:[0.85,1.15]}] inside a closed spline (forest, lawn) or along a spline with offset (street
 trees, palm avenue). Python: uk.assets.forest / along / ground_cover / place. Mix 2-4 species that fit the place
 (palms for tropics/Dubai, oak+maple+birch for Europe, fir+pine for mountains); add grass/ferns under trees.
+Wind (live, all foliage): uk.assets.wind(strength, speed, direction, gustiness, sway, flutter) or materials.set_collection_param
+{collection:"/Game/RuntimeFoliage/Materials/MPC_Wind.MPC_Wind", name: WindStrength|WindSpeed|Gustiness|SwayAmount|LeafFlutter|WindDirection}.
+Default 0.4 = light breeze; 0.15 calm; 1 windy; 2-3 storm. Match the mood (still sunset, breezy coast, stormy overcast).
 
 ## 5 Camera
 People see the world from 160-170 cm with a 60-75 degree FOV. Shoot hero images at eye level, slightly

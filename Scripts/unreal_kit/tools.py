@@ -998,6 +998,41 @@ def _build_mirror(*, target, axis=None, point=None):
     return call('build.mirror', **args)
 
 
+def _build_place_mesh(*, asset, collision=None, location=None, name=None, parent=None, rotation=None, scale=None, tags=None):
+    """Places a packaged static mesh asset (a real tree, rock or prop made in Blender) as a scene node. For many copies use pcg.scatter with asset items (GPU instances). Undoable. Fails if the asset is not a packaged static mesh.
+    Returns: {id, name, path, triangles}.
+
+    Args:
+        asset (str): Required. Static mesh path, e.g. "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets with
+            asset_class StaticMesh lists them).
+        collision (bool): Block movement and traces. Default true.
+        location (list[float]): World location cm (relative to the parent when one is given). ([x, y, z] (cm))
+        name (str): Node name (default: the asset name). Default "".
+        parent (str): Parent group. (Reference to Actor: node id (n12), node path, actor:Name or object path)
+        rotation (list[float]): [pitch,yaw,roll] degrees. ([pitch, yaw, roll] (degrees))
+        scale (list[float]): [x,y,z]. ([x, y, z] (cm))
+        tags (list[str]): Node tags.
+    """
+    args = {}
+    if asset is not None:
+        args['asset'] = asset
+    if collision is not None:
+        args['collision'] = collision
+    if location is not None:
+        args['location'] = location
+    if name is not None:
+        args['name'] = name
+    if parent is not None:
+        args['parent'] = parent
+    if rotation is not None:
+        args['rotation'] = rotation
+    if scale is not None:
+        args['scale'] = scale
+    if tags is not None:
+        args['tags'] = tags
+    return call('build.place_mesh', **args)
+
+
 def _build_set_material(*, targets, color=None, emissive=None, emissive_strength=None, material=None, metallic=None, opacity=None, relief=None, roughness=None, style=None, tile=None, variation=None):
     """Changes the material fields of builder objects (same fields as create tools); fields not given keep their value. One undo step. Fails if no field is given, a field is invalid, or none of the targets is a builder object.
     Returns: {changed: [ids], skipped_not_builder: [refs]}.
@@ -1045,8 +1080,8 @@ def _build_set_material(*, targets, color=None, emissive=None, emissive_strength
     return call('build.set_material', **args)
 
 
-build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, set_material=_build_set_material)
-build.__doc__ = 'Builder: realistic objects and landmarks from parametric parts at true scale (cm, Z up), as editable meshes with'
+build = SimpleNamespace(array=_build_array, boolean_op=_build_boolean_op, capture_view=_build_capture_view, check_overlaps=_build_check_overlaps, create_assembly=_build_create_assembly, create_primitive=_build_create_primitive, create_profile_solid=_build_create_profile_solid, get_build_stats=_build_get_build_stats, get_guide=_build_get_guide, list_materials=_build_list_materials, measure=_build_measure, mirror=_build_mirror, place_mesh=_build_place_mesh, set_material=_build_set_material)
+build.__doc__ = 'build'
 
 
 # ------------------------------------------------------------------ camera

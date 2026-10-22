@@ -8,7 +8,8 @@ FoliageSources/leaf/LeafCrop_*.png (ambientCG Leaf001, CC0, one leaf cropped squ
   M_Foliage_Leaf    masked, two-sided foliage: Leaf (colour+alpha) or Opacity map, Normal, Tint, translucency, per-instance hue
   M_Foliage_Bark    world-projected scanned bark (no UVs needed): colour, normal, roughness, tile size, tint
   M_Foliage_Surface UV-mapped scanned PBR for opaque parts of scanned models (trunks, rocks): colour, normal, ARM
-Every master is flagged for instanced static meshes (pcg.scatter) and works with Nanite.
+Every master is flagged for instanced static meshes (pcg.scatter), works with Nanite, and moves in the wind
+(MPC_Wind: WindStrength, WindSpeed, WindDirection; per instance WindHeight, WindAmount).
 """
 
 import glob
@@ -113,6 +114,136 @@ def tex_param(m, name, x, y, default, sampler=None):
     return e
 
 
+WIND_MPC = MAT + "/MPC_Wind"
+
+
+def wind_collection():
+    """Global wind: WindStrength (0 calm, 0.4 light breeze, 1 windy, 3 storm), WindSpeed, SwayAmount (cm at the top
+    per unit of strength), LeafFlutter (cm), Gustiness (0 steady - 1 strong gusts), WindDirection (x, y). Change it live with
+    materials.set_collection_param {collection: "/Game/RuntimeFoliage/Materials/MPC_Wind", name, value}."""
+    if eal.does_asset_exist(WIND_MPC):
+        mpc = unreal.load_asset(WIND_MPC)
+    else:
+        mpc = tools.create_asset("MPC_Wind", MAT, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    # parameters are found by id (a GUID); Python cannot set it directly, so write the struct as text
+    import re
+    import uuid
+    old = {}
+    for prm in list(mpc.get_editor_property("scalar_parameters")) + list(mpc.get_editor_property("vector_parameters")):
+        t = prm.export_text()
+        n, g = re.search(r'ParameterName="?([A-Za-z]+)', t), re.search(r"Id=([0-9A-Fa-f]{32})", t)
+        if n and g and g.group(1) != "0" * 32:
+            old[n.group(1)] = g.group(1)
+
+    def pid(name):
+        return old.get(name) or uuid.uuid4().hex.upper()
+    scalars = []
+    for name, value in (("WindStrength", 0.4), ("WindSpeed", 0.6), ("SwayAmount", 10.0), ("LeafFlutter", 1.0), ("Gustiness", 0.5)):
+        sp = unreal.CollectionScalarParameter()
+        sp.import_text(f'(DefaultValue={value},ParameterName="{name}",Id={pid(name)})')
+        scalars.append(sp)
+    vp = unreal.CollectionVectorParameter()
+    vp.import_text(f'(DefaultValue=(R=1.0,G=0.35,B=0.0,A=0.0),ParameterName="WindDirection",Id={pid("WindDirection")})')
+    mpc.set_editor_property("scalar_parameters", scalars)
+    mpc.set_editor_property("vector_parameters", [vp])
+    eal.save_loaded_asset(mpc)
+    unreal.log("FOLIAGE wind ids " + str([q.export_text() for q in scalars + [vp]]))
+    return mpc
+
+
+def connect(a, a_out, b, b_in):
+    mel.connect_material_expressions(a, a_out, b, b_in)
+
+
+def math2(m, cls, a, b, x, y, a_out="", b_out=""):
+    e = expr(m, cls, x, y)
+    connect(a, a_out, e, "A")
+    connect(b, b_out, e, "B")
+    return e
+
+
+def add_wind(m, flutter):
+    """World position offset: whole-plant sway that grows with height above the plant's pivot (squared, so trunks
+    stay planted), a per-plant phase, plus fast leaf flutter on leaf materials. Driven by MPC_Wind."""
+    mpc = wind_collection()
+    x0, y0 = -2200, 1500
+
+    def cp(name, y):
+        return expr(m, unreal.MaterialExpressionCollectionParameter, x0, y0 + y, collection=mpc, parameter_name=name)  # name -> id lookup on edit
+    strength, speed, direction = cp("WindStrength", 0), cp("WindSpeed", 100), cp("WindDirection", 200)
+    sway_amount, flutter_amount, gustiness = cp("SwayAmount", -300), cp("LeafFlutter", -200), cp("Gustiness", -100)
+    amount = expr(m, unreal.MaterialExpressionScalarParameter, x0, y0 + 300, parameter_name="WindAmount", default_value=1.0)
+    height = expr(m, unreal.MaterialExpressionScalarParameter, x0, y0 + 400, parameter_name="WindHeight", default_value=1500.0)
+    wp = expr(m, unreal.MaterialExpressionWorldPosition, x0, y0 + 500)
+    op = expr(m, unreal.MaterialExpressionObjectPositionWS, x0, y0 + 600)
+    time = expr(m, unreal.MaterialExpressionTime, x0, y0 + 700)
+    # height factor: ((z - pivot z) / WindHeight)^2
+    rel = math2(m, unreal.MaterialExpressionSubtract, wp, op, x0 + 250, y0 + 550)
+    relz = expr(m, unreal.MaterialExpressionComponentMask, x0 + 450, y0 + 550, r=False, g=False, b=True, a=False)
+    connect(rel, "", relz, "")
+    hf = math2(m, unreal.MaterialExpressionDivide, relz, height, x0 + 650, y0 + 500)
+    hf_sat = expr(m, unreal.MaterialExpressionSaturate, x0 + 850, y0 + 500)
+    connect(hf, "", hf_sat, "")
+    hf2 = math2(m, unreal.MaterialExpressionMultiply, hf_sat, hf_sat, x0 + 1000, y0 + 500)
+    # phase per plant from its pivot, slow sway with a faster second harmonic (gusts)
+    opxy = expr(m, unreal.MaterialExpressionComponentMask, x0 + 250, y0 + 650, r=True, g=True, b=False, a=False)
+    connect(op, "", opxy, "")
+    phase_dot = math2(m, unreal.MaterialExpressionDotProduct, opxy, expr(m, unreal.MaterialExpressionConstant2Vector, x0 + 250, y0 + 750, r=0.0011, g=0.0017),
+                      x0 + 450, y0 + 650)
+    t_speed = math2(m, unreal.MaterialExpressionMultiply, time, speed, x0 + 250, y0 + 850)
+    arg1 = math2(m, unreal.MaterialExpressionAdd, math2(m, unreal.MaterialExpressionMultiply, t_speed,
+                                                          expr(m, unreal.MaterialExpressionConstant, x0 + 300, y0 + 950, r=0.9), x0 + 450, y0 + 850),
+                 phase_dot, x0 + 650, y0 + 750)
+    s1 = expr(m, unreal.MaterialExpressionSine, x0 + 850, y0 + 750)
+    connect(arg1, "", s1, "")
+    arg2 = math2(m, unreal.MaterialExpressionMultiply, arg1, expr(m, unreal.MaterialExpressionConstant, x0 + 650, y0 + 900, r=2.7), x0 + 850, y0 + 850)
+    s2 = expr(m, unreal.MaterialExpressionSine, x0 + 1000, y0 + 850)
+    connect(arg2, "", s2, "")
+    s2w = math2(m, unreal.MaterialExpressionMultiply, s2, expr(m, unreal.MaterialExpressionConstant, x0 + 1000, y0 + 950, r=0.35), x0 + 1150, y0 + 850)
+    # lean downwind a little (bias 0.6) so gusts push rather than wobble symmetrically
+    bias = expr(m, unreal.MaterialExpressionConstant, x0 + 1150, y0 + 700, r=0.6)
+    sway = math2(m, unreal.MaterialExpressionAdd, math2(m, unreal.MaterialExpressionAdd, s1, s2w, x0 + 1300, y0 + 780), bias, x0 + 1450, y0 + 760)
+    # gusts: a slow swell (period ~40 s, offset per plant) scales everything between 1 - G and 1 + G
+    gust_arg = math2(m, unreal.MaterialExpressionAdd, math2(m, unreal.MaterialExpressionMultiply, t_speed,
+                                                              expr(m, unreal.MaterialExpressionConstant, x0 + 300, y0 - 450, r=0.16), x0 + 450, y0 - 450),
+                     math2(m, unreal.MaterialExpressionMultiply, phase_dot, expr(m, unreal.MaterialExpressionConstant, x0 + 300, y0 - 550, r=0.4),
+                           x0 + 450, y0 - 550), x0 + 650, y0 - 500)
+    gs = expr(m, unreal.MaterialExpressionSine, x0 + 850, y0 - 500)
+    connect(gust_arg, "", gs, "")
+    gust = math2(m, unreal.MaterialExpressionAdd, expr(m, unreal.MaterialExpressionConstant, x0 + 850, y0 - 600, r=1.0),
+                 math2(m, unreal.MaterialExpressionMultiply, gs, gustiness, x0 + 1000, y0 - 500), x0 + 1150, y0 - 550)
+    amp = math2(m, unreal.MaterialExpressionMultiply, sway_amount, gust, x0 + 1300, y0 + 600)
+    k = math2(m, unreal.MaterialExpressionMultiply, math2(m, unreal.MaterialExpressionMultiply, strength, amount, x0 + 1300, y0 + 300), amp,
+              x0 + 1450, y0 + 350)
+    k2 = math2(m, unreal.MaterialExpressionMultiply, k, hf2, x0 + 1600, y0 + 450)
+    k3 = math2(m, unreal.MaterialExpressionMultiply, k2, sway, x0 + 1750, y0 + 550)
+    dir3 = expr(m, unreal.MaterialExpressionComponentMask, x0 + 1600, y0 + 200, r=True, g=True, b=True, a=False)
+    connect(direction, "", dir3, "")
+    wpo = math2(m, unreal.MaterialExpressionMultiply, dir3, k3, x0 + 1900, y0 + 300)
+    if flutter:
+        # leaf flutter: fast, small, varies across the crown (world position), mostly vertical
+        wsum = expr(m, unreal.MaterialExpressionComponentMask, x0 + 250, y0 + 1050, r=True, g=True, b=True, a=False)
+        connect(wp, "", wsum, "")
+        wdot = math2(m, unreal.MaterialExpressionDotProduct, wsum, expr(m, unreal.MaterialExpressionConstant3Vector, x0 + 250, y0 + 1150,
+                                                                         constant=unreal.LinearColor(0.031, 0.027, 0.043, 0)), x0 + 450, y0 + 1050)
+        ft = math2(m, unreal.MaterialExpressionMultiply, t_speed, expr(m, unreal.MaterialExpressionConstant, x0 + 450, y0 + 1250, r=4.5), x0 + 650, y0 + 1150)
+        fs = expr(m, unreal.MaterialExpressionSine, x0 + 850, y0 + 1100)
+        connect(math2(m, unreal.MaterialExpressionAdd, ft, wdot, x0 + 750, y0 + 1100), "", fs, "")
+        famp = math2(m, unreal.MaterialExpressionMultiply, math2(m, unreal.MaterialExpressionMultiply, strength, amount, x0 + 900, y0 + 1250),
+                     math2(m, unreal.MaterialExpressionMultiply, flutter_amount, gust, x0 + 900, y0 + 1350), x0 + 1050, y0 + 1250)
+        fl = math2(m, unreal.MaterialExpressionMultiply, fs, famp, x0 + 1200, y0 + 1150)
+        fdir = expr(m, unreal.MaterialExpressionConstant3Vector, x0 + 1200, y0 + 1300, constant=unreal.LinearColor(0.3, 0.3, 1.0, 0))
+        fvec = math2(m, unreal.MaterialExpressionMultiply, fdir, fl, x0 + 1400, y0 + 1200)
+        # flutter fades out at the plant's base (hf, not squared: leaves low on a bush still move)
+        fvec2 = math2(m, unreal.MaterialExpressionMultiply, fvec, hf_sat, x0 + 1600, y0 + 1200)
+        wpo = math2(m, unreal.MaterialExpressionAdd, wpo, fvec2, x0 + 2050, y0 + 600)
+    mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    try:  # lets Nanite / culling account for the movement
+        m.set_editor_property("max_world_position_offset_displacement", 120.0)
+    except Exception:
+        pass
+
+
 def leaf_master():
     m = new_material("M_Foliage_Leaf")
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
@@ -152,6 +283,7 @@ def leaf_master():
     k = expr(m, unreal.MaterialExpressionConstant, -500, 450, r=0.75)
     mel.connect_material_expressions(k, "", sss, "B")
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
+    add_wind(m, flutter=True)
     mel.recompile_material(m)
     eal.save_loaded_asset(m)
     return m
@@ -187,6 +319,7 @@ def bark_master():
     rmask = expr(m, unreal.MaterialExpressionComponentMask, -450, 900, r=True, g=False, b=False, a=False)
     mel.connect_material_expressions(rou, "XYZ Texture", rmask, "")
     mel.connect_material_property(rmask, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    add_wind(m, flutter=False)
     mel.recompile_material(m)
     eal.save_loaded_asset(m)
     return m
@@ -206,6 +339,7 @@ def surface_master():
     mel.connect_material_property(nor, "RGB", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(arm, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     mel.connect_material_property(arm, "G", unreal.MaterialProperty.MP_ROUGHNESS)
+    add_wind(m, flutter=False)  # WindAmount 0 on rocks
     mel.recompile_material(m)
     eal.save_loaded_asset(m)
     return m
@@ -228,6 +362,30 @@ def instance(name, parent, scalars=None, vectors=None, textures=None):
             mel.set_material_instance_texture_parameter_value(mi, k, v)
     eal.save_loaded_asset(mi)
     return mi
+
+
+def wind_settings():
+    """WindHeight (cm the sway is measured against) and WindAmount per material instance, by plant type."""
+    small = ("grass", "fern", "wildflower", "flower", "dandelion", "celandine", "periwinkle", "nettle")
+    for path in eal.list_assets(MAT, recursive=False, include_folder=False):
+        mi = unreal.load_asset(path)
+        if not isinstance(mi, unreal.MaterialInstanceConstant):
+            continue
+        name = mi.get_name().lower()
+        if any(w in name for w in ("rock", "boulder")):
+            height, amount = 1000.0, 0.0
+        elif any(w in name for w in small):
+            height, amount = 70.0, 1.0
+        elif any(w in name for w in ("bush", "boxwood", "pachira")):
+            height, amount = 250.0, 0.8
+        elif "palm" in name:
+            height, amount = 1100.0, 1.3
+        else:
+            height, amount = 1500.0, 1.0
+        mel.set_material_instance_scalar_parameter_value(mi, "WindHeight", height)
+        mel.set_material_instance_scalar_parameter_value(mi, "WindAmount", amount)
+        eal.save_loaded_asset(mi)
+    unreal.log("FOLIAGE wind settings applied")
 
 
 def mesh_options():
@@ -327,6 +485,7 @@ def main():
         finish_mesh(mesh, foliage=is_foliage)
         count += 1
         unreal.log(f"FOLIAGE imported {mesh.get_path_name()} slots={[str(s.get_editor_property('material_slot_name')) for s in mats]}")
+    wind_settings()
     unreal.log(f"FOLIAGE done: {count} meshes")
 
 
@@ -334,4 +493,5 @@ if not os.environ.get("FOLIAGE_MASTERS_ONLY"):
     main()
 else:  # rebuild just the master materials (instances and meshes stay)
     leaf_master(), bark_master(), surface_master()
+    wind_settings()
     unreal.log("FOLIAGE masters rebuilt")

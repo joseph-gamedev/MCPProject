@@ -36,6 +36,7 @@ forest(area, mix, spacing=700, scale=(0.85, 1.15), keep=1.0, seed=1, collision=T
 ground_cover(area, mix=None, spacing=120, scale=(0.8, 1.3), keep=0.85, seed=1, name="GroundCover")  # Dense grass / flowers / ferns inside an area (no collision).
 place(species, at, yaw=None, scale=1.0, seed=None, name=None, collision=True)  # One plant (a random variant of the species) as a scene node; returns its id.
 variants(species)
+wind(strength=0.4, speed=0.6, direction=(1.0, 0.35), gustiness=0.5, sway=10.0, flutter=1.0)  # Wind for all foliage (live): strength 0 calm, 0.4 light breeze (default), 1 windy, 2-3 storm; speed how fast i
 ### uk.rules
 add(var, amount)
 add_rules(rules, replace=False)
@@ -75,9 +76,9 @@ define(items, theme=None, replace=False)  # Creates or updates UI items (merged 
 divider()
 grid(children, columns=3, gap=8, cell=None, **kw)  # cell = [width, height] gives every cell the same size.
 hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")], bars = [(label, value_expr, max_expr, fill)].
-inventory(name, list_var, columns=5, visible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
-menu(name, heading, buttons, visible_if=None,)KIT"))
-	+ FString(TEXT(R"KIT( subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
+inventory(name, list_var, columns=5, vi)KIT"))
+	+ FString(TEXT(R"KIT(sible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
+menu(name, heading, buttons, visible_if=None, subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
 panel(name, children, anchor="center", visible_if=None, width=None, padding=16, gap=10, **kw)  # A top-level window/card. Every screen is a panel with a name.
 panel_message(name, heading, body=None, button=None, visible_if=None)  # Centred dialog: heading, optional body text and one button (name, label).
 remove(names)
@@ -127,9 +128,9 @@ pickups(targets, points=10, name=None, effect=True)  # Collectibles: touching on
 pool(name, template, size=10)
 score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
-side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
-third_person_player(at, walk_speed=500, run_speed=900, camera_)KIT"))
-	+ FString(TEXT(R"KIT(distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
+side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, f)KIT"))
+	+ FString(TEXT(R"KIT(ixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
+third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
 topdown_player(at, walk_speed=600, camera_height=1500, camera_back=900, aim_with_mouse=True, body=None, **movement)  # Top-down / twin-stick player: WASD move, faces the mouse (or movement), camera above and behind.
 win(message="YOU WIN!")
 ### examples: combat_presets.py
