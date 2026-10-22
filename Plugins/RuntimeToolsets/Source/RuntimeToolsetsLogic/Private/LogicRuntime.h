@@ -213,6 +213,9 @@ public:
 		double Speed = 0.0;
 		double Bank = 0.0;
 		double OrbitPhase = 0.0;
+		/** backend "ai": real AI agent (navmesh movement, AI perception). */
+		bool bAiTried = false;
+		FVector AiGoal = FVector(1e9);
 	};
 	const TMap<FString, FBrainAgent>& GetAgents() const { return Agents; }
 	void PlayFeedback(const FString& Name, const FVector& At, const FString& Target);
@@ -383,6 +386,13 @@ private:
 	void TickFeel(double Dt);
 	void ChangeBrainState(FBrainAgent& Agent, const FString& To);
 	bool BrainSteer(FBrainAgent& Agent, AActor* A, const FVector& Goal, double Speed, double Dt);
+	// Real AI backend (LogicAi.cpp): brains with backend "ai" drive an AI controller on the navmesh and use AI perception.
+	class AAIController* EnsureAiAgent(FBrainAgent& Agent, AActor* A, const TSharedPtr<FJsonObject>& Brain);
+	void PerceiveAi(FBrainAgent& Agent, class AAIController* Controller);
+	bool MoveAi(FBrainAgent& Agent, class AAIController* Controller, AActor* Body, const FVector& Goal, bool bHasGoal, double Speed, const FString& Face, const FVector* FaceTarget);
+	void ReportAiNoise(const FVector& At, double Radius, AActor* Instigator, const TCHAR* Tag);
+	/** "player" or a node id -> actor. */
+	AActor* KeyActor(const FString& Key) const;
 	void ResetCombat();
 	void SpawnShots(const FString& Owner, const TSharedPtr<FJsonObject>& W, const FVector& Muzzle, const FVector& Dir);
 	bool VictimMatches(const FString& Key, const FString& Filter) const;

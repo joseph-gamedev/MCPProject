@@ -4,6 +4,8 @@
 #include "Components/DynamicMeshComponent.h"
 #include "DynamicMeshActor.h"
 #include "Engine/World.h"
+#include "AI/NavigationSystemBase.h"
+#include "GeometryScript/CollisionFunctions.h"
 #include "GeometryScript/MeshBasicEditFunctions.h"
 #include "GeometryScript/MeshBooleanFunctions.h"
 #include "GeometryScript/MeshMaterialFunctions.h"
@@ -1302,7 +1304,18 @@ namespace RuntimePrimitives
 		{
 			return false;
 		}
-		Comp->SetComplexAsSimpleCollisionEnabled(true, true);
+		// Simple shapes fitted per part (boxes, spheres, capsules, hulls) for physics and navigation (Recast does not
+		// reliably export complex-only dynamic mesh collision); the exact triangles stay available to complex traces.
+		FGeometryScriptCollisionFromMeshOptions Collision;
+		Collision.bEmitTransaction = false;
+		Collision.Method = EGeometryScriptCollisionGenerationMethod::MinVolumeShapes;
+		Collision.MaxShapeCount = 1024;
+		UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(Comp->GetDynamicMesh(), Comp, Collision);
+		Comp->bEnableComplexCollision = true;
+		Comp->CollisionType = ECollisionTraceFlag::CTF_UseSimpleAndComplex;
+		Comp->UpdateCollision(false);
+		// The navmesh rebuilds around changed geometry (dynamic runtime generation).
+		FNavigationSystem::UpdateComponentData(*Comp);
 		return true;
 	}
 

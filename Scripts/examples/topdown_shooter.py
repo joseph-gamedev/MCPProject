@@ -45,6 +45,7 @@ def main():
     ap.add_argument("--url", default="http://127.0.0.1:8018/mcp")
     ap.add_argument("--clear", action="store_true")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--native", action="store_true", help="built-in steering instead of Unreal AI (navmesh + AI perception)")
     args = ap.parse_args()
     rt = Runtime(args.url)
     if args.clear:
@@ -105,7 +106,7 @@ def main():
 
     # ---- guard AI
     rt.call("logic.define_brain", name="guard", vision={"radius": 1300, "angle": 80, "eye_height": 120}, hearing={"radius": 1800},
-            turn_speed=240, start="patrol", states=[
+            turn_speed=240, start="patrol", backend="native" if args.native else "ai", states=[
                 {"name": "patrol", "move": "patrol", "speed": 150, "face": "move",
                  "transitions": [{"when": "sees", "to": "alert"}, {"when": "heard", "to": "search"}]},
                 {"name": "alert", "move": "stop", "face": "target", "icon": "!",
@@ -170,6 +171,9 @@ def main():
     ])
     rt.call("lighting.apply_mood", mood="noon")
     rt.call("lighting.set_sun", rotation=[-60, 35, 0], temperature=6000)
+    if not args.native:
+        nav = rt.call("ai.build_navigation")  # guards walk the navmesh around the walls
+        print("navigation:", {k: nav[k] for k in ("has_nav_mesh", "dynamic", "hint")})
     rt.call("logic.start")
     st = rt.call("logic.get_state", log_limit=3)
     print("brains:", st.get("brains"), "errors:", [e for e in st["log"] if "errors" in e])

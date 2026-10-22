@@ -11,7 +11,7 @@ public class RuntimeToolsetsLogic : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"InputCore", "Slate", "SlateCore"
+			"InputCore", "Slate", "SlateCore", "AIModule", "NavigationSystem", "GameplayTags"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

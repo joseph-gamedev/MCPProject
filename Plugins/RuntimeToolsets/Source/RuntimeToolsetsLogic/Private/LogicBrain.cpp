@@ -89,6 +89,11 @@ FBox FLogicWorld::GameBox(const AActor* Actor)
 
 bool FLogicWorld::ValidateBrain(const TSharedPtr<FJsonObject>& Def, FString& OutError)
 {
+	if (Str(Def, TEXT("backend")).Equals(TEXT("ai"), ESearchCase::IgnoreCase) && Obj(Def, TEXT("flight")).IsValid())
+	{
+		OutError = TEXT("backend ai is for ground brains (navmesh); flying brains use the native backend");
+		return false;
+	}
 	const TArray<TSharedPtr<FJsonValue>>* States = nullptr;
 	if (!Def->TryGetArrayField(TEXT("states"), States) || States->Num() == 0)
 	{
@@ -408,6 +413,7 @@ void FLogicWorld::TickBrains(double Dt)
 		const TSharedPtr<FJsonObject> Vision = Obj(Brain, TEXT("vision"));
 		TSharedPtr<FJsonObject> St = FindState(Brain, Ag.State);
 		Ag.TimeInState += Dt;
+		AAIController* AiCtrl = Str(Brain, TEXT("backend")).Equals(TEXT("ai"), ESearchCase::IgnoreCase) && !Obj(Brain, TEXT("flight")).IsValid() ? EnsureAiAgent(Ag, A, Brain) : nullptr;
 
 		// ---- perception
 		Ag.NextPerceive -= Dt;
@@ -415,7 +421,12 @@ void FLogicWorld::TickBrains(double Dt)
 		{
 			Ag.NextPerceive = LogicTuning::Get(TEXT("brain.perceive_interval"));
 			bool bSees = false;
-			if (bPlayerAlive && Vision.IsValid())
+			if (AiCtrl)
+			{
+				PerceiveAi(Ag, AiCtrl); // AI perception: sight and hearing
+				bSees = Ag.bSees;
+			}
+			else if (bPlayerAlive && Vision.IsValid())
 			{
 				const FVector Eye = A->GetActorLocation() + FVector(0, 0, Num(Vision, TEXT("eye_height"), 100.0));
 				const FVector To = PlayerLoc - Eye;
@@ -558,15 +569,20 @@ void FLogicWorld::TickBrains(double Dt)
 			bHasGoal = true;
 		}
 		const FVector Before = A->GetActorLocation();
-		Ag.bMoving = bHasGoal && BrainSteer(Ag, A, Goal, Speed, Dt);
+		const FString FaceMode = Str(St, TEXT("face"), TEXT("move"));
+		const FVector FaceAt = Ag.bSees ? PlayerLoc : Ag.LastKnown;
+		Ag.bMoving = AiCtrl ? MoveAi(Ag, AiCtrl, A, Goal, bHasGoal, Speed, FaceMode, C && (Ag.bSees || Ag.bHasLastKnown) ? &FaceAt : nullptr)
+			: bHasGoal && BrainSteer(Ag, A, Goal, Speed, Dt);
 		const FVector Moved = A->GetActorLocation() - Before;
 		if (bHasGoal && Move == TEXT("to_last_known") && !Ag.bMoving)
 		{
 			Ag.bAtGoal = true;
 		}
 
-		// ---- facing and animation
+		// ---- facing and animation (AI agents: the character turns and moves the body)
 		double WantYaw = Ag.Yaw;
+		if (!AiCtrl)
+		{
 		const FString Face = Str(St, TEXT("face"), TEXT("move"));
 		if (Face == TEXT("target") && C && (Ag.bSees || Ag.bHasLastKnown))
 		{
@@ -591,6 +607,7 @@ void FLogicWorld::TickBrains(double Dt)
 		FVector L = A->GetActorLocation();
 		L.Z = Ag.Home.Z + Bob;
 		A->SetActorLocationAndRotation(L, FRotator(0, Ag.Yaw, Ag.Roll));
+		}
 
 		// ---- shooting
 		bool bFire = false;

@@ -8,7 +8,7 @@ public class RuntimeToolsetsAI : ModuleRules
 		// AI and gameplay tags: AI controllers, navigation, perception, behavior trees, blackboards, gameplay tags. Group modules depend only on RuntimeToolsetsCore (plus engine runtime modules).
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "AIModule", "NavigationSystem", "GameplayTags", "GameplayTasks"
+			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "AIModule", "NavigationSystem", "GameplayTags", "GameplayTasks", "AssetRegistry"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

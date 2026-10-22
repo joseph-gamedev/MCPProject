@@ -1,3 +1,5 @@
+#include "RuntimeAiToolset.h"
+#include "RuntimeTagsToolset.h"
 #include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
@@ -12,7 +14,8 @@ public:
 	virtual void StartupModule() override
 	{
 		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
-		// Registered = {RuntimeToolReflection::RegisterToolsetClass(U...::StaticClass())};
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeAiToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeTagsToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override

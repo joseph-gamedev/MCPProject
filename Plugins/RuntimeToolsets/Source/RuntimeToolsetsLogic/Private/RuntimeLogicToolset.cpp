@@ -1120,7 +1120,8 @@ FLogicDamageResult URuntimeLogicToolset::Damage(const FString& Target, float Amo
 // ---- AI -------------------------------------------------------------------------------------------------------------
 
 FLogicBrainResult URuntimeLogicToolset::DefineBrain(const FString& Name, const TArray<FRuntimeToolJson>& States, const FLogicBrainVision& Vision,
-	const FLogicBrainHearing& Hearing, const FLogicBrainFlight& Flight, const float& TurnSpeed, const float& DecideEvery, const FString& Start)
+	const FLogicBrainHearing& Hearing, const FLogicBrainFlight& Flight, const float& TurnSpeed, const float& DecideEvery, const FString& Start,
+	ELogicBrainBackend Backend)
 {
 	FLogicBrainResult Out;
 	if (!LogicRequireName(Name, TEXT("brain")))
@@ -1128,6 +1129,7 @@ FLogicBrainResult URuntimeLogicToolset::DefineBrain(const FString& Name, const T
 		return Out;
 	}
 	const TSharedRef<FJsonObject> Def = LogicPassedArgs({TEXT("name")});
+	Def->SetStringField(TEXT("backend"), Backend == ELogicBrainBackend::Ai ? TEXT("ai") : TEXT("native"));
 	if (EditLogicDefinitions(TEXT("define brain"), [&](FLogicWorld& L, FString& Err)
 	{
 		if (!FLogicWorld::ValidateBrain(Def, Err))

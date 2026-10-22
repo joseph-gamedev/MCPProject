@@ -684,7 +684,7 @@ namespace
 			if (!Vec(A[0], P) || !Vec(A[1], Q)) return FailExpr(Scope, TEXT("dist: arguments must be [x,y,z] lists"));
 			return FLogicValue::MakeNumber(FVector::Dist(P, Q));
 		}
-		if (Name == TEXT("pos") || Name == TEXT("hp") || Name == TEXT("alive") || Name == TEXT("nodes"))
+		if (Name == TEXT("pos") || Name == TEXT("hp") || Name == TEXT("alive") || Name == TEXT("nodes") || Name == TEXT("has_tag"))
 		{
 			return FailExpr(Scope, Name + TEXT(" needs a running game world"));
 		}
@@ -1039,7 +1039,7 @@ namespace LogicExpr
 		static const TArray<FString> Names = {TEXT("len"), TEXT("abs"), TEXT("floor"), TEXT("ceil"), TEXT("round"), TEXT("sqrt"), TEXT("min"), TEXT("max"),
 			TEXT("rand"), TEXT("rand_int"), TEXT("str"), TEXT("num"), TEXT("list"), TEXT("range"), TEXT("contains"), TEXT("index_of"), TEXT("count"),
 			TEXT("indices"), TEXT("pick"), TEXT("sum"), TEXT("join"), TEXT("set"), TEXT("keys"), TEXT("upper"), TEXT("lower"), TEXT("grid_lines"),
-			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move"), TEXT("dist"), TEXT("pos"), TEXT("hp"), TEXT("alive"), TEXT("nodes"), TEXT("has")};
+			TEXT("line_winner"), TEXT("winning_line"), TEXT("winning_move"), TEXT("dist"), TEXT("pos"), TEXT("hp"), TEXT("alive"), TEXT("nodes"), TEXT("has"), TEXT("has_tag")};
 		return Names;
 	}
 

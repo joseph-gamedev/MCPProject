@@ -167,6 +167,16 @@ enum class ELogicMotionType : uint8
 // ---- Input structs ---------------------------------------------------------------------------------------------------
 
 /** Look of the default bullet a weapon creates when it has no pool. */
+/** How a brain moves and senses. */
+UENUM()
+enum class ELogicBrainBackend : uint8
+{
+	/** Built-in steering and vision cone. */
+	Native,
+	/** Unreal AI: AI controller on the navmesh, AI perception. */
+	Ai,
+};
+
 USTRUCT()
 struct FLogicBulletLook
 {
@@ -1293,12 +1303,15 @@ public:
 	 * @param TurnSpeed - Degrees per second (default: the brain.turn_speed tuning value).
 	 * @param DecideEvery - Seconds between transition checks (default: the brain.decide_interval tuning value).
 	 * @param Start - Start state (default: the first).
+	 * @param Backend - Native: built-in steering and vision cone (no navmesh needed). Ai: a real AI agent - walks the navmesh
+	 *                  around obstacles (call ai.build_navigation first) and senses with AI perception (sight, hearing of
+	 *                  gunshots and ai.report_noise). Ground brains only.
 	 * @return The brain name. Fails if a state, move mode or transition target is invalid.
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Vision,Hearing,Flight,TurnSpeed,DecideEvery"), Category = "Logic|AI")
 	static FLogicBrainResult DefineBrain(const FString& Name, const TArray<FRuntimeToolJson>& States, const FLogicBrainVision& Vision,
 		const FLogicBrainHearing& Hearing, const FLogicBrainFlight& Flight, const float& TurnSpeed, const float& DecideEvery,
-		const FString& Start = TEXT(""));
+		const FString& Start = TEXT(""), ELogicBrainBackend Backend = ELogicBrainBackend::Native);
 
 	/**
 	 * Gives nodes an AI brain (with a patrol route) and draws their vision cones. Rules on "state" (filter: state name)

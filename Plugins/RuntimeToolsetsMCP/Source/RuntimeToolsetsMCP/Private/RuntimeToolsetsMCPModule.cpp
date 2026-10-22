@@ -35,7 +35,10 @@ public:
 		FModelContextProtocolServer* Server = Mcp->GetServer();
 		if (Settings.bAutoStart && (!Server || !Server->IsServerRunning()))
 		{
-			Mcp->StartServer(static_cast<uint32>(Settings.Port), Settings.Path);
+			// -RuntimeToolsetsPort=8019 overrides the configured port (several game instances on one machine).
+			int32 Port = Settings.Port;
+			FParse::Value(FCommandLine::Get(), TEXT("RuntimeToolsetsPort="), Port);
+			Mcp->StartServer(static_cast<uint32>(Port), Settings.Path);
 			bStartedServer = true;
 		}
 		Server = Mcp->GetServer();

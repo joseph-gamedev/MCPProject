@@ -38,7 +38,7 @@ namespace
 		// Actions whose own fields reuse another action's keyword ("weapon" has "set") come first.
 		static const TArray<FString> Names = {TEXT("weapon"), TEXT("health"), TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
 			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback"), TEXT("spawner"), TEXT("drop_loot"), TEXT("give"), TEXT("take"),
-			TEXT("save"), TEXT("load")};
+			TEXT("save"), TEXT("load"), TEXT("add_tags"), TEXT("remove_tags")};
 		return Names;
 	}
 
@@ -1775,6 +1775,31 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 			return false;
 		}
 		DropLoot(Name, L);
+		return true;
+	}
+	if (A->TryGetStringField(TEXT("add_tags"), Name) || A->TryGetStringField(TEXT("remove_tags"), Name))
+	{
+		// {"add_tags": "<target expr>", "tags": ["State.Stunned"]}: gameplay tags through the tags toolset (undo, validation).
+		const bool bAdd = A->HasField(TEXT("add_tags"));
+		FLogicScope Scope = MakeScope(Frame);
+		const FString Target = LogicExpr::Evaluate(Name, Scope).ToText();
+		AActor* Actor = Scope.Error.IsEmpty() ? KeyActor(Target) : nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* Tags = nullptr;
+		if (!Actor || !A->TryGetArrayField(TEXT("tags"), Tags))
+		{
+			OutError = !Scope.Error.IsEmpty() ? Scope.Error : !Actor ? FString::Printf(TEXT("%s: no node '%s'"), bAdd ? TEXT("add_tags") : TEXT("remove_tags"), *Target)
+				: FString(TEXT("add_tags/remove_tags need \"tags\": [\"State.Stunned\", ...]"));
+			return false;
+		}
+		TSharedRef<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("actor"), Actor->GetPathName());
+		Args->SetArrayField(TEXT("tags"), *Tags);
+		const FToolResult R = IRuntimeToolsetsCore::Get().ExecuteInline(bAdd ? TEXT("tags.add_actor_tags") : TEXT("tags.remove_actor_tags"), Args, FToolCallerContext(), 1);
+		if (!R.IsOk())
+		{
+			OutError = R.Message;
+			return false;
+		}
 		return true;
 	}
 	if (A->TryGetStringField(TEXT("give"), Name) || A->TryGetStringField(TEXT("take"), Name))

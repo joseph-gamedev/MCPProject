@@ -1,0 +1,71 @@
+// Starter gameplay tags shipped with RuntimeToolsets as native tags (registered when the module loads, also in packaged builds).
+// Projects add their own tags in Config/Tags/*.ini or project settings; agents can only use registered tags.
+#include "NativeGameplayTags.h"
+
+namespace RuntimeToolsetsStarterTags
+{
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag0, "State.Stunned");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag1, "State.Burning");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag2, "State.Frozen");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag3, "State.Poisoned");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag4, "State.Invisible");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag5, "State.Invulnerable");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag6, "State.Dead");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag7, "State.Alerted");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag8, "State.Searching");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag9, "State.Hidden");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag10, "State.Carrying");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag11, "State.Armed");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag12, "Team.Player");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag13, "Team.Enemy");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag14, "Team.Neutral");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag15, "Team.Ally");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag16, "Damage.Physical");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag17, "Damage.Fire");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag18, "Damage.Ice");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag19, "Damage.Poison");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag20, "Damage.Explosive");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag21, "Damage.Electric");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag22, "Damage.Fall");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag23, "Ability.Attack");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag24, "Ability.Fire");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag25, "Ability.Reload");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag26, "Ability.Dash");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag27, "Ability.Jump");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag28, "Ability.Heal");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag29, "Ability.Block");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag30, "Ability.Interact");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag31, "Event.Hit");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag32, "Event.Death");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag33, "Event.Spawn");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag34, "Event.Interact");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag35, "Event.Noise");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag36, "Event.Spotted");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag37, "Event.Lost");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag38, "Event.Pickup");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag39, "Event.Objective");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag40, "Cue.Hit");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag41, "Cue.Explosion");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag42, "Cue.Heal");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag43, "Cue.Pickup");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag44, "Cue.Death");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag45, "Cue.Muzzle");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag46, "AI.Patrol");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag47, "AI.Chase");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag48, "AI.Attack");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag49, "AI.Flee");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag50, "AI.Search");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag51, "AI.Idle");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag52, "AI.Guard");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag53, "Status.Buff.Speed");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag54, "Status.Buff.Damage");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag55, "Status.Buff.Shield");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag56, "Status.Debuff.Slow");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag57, "Status.Debuff.Weak");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag58, "Status.Debuff.Blind");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag59, "Noise.Gunshot");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag60, "Noise.Footstep");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag61, "Noise.Alarm");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag62, "Noise.Explosion");
+	UE_DEFINE_GAMEPLAY_TAG_STATIC(Tag63, "Noise.Voice");
+}

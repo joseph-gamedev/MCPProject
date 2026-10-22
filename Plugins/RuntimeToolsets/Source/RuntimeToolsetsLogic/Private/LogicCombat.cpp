@@ -1,5 +1,7 @@
 // Health and damage, hit zones, weapons (projectile / hitscan) and projectiles.
 #include "LogicTuning.h"
+#include "GameplayTagAssetInterface.h"
+#include "GameplayTagContainer.h"
 #include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "RuntimeJson.h"
@@ -377,6 +379,36 @@ int32 FLogicWorld::CallWorldFunction(const FString& Name, TArray<FLogicValue>& A
 		}
 		return 1;
 	}
+	if (Name == TEXT("has_tag"))
+	{
+		// has_tag(target, 'State.Stunned'): gameplay tags (tags toolset, GAS, project actors). Parents match children.
+		AActor* Actor = A.Num() == 2 ? KeyActor(Key(A[0])) : nullptr;
+		const FGameplayTag Tag = A.Num() == 2 ? FGameplayTag::RequestGameplayTag(FName(*A[1].ToText()), false) : FGameplayTag();
+		if (A.Num() != 2 || !Tag.IsValid())
+		{
+			OutError = A.Num() != 2 ? FString(TEXT("has_tag(target, 'Tag') takes two arguments")) : FString::Printf(TEXT("'%s' is not a registered gameplay tag"), *A[1].ToText());
+			return -1;
+		}
+		FGameplayTagContainer Have;
+		if (Actor)
+		{
+			if (const IGameplayTagAssetInterface* I = Cast<IGameplayTagAssetInterface>(Actor))
+			{
+				I->GetOwnedGameplayTags(Have);
+			}
+			for (const UActorComponent* C : Actor->GetComponents())
+			{
+				if (const IGameplayTagAssetInterface* I = Cast<IGameplayTagAssetInterface>(C))
+				{
+					FGameplayTagContainer More;
+					I->GetOwnedGameplayTags(More);
+					Have.AppendTags(More);
+				}
+			}
+		}
+		Out = FLogicValue::MakeBool(Have.HasTag(Tag));
+		return 1;
+	}
 	if (Name == TEXT("has"))
 	{
 		const FLogicValue* Inv = Vars.Find(TEXT("inventory"));
@@ -546,6 +578,7 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	{
 		Recoil = 1.0;
 		HearNoise(From, Num(W, TEXT("noise"), 1600.0));
+		ReportAiNoise(From, Num(W, TEXT("noise"), 1600.0), Player.Get(), TEXT("Gunshot")); // AI agents hear shots too
 	}
 	else if (!IsTweening(Owner))
 	{
