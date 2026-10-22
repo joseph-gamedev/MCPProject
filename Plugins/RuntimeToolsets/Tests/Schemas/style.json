@@ -21,7 +21,7 @@
 					},
 					"material":
 					{
-						"description": "{Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}, e.g. {\"Saturation\": 1.2}. (Any JSON value)"
+						"description": "{Weathering 0-1 scene-wide dirt, rain streaks and dust (realistic 0.2-0.4, default 0.25), Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}, e.g. {\"Saturation\": 1.2}. (Any JSON value)"
 					},
 					"post":
 					{

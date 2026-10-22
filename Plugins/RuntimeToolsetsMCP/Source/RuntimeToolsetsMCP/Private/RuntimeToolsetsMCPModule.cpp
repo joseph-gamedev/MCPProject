@@ -1,4 +1,5 @@
 #include "IModelContextProtocolModule.h"
+#include "McpPublicAccess.h"
 #include "McpToolAdapter.h"
 #include "ModelContextProtocolServer.h"
 #include "RuntimeToolsetsCore.h"
@@ -38,14 +39,16 @@ public:
 			// -RuntimeToolsetsPort=8019 overrides the configured port (several game instances on one machine).
 			int32 Port = Settings.Port;
 			FParse::Value(FCommandLine::Get(), TEXT("RuntimeToolsetsPort="), Port);
-			Mcp->StartServer(static_cast<uint32>(Port), Settings.Path);
+			ServerPath = Settings.Path;
+			Mcp->StartServer(static_cast<uint32>(Port), ServerPath);
 			bStartedServer = true;
 		}
 		Server = Mcp->GetServer();
 		if (Server && Server->IsServerRunning())
 		{
-			UE_LOG(LogRuntimeToolsetsMCP, Display, TEXT("MCP server: http://127.0.0.1:%u%s (%d tools, %s mode)"), Server->GetServerPort(), *Settings.Path,
+			UE_LOG(LogRuntimeToolsetsMCP, Display, TEXT("MCP server: http://127.0.0.1:%u%s (%d tools, %s mode)"), Server->GetServerPort(), *ServerPath,
 				Registered.Num(), Settings.ExposureMode == ERuntimeToolsetsMCPExposure::Meta ? TEXT("meta") : TEXT("eager"));
+			McpPublicAccess::Start(static_cast<int32>(Server->GetServerPort()), ServerPath);
 		}
 		else
 		{
@@ -55,6 +58,7 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		McpPublicAccess::Stop();
 		IModelContextProtocolModule* Mcp = IModelContextProtocolModule::Get();
 		if (IRuntimeToolsetsCore::IsAvailable())
 		{
@@ -126,6 +130,7 @@ private:
 	FDelegateHandle RefreshHandle;
 	FDelegateHandle ToolsetsChangedHandle;
 	bool bStartedServer = false;
+	FString ServerPath = TEXT("/mcp");
 };
 
 IMPLEMENT_MODULE(FRuntimeToolsetsMCPModule, RuntimeToolsetsMCP)

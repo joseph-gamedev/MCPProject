@@ -266,6 +266,10 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	M->RotationRate = FRotator(0.f, 1500.f, 0.f);
 	M->SetPlaneConstraintEnabled(!bTop);
 	M->SetPlaneConstraintNormal(FVector(0.f, 1.f, 0.f));
+	if (IsCustom())
+	{
+		ApplyCustomMovement(C);
+	}
 	C->JumpMaxHoldTime = Num(PD(), TEXT("jump_hold"), 0.22);
 	C->SetActorRotation(FRotator(0.f, Num(PD(), TEXT("yaw"), 0.0), 0.f));
 	if (IsFlight())
@@ -358,6 +362,12 @@ bool FLogicWorld::SpawnPlayer(FString& OutError)
 	if (APlayerController* PC = W->GetFirstPlayerController())
 	{
 		PreviousPawn = PC->GetPawn();
+		if (APawn* Prev = PreviousPawn.Get(); Prev && Prev != C)
+		{
+			// The level's default pawn stays in the world: keep it from blocking or showing while the player plays.
+			Prev->SetActorEnableCollision(false);
+			Prev->SetActorHiddenInGame(true);
+		}
 		PC->Possess(C);
 		ApplyPlayerInputMode(PC);
 		if (Cam)
@@ -379,6 +389,8 @@ void FLogicWorld::RemovePlayer()
 		{
 			if (APawn* Prev = PreviousPawn.Get())
 			{
+				Prev->SetActorEnableCollision(true);
+				Prev->SetActorHiddenInGame(false);
 				PC->Possess(Prev);
 			}
 			else
@@ -463,6 +475,9 @@ void FLogicWorld::RespawnPlayer()
 
 void FLogicWorld::ResetPlay()
 {
+	ContactActive.Reset();
+	bClimbing = false;
+	ClimbNode.Reset();
 	PlayerLive = PlayerDef.IsValid() ? RuntimeJson::Parse(RuntimeJson::Write(PlayerDef.ToSharedRef())) : nullptr;
 	ResetExtras();
 	ResetTweens();
@@ -570,7 +585,7 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 	}
 	const bool bRunKey = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Left);
 	// Shooting (both modes): left mouse / F / right trigger; hold for automatic weapons.
-	if (!EquippedWeapon(TEXT("player")).IsEmpty())
+	if (!IsCustom() && !EquippedWeapon(TEXT("player")).IsEmpty())
 	{
 		const TSharedPtr<FJsonObject>* W = WeaponDefs.Find(EquippedWeapon(TEXT("player")));
 		bool bAuto = false;
@@ -593,13 +608,18 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 		}
 	}
 	// Secondary weapon (missiles): right mouse / left trigger.
-	if (const FString Secondary = Str(PD(), TEXT("secondary")); !Secondary.IsEmpty())
+	if (const FString Secondary = Str(PD(), TEXT("secondary")); !Secondary.IsEmpty() && !IsCustom())
 	{
 		if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftTrigger) || PC->WasInputKeyJustPressed(EKeys::G))
 		{
 			FString Err;
 			FireWeapon(TEXT("player"), Secondary, nullptr, Err);
 		}
+	}
+	if (IsCustom())
+	{
+		TickCustomInput(PC, C);
+		return;
 	}
 	if (IsFlight())
 	{
@@ -665,6 +685,20 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 		{
 			Move = FVector(LY, LX, 0);
 		}
+		bool bFacing = false;
+		PD()->TryGetBoolField(TEXT("facing_controls"), bFacing);
+		if (bFacing && !Move.IsNearlyZero() && !AimDir.IsNearlyZero())
+		{
+			// Forward is where the player faces (toward the aim point); right is 90 degrees clockwise from it.
+			const FVector Fwd = AimDir.GetSafeNormal2D();
+			const FVector Right(-Fwd.Y, Fwd.X, 0.0);
+			Move = Fwd * Move.X + Right * Move.Y;
+		}
+		FVector Axes;
+		if (const TSharedPtr<FJsonValue> AxesJson = PD()->TryGetField(TEXT("move_axes")); AxesJson.IsValid() && RuntimeJson::ToVector(AxesJson, Axes))
+		{
+			Move *= FVector(Axes.X, Axes.Y, 0.0);
+		}
 		C->GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Num(PD(), TEXT("speed"), 650.0) * (bRunKey ? 1.5 : 1.0));
 		TryDash(Move.IsNearlyZero() ? AimDir : Move);
 		if (IsGrid())
@@ -699,6 +733,14 @@ void FLogicWorld::TickPlayerInput(APlayerController* PC)
 			C->AddMovementInput(Move.GetClampedToMaxSize(1.0), 1.f, true);
 		}
 		const FVector P = C->GetActorLocation();
+		double FixedYaw = 0.0;
+		if (PD()->TryGetNumberField(TEXT("aim_yaw"), FixedYaw))
+		{
+			AimDir = FRotator(0.0, FixedYaw, 0.0).Vector();
+			AimPoint = P + AimDir * 1000.0;
+			C->SetActorRotation(FRotator(0.0, FixedYaw, 0.0));
+			return;
+		}
 		FVector WL, WD;
 		const float RX = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX), RY = PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
 		if (FMath::Abs(RX) > 0.3f || FMath::Abs(RY) > 0.3f)
@@ -959,6 +1001,11 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 		return;
 	}
 	const FVector P = C->GetActorLocation();
+	if (IsCustom())
+	{
+		TickCustomCamera(Dt, bSnap);
+		return;
+	}
 	if (IsFlight())
 	{
 		const FQuat Q = C->GetActorQuat();
@@ -977,8 +1024,11 @@ void FLogicWorld::TickCamera(double Dt, bool bSnap)
 	{
 		const double Pitch = -FMath::Abs(Num(PD(), TEXT("camera_pitch"), 60.0));
 		const double Dist = Num(PD(), TEXT("camera_distance"), 1500.0);
-		const FVector Lead = AimDir * Num(PD(), TEXT("camera_lead"), 150.0);
-		const FVector Goal = P + Lead + FVector(-Dist * FMath::Cos(FMath::DegreesToRadians(-Pitch)), 0.0, Dist * FMath::Sin(FMath::DegreesToRadians(-Pitch)));
+		bool bFollow = true;
+		PD()->TryGetBoolField(TEXT("camera_follow"), bFollow);
+		// A fixed camera still uses camera_lead, so the playfield can sit ahead of the player (arcade shooters).
+		const FVector Lead = AimDir * Num(PD(), TEXT("camera_lead"), bFollow ? 150.0 : 0.0);
+		const FVector Goal = (bFollow ? P : SpawnPoint) + Lead + FVector(-Dist * FMath::Cos(FMath::DegreesToRadians(-Pitch)), 0.0, Dist * FMath::Sin(FMath::DegreesToRadians(-Pitch)));
 		CamPos = bSnap || Dt <= 0.0 ? Goal : FMath::VInterpTo(CamPos, Goal, Dt, 6.0);
 		Cam->SetActorLocationAndRotation(CamPos + ShakeOffset(), FRotator(Pitch, 0.0, 0.0));
 		return;
@@ -1014,6 +1064,7 @@ void FLogicWorld::TickPlay(double Dt)
 		}
 	}
 	TickMotion();
+	TickContacts();
 	TickSpawners(Dt);
 	TickInteract();
 	TickBrains(Dt);
@@ -1052,6 +1103,7 @@ TSharedRef<FJsonObject> FLogicWorld::PlayerJson() const
 		const FVector L = C->GetActorLocation() - FVector(0, 0, C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 		J->SetField(TEXT("location"), RuntimeJson::Vec(L));
 		J->SetField(TEXT("velocity"), RuntimeJson::Vec(C->GetVelocity()));
+		J->SetNumberField(TEXT("yaw"), FMath::RoundToDouble(C->GetActorRotation().Yaw));
 		J->SetBoolField(TEXT("grounded"), C->GetCharacterMovement()->IsMovingOnGround());
 		J->SetBoolField(TEXT("frozen"), bFrozen);
 		J->SetBoolField(TEXT("invulnerable"), Invulnerable > 0.0);

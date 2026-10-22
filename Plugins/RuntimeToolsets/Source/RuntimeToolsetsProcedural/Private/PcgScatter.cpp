@@ -87,7 +87,7 @@ namespace
 		UDynamicMeshComponent* C = Template ? Template->FindComponentByClass<UDynamicMeshComponent>() : nullptr;
 		if (!C)
 		{
-			OutError = FString::Printf(TEXT("template '%s' has no builder mesh (use a build.* node)"), Template ? *Template->GetActorLabel() : TEXT("?"));
+			OutError = FString::Printf(TEXT("template '%s' has no builder mesh (use a build.* node)"), Template ? *Template->GetName() : TEXT("?"));
 			return nullptr;
 		}
 		OutMaterials.Reset();

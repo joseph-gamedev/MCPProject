@@ -52,6 +52,14 @@ void FBuildToolsetSpec::Define()
 		H->CallFails(TEXT("build.create_primitive"), TEXT("{\"shape\":\"blob\"}"), ERuntimeToolError::InvalidArguments);
 	});
 
+	It("chamfers box edges by default and keeps small trims sharp", [this]()
+	{
+		auto Tris = [this](const TCHAR* Json) { return H->CallOk(TEXT("build.create_primitive"), Json)->GetNumberField(TEXT("triangles")); };
+		TestEqual(TEXT("chamfered box"), Tris(TEXT("{\"shape\":\"box\",\"size\":[200,100,50]}")), 44.0);
+		TestEqual(TEXT("bevel 0"), Tris(TEXT("{\"shape\":\"box\",\"size\":[200,100,50],\"bevel\":0}")), 12.0);
+		TestEqual(TEXT("small trim"), Tris(TEXT("{\"shape\":\"box\",\"size\":[30,6,6]}")), 12.0);
+	});
+
 	It("builds at true scale with a base pivot", [this]()
 	{
 		const FString Box = Prim(TEXT("{\"shape\":\"box\",\"size\":[200,100,50],\"location\":[0,0,10]}"));

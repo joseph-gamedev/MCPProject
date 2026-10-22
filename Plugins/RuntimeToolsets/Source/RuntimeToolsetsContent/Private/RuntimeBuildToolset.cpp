@@ -409,7 +409,7 @@ FBuildToolNodeResult URuntimeBuildToolset::CreatePrimitive(EBuildToolShape Shape
 	BuildCopyArg(Recipe, TEXT("opening"));
 	BuildCopyArg(Recipe, TEXT("top_ratio"), TopRatio >= 0.f);
 	BuildCopyArg(Recipe, TEXT("thickness"), Thickness >= 0.f);
-	BuildCopyArg(Recipe, TEXT("bevel"), Bevel > 0.f);
+	BuildCopyArg(Recipe, TEXT("bevel"), Bevel >= 0.f);  // -1 = automatic, 0 = sharp
 	BuildCopyArg(Recipe, TEXT("count"), Count > 0);
 	BuildCopyArg(Recipe, TEXT("taper"), Taper >= 0.f);
 	BuildCopyArg(Recipe, TEXT("beam"), Beam >= 0.f);
@@ -454,7 +454,7 @@ FBuildToolNodeResult URuntimeBuildToolset::CreateProfileSolid(EBuildToolSolidKin
 	BuildCopyArg(Recipe, TEXT("height"), Height >= 0.f);
 	BuildCopyArg(Recipe, TEXT("angle"), Angle >= 0.f);
 	BuildCopyArg(Recipe, TEXT("closed"), bClosed);
-	BuildCopyArg(Recipe, TEXT("bevel"), Bevel > 0.f);
+	BuildCopyArg(Recipe, TEXT("bevel"), Bevel >= 0.f);  // -1 = automatic, 0 = sharp
 	BuildCopyMaterialArgs(Recipe, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
 	FBuildToolAssemblyResult Out;
 	CreateFromRecipe(Recipe, Name.IsEmpty() ? KindName : Name, Parent, BuildArgTransform(Location, Rotation, Scale), Tags, bSnapToGround, Out);
@@ -879,6 +879,7 @@ FBuildToolCaptureResult URuntimeBuildToolset::CaptureView(const TArray<EBuildToo
 	Comp->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 	Comp->bCaptureEveryFrame = false;
 	Comp->bCaptureOnMovement = false;
+	RuntimeImage::MatchSceneExposure(Comp);
 
 	const int32 Columns = FMath::Min(ViewList.Num(), ViewList.Num() == 4 ? 2 : 3);
 	const int32 Rows = FMath::DivideAndRoundUp(ViewList.Num(), Columns);

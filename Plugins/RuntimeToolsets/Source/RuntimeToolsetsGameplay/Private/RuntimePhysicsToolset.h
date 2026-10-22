@@ -299,6 +299,30 @@ public:
 	static FPhysicsToolSimulateResult SetSimulate(UPrimitiveComponent* Target, bool bEnabled = true);
 
 	/**
+	 * Tunes how a body behaves: weight, grip, bounce, drag, gravity and axis locks. Only the settings you pass change.
+	 * Works before or after set_simulate. Examples: a rolling barrel {friction:0.2, restitution:0.1, lock_translation:["y"]};
+	 * a bouncy ball {restitution:0.9}; a 2D game keeps bodies in the X/Z plane with lock_translation:["y"],
+	 * lock_rotation:["x","z"].
+	 *
+	 * @param Target - Actor or "actor#Component", e.g. "n12".
+	 * @param MassKg - Mass override in kg.
+	 * @param Friction - 0 (ice) .. 1+ (rubber).
+	 * @param Restitution - Bounciness 0 .. 1.
+	 * @param LinearDamping - Drag on movement (0 none, 1-5 heavy).
+	 * @param AngularDamping - Drag on spin.
+	 * @param bGravity - Whether gravity pulls it.
+	 * @param LockTranslation - World axes it cannot move along, e.g. ["y"].
+	 * @param LockRotation - Axes it cannot rotate around, e.g. ["x","z"] (only spins around y).
+	 * @param bContinuousCollision - CCD for fast objects that must not pass through thin walls.
+	 * @return The body state. Fails if the target has no collision or a lock axis is not x, y or z.
+	 */
+	UFUNCTION(meta = (AICallable, RequiresWorld, AutoCreateRefTerm = "MassKg,Friction,Restitution,LinearDamping,AngularDamping,bGravity,LockTranslation,LockRotation,bContinuousCollision"),
+		Category = "Physics|Body")
+	static FPhysicsToolState SetBody(UPrimitiveComponent* Target, const float& MassKg, const float& Friction, const float& Restitution,
+		const float& LinearDamping, const float& AngularDamping, const bool& bGravity, const TArray<FString>& LockTranslation,
+		const TArray<FString>& LockRotation, const bool& bContinuousCollision);
+
+	/**
 	 * Pushes a simulating object. Not undoable (the motion that follows cannot be reverted).
 	 *
 	 * @param Target - Simulating actor or "actor#Component", e.g. "n12".

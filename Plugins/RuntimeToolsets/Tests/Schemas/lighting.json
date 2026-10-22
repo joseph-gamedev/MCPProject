@@ -11,7 +11,7 @@
 				{
 					"mood":
 					{
-						"description": "Noon, Morning, Sunset, Night, Overcast or Foggy.",
+						"description": "Noon, Morning, Sunset, Night, Overcast or Foggy. Each sets physical sun and sky light, a matching locked exposure, fog, grading, ambient occlusion, contact shadows and reflections: the realistic starting point for outdoor scenes.",
 						"enum": [
 							"Noon",
 							"Morning",
@@ -970,7 +970,7 @@
 					},
 					"intensity":
 					{
-						"description": "Lux, e.g. 100000 for direct sun, 500 at sunset.",
+						"description": "Physical lux: 100000 noon sun, 20000 to 40000 low sun, 2000 to 8000 sunset, under 1 moonlight. The camera exposure is locked to match, so the frame never blows out; fine-tune with set_post_process exposure_bias.",
 						"type": "number"
 					},
 					"rotation":

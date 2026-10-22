@@ -603,6 +603,180 @@
 			"undoable": true
 		},
 		{
+			"description": "Tunes how a body behaves: weight, grip, bounce, drag, gravity and axis locks. Only the settings you pass change. Works before or after set_simulate. Examples: a rolling barrel {friction:0.2, restitution:0.1, lock_translation:[\"y\"]}; a bouncy ball {restitution:0.9}; a 2D game keeps bodies in the X/Z plane with lock_translation:[\"y\"], lock_rotation:[\"x\",\"z\"].\nReturns: The body state. Fails if the target has no collision or a lock axis is not x, y or z.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"angular_damping":
+					{
+						"description": "Drag on spin.",
+						"type": "number"
+					},
+					"continuous_collision":
+					{
+						"description": "CCD for fast objects that must not pass through thin walls.",
+						"type": "boolean"
+					},
+					"friction":
+					{
+						"description": "0 (ice) .. 1+ (rubber).",
+						"type": "number"
+					},
+					"gravity":
+					{
+						"description": "Whether gravity pulls it.",
+						"type": "boolean"
+					},
+					"linear_damping":
+					{
+						"description": "Drag on movement (0 none, 1-5 heavy).",
+						"type": "number"
+					},
+					"lock_rotation":
+					{
+						"description": "Axes it cannot rotate around, e.g. [\"x\",\"z\"] (only spins around y).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"lock_translation":
+					{
+						"description": "World axes it cannot move along, e.g. [\"y\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"mass_kg":
+					{
+						"description": "Mass override in kg.",
+						"type": "number"
+					},
+					"restitution":
+					{
+						"description": "Bounciness 0 .. 1.",
+						"type": "number"
+					},
+					"target":
+					{
+						"description": "Actor or \"actor#Component\", e.g. \"n12\". (Reference to PrimitiveComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"name": "physics.set_body",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The body state. Fails if the target has no collision or a lock axis is not x, y or z.",
+						"properties":
+						{
+							"angular_velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"bodies":
+							{
+								"description": "Per-bone bodies of a skeletal mesh (empty for other components).",
+								"items":
+								{
+									"properties":
+									{
+										"bone":
+										{
+											"description": "Bone the body belongs to.",
+											"type": "string"
+										},
+										"mass_kg":
+										{
+											"description": "Mass in kg.",
+											"type": "number"
+										},
+										"simulating":
+										{
+											"type": "boolean"
+										}
+									},
+									"title": "PhysicsToolBodyInfo",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"collision":
+							{
+								"description": "Whether collision is enabled at all.",
+								"type": "boolean"
+							},
+							"collision_profile":
+							{
+								"description": "Collision profile name, e.g. \"BlockAll\".",
+								"type": "string"
+							},
+							"component":
+							{
+								"description": "The inspected primitive component.",
+								"type": "string"
+							},
+							"gravity":
+							{
+								"type": "boolean"
+							},
+							"mass_kg":
+							{
+								"description": "Mass in kg (0 without a physics body).",
+								"type": "number"
+							},
+							"mobility":
+							{
+								"description": "Static, Stationary or Movable. Only Movable components simulate.",
+								"type": "string"
+							},
+							"simulating":
+							{
+								"type": "boolean"
+							},
+							"velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "PhysicsToolState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Turns physics simulation on or off. A Static or Stationary component is switched to Movable first (reported in the result). Undoable: undo stops simulating and puts the object back where it was (re-attached).\nReturns: {target, simulating, mobility_changed, note}. Fails if the component has no collision (physics cannot simulate without it).",
 			"input_schema":
 			{

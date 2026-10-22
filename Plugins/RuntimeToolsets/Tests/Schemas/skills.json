@@ -1,14 +1,52 @@
 {
-	"description": "Skills: authoritative guidance for kinds of work (outdoor lighting, art styles, PCG graphs, building, game logic).\nCall list_skills when starting a task, then get_skills for the ones that apply, and follow them.\nProjects add their own as Blueprint/C++ skills (URuntimeAgentSkill) or markdown files in Config/RuntimeToolsets/Skills\n(front matter \"description: ...\" then the instructions).",
+	"description": "Skills: authoritative guidance for kinds of work (outdoor lighting, art styles, PCG graphs, building, game logic).\nCall list_skills when starting a task, then get_skills for the ones that apply, and follow them.\nProjects add their own as Blueprint/C++ skills (URuntimeAgentSkill) or markdown files in Config/RuntimeToolsets/Skills\n(front matter \"description: ...\" then the instructions). Agents save what they learn with save_skill.",
 	"name": "skills",
 	"tools": [
 		{
-			"description": "Returns the full instructions of the given skills.\nReturns: Skill name -> details.",
+			"description": "Deletes a skill saved with save_skill (built-in skills cannot be deleted).\nThis cannot be undone: only call it after explicit direction or permission from the user.",
 			"input_schema":
 			{
 				"additionalProperties": false,
 				"properties":
 				{
+					"name":
+					{
+						"description": "The skill name.",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "skills.delete_skill",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": false
+		},
+		{
+			"description": "Returns the full instructions of the given skills. Skills can be long (game_logic is the whole logic guide): load one or two per call.\nReturns: Skill name -> details. Fails if no name is given or a skill does not exist (the error lists the skills).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"names":
+					{
+						"description": "Same as skill_names (either works).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
 					"skill_names":
 					{
 						"description": "Names from list_skills, e.g. [\"outdoor_lighting\", \"art_style\"].",
@@ -19,9 +57,6 @@
 						"type": "array"
 					}
 				},
-				"required": [
-					"skill_names"
-				],
 				"type": "object"
 			},
 			"name": "skills.get_skills",
@@ -53,7 +88,7 @@
 							"title": "RuntimeSkillDetails",
 							"type": "object"
 						},
-						"description": "Skill name -> details.",
+						"description": "Skill name -> details. Fails if no name is given or a skill does not exist (the error lists the skills).",
 						"type": "object"
 					}
 				},
@@ -86,6 +121,63 @@
 						},
 						"description": "Skill name -> description.",
 						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Saves a skill for future agents (a markdown file in Config/RuntimeToolsets/Skills; saving the same name updates it). Do this after finishing a task that needed several fixes: write the working recipe (order of steps, exact argument shapes that worked, numbers, gotchas and how you verified it), not a story of the session.\nReturns: Path of the saved file. Fails if the name is not snake_case, belongs to a built-in skill, or the text is empty.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"description":
+					{
+						"description": "One line starting \"Apply when ...\", shown by list_skills so agents know when to load it.",
+						"type": "string"
+					},
+					"instructions":
+					{
+						"description": "The recipe in markdown.",
+						"type": "string"
+					},
+					"name":
+					{
+						"description": "snake_case name, e.g. \"breakout_game\".",
+						"type": "string"
+					},
+					"toolsets":
+					{
+						"description": "Toolsets it uses, e.g. [\"logic\", \"build\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"description",
+					"instructions",
+					"toolsets"
+				],
+				"type": "object"
+			},
+			"name": "skills.save_skill",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Path of the saved file. Fails if the name is not snake_case, belongs to a built-in skill, or the text is empty.",
+						"type": "string"
 					}
 				},
 				"required": [

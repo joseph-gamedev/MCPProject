@@ -986,7 +986,7 @@
 			"undoable": true
 		},
 		{
-			"description": "Adds or replaces on-screen text, buttons and bars (by name). Text is a live template (\"Score: {score}\"); buttons fire \"button\" rules. Undoable.\nReturns: Number of items and whether they are drawn on a viewport. Fails on the first invalid item (nothing changes).",
+			"description": "Adds or replaces on-screen UI by name. Undoable. Use layout items: a widget tree like HTML + flexbox, laid out and aligned for you. A top-level item is {name, kind: panel|column|row|grid|stack, anchor: top-left|top|top-right|left| center|right|bottom-left|bottom|bottom-right, offset:[x,y], children:[...]}. Kinds: panel (card with the theme's background, border, radius and padding), column, row, grid (columns, cell:[w,h]), stack (layers), text (text, size: px or xs|sm|md|lg|xl|2xl|3xl, weight: light|regular|medium|bold|black, color, align: left|center|right, wrap, shadow), button (name, text or children, variant: primary|secondary|ghost|danger|success, disabled_if; hover and press are automatic), bar (value, max, fill, ghost, text), spacer, divider. Any node: gap, align (cross axis: start|center|end| stretch), justify (start|center|end|between), grow, width, height, min_width, max_width, min_height, max_height, padding and margin (n, [vertical, horizontal] or [top, right, bottom, left]), background, border_color, border_width, radius, opacity, rotate (degrees), visible_if, tooltip (template), h_align / v_align (place inside the parent), style_if:[{if, background, border_color, color, opacity}] (first match wins), repeat: n or \"expr\" with as: \"i\" (copies the node with a local index; a repeated button's rule reads event.i). Colors: theme tokens text, muted, subtle, accent, accent_text, panel, surface, surface_hover, border, overlay, success, warning, danger, info, gold, white, black, transparent (\"panel/60\" = 60% opacity), \"#rrggbb[aa]\", [r,g,b,a], or a live template like \"{db[id].hex}\". Text is a live template (\"Gold {gold}\"); buttons fire {\"on\":\"button\",\"filter\":\"<name>\"} rules. Older flat items {name, kind: text|button|bar, anchor:[x,y] 0-1, size, font_size, color, background} still work.\nReturns: Number of items and whether they are drawn on a viewport. Fails on the first invalid item, naming its path and the allowed fields (nothing changes).",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -994,7 +994,7 @@
 				{
 					"items":
 					{
-						"description": "Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background, font_size, visible_if; bar: value, max, fill, ghost}, e.g. {\"name\":\"status\",\"kind\":\"text\", \"text\":\"{turn} to move\",\"anchor\":[0.5,0.06]}.",
+						"description": "UI items, e.g. {\"name\":\"hud\",\"kind\":\"panel\",\"anchor\":\"top-left\",\"children\":[{\"kind\":\"text\",\"text\":\"Gold {gold}\",\"weight\":\"bold\"},{\"kind\":\"bar\",\"value\":\"health.player\",\"max\":\"100\",\"fill\":\"danger\"}]}.",
 						"items":
 						{
 							"description": "Any JSON value"
@@ -1006,6 +1006,10 @@
 						"default": false,
 						"description": "Remove all other items first.",
 						"type": "boolean"
+					},
+					"theme":
+					{
+						"description": "Theme patch, merged over the current one: {colors:{token:\"#rrggbb\"} (override or add tokens), radius, padding, gap, screen_margin, font_size, text_shadow}. (Any JSON value)"
 					}
 				},
 				"required": [
@@ -1021,7 +1025,7 @@
 				{
 					"returnValue":
 					{
-						"description": "Number of items and whether they are drawn on a viewport. Fails on the first invalid item (nothing changes).",
+						"description": "Number of items and whether they are drawn on a viewport. Fails on the first invalid item, naming its path and the allowed fields (nothing changes).",
 						"properties":
 						{
 							"items":
@@ -2833,6 +2837,11 @@
 				"additionalProperties": false,
 				"properties":
 				{
+					"aim_yaw":
+					{
+						"description": "Top-down: face and shoot in this fixed direction (degrees, 0 = +X = screen up) instead of toward the mouse; for shmups like Galaga.",
+						"type": "number"
+					},
 					"air_control":
 					{
 						"default": 0.85000002384185791,
@@ -2854,6 +2863,12 @@
 					{
 						"description": "cm (default: side 1700, top-down 1500, flight 1300).",
 						"type": "number"
+					},
+					"camera_follow":
+					{
+						"default": true,
+						"description": "Top-down: false keeps the camera fixed over the start point (arcade playfield).",
+						"type": "boolean"
 					},
 					"camera_height":
 					{
@@ -2908,6 +2923,12 @@
 						},
 						"title": "LogicDash",
 						"type": "object"
+					},
+					"facing_controls":
+					{
+						"default": false,
+						"description": "Top-down: W moves where the player faces (toward the mouse), S backs away, A/D strafe; false = W is screen up.",
+						"type": "boolean"
 					},
 					"fov":
 					{
@@ -2985,6 +3006,17 @@
 						"default": 1,
 						"description": "Flight: mouse steering scale.",
 						"type": "number"
+					},
+					"move_axes":
+					{
+						"description": "Top-down: scale movement per world axis, e.g. [0,1,0] = left/right only (with the default camera, +Y is screen right). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
 					},
 					"radius":
 					{
@@ -3966,6 +3998,75 @@
 				],
 				"type": "object"
 			}
+		},
+		{
+			"description": "Watches for contacts between any objects: when something in a starts overlapping something in b, rules with {\"on\":\"contact\",\"filter\":\"<name>\"} run (target = the a object; event.data.self, event.data.other, event.data.from_above). Use it for anything touching anything: barrels hitting the hero, a ball entering a goal, a crate landing on a button. \"player\" works in a or b. Undoable.\nReturns: Number of watches. Fails if a or b is empty or name is empty.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"a":
+					{
+						"description": "Node ids, paths, names, \"tag:barrel\" or \"player\".",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"b":
+					{
+						"description": "Node ids, paths, names, \"tag:x\" or \"player\".",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"margin":
+					{
+						"default": 0,
+						"description": "Extra cm around the a objects (touch a little before overlapping).",
+						"type": "number"
+					},
+					"name":
+					{
+						"description": "Watch name, used as the rule filter, e.g. \"barrel_hits_hero\".",
+						"type": "string"
+					},
+					"remove":
+					{
+						"default": false,
+						"description": "Remove the watch instead.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"name",
+					"a",
+					"b"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "logic.watch_contacts",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Number of watches. Fails if a or b is empty or name is empty.",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
 	"version": "2.0.0"

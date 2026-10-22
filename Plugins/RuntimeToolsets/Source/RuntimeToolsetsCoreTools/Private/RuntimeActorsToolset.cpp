@@ -1,5 +1,8 @@
 #include "RuntimeActorsToolset.h"
 #include "RuntimeToolCall.h"
+#include "RuntimeReflectionToolset.h"
+#include "RuntimeToolInvocation.h"
+#include "UObject/UObjectIterator.h"
 #include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
 #include "Components/PrimitiveComponent.h"
@@ -416,4 +419,114 @@ FRuntimeComponentList URuntimeActorsToolset::ListComponents(AActor* Target, cons
 		}
 	}
 	return Out;
+}
+
+FRuntimeComponentInfo URuntimeActorsToolset::AddComponent(AActor* Target, const FString& Class, const FString& Name, const FRuntimeToolJson& Properties,
+	FVector Location, const FString& AttachTo)
+{
+	FRuntimeComponentInfo Out;
+	if (!Target)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("target is required"), TEXT("Pass a node id, path or actor:Name"));
+		return Out;
+	}
+	FString Wanted = Class.TrimStartAndEnd();
+	if (Wanted.StartsWith(TEXT("U")) && Wanted.Len() > 1 && FChar::IsUpper(Wanted[1]))
+	{
+		Wanted.RightChopInline(1);
+	}
+	UClass* Found = nullptr;
+	TArray<FString> Similar;
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (!It->IsChildOf(UActorComponent::StaticClass()) || It->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists))
+		{
+			continue;
+		}
+		const FString N = It->GetName();
+		if (N.Equals(Wanted, ESearchCase::IgnoreCase) || N.Equals(Wanted + TEXT("Component"), ESearchCase::IgnoreCase))
+		{
+			Found = *It;
+			break;
+		}
+		if (Similar.Num() < 12 && !It->HasAnyClassFlags(CLASS_Abstract) && N.Contains(Wanted.Left(6)) && !N.StartsWith(TEXT("SKEL_")))
+		{
+			Similar.Add(N);
+		}
+	}
+	if (!Found || Found->HasAnyClassFlags(CLASS_Abstract))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no component class '%s'%s"), *Class, Found ? TEXT(" (it is abstract)") : TEXT("")),
+			Similar.Num() ? TEXT("Similar: ") + FString::Join(Similar, TEXT(", ")) : TEXT("Examples: RotatingMovementComponent, ProjectileMovementComponent, SphereComponent, PointLightComponent"));
+		return Out;
+	}
+	const FName CompName = Name.IsEmpty() ? MakeUniqueObjectName(Target, Found, FName(*Found->GetName().Replace(TEXT("Component"), TEXT("")))) : FName(*Name);
+	if (FindObjectFast<UObject>(Target, CompName))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("the actor already has a component named '%s'"), *CompName.ToString()));
+		return Out;
+	}
+	UActorComponent* Comp = NewObject<UActorComponent>(Target, Found, CompName, RF_Transactional);
+	if (USceneComponent* SC = Cast<USceneComponent>(Comp))
+	{
+		USceneComponent* Parent = Target->GetRootComponent();
+		if (!AttachTo.IsEmpty())
+		{
+			TInlineComponentArray<USceneComponent*> Scenes(Target);
+			USceneComponent* const* P = Scenes.FindByPredicate([&AttachTo](USceneComponent* X) { return X->GetName() == AttachTo; });
+			if (!P)
+			{
+				Comp->MarkAsGarbage();
+				RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no scene component '%s' to attach to"), *AttachTo), TEXT("See actors.list_components"));
+				return Out;
+			}
+			Parent = *P;
+		}
+		if (Parent)
+		{
+			SC->SetMobility(Parent->Mobility == EComponentMobility::Static ? EComponentMobility::Movable : EComponentMobility::Type(Parent->Mobility));
+			SC->SetupAttachment(Parent);
+		}
+		else
+		{
+			Target->SetRootComponent(SC);
+		}
+		SC->SetRelativeLocation(Location);
+	}
+	Target->AddInstanceComponent(Comp);
+	Comp->RegisterComponent();
+	if (Properties.IsSet())
+	{
+		URuntimeReflectionToolset::SetProperties(Comp, Properties);
+		const FToolInvocation* Inv = RuntimeToolCall::Current();
+		if (Inv && Inv->IsComplete()) // set_properties failed the call
+		{
+			Comp->DestroyComponent();
+			return Out;
+		}
+	}
+	Out.Ref = RuntimeToolCall::MakeReference(Comp);
+	Out.Name = Comp->GetName();
+	Out.Class = Found->GetName();
+	if (USceneComponent* SC = Cast<USceneComponent>(Comp); SC && SC->GetAttachParent())
+	{
+		Out.Parent = SC->GetAttachParent()->GetName();
+	}
+	return Out;
+}
+
+void URuntimeActorsToolset::RemoveComponent(UActorComponent* Target)
+{
+	if (!Target)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("target is required"), TEXT("Pass \"actor#Component\" from actors.list_components"));
+		return;
+	}
+	AActor* Owner = Target->GetOwner();
+	if (Owner && Owner->GetRootComponent() == Target)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("cannot remove the root component"), TEXT("Destroy the actor instead"));
+		return;
+	}
+	Target->DestroyComponent();
 }

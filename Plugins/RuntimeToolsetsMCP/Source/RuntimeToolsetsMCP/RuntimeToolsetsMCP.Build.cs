@@ -8,7 +8,7 @@ public class RuntimeToolsetsMCP : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"DeveloperSettings", "ModelContextProtocol", "HTTPServer"
+			"DeveloperSettings", "ModelContextProtocol", "HTTPServer", "HTTP", "Slate", "SlateCore"
 		});
 	}
 }

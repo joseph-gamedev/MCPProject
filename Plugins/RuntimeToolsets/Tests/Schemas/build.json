@@ -670,8 +670,8 @@
 					},
 					"bevel":
 					{
-						"default": 0,
-						"description": "Chamfer hard edges by this many cm (boxes, wedges).",
+						"default": -1,
+						"description": "Chamfer hard edges by this many cm. Boxes, wedges and extrusions get a small automatic bevel at -1; 0 keeps edges sharp.",
 						"type": "number"
 					},
 					"bracing":
@@ -1000,8 +1000,8 @@
 					},
 					"bevel":
 					{
-						"default": 0,
-						"description": "Chamfer edges by this many cm (extrusions).",
+						"default": -1,
+						"description": "Chamfer edges by this many cm. Extrusions get a small automatic bevel at -1; 0 keeps edges sharp.",
 						"type": "number"
 					},
 					"closed":

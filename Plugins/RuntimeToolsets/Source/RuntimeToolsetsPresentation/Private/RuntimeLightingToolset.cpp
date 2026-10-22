@@ -1,4 +1,5 @@
 #include "RuntimeLightingToolset.h"
+#include "HAL/IConsoleManager.h"
 #include "PresentationToolCall.h"
 #include "RuntimeCommand.h"
 #include "RuntimeCommonCommands.h"
@@ -71,6 +72,43 @@ namespace RtLight
 		return 90.0 * FMath::Sin(PI * (Hour - 6.0) / 12.0);
 	}
 
+	/** Camera exposure (EV100) that renders a scene lit by this much sun correctly (Sunny 16: 100000 lux ~ EV 15). */
+	float EvForLux(float Lux)
+	{
+		return FMath::Clamp(FMath::Log2(FMath::Max(Lux, 0.01f) / 2.5f), 1.f, 16.f);
+	}
+
+	/**
+	 * Auto exposure min/max brightness are EV100 only with the project setting "Extend default luminance range";
+	 * otherwise they are scene luminance in cd/m2 (EV100 = log2(L * 100 / 12.5)). Tools always speak EV100.
+	 */
+	bool ExposureInEv()
+	{
+		static IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange"));
+		return !V || V->GetInt() != 0;
+	}
+
+	float EvToSetting(float Ev)
+	{
+		return ExposureInEv() ? Ev : 0.125f * FMath::Pow(2.f, Ev);
+	}
+
+	float SettingToEv(float Value)
+	{
+		return ExposureInEv() ? Value : FMath::Log2(FMath::Max(Value, 1e-6f) / 0.125f);
+	}
+
+	/** Locks the exposure at one EV100 (auto exposure with min = max), so frames never pump or blow out. */
+	void LockExposure(FPostProcessSettings& S, float Ev)
+	{
+		S.bOverride_AutoExposureMethod = true;
+		S.AutoExposureMethod = AEM_Histogram;
+		S.bOverride_AutoExposureMinBrightness = true;
+		S.AutoExposureMinBrightness = EvToSetting(Ev);
+		S.bOverride_AutoExposureMaxBrightness = true;
+		S.AutoExposureMaxBrightness = EvToSetting(Ev);
+	}
+
 	FLinearColor Rgb(const FLinearColor& C)
 	{
 		return FLinearColor(C.R, C.G, C.B, 1.f);
@@ -89,6 +127,7 @@ namespace RtLight
 		float SoftSourceAngle = 0.f;
 		bool bCastCloudShadows = false;
 		float CloudShadowStrength = 1.f;
+		float ContactShadowLength = 0.f;
 
 		static FSunState Read(const ADirectionalLight* Sun)
 		{
@@ -103,6 +142,7 @@ namespace RtLight
 			S.SoftSourceAngle = C->LightSourceSoftAngle;
 			S.bCastCloudShadows = C->bCastCloudShadows;
 			S.CloudShadowStrength = C->CloudShadowOnSurfaceStrength;
+			S.ContactShadowLength = C->ContactShadowLength;
 			return S;
 		}
 
@@ -120,6 +160,11 @@ namespace RtLight
 			C->SetUseTemperature(bUseTemperature);
 			C->SetLightSourceAngle(SourceAngle);
 			C->SetLightSourceSoftAngle(SoftSourceAngle);
+			if (C->ContactShadowLength != ContactShadowLength)
+			{
+				C->ContactShadowLength = ContactShadowLength;
+				C->MarkRenderStateDirty();
+			}
 			if (C->bCastCloudShadows != bCastCloudShadows || C->CloudShadowOnSurfaceStrength != CloudShadowStrength)
 			{
 				C->bCastCloudShadows = bCastCloudShadows;
@@ -516,8 +561,8 @@ namespace RtLight
 		const FPostProcessSettings& S = Volume->Settings;
 		J.Actor = Ref(Volume);
 		J.ExposureBias = S.AutoExposureBias;
-		J.ExposureMin = S.AutoExposureMinBrightness;
-		J.ExposureMax = S.AutoExposureMaxBrightness;
+		J.ExposureMin = SettingToEv(S.AutoExposureMinBrightness);
+		J.ExposureMax = SettingToEv(S.AutoExposureMaxBrightness);
 		J.Bloom = S.BloomIntensity;
 		J.Saturation = S.ColorSaturation.X;
 		J.Contrast = S.ColorContrast.X;
@@ -655,7 +700,16 @@ FRuntimeSunInfo URuntimeLightingToolset::SetSun(const FRotator& Rotation, const 
 	if (Passed(TEXT("temperature"))) { New.Temperature = Temperature; New.bUseTemperature = true; }
 	if (Passed(TEXT("source_angle"))) { New.SourceAngle = SourceAngle; }
 	if (Passed(TEXT("soft_source_angle"))) { New.SoftSourceAngle = SoftSourceAngle; }
-	if (!RuntimeToolCall::RunCommand(MakeStateCommand(TEXT("set sun"), Sun, New)))
+	TUniquePtr<FCompositeCommand> Cmd = MakeUnique<FCompositeCommand>(TEXT("set sun"));
+	Cmd->Add(MakeStateCommand(TEXT("sun"), Sun, New));
+	if (Passed(TEXT("intensity")))
+	{
+		// Keep the camera matched to the light: a physical sun with a fixed low exposure renders pure white.
+		bool bCreated = false;
+		const float Ev = EvForLux(Intensity);
+		AddPostProcess(Sun->GetWorld(), [Ev](FPostProcessSettings& S) { LockExposure(S, Ev); }, *Cmd, bCreated);
+	}
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
 	{
 		return {};
 	}
@@ -824,8 +878,8 @@ FRuntimePostProcessInfo URuntimeLightingToolset::SetPostProcess(const float& Exp
 	AddPostProcess(World, [&](FPostProcessSettings& S)
 	{
 		if (Passed(TEXT("exposure_bias"))) { S.bOverride_AutoExposureBias = true; S.AutoExposureBias = ExposureBias; }
-		if (Passed(TEXT("exposure_min"))) { S.bOverride_AutoExposureMinBrightness = true; S.AutoExposureMinBrightness = ExposureMin; }
-		if (Passed(TEXT("exposure_max"))) { S.bOverride_AutoExposureMaxBrightness = true; S.AutoExposureMaxBrightness = ExposureMax; }
+		if (Passed(TEXT("exposure_min"))) { S.bOverride_AutoExposureMinBrightness = true; S.AutoExposureMinBrightness = EvToSetting(ExposureMin); }
+		if (Passed(TEXT("exposure_max"))) { S.bOverride_AutoExposureMaxBrightness = true; S.AutoExposureMaxBrightness = EvToSetting(ExposureMax); }
 		if (Passed(TEXT("bloom"))) { S.bOverride_BloomIntensity = true; S.BloomIntensity = Bloom; }
 		if (Passed(TEXT("saturation"))) { S.bOverride_ColorSaturation = true; S.ColorSaturation = FVector4(Saturation, Saturation, Saturation, 1.f); }
 		if (Passed(TEXT("contrast"))) { S.bOverride_ColorContrast = true; S.ColorContrast = FVector4(Contrast, Contrast, Contrast, 1.f); }
@@ -888,14 +942,19 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 		float ExposureBias;
 		float SoftAngle;
 		float CloudCoverage; // NaN-free sentinel: < -1 = leave clouds alone
+		// Physical light and a locked camera exposure (EV100) that matches it.
+		float SunLux;
+		float SkyIntensity;
+		float Ev;
 	};
+	// Values: Epic physical light units, Sunny-16 exposure (100000 lux ~ EV 15), photographic ranges per mood.
 	static const TMap<ERuntimeLightingMood, FMood> Moods = {
-		{ERuntimeLightingMood::Noon, {12.0, 6500.f, 0.01f, false, 1.0f, 1.0f, 6500.f, 0.f, 0.f, -2.f}},
-		{ERuntimeLightingMood::Morning, {8.0, 5000.f, 0.03f, false, 1.05f, 1.0f, 6200.f, 0.f, 0.f, -2.f}},
-		{ERuntimeLightingMood::Sunset, {17.6, 3200.f, 0.03f, false, 1.15f, 1.05f, 5200.f, 0.f, 0.f, -2.f}},
-		{ERuntimeLightingMood::Night, {0.0, 4000.f, 0.02f, false, 0.7f, 1.05f, 7500.f, -0.5f, 0.f, -2.f}},
-		{ERuntimeLightingMood::Overcast, {13.0, 7500.f, 0.05f, false, 0.75f, 0.95f, 7000.f, 0.f, 55.f, 0.6f}},
-		{ERuntimeLightingMood::Foggy, {10.0, 6000.f, 0.25f, true, 0.85f, 0.95f, 6800.f, 0.f, 30.f, -2.f}},
+		{ERuntimeLightingMood::Noon, {12.0, 6200.f, 0.01f, false, 1.0f, 1.0f, 6500.f, 0.f, 0.f, -2.f, 100000.f, 1.0f, 14.6f}},
+		{ERuntimeLightingMood::Morning, {8.0, 5000.f, 0.02f, false, 1.02f, 1.0f, 6300.f, 0.f, 0.f, -2.f, 40000.f, 1.0f, 13.6f}},
+		{ERuntimeLightingMood::Sunset, {17.4, 3400.f, 0.02f, false, 0.98f, 1.02f, 6200.f, 0.f, 0.f, -2.f, 9000.f, 1.0f, 11.8f}},
+		{ERuntimeLightingMood::Night, {0.0, 4100.f, 0.02f, false, 0.8f, 1.0f, 7000.f, 0.f, 0.f, -2.f, 0.6f, 0.4f, 2.5f}},
+		{ERuntimeLightingMood::Overcast, {13.0, 6800.f, 0.04f, false, 0.85f, 0.97f, 6800.f, 0.f, 55.f, 0.6f, 9000.f, 1.6f, 12.2f}},
+		{ERuntimeLightingMood::Foggy, {10.0, 6000.f, 0.2f, true, 0.88f, 0.95f, 6600.f, 0.f, 30.f, -2.f, 25000.f, 1.3f, 13.0f}},
 	};
 	const FMood& M = Moods.FindChecked(Mood);
 	UWorld* World = RuntimeToolCall::GetWorld();
@@ -909,8 +968,17 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 		S.Temperature = M.Temperature;
 		S.bUseTemperature = true;
 		S.SoftSourceAngle = M.SoftAngle;
+		S.Intensity = M.SunLux;
+		S.ContactShadowLength = 0.03f; // grounds small objects (no floating look)
 		Cmd->Add(MakeStateCommand(TEXT("sun"), Sun, S));
 		Out.Changed.Add(TEXT("sun"));
+	}
+	if (ASkyLight* Sky = FirstActor<ASkyLight>(World))
+	{
+		FSkyState K = FSkyState::Read(Sky);
+		K.Intensity = M.SkyIntensity;
+		Cmd->Add(MakeStateCommand(TEXT("sky"), Sky, K));
+		Out.Changed.Add(TEXT("sky"));
 	}
 	if (AExponentialHeightFog* Fog = FirstActor<AExponentialHeightFog>(World))
 	{
@@ -942,6 +1010,18 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 		S.WhiteTemp = M.WhiteBalance;
 		S.bOverride_AutoExposureBias = true;
 		S.AutoExposureBias = M.ExposureBias;
+		LockExposure(S, M.Ev);
+		// Grounding and depth without baked lighting: ambient occlusion, sharp reflections, subtle lens.
+		S.bOverride_AmbientOcclusionIntensity = true;
+		S.AmbientOcclusionIntensity = 0.7f;
+		S.bOverride_AmbientOcclusionRadius = true;
+		S.AmbientOcclusionRadius = 150.f;
+		S.bOverride_ScreenSpaceReflectionQuality = true;
+		S.ScreenSpaceReflectionQuality = 100.f;
+		S.bOverride_BloomIntensity = true;
+		S.BloomIntensity = 0.5f;
+		S.bOverride_VignetteIntensity = true;
+		S.VignetteIntensity = 0.3f;
 	}, *Cmd, bCreated);
 	Out.Changed.Add(TEXT("post_process"));
 	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))

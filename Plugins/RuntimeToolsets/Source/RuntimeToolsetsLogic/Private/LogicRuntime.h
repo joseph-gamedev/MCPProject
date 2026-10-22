@@ -13,6 +13,8 @@ class APlayerController;
 struct FRuntimeSceneNode;
 class UWorld;
 class UGameViewportClient;
+struct FSlateBrush;
+namespace LogicUiImpl { struct FBuilder; }
 
 /** "When <event> [matching target/key/name] and <condition>, run <actions>." */
 struct FLogicRule
@@ -47,9 +49,19 @@ struct FLogicUiItem
 	FString MaxValue;
 	FLinearColor Fill = FLinearColor(0.85f, 0.15f, 0.12f, 1.f);
 	bool bGhost = true;
+	/** Layout items (panel/row/column/grid/stack trees): the whole node as given; built by LogicUi. */
+	TSharedPtr<FJsonObject> Tree;
 
 	TSharedRef<FJsonObject> ToJson() const;
 	static bool FromJson(const TSharedPtr<FJsonObject>& Json, FLogicUiItem& Out, FString& OutError);
+};
+
+/** A repeat count bound to an expression; the UI is rebuilt when it changes. */
+struct FLogicUiWatch
+{
+	FString Expr;
+	TMap<FString, FLogicValue> Locals;
+	int32 Count = 0;
 };
 
 struct FLogicEvent
@@ -102,6 +114,8 @@ public:
 	TSharedPtr<FJsonObject> HudDef;
 	/** Feedback presets: name -> {steps:[{type, delay, ...}]}. */
 	TMap<FString, TSharedPtr<FJsonObject>> FeedbackDefs;
+	/** Contact watches (logic.watch_contacts): name -> {a:[targets], b:[targets], margin}. */
+	TMap<FString, TSharedPtr<FJsonObject>> ContactDefs;
 
 	TSharedRef<FJsonObject> ExportDefinitions() const;
 	bool ImportDefinitions(const TSharedPtr<FJsonObject>& Json, FString& OutError);
@@ -155,6 +169,8 @@ public:
 	bool IsTopDown() const;
 	bool IsFlight() const;
 	bool IsGrid() const;
+	/** Player made with character.create: data-driven movement, controls, climbing and camera rig. */
+	bool IsCustom() const;
 	/** Best target for a homing weapon in front of Owner (within range and angle). */
 	FString LockTarget(const FString& Owner, const FVector& From, const FVector& Dir, double Range, double AngleDeg, const FString& Hits) const;
 	void ResetAgentAt(const FString& Id, const FVector& At, const FRotator& Rot);
@@ -249,6 +265,13 @@ public:
 	void RefreshUi();
 	void RemoveUi();
 	void SetUiOverride(const FString& Name, const FString* Text, const bool* bVisible);
+	/** Rebuilds the overlay when a repeat count changed. */
+	void TickUi();
+	/** Layout theme {colors, radius, padding, gap, screen_margin, font_size, text_shadow}; null = defaults. */
+	TSharedPtr<FJsonObject> UiTheme;
+	TArray<FLogicUiWatch> UiWatch;
+	TMap<FString, TSharedPtr<FSlateBrush>> UiBrushes;
+	friend struct LogicUiImpl::FBuilder;
 
 	UWorld* GetWorld() const { return World.Get(); }
 
@@ -288,6 +311,14 @@ private:
 	void ApplyPlayerInputMode(APlayerController* PC);
 	void TickMotion();
 	void TickTouch();
+	void TickCustomInput(APlayerController* PC, ACharacter* C);
+	void TickCustomCamera(double Dt, bool bSnap);
+	void ApplyCustomMovement(ACharacter* C);
+	void StopClimbing(ACharacter* C, bool bJump);
+	void TickContacts();
+	bool bClimbing = false;
+	FString ClimbNode;
+	TMap<FString, TSet<FString>> ContactActive;
 	void TickCamera(double Dt, bool bSnap);
 	bool IsHidden(const FString& NodeId) const;
 	static bool DirectMatch(const FRuntimeSceneNode& Node, const FString& Target, const class FRuntimeSceneGraph& Graph);

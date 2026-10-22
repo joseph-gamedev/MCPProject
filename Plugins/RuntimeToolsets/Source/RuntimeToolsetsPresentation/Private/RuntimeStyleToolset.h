@@ -84,7 +84,7 @@ public:
 	 * tweak the style already applied. The material/post layer is one undo step; the lighting layer adds lighting undo steps.
 	 *
 	 * @param Preset - Preset name, e.g. "toon"; empty = tweak the current style.
-	 * @param Material - {Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}, e.g. {"Saturation": 1.2}.
+	 * @param Material - {Weathering 0-1 scene-wide dirt, rain streaks and dust (realistic 0.2-0.4, default 0.25), Faceted 0-1 flat shading, Pattern 0-1 procedural detail, Steps colour palette steps (0 off), Saturation, RimStrength, RimColor, Tint}, e.g. {"Saturation": 1.2}.
 	 * @param Post - {Toon 0-1, Bands, ShadowFloor, Outline 0-1, OutlineWidth px, OutlineColor, DepthSens, NormalSens, Paint 0-1, PaintRadius, PaintScale, PixelSize px, Levels, Saturation, Contrast, Tint}, e.g. {"Outline": 0.6}.
 	 * @param Settings - {bloom, vignette, ao, grain, chromatic, exposure_bias, temperature}.
 	 * @param Lighting - {mood, sun:{rotation, intensity, temperature, color}, sky:{intensity, color}, fog:{density, color, height_falloff}}.

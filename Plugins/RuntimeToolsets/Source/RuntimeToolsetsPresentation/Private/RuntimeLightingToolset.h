@@ -335,7 +335,8 @@ public:
 	 * Sets the sun's rotation, intensity, colour, temperature and shadow softness. Undoable.
 	 *
 	 * @param Rotation - [pitch, yaw, roll]: pitch 0 = horizon, -90 = overhead, e.g. [-35, 120, 0].
-	 * @param Intensity - Lux, e.g. 100000 for direct sun, 500 at sunset.
+	 * @param Intensity - Physical lux: 100000 noon sun, 20000 to 40000 low sun, 2000 to 8000 sunset, under 1 moonlight.
+	 *                    The camera exposure is locked to match, so the frame never blows out; fine-tune with set_post_process exposure_bias.
 	 * @param Color - Light colour [r, g, b], 0-1.
 	 * @param Temperature - Kelvin (1700-12000), e.g. 6000; enables temperature.
 	 * @param SourceAngle - Sun disc angle in degrees (2-5 overcast, 15-30 when the disc is hidden).
@@ -441,7 +442,8 @@ public:
 	/**
 	 * One-step look for the sun, fog, clouds and grading, as one undo step. A starting point: refine with the other tools.
 	 *
-	 * @param Mood - Noon, Morning, Sunset, Night, Overcast or Foggy.
+	 * @param Mood - Noon, Morning, Sunset, Night, Overcast or Foggy. Each sets physical sun and sky light, a matching locked exposure,
+	 *               fog, grading, ambient occlusion, contact shadows and reflections: the realistic starting point for outdoor scenes.
 	 * @return The mood and the parts that changed (parts the level lacks are skipped).
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Lighting")

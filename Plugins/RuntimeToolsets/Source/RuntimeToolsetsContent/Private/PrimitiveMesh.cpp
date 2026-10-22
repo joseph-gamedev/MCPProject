@@ -8,6 +8,7 @@
 #include "GeometryScript/CollisionFunctions.h"
 #include "GeometryScript/MeshBasicEditFunctions.h"
 #include "GeometryScript/MeshBooleanFunctions.h"
+#include "GeometryScript/MeshQueryFunctions.h"
 #include "GeometryScript/MeshMaterialFunctions.h"
 #include "GeometryScript/MeshNormalsFunctions.h"
 #include "CompGeom/PolygonTriangulation.h"
@@ -111,7 +112,7 @@ namespace RuntimePrimitives
 	const TArray<FString>& MaterialFieldNames()
 	{
 		static const TArray<FString> Names = {TEXT("material"), TEXT("color"), TEXT("roughness"), TEXT("metallic"), TEXT("emissive"),
-			TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("style"), TEXT("tile"), TEXT("relief")};
+			TEXT("emissive_strength"), TEXT("opacity"), TEXT("variation"), TEXT("style"), TEXT("tile"), TEXT("relief"), TEXT("weathering")};
 		return Names;
 	}
 
@@ -390,16 +391,126 @@ namespace RuntimePrimitives
 		}
 	}
 
+	static void SplitNormals(UDynamicMesh* Mesh, float AngleDeg);
+
+	/** Box with chamfered edges built directly (24 points, 44 triangles): far cheaper than a polygroup bevel. */
+	static void AppendChamferBox(UDynamicMesh* Mesh, const FVector& Size, bool bCenter, double Bevel)
+	{
+		const FVector H = Size * 0.5;
+		const double B = FMath::Min(Bevel, H.GetMin() * 0.45);
+		const FVector Offset(0, 0, bCenter ? 0.0 : H.Z);
+		// Point on face Axis (0 x, 1 y, 2 z) near the corner with signs S.
+		auto P = [&](int32 Axis, const FIntVector& S) -> FVector
+		{
+			FVector V;
+			for (int32 a = 0; a < 3; ++a)
+			{
+				V[a] = S[a] * (a == Axis ? H[a] : H[a] - B);
+			}
+			return V + Offset;
+		};
+		TArray<FVector> Verts;
+		TMap<int32, int32> Index;  // (axis, corner) -> vertex
+		auto Id = [&](int32 Axis, const FIntVector& S) -> int32
+		{
+			const int32 Key = Axis * 8 + (S.X > 0 ? 1 : 0) + (S.Y > 0 ? 2 : 0) + (S.Z > 0 ? 4 : 0);
+			if (const int32* Found = Index.Find(Key))
+			{
+				return *Found;
+			}
+			return Index.Add(Key, Verts.Add(P(Axis, S)));
+		};
+		TArray<FIntVector> Tris;
+		auto Tri = [&](int32 A, int32 Bv, int32 C) { Tris.Add(FIntVector(A, Bv, C)); };
+		auto Quad = [&](int32 A, int32 Bv, int32 C, int32 D) { Tri(A, Bv, C); Tri(A, C, D); };
+		const int32 Cyc[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			const int32 U = (Axis + 1) % 3, V = (Axis + 2) % 3;
+			for (int32 Sign : {-1, 1})
+			{
+				int32 Q[4];
+				for (int32 k = 0; k < 4; ++k)
+				{
+					FIntVector S;
+					S[Axis] = Sign;
+					S[U] = Cyc[k][0];
+					S[V] = Cyc[k][1];
+					Q[k] = Id(Axis, S);
+				}
+				Quad(Q[0], Q[1], Q[2], Q[3]);  // main face
+			}
+			// edges between faces U and V run along Axis
+			for (int32 k = 0; k < 4; ++k)
+			{
+				FIntVector Lo, Hi;
+				Lo[Axis] = -1;
+				Hi[Axis] = 1;
+				Lo[U] = Hi[U] = Cyc[k][0];
+				Lo[V] = Hi[V] = Cyc[k][1];
+				Quad(Id(U, Lo), Id(V, Lo), Id(V, Hi), Id(U, Hi));
+			}
+		}
+		for (int32 c = 0; c < 8; ++c)
+		{
+			const FIntVector S(c & 1 ? 1 : -1, c & 2 ? 1 : -1, c & 4 ? 1 : -1);
+			Tri(Id(0, S), Id(1, S), Id(2, S));  // corner
+		}
+		Mesh->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+		{
+			TArray<int32> Ids;
+			for (const FVector& Pt : Verts)
+			{
+				Ids.Add(M.AppendVertex(FVector3d(Pt)));
+			}
+			for (const FIntVector& T : Tris)
+			{
+				// Convex: orient each triangle away from the centre (stored winding has its cross product pointing inward).
+				const FVector& A = Verts[T.X];
+				const FVector& Bp = Verts[T.Y];
+				const FVector& C = Verts[T.Z];
+				const bool bFlip = FVector::DotProduct(FVector::CrossProduct(Bp - A, C - A), (A + Bp + C) / 3.0 - Offset) > 0.0;
+				M.AppendTriangle(UE::Geometry::FIndex3i(Ids[T.X], bFlip ? Ids[T.Z] : Ids[T.Y], bFlip ? Ids[T.Y] : Ids[T.Z]));
+			}
+		});
+		SplitNormals(Mesh, 30.f);
+	}
+
 	static void ApplyBevel(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& R)
 	{
-		const double Bevel = Num(R, TEXT("bevel"), 0.0);
+		// Perfectly sharp edges are the strongest "CG" tell: flat-sided shapes get a small chamfer that catches light
+		// unless the recipe says otherwise ("bevel": 0 turns it off).
+		double Bevel = Num(R, TEXT("bevel"), -1.0);
+		if (Bevel < 0.0)
+		{
+			static const TSet<FString> Flat = {TEXT("box"), TEXT("wedge"), TEXT("extrude"), TEXT("steps"), TEXT("tiers"), TEXT("frustum")};
+			FString Shape;
+			R->TryGetStringField(TEXT("shape"), Shape);
+			Bevel = 0.0;
+			if (Flat.Contains(Shape))
+			{
+				const FBox B = UGeometryScriptLibrary_MeshQueryFunctions::GetMeshBoundingBox(Mesh);
+				const double Thin = B.IsValid ? B.GetSize().GetMin() : 0.0;
+				const double Long = B.IsValid ? B.GetSize().GetMax() : 0.0;
+				// small trims and frames are too small to show it: keep them cheap
+				Bevel = Thin > 2.0 && Long >= 40.0 ? FMath::Clamp(Thin * 0.04, 0.3, 1.5) : 0.0;
+			}
+		}
 		if (Bevel <= 0.0)
 		{
 			return;
 		}
+		FString BoxShape;
+		R->TryGetStringField(TEXT("shape"), BoxShape);
+		if (BoxShape == TEXT("box") && !R->HasField(TEXT("ops")))
+		{
+			Mesh->Reset();
+			AppendChamferBox(Mesh, ReadSize(R), ReadOrigin(R) == EGeometryScriptPrimitiveOriginMode::Center, Bevel);
+			return;
+		}
 		FGeometryScriptMeshBevelOptions Options;
 		Options.BevelDistance = static_cast<float>(Bevel);
-		Options.Subdivisions = 1;
+		Options.Subdivisions = 0;  // one chamfer face per edge catches the light; rounder bevels cost triangles
 		UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshPolygroupBevel(Mesh, Options);
 	}
 
@@ -1189,6 +1300,8 @@ namespace RuntimePrimitives
 				MID->SetScalarParameterValue(TEXT("Roughness"), static_cast<float>(Num(Recipe, TEXT("roughness"), Preset->Roughness)));
 				MID->SetScalarParameterValue(TEXT("Metallic"), static_cast<float>(Num(Recipe, TEXT("metallic"), Preset->Metallic)));
 				MID->SetScalarParameterValue(TEXT("Variation"), static_cast<float>(Num(Recipe, TEXT("variation"), Preset->Variation)));
+				// -1 = follow the scene weathering (style material Weathering, default light wear)
+				MID->SetScalarParameterValue(TEXT("PartWeathering"), static_cast<float>(FMath::Clamp(Num(Recipe, TEXT("weathering"), -1.0), -1.0, 1.0)));
 				MID->SetScalarParameterValue(TEXT("Opacity"), static_cast<float>(Num(Recipe, TEXT("opacity"), 0.3)));
 				FVector E;
 				const bool bEmissiveColor = RuntimeJson::ToVector(Recipe->TryGetField(TEXT("emissive")), E);

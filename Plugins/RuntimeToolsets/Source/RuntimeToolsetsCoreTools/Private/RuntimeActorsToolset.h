@@ -268,4 +268,32 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, RequiresWorld), Category = "Actors")
 	static FRuntimeComponentList ListComponents(AActor* Target, const FString& Class = TEXT(""), int32 Limit = 100);
+
+	/**
+	 * Adds any engine component to an actor and sets its properties: movement (ProjectileMovementComponent,
+	 * RotatingMovementComponent, InterpToMovementComponent), shapes and triggers (SphereComponent, BoxComponent,
+	 * CapsuleComponent), lights (PointLightComponent, SpotLightComponent), AudioComponent, PhysicsConstraintComponent,
+	 * PhysicsThrusterComponent, RadialForceComponent... Scene components attach to the root (or attach_to) at location.
+	 * Change it later with reflection.set_properties / call_function on the returned ref.
+	 *
+	 * @param Target - Actor or node id, e.g. "n12".
+	 * @param Class - Component class name, e.g. "RotatingMovementComponent" (the U prefix is optional).
+	 * @param Name - Component name (default: generated).
+	 * @param Properties - Property values, e.g. {"RotationRate": {"Yaw": 90}} or {"InitialSpeed": 1200, "ProjectileGravityScale": 0}.
+	 * @param Location - Relative location of a scene component.
+	 * @param AttachTo - Name of the scene component to attach to (default: the root).
+	 * @return The new component. Fails if the class is unknown, abstract or not a component, or a property does not apply.
+	 */
+	UFUNCTION(meta = (AICallable, RequiresWorld, AutoCreateRefTerm = "Name,Properties"), Category = "Actors")
+	static FRuntimeComponentInfo AddComponent(AActor* Target, const FString& Class, const FString& Name, const FRuntimeToolJson& Properties,
+		FVector Location = FVector::ZeroVector, const FString& AttachTo = TEXT(""));
+
+	/**
+	 * Removes a component (not the root).
+	 *
+	 * @param Target - Component ref "actor#Component", e.g. "n12#RotatingMovement".
+	 * Fails if it is the actor's root component.
+	 */
+	UFUNCTION(meta = (AICallable, Irreversible, RequiresWorld), Category = "Actors")
+	static void RemoveComponent(UActorComponent* Target);
 };

@@ -990,20 +990,49 @@ public:
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Logic|Rules")
 	static FLogicNodeRef SetData(AActor* Target, const FRuntimeToolJson& Data);
 
+	/**
+	 * Watches for contacts between any objects: when something in a starts overlapping something in b, rules with
+	 * {"on":"contact","filter":"<name>"} run (target = the a object; event.data.self, event.data.other, event.data.from_above).
+	 * Use it for anything touching anything: barrels hitting the hero, a ball entering a goal, a crate landing on a button.
+	 * "player" works in a or b. Undoable.
+	 *
+	 * @param Name - Watch name, used as the rule filter, e.g. "barrel_hits_hero".
+	 * @param A - Node ids, paths, names, "tag:barrel" or "player".
+	 * @param B - Node ids, paths, names, "tag:x" or "player".
+	 * @param Margin - Extra cm around the a objects (touch a little before overlapping).
+	 * @param bRemove - Remove the watch instead.
+	 * @return Number of watches. Fails if a or b is empty or name is empty.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Logic|Rules")
+	static int32 WatchContacts(const FString& Name, const TArray<FString>& A, const TArray<FString>& B, float Margin = 0.f, bool bRemove = false);
+
 	// UI --------------------------------------------------------------------------------------------------------------
 
 	/**
-	 * Adds or replaces on-screen text, buttons and bars (by name). Text is a live template ("Score: {score}");
-	 * buttons fire "button" rules. Undoable.
+	 * Adds or replaces on-screen UI by name. Undoable. Use layout items: a widget tree like HTML + flexbox, laid out and
+	 * aligned for you. A top-level item is {name, kind: panel|column|row|grid|stack, anchor: top-left|top|top-right|left|
+	 * center|right|bottom-left|bottom|bottom-right, offset:[x,y], children:[...]}. Kinds: panel (card with the theme's
+	 * background, border, radius and padding), column, row, grid (columns, cell:[w,h]), stack (layers), text (text, size:
+	 * px or xs|sm|md|lg|xl|2xl|3xl, weight: light|regular|medium|bold|black, color, align: left|center|right, wrap, shadow),
+	 * button (name, text or children, variant: primary|secondary|ghost|danger|success, disabled_if; hover and press are
+	 * automatic), bar (value, max, fill, ghost, text), spacer, divider. Any node: gap, align (cross axis: start|center|end|
+	 * stretch), justify (start|center|end|between), grow, width, height, min_width, max_width, min_height, max_height,
+	 * padding and margin (n, [vertical, horizontal] or [top, right, bottom, left]), background, border_color, border_width,
+	 * radius, opacity, rotate (degrees), visible_if, tooltip (template), h_align / v_align (place inside the parent), style_if:[{if,
+	 * background, border_color, color, opacity}] (first match wins), repeat: n or "expr" with as: "i" (copies the node with
+	 * a local index; a repeated button's rule reads event.i). Colors: theme tokens text, muted, subtle, accent, accent_text,
+	 * panel, surface, surface_hover, border, overlay, success, warning, danger, info, gold, white, black, transparent
+	 * ("panel/60" = 60% opacity), "#rrggbb[aa]", [r,g,b,a], or a live template like "{db[id].hex}". Text is a live template ("Gold {gold}"); buttons fire
+	 * {"on":"button","filter":"<name>"} rules. Older flat items {name, kind: text|button|bar, anchor:[x,y] 0-1, size,
+	 * font_size, color, background} still work.
 	 *
-	 * @param Items - Items: {name, kind: text|button|bar, text, anchor:[x,y] 0-1, size:[w,h], color:[r,g,b,a], background,
-	 *                font_size, visible_if; bar: value, max, fill, ghost}, e.g. {"name":"status","kind":"text",
-	 *                "text":"{turn} to move","anchor":[0.5,0.06]}.
+	 * @param Items - UI items, e.g. {"name":"hud","kind":"panel","anchor":"top-left","children":[{"kind":"text","text":"Gold {gold}","weight":"bold"},{"kind":"bar","value":"health.player","max":"100","fill":"danger"}]}.
+	 * @param Theme - Theme patch, merged over the current one: {colors:{token:"#rrggbb"} (override or add tokens), radius, padding, gap, screen_margin, font_size, text_shadow}.
 	 * @param bReplace - Remove all other items first.
-	 * @return Number of items and whether they are drawn on a viewport. Fails on the first invalid item (nothing changes).
+	 * @return Number of items and whether they are drawn on a viewport. Fails on the first invalid item, naming its path and the allowed fields (nothing changes).
 	 */
-	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Logic|UI")
-	static FLogicDefineUiResult DefineUi(const TArray<FRuntimeToolJson>& Items, bool bReplace = false);
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Theme"), Category = "Logic|UI")
+	static FLogicDefineUiResult DefineUi(const TArray<FRuntimeToolJson>& Items, const FRuntimeToolJson& Theme, bool bReplace = false);
 
 	/**
 	 * Removes on-screen items by name. Undoable.
@@ -1112,6 +1141,8 @@ public:
 	 * @param KillZ - Falling below this height fires "fall" (default: start height - 1500; without a fall rule the player respawns).
 	 * @param CrashDamage - Flight: damage when hitting the ground (default: lethal).
 	 * @param Grid - Top-down: move cell by cell, cell size in cm (default: free movement).
+	 * @param AimYaw - Top-down: face and shoot in this fixed direction (degrees, 0 = +X = screen up) instead of toward the mouse; for shmups like Galaga.
+	 * @param MoveAxes - Top-down: scale movement per world axis, e.g. [0,1,0] = left/right only (with the default camera, +Y is screen right).
 	 * @param Mode - side, topdown or flight.
 	 * @param Yaw - Start heading in degrees.
 	 * @param Turn - Flight: pitch/yaw rate in degrees per second.
@@ -1128,17 +1159,21 @@ public:
 	 * @param JumpHold - Seconds holding jump adds height.
 	 * @param Gravity - Gravity scale.
 	 * @param AirControl - Steering in the air, 0-1.
+	 * @param bCameraFollow - Top-down: false keeps the camera fixed over the start point (arcade playfield).
+	 * @param bFacingControls - Top-down: W moves where the player faces (toward the mouse), S backs away, A/D strafe; false = W is screen up.
 	 * @return The player state and its controls. Fails if the body is not a scene node or spawning fails.
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld,
-		AutoCreateRefTerm = "Dash,Speed,MinSpeed,MaxSpeed,CameraDistance,CameraHeight,CameraLead,CameraPitch,Fov,KillZ,CrashDamage,Grid"),
+		AutoCreateRefTerm = "Dash,Speed,MinSpeed,MaxSpeed,CameraDistance,CameraHeight,CameraLead,CameraPitch,Fov,KillZ,CrashDamage,Grid,AimYaw,MoveAxes"),
 		Category = "Logic|Player")
 	static FLogicPlayerState SpawnPlayer(const FVector& Location, const FLogicDash& Dash, const float& Speed, const float& MinSpeed,
 		const float& MaxSpeed, const float& CameraDistance, const float& CameraHeight, const float& CameraLead, const float& CameraPitch,
-		const float& Fov, const float& KillZ, const float& CrashDamage, const float& Grid, ELogicPlayerMode Mode = ELogicPlayerMode::Side,
+		const float& Fov, const float& KillZ, const float& CrashDamage, const float& Grid, const float& AimYaw, const FVector& MoveAxes,
+		ELogicPlayerMode Mode = ELogicPlayerMode::Side,
 		float Yaw = 0.f, float Turn = 70.f, float RollRate = 160.f, float MouseSensitivity = 1.f, const FString& Secondary = TEXT(""),
 		bool bAutoSpawn = true, float StepTime = 0.14f, const FString& ReloadKey = TEXT(""), AActor* Body = nullptr, float Radius = 38.f,
-		float Height = 180.f, float Jump = 1250.f, float JumpHold = 0.22f, float Gravity = 2.8f, float AirControl = 0.85f);
+		float Height = 180.f, float Jump = 1250.f, float JumpHold = 0.22f, float Gravity = 2.8f, float AirControl = 0.85f,
+		bool bFacingControls = false, bool bCameraFollow = true);
 
 	/**
 	 * Removes the playable character and gives the view back. Undoable.

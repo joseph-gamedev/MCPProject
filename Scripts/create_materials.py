@@ -6,7 +6,8 @@ Creates the RuntimeToolsets builder materials in the plugin's content folder (ed
 /RuntimeToolsets/Materials/M_RT_PBR    opaque PBR with world-projected procedural surfaces (no UVs needed):
                                        Color, Roughness, Metallic, Specular, Emissive + EmissiveStrength,
                                        Style (0 smooth, 1 brick, 2 blocks, 3 marble, 4 plaster, 5 concrete, 6 roof tiles,
-                                       7 planks, 8 brushed metal, 9 ground), TileCm, Relief (bump cm), Variation
+                                       7 planks, 8 brushed metal, 9 ground), TileCm, Relief (bump cm), Variation,
+                                       PartWeathering (0..1, -1 = scene Weathering): dirt, streaks, dust; per-object tint jitter
 /RuntimeToolsets/Materials/M_RT_Glass  translucent glass: Color, Opacity, Roughness, Metallic
 """
 
@@ -147,12 +148,26 @@ struct RTSurface
         float g = Fbm(uv / tile * 8.0);
         return float4(1.0 + (n - 0.5) * var * 3.0 + (g - 0.5) * var * 2.0, 1.0 + (g - 0.5) * 0.2, n * 0.6 + g * 0.4, 0.0);
     }
+    // Weathering mask 0..1: splash dirt on the bottom of walls, rain streaks down vertical faces, large grime patches.
+    float Dirt(float3 p, float3 a, float2 uv)
+    {
+        float vert = saturate(1.0 - a.z * 1.4);
+        float splash = (1.0 - saturate(p.z / 90.0)) * vert;
+        float u = a.x > a.y ? p.y : p.x;
+        float streak = pow(VNoise(float2(u / 28.0, p.z / 1400.0)), 3.0) * vert;
+        float grime = Fbm(uv / 260.0);
+        return saturate(splash * 0.9 + streak * 0.8 + (grime - 0.45) * 0.7);
+    }
 };
 RTSurface S;
 float3 nrm = normalize(N);
 float3 an = abs(nrm);
 float2 uv = an.z > 0.7 ? P.xy : (an.x > an.y ? P.yz : P.xz);
 float4 sv = S.Eval(uv, Style, max(Tile, 1.0), Variation);
+// per-object random value (object position): every building/prop differs a little in colour and roughness
+float objR = S.H21(Obj.xy * 0.00731 + Obj.z * 0.00517 + 3.1);
+float W = saturate(PartWeathering >= 0.0 ? PartWeathering : Weathering);
+float dirt = W > 0.001 ? S.Dirt(P, an, uv) * W : 0.0;
 """
 
 TAILS = {
@@ -160,6 +175,10 @@ TAILS = {
 float3 baseC = Color * lerp(1.0, max(sv.x, 0.0), Pattern);
 float3 jointC = (Style > 0.5 && Style < 1.5) ? float3(0.55, 0.53, 0.5) : Color * 0.6;
 float3 c = lerp(baseC, jointC, saturate(sv.w) * Pattern);
+c *= 1.0 + (objR - 0.5) * 0.14 * saturate(Variation * 3.0 + 0.25);
+c = lerp(c, c * float3(0.52, 0.48, 0.43), dirt);
+float top = saturate((nrm.z - 0.75) / 0.25) * W * (0.25 + 0.5 * S.Fbm(uv / 90.0));
+c = lerp(c, lerp(c, float3(0.42, 0.40, 0.36), 0.5), top * 0.6);
 float lum = dot(c, float3(0.2126, 0.7152, 0.0722));
 c = max(lerp(float3(lum, lum, lum), c, Saturation), 0.0) * Tint.rgb;
 if (Steps > 0.5)
@@ -171,7 +190,7 @@ if (Steps > 0.5)
 }
 return c;
 """, "CMOT_FLOAT3"),
-    "rough": ("\nreturn lerp(1.0, sv.y, Pattern);\n", "CMOT_FLOAT1"),
+    "rough": ("\nreturn lerp(1.0, sv.y, Pattern) * (1.0 + dirt * 0.35) * (1.0 + (objR - 0.5) * 0.2);\n", "CMOT_FLOAT1"),
     "normal": ("""
 float hgt = sv.z * Relief * Pattern;
 float3 dpdx = ddx(P);
@@ -200,7 +219,7 @@ return RimColor.rgb * fres * RimStrength;
 """, "CMOT_FLOAT3"),
 }
 
-STYLE_SCALARS = [("Faceted", 0.0), ("Pattern", 1.0), ("Steps", 0.0), ("Saturation", 1.0), ("RimStrength", 0.0)]
+STYLE_SCALARS = [("Faceted", 0.0), ("Pattern", 1.0), ("Steps", 0.0), ("Saturation", 1.0), ("RimStrength", 0.0), ("Weathering", 0.25)]
 STYLE_VECTORS = [("Tint", (1.0, 1.0, 1.0, 1.0)), ("RimColor", (1.0, 0.9, 0.7, 1.0))]
 
 
@@ -266,6 +285,9 @@ def build_pbr(mpc):
         "Relief": scalar(mat, "Relief", 0.0, -1500, 500),
         "Variation": scalar(mat, "Variation", 0.12, -1500, 600),
         "Cam": lib.create_material_expression(mat, unreal.MaterialExpressionCameraVectorWS, -1500, 700),
+        "Obj": lib.create_material_expression(mat, unreal.MaterialExpressionObjectPositionWS, -1500, 800),
+        # per-part weathering 0..1; -1 = use the scene's Weathering (style collection)
+        "PartWeathering": scalar(mat, "PartWeathering", -1.0, -1500, 900),
     }
     for i, (n, _) in enumerate(STYLE_SCALARS + STYLE_VECTORS):
         sources[n] = collection_param(mat, mpc, n, -1800, -300 + i * 110)

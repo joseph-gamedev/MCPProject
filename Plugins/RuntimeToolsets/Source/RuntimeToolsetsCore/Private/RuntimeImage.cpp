@@ -2,6 +2,11 @@
 #include "ImageCore.h"
 #include "ImageUtils.h"
 #include "Engine/TextureRenderTarget.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 
 namespace RuntimeImage
 {
@@ -67,4 +72,43 @@ namespace RuntimeImage
 		OutHeight = Bgra.SizeY;
 		return true;
 	}
+}
+
+void RuntimeImage::MatchSceneExposure(USceneCaptureComponent2D* Capture)
+{
+	UWorld* World = Capture ? Capture->GetWorld() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+	const APostProcessVolume* Best = nullptr;
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		if (It->bUnbound && It->bEnabled && It->Settings.bOverride_AutoExposureMinBrightness && (!Best || It->Priority > Best->Priority))
+		{
+			Best = *It;
+		}
+	}
+	// Without a view state and the eye adaptation pass, captures render at exposure 1 whatever the settings say.
+	Capture->bAlwaysPersistRenderingState = true;
+	Capture->ShowFlags.SetEyeAdaptation(true);
+	FPostProcessSettings& S = Capture->PostProcessSettings;
+	Capture->PostProcessBlendWeight = 1.f;
+	S.bOverride_AutoExposureMethod = true;
+	S.AutoExposureMethod = AEM_Manual;
+	S.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	S.AutoExposureApplyPhysicalCameraExposure = false;
+	S.bOverride_AutoExposureBias = true;
+	if (!Best)
+	{
+		S.AutoExposureBias = 0.f;  // nothing locked: neutral exposure
+		return;
+	}
+	// Min/max brightness are luminance unless the extended range is on (then they are EV100).
+	static const IConsoleVariable* Extended = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange"));
+	const float Setting = Best->Settings.AutoExposureMinBrightness;
+	const float Ev = Extended && Extended->GetInt() != 0 ? Setting : FMath::Log2(FMath::Max(Setting, 1e-6f) / 0.125f);
+	const float Bias = Best->Settings.bOverride_AutoExposureBias ? Best->Settings.AutoExposureBias : 0.f;
+	// Manual bias that matches the game view's histogram exposure at the same EV (calibrated against screenshots).
+	S.AutoExposureBias = 1.85f - Ev + Bias;
 }

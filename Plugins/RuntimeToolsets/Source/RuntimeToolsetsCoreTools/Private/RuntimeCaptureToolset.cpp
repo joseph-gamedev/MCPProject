@@ -186,6 +186,7 @@ FRuntimeImageInfo URuntimeCaptureToolset::SceneCapture(const FVector& Location, 
 	Comp->bCaptureEveryFrame = false;
 	Comp->bCaptureOnMovement = false;
 	Comp->FOVAngle = FMath::Clamp(Fov, 5.f, 170.f);
+	RuntimeImage::MatchSceneExposure(Comp);
 	Comp->CaptureScene();
 
 	TArray<FColor> Pixels;

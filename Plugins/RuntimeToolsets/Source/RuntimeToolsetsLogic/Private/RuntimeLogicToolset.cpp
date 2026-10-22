@@ -2,6 +2,8 @@
 #include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "LogicTuning.h"
+#include "LogicUi.h"
+#include "RuntimeCharacterToolset.h"
 #include "RuntimeCommand.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
@@ -37,8 +39,12 @@ MAKE A PLAYABLE GAME WITHOUT CODE. The game runs by itself once started; you onl
    list[i], map.field, event.target/name/data/tags/location, time. Functions: len abs floor ceil round sqrt min max rand
    rand_int(a,b) str num list(n,fill) range(n) contains index_of count indices pick sum join set(list,i,v) keys upper lower
    grid_lines(rows,cols,k) line_winner(board,lines,empty) winning_line(...) winning_move(board,lines,player,empty).
-6. UI: logic.define_ui {items:[{name:"status",kind:"text",text:"{winner == '' ? turn + ' to move' : winner + ' wins!'}",
-   anchor:[0.5,0.06]}, {name:"restart",kind:"button",text:"Restart",anchor:[0.5,0.94]}]}  (text updates live)
+6. UI: build screens as LAYOUT trees (like HTML + flexbox), not as loose items: logic.define_ui {theme:{colors:{accent:
+   "#E8B04B"}}, items:[{name:"hud", kind:"panel", anchor:"top-left", gap:8, children:[{kind:"text", text:"Score {score}",
+   weight:"bold", size:"lg"}, {kind:"bar", value:"health.player", max:"100", fill:"danger"}]}, {name:"menu", kind:"panel",
+   anchor:"center", visible_if:"paused", children:[{kind:"row", gap:8, children:[{name:"resume", kind:"button",
+   variant:"primary", text:"Resume"}, {name:"quit", kind:"button", variant:"ghost", text:"Quit"}]}]}]}.
+   Text is a live template. Load skill game_ui (skills.get_skills) for inventories, shops, grids, tooltips and style.
 7. logic.set_input_mode {mode:"cursor", lock_camera:true} for click games; then camera.set_camera to frame the board.
 8. logic.start. Test it yourself: logic.fire_event {on:"click", target:"cell_4"} / {on:"button", name:"restart"} /
    {on:"key", key:"R"}, logic.step {seconds} for timers, logic.get_state for vars + event log + errors.
@@ -61,6 +67,8 @@ MAKE A PLAYABLE GAME WITHOUT CODE. The game runs by itself once started; you onl
    checkpoint touch -> {"player":"checkpoint"}; key R or button -> restart (keep high score).
 )GUIDE" R"GUIDE(TOP-DOWN / SHOOTERS: logic.spawn_player {mode:"topdown", location, speed} -> WASD moves on the ground, the hero faces
    the mouse cursor, an overhead camera follows (camera_distance, camera_pitch). Left mouse / F / right trigger fires.
+   facing_controls:true = W walks where the hero faces. Arcade shooters (Galaga, Invaders): aim_yaw:0 (fire straight up),
+   move_axes:[0,1,0] (left/right only), camera_follow:false + camera_pitch:90 + camera_lead; load skill arcade_shooter.
    logic.define_health {targets:["player"] or ["tag:enemy"], max, invulnerable (s after a hit), resistances:{fire:0.5},
       on_death: hide|squash|release|respawn|freeze|none, points_var, points}. Rules: on:"damaged"/"died" target:"player"
       or "tag:enemy" with event.amount/health/max/type/instigator/location. Expressions: health.player, hp(id), alive(id).
@@ -116,7 +124,9 @@ TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.
    fields: location|move (relative), rotation|rotate (relative), scale (number or [x,y,z]), color [r,g,b], duration, delay,
    ease (linear in_quad out_quad in_out_quad in_cubic out_cubic in_out_cubic in_sine out_sine in_out_sine in_back out_back
    in_out_back out_elastic in_bounce out_bounce), loop (once|yoyo|loop|pingpong), repeat, then (hide|show|release),
-   emit (event name when done), add (stack with other tweens). Values may be "=expr". Also the logic.tween tool (any time).
+   emit (event name when done; event.target is the node, so tweens chain: dive -> emit -> next tween), add (stack with
+   other tweens; otherwise a new tween replaces the node's running one). Values may be "=expr"; delay is a plain
+   expression. Also the logic.tween tool {targets:[...]} (any time).
    Examples: stomp squash {"tween":"event.target","scale":[1.4,1.4,0.2],"duration":0.25,"ease":"out_back","then":"hide"};
    coin collect {"tween":"event.target","move":[0,0,150],"scale":0.2,"duration":0.3,"then":"hide"};
    block bump {"tween":"event.target","move":[0,0,30],"duration":0.08,"loop":"yoyo"}.
@@ -125,6 +135,32 @@ TWEENS (animation): action {"tween":"event.target","move":[0,0,40],"duration":0.
    {"release":"p.id"} or tween then:"release" returns it. Restart returns all. Use for coins from blocks, bullets, effects.
 Computer opponent: on var_changed turn (filter:"turn", condition:"turn == 'O'"), start a short timer, then pick
    winning_move(board,lines,'O','') or block winning_move(board,lines,'X','') or 4 or pick(indices(board,'')).
+)GUIDE" R"GUIDE(GENERIC BUILDING BLOCKS (any genre; prefer these over genre shortcuts when the game does not fit one):
+   character.create {location, controls:[{key, action: move|jump|run|climb|fire|fire_secondary, direction}], movement:
+      {walk_speed, run_speed, jump_velocity, jump_hold, gravity_scale, air_control, max_slope, climb_speed}, camera:
+      {mode: follow|fixed, offset, location, lock_axes, look_at_point, lag, fov, ortho_width}, plane_normal:[0,1,0] (2D),
+      facing: movement|mouse|fixed, body} -> the logic player with exactly those controls (health, weapons, rules apply).
+   character.set_climbable {targets:["tag:ladder"]} -> climb keys move through floors along it (rules on:"climb").
+   physics.set_simulate + physics.set_body {mass_kg, friction, restitution, linear_damping, gravity, lock_translation:["y"],
+      lock_rotation, continuous_collision} -> real rolling, bouncing, falling objects (barrels down slopes, balls, crates).
+      Pool copies: {"call":"physics.set_simulate","args":{"target":"=p.id"}} then {"call":"physics.add_impulse",...}.
+   actors.add_component {target, class:"RotatingMovementComponent"|"ProjectileMovementComponent"|"PointLightComponent"|
+      "SphereComponent"|..., properties} -> any engine behavior on any object; tune with reflection.set_properties.
+   logic.watch_contacts {name, a:["tag:barrel"], b:["player"]} -> rules {"on":"contact","filter":name} with event.target,
+      event.data.other, event.data.from_above: anything touching anything (hits, goals, pickups, landing on buttons).
+BUILD FAST (every call is a round trip; a whole game should take tens of calls, not hundreds):
+   - One ops.run_batch per level: up to 100 calls [{tool, arguments}] in one request ("$N.id" uses call N's result).
+   - One logic.import {logic:{vars, rules, ui, ...}} for the whole game definition instead of many define_* calls
+     (same shapes as logic.export returns; character.create and pools/weapons can follow in one more batch).
+   - Many objects or loops: write a script. Connected through the relay (MCP URL .../s/<code>/mcp)? Download
+     .../s/<code>/client.py as unreal.py: from unreal import call, batch; call("build.create_primitive", shape="box");
+     batch([{tool, arguments}, ...]) (token from the UNREAL_TOKEN environment variable, or your MCP config's
+     Authorization header). Local game: POST JSON-RPC "tools/call" name "session_call_tool" to http://127.0.0.1:8018/mcp
+     (send "initialize" first, reuse the Mcp-Session-Id header). Always set a User-Agent header in scripts.
+   - Check results once at the end (logic.get_state errors + one screenshot), fix with a second batch.
+WORKFLOW: skills.list_skills first. If a skill matches, follow it. If none does, build from these blocks, verify by
+   playing (input.inject_key, logic.step, logic.get_state, capture.screenshot), then ALWAYS skills.save_skill the
+   working recipe (steps, exact arguments, numbers, gotchas) so the next agent starts from it.
 )GUIDE");
 
 	FLogicWorld& LogicFor()
@@ -555,11 +591,25 @@ FLogicNodeRef URuntimeLogicToolset::SetData(AActor* Target, const FRuntimeToolJs
 
 // ---- UI -------------------------------------------------------------------------------------------------------------
 
-FLogicDefineUiResult URuntimeLogicToolset::DefineUi(const TArray<FRuntimeToolJson>& Items, bool bReplace)
+FLogicDefineUiResult URuntimeLogicToolset::DefineUi(const TArray<FRuntimeToolJson>& Items, const FRuntimeToolJson& Theme, bool bReplace)
 {
 	FLogicDefineUiResult Out;
 	if (EditLogicDefinitions(TEXT("define ui"), [&](FLogicWorld& L, FString& Err)
 	{
+		if (Theme.IsSet())
+		{
+			const TSharedPtr<FJsonObject> Patch = Theme.AsObject();
+			if (!Patch.IsValid())
+			{
+				Err = TEXT("theme must be an object {colors, radius, padding, gap, screen_margin, font_size, text_shadow}");
+				return false;
+			}
+			if (!LogicUi::ValidateTheme(Patch, Err))
+			{
+				return false;
+			}
+			L.UiTheme = LogicUi::MergeTheme(L.UiTheme, Patch);
+		}
 		if (bReplace)
 		{
 			L.Ui.Reset();
@@ -573,7 +623,7 @@ FLogicDefineUiResult URuntimeLogicToolset::DefineUi(const TArray<FRuntimeToolJso
 				Err = FString::Printf(TEXT("items[%d] must be an object {name, kind, text, ...}"), i);
 				return false;
 			}
-			if (!FLogicUiItem::FromJson(O, U, Err))
+			if (!FLogicUiItem::FromJson(O, U, Err) || (U.Tree.IsValid() && !LogicUi::CheckTokens(U.Tree, L.UiTheme, Err)))
 			{
 				return false;
 			}
@@ -789,9 +839,9 @@ FLogicImportResult URuntimeLogicToolset::Import(const FRuntimeToolJson& Logic)
 
 FLogicPlayerState URuntimeLogicToolset::SpawnPlayer(const FVector& Location, const FLogicDash& Dash, const float& Speed, const float& MinSpeed,
 	const float& MaxSpeed, const float& CameraDistance, const float& CameraHeight, const float& CameraLead, const float& CameraPitch, const float& Fov,
-	const float& KillZ, const float& CrashDamage, const float& Grid, ELogicPlayerMode Mode, float Yaw, float Turn, float RollRate, float MouseSensitivity,
+	const float& KillZ, const float& CrashDamage, const float& Grid, const float& AimYaw, const FVector& MoveAxes, ELogicPlayerMode Mode, float Yaw, float Turn, float RollRate, float MouseSensitivity,
 	const FString& Secondary, bool bAutoSpawn, float StepTime, const FString& ReloadKey, AActor* Body, float Radius, float Height, float Jump,
-	float JumpHold, float Gravity, float AirControl)
+	float JumpHold, float Gravity, float AirControl, bool bFacingControls, bool bCameraFollow)
 {
 	const TSharedRef<FJsonObject> Def = LogicPassedArgs({});
 	LogicNormalizeEnum(Def, TEXT("mode"), Mode);
@@ -1477,4 +1527,169 @@ FLogicTuning URuntimeLogicToolset::SetTuning(const TMap<FString, double>& Values
 		}
 	}
 	return GetTuning();
+}
+
+// ---- character (generic playable character) -------------------------------------------------------------------------
+
+FLogicPlayerState URuntimeCharacterToolset::Create(const FVector& Location, const TArray<FLogicControl>& Controls, const FLogicMovementSettings& Movement,
+	const FLogicCameraRig& Camera, const FVector& PlaneNormal, ELogicFacing Facing, float Yaw, float Radius, float Height, AActor* Body)
+{
+	const TSharedRef<FJsonObject> Def = LogicPassedArgs({});
+	Def->SetStringField(TEXT("mode"), TEXT("custom"));
+	Def->SetStringField(TEXT("facing"), LogicEnumString(Facing));
+	TArray<TSharedPtr<FJsonValue>> Ctl;
+	for (int32 i = 0; i < Controls.Num(); ++i)
+	{
+		const FLogicControl& C = Controls[i];
+		if (!FKey(*C.Key).IsValid())
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("controls[%d]: unknown key '%s'"), i, *C.Key),
+				TEXT("Key names: A, D, W, S, Left, Right, Up, Down, SpaceBar, LeftShift, Enter, F, E, One, LeftMouseButton, Gamepad_FaceButton_Bottom, Gamepad_LeftX"));
+			return FLogicPlayerState();
+		}
+		if ((C.Action == ELogicControlAction::Move || C.Action == ELogicControlAction::Climb) && C.Direction.IsNearlyZero())
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("controls[%d]: %s needs a direction, e.g. [1,0,0] (move) or [0,0,1] (climb up)"),
+				i, *LogicEnumString(C.Action)));
+			return FLogicPlayerState();
+		}
+		TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+		O->SetStringField(TEXT("key"), C.Key);
+		O->SetStringField(TEXT("action"), LogicEnumString(C.Action));
+		O->SetField(TEXT("direction"), RuntimeJson::Vec(C.Direction));
+		Ctl.Add(MakeShared<FJsonValueObject>(O));
+	}
+	Def->SetArrayField(TEXT("controls"), Ctl);
+	if (LogicArgPassed(TEXT("camera")))
+	{
+		const TSharedPtr<FJsonObject>* Cam = nullptr;
+		if (Def->TryGetObjectField(TEXT("camera"), Cam))
+		{
+			(*Cam)->SetStringField(TEXT("mode"), LogicEnumString(Camera.Mode));
+		}
+	}
+	if (Body)
+	{
+		const FRuntimeSceneNode* N = LogicNodeArg(Body, TEXT("body"));
+		if (!N)
+		{
+			return FLogicPlayerState();
+		}
+		Def->SetStringField(TEXT("body"), N->Id);
+	}
+	if (EditLogicDefinitions(TEXT("create character"), [&](FLogicWorld& L, FString& Err)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Old = nullptr;
+		if (L.PlayerDef.IsValid() && L.PlayerDef->TryGetArrayField(TEXT("climbables"), Old))
+		{
+			Def->SetArrayField(TEXT("climbables"), *Old);
+		}
+		L.PlayerDef = Def;
+		L.PlayerLive = nullptr;
+		return L.SpawnPlayer(Err);
+	}))
+	{
+		return LogicPlayerState(LogicFor());
+	}
+	return FLogicPlayerState();
+}
+
+FLogicClimbableResult URuntimeCharacterToolset::SetClimbable(const TArray<FString>& Targets, bool bClimbable)
+{
+	FLogicClimbableResult Out;
+	if (!LogicRequireTargets(Targets))
+	{
+		return Out;
+	}
+	EditLogicDefinitions(TEXT("set climbable"), [&](FLogicWorld& L, FString& Err)
+	{
+		if (!L.PlayerDef.IsValid() || Str(L.PlayerDef, TEXT("mode")) != TEXT("custom"))
+		{
+			Err = TEXT("no character yet: call character.create first");
+			return false;
+		}
+		TArray<FString> Ids;
+		if (!L.ResolveNodes(Targets, Ids, Err))
+		{
+			return false;
+		}
+		TArray<FString> Now;
+		const TArray<TSharedPtr<FJsonValue>>* Old = nullptr;
+		if (L.PlayerDef->TryGetArrayField(TEXT("climbables"), Old))
+		{
+			for (const TSharedPtr<FJsonValue>& V : *Old)
+			{
+				Now.AddUnique(V->AsString());
+			}
+		}
+		for (const FString& Id : Ids)
+		{
+			if (bClimbable)
+			{
+				Now.AddUnique(Id);
+			}
+			else
+			{
+				Now.Remove(Id);
+			}
+		}
+		TArray<TSharedPtr<FJsonValue>> Arr;
+		for (const FString& Id : Now)
+		{
+			Arr.Add(MakeShared<FJsonValueString>(Id));
+		}
+		L.PlayerDef->SetArrayField(TEXT("climbables"), Arr);
+		if (L.PlayerLive.IsValid())
+		{
+			L.PlayerLive->SetArrayField(TEXT("climbables"), Arr);
+		}
+		Out.Climbables = Now;
+		return true;
+	});
+	return Out;
+}
+
+int32 URuntimeLogicToolset::WatchContacts(const FString& Name, const TArray<FString>& A, const TArray<FString>& B, float Margin, bool bRemove)
+{
+	if (!LogicRequireName(Name, TEXT("contact watch")))
+	{
+		return 0;
+	}
+	int32 Count = 0;
+	EditLogicDefinitions(TEXT("watch contacts"), [&](FLogicWorld& L, FString& Err)
+	{
+		if (bRemove)
+		{
+			if (!L.ContactDefs.Remove(Name))
+			{
+				Err = FString::Printf(TEXT("no contact watch '%s' (watches: %s)"), *Name, *LogicKeyList(L.ContactDefs));
+				return false;
+			}
+		}
+		else
+		{
+			if (A.Num() == 0 || B.Num() == 0)
+			{
+				Err = TEXT("a and b need at least one target each, e.g. a:[\"tag:barrel\"], b:[\"player\"]");
+				return false;
+			}
+			TSharedRef<FJsonObject> D = MakeShared<FJsonObject>();
+			auto Arr = [](const TArray<FString>& X)
+			{
+				TArray<TSharedPtr<FJsonValue>> Out;
+				for (const FString& S : X)
+				{
+					Out.Add(MakeShared<FJsonValueString>(S));
+				}
+				return Out;
+			};
+			D->SetArrayField(TEXT("a"), Arr(A));
+			D->SetArrayField(TEXT("b"), Arr(B));
+			D->SetNumberField(TEXT("margin"), Margin);
+			L.ContactDefs.Add(Name, D);
+		}
+		Count = L.ContactDefs.Num();
+		return true;
+	});
+	return Count;
 }

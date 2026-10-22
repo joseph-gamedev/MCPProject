@@ -1,0 +1,463 @@
+{
+	"description": "Generic playable character: any game's hero built from settings instead of a genre preset. Movement numbers, key\nbindings, facing, a 2D plane lock, climbable objects and a camera rig are all data, so a side-scroller, a ladder game, a\ntop-down shooter or a third-person adventure are just different settings. The character is the logic \"player\": health,\nweapons, touch/contact rules, pos('player') and {\"player\": ...} actions all apply. Undoable.",
+	"name": "character",
+	"tools": [
+		{
+			"description": "Creates (or replaces) the playable character and possesses it. Undoable.\nReturns: The player state. Fails if a control key is unknown or the body is not a scene node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"body":
+					{
+						"description": "Your character model node (feet at z=0, facing +X); default: a simple hero. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"camera":
+					{
+						"description": "Camera rig, e.g. side view {\"mode\":\"follow\",\"offset\":[0,-2200,300],\"lock_axes\":[\"z\"],\"location\":[0,0,900]} or one fixed screen {\"mode\":\"fixed\",\"location\":[0,-3000,900],\"look_at_point\":[0,0,900],\"ortho_width\":3200}.",
+						"properties":
+						{
+							"fov":
+							{
+								"type": "number"
+							},
+							"lag":
+							{
+								"description": "Seconds the camera trails behind (0 = rigid).",
+								"type": "number"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"lock_axes":
+							{
+								"description": "Follow: axes (\"x\",\"y\",\"z\") that stay at location instead of following, e.g. [\"x\",\"z\"] for a fixed single screen.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"look_at":
+							{
+								"description": "Aim at the character (or look_at_point for fixed); false = use rotation.",
+								"type": "boolean"
+							},
+							"look_at_point":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"look_offset":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"mode":
+							{
+								"enum": [
+									"Follow",
+									"Fixed"
+								],
+								"type": "string"
+							},
+							"offset":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"ortho_width":
+							{
+								"description": "> 0 = orthographic view this many cm wide (flat 2D look, e.g. arcade screens).",
+								"type": "number"
+							},
+							"rotation":
+							{
+								"description": "[pitch, yaw, roll] (degrees)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "LogicCameraRig",
+						"type": "object"
+					},
+					"controls":
+					{
+						"description": "Key bindings, e.g. [{\"key\":\"D\",\"action\":\"move\",\"direction\":[1,0,0]},{\"key\":\"A\",\"action\":\"move\",\"direction\":[-1,0,0]},{\"key\":\"SpaceBar\",\"action\":\"jump\"},{\"key\":\"W\",\"action\":\"climb\",\"direction\":[0,0,1]},{\"key\":\"S\",\"action\":\"climb\",\"direction\":[0,0,-1]}].",
+						"items":
+						{
+							"properties":
+							{
+								"action":
+								{
+									"description": "What the key does. Any other key can still drive rules ({\"on\":\"key\",\"key\":\"E\"}).",
+									"enum": [
+										"Move",
+										"Jump",
+										"Run",
+										"Climb",
+										"Fire",
+										"FireSecondary"
+									],
+									"type": "string"
+								},
+								"direction":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"key":
+								{
+									"description": "Key name: A, D, W, S, Left, Right, Up, Down, SpaceBar, LeftShift, F, LeftMouseButton, Gamepad_FaceButton_Bottom, Gamepad_LeftX...",
+									"type": "string"
+								}
+							},
+							"title": "LogicControl",
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"facing":
+					{
+						"default": "Movement",
+						"description": "movement, mouse or fixed.",
+						"enum": [
+							"Movement",
+							"Mouse",
+							"Fixed"
+						],
+						"type": "string"
+					},
+					"height":
+					{
+						"default": 180,
+						"description": "Collision height cm.",
+						"type": "number"
+					},
+					"location":
+					{
+						"description": "Feet position [x,y,z]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"movement":
+					{
+						"description": "Movement numbers.",
+						"properties":
+						{
+							"acceleration":
+							{
+								"description": "cm/s^2.",
+								"type": "number"
+							},
+							"air_control":
+							{
+								"description": "Steering in the air, 0-1.",
+								"type": "number"
+							},
+							"braking":
+							{
+								"description": "Stopping deceleration, cm/s^2.",
+								"type": "number"
+							},
+							"climb_speed":
+							{
+								"description": "cm/s on climbables.",
+								"type": "number"
+							},
+							"gravity_scale":
+							{
+								"description": "Gravity multiplier (2-3 feels arcade-snappy).",
+								"type": "number"
+							},
+							"jump_hold":
+							{
+								"description": "Seconds holding jump keeps rising.",
+								"type": "number"
+							},
+							"jump_velocity":
+							{
+								"description": "Jump launch speed cm/s (0 = cannot jump).",
+								"type": "number"
+							},
+							"max_slope":
+							{
+								"description": "Steepest walkable slope, degrees.",
+								"type": "number"
+							},
+							"max_step":
+							{
+								"description": "Highest step walked up, cm.",
+								"type": "number"
+							},
+							"run_speed":
+							{
+								"description": "cm/s while a run key is held (default 1.6 x walk).",
+								"type": "number"
+							},
+							"turn_rate":
+							{
+								"description": "Degrees per second when turning to face.",
+								"type": "number"
+							},
+							"walk_speed":
+							{
+								"description": "cm/s.",
+								"type": "number"
+							}
+						},
+						"title": "LogicMovementSettings",
+						"type": "object"
+					},
+					"plane_normal":
+					{
+						"description": "Keep the character in a plane, e.g. [0,1,0] = moves only in X/Z (2D side view). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"radius":
+					{
+						"default": 38,
+						"description": "Collision radius cm.",
+						"type": "number"
+					},
+					"yaw":
+					{
+						"default": 0,
+						"description": "Start heading (and the heading for facing fixed), degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"location",
+					"controls"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "character.create",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The player state. Fails if a control key is unknown or the body is not a scene node.",
+						"properties":
+						{
+							"altitude":
+							{
+								"type": "number"
+							},
+							"boost":
+							{
+								"type": "boolean"
+							},
+							"checkpoint":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"controlled":
+							{
+								"description": "Whether the local player controller possesses the character.",
+								"type": "boolean"
+							},
+							"controls":
+							{
+								"description": "How to play, for telling the user.",
+								"type": "string"
+							},
+							"dash_ready":
+							{
+								"type": "boolean"
+							},
+							"exists":
+							{
+								"description": "Whether the character is in the world (false before {\"player\":\"spawn\"} with auto_spawn false, or without a player).",
+								"type": "boolean"
+							},
+							"frozen":
+							{
+								"type": "boolean"
+							},
+							"grounded":
+							{
+								"type": "boolean"
+							},
+							"invulnerable":
+							{
+								"type": "boolean"
+							},
+							"location":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"lock":
+							{
+								"description": "Node the homing secondary weapon is locked on (empty if none).",
+								"type": "string"
+							},
+							"mode":
+							{
+								"description": "side, topdown or flight (empty without a player).",
+								"type": "string"
+							},
+							"speed":
+							{
+								"description": "cm/s (flight: airspeed).",
+								"type": "number"
+							},
+							"throttle":
+							{
+								"description": "Flight throttle 0-1.",
+								"type": "number"
+							},
+							"velocity":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							}
+						},
+						"title": "LogicPlayerState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Makes objects climbable (ladders, vines, ropes, walls): inside one, climb keys move the character up/down through floors, snapped to its center; leaving an end puts it back on its feet. Rules get on:\"climb\" filter \"start\"/\"end\". Undoable.\nReturns: All climbable node ids. Fails without a character.create character or if a target matches no node.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"climbable":
+					{
+						"default": true,
+						"description": "false removes them.",
+						"type": "boolean"
+					},
+					"targets":
+					{
+						"description": "Node ids, paths, names or \"tag:ladder\".",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "character.set_climbable",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "All climbable node ids. Fails without a character.create character or if a target matches no node.",
+						"properties":
+						{
+							"climbables":
+							{
+								"description": "Node ids that are climbable now.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "LogicClimbableResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		}
+	],
+	"version": "1.0.0"
+}

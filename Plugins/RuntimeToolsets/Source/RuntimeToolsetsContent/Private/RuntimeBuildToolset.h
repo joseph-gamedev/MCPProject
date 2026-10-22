@@ -423,7 +423,7 @@ public:
 	 * @param Style - Surface style override, e.g. "brick" (presets pick one; see list_materials).
 	 * @param Tile - Pattern size cm (brick length, block width, tile width).
 	 * @param Relief - Bump depth cm.
-	 * @param Bevel - Chamfer hard edges by this many cm (boxes, wedges).
+	 * @param Bevel - Chamfer hard edges by this many cm. Boxes, wedges and extrusions get a small automatic bevel at -1; 0 keeps edges sharp.
 	 * @param TopRatio - cone: top radius / base radius (0-1).
 	 * @param Thickness - tube: wall thickness cm.
 	 * @param Levels - lattice: bays up the height (default 6).
@@ -443,7 +443,7 @@ public:
 		const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, const FVector2D& Opening, const FString& Name = TEXT(""),
 		AActor* Parent = nullptr, EBuildToolDetail Detail = EBuildToolDetail::Medium, EBuildToolPivot Pivot = EBuildToolPivot::Base,
 		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
-		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = 0.f, float TopRatio = -1.f,
+		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = -1.f, float TopRatio = -1.f,
 		float Thickness = -1.f, int32 Levels = 0, float Taper = -1.f, float Beam = -1.f, bool bBracing = true, int32 Count = 0, int32 Rows = 0, int32 Cols = 0,
 		bool bArched = false, float Margin = -1.f, bool bSnapToGround = false);
 
@@ -475,7 +475,7 @@ public:
 	 * @param Style - Surface style override (list_materials).
 	 * @param Tile - Pattern size cm.
 	 * @param Relief - Bump depth cm.
-	 * @param Bevel - Chamfer edges by this many cm (extrusions).
+	 * @param Bevel - Chamfer edges by this many cm. Extrusions get a small automatic bevel at -1; 0 keeps edges sharp.
 	 * @param bSnapToGround - Rest the bottom of the bounds on the ground below.
 	 * @return The new node: {id, name, path, triangles, snapped_to_ground}.
 	 */
@@ -484,7 +484,7 @@ public:
 		const FRotator& Rotation, const FVector& Scale, const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, float Height = -1.f,
 		float Angle = -1.f, bool bClosed = false, const FString& Name = TEXT(""), AActor* Parent = nullptr, EBuildToolDetail Detail = EBuildToolDetail::Medium,
 		const FString& Material = TEXT(""), float Roughness = -1.f, float Metallic = -1.f, float EmissiveStrength = -1.f, float Opacity = -1.f,
-		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = 0.f, bool bSnapToGround = false);
+		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = -1.f, bool bSnapToGround = false);
 
 	/**
 	 * Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape

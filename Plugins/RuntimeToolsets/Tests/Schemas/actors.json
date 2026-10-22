@@ -3,6 +3,105 @@
 	"name": "actors",
 	"tools": [
 		{
+			"description": "Adds any engine component to an actor and sets its properties: movement (ProjectileMovementComponent, RotatingMovementComponent, InterpToMovementComponent), shapes and triggers (SphereComponent, BoxComponent, CapsuleComponent), lights (PointLightComponent, SpotLightComponent), AudioComponent, PhysicsConstraintComponent, PhysicsThrusterComponent, RadialForceComponent... Scene components attach to the root (or attach_to) at location. Change it later with reflection.set_properties / call_function on the returned ref.\nReturns: The new component. Fails if the class is unknown, abstract or not a component, or a property does not apply.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"attach_to":
+					{
+						"default": "",
+						"description": "Name of the scene component to attach to (default: the root).",
+						"type": "string"
+					},
+					"class":
+					{
+						"description": "Component class name, e.g. \"RotatingMovementComponent\" (the U prefix is optional).",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "Relative location of a scene component. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"name":
+					{
+						"description": "Component name (default: generated).",
+						"type": "string"
+					},
+					"properties":
+					{
+						"description": "Property values, e.g. {\"RotationRate\": {\"Yaw\": 90}} or {\"InitialSpeed\": 1200, \"ProjectileGravityScale\": 0}. (Any JSON value)"
+					},
+					"target":
+					{
+						"description": "Actor or node id, e.g. \"n12\". (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target",
+					"class"
+				],
+				"type": "object"
+			},
+			"name": "actors.add_component",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new component. Fails if the class is unknown, abstract or not a component, or a property does not apply.",
+						"properties":
+						{
+							"class":
+							{
+								"type": "string"
+							},
+							"name":
+							{
+								"type": "string"
+							},
+							"parent":
+							{
+								"description": "Name of the scene component it is attached to (empty for the root and non-scene components).",
+								"type": "string"
+							},
+							"ref":
+							{
+								"description": "Component address (\"n12#StaticMeshComponent0\"): pass it as `target` to reflection tools or as a component argument.",
+								"type": "string"
+							},
+							"root":
+							{
+								"description": "The actor's root component.",
+								"type": "boolean"
+							},
+							"visible":
+							{
+								"description": "Scene components: visible flag (true for non-scene components).",
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeComponentInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Attaches an actor to another actor, or detaches it when parent is omitted. Undoable. For tool-created nodes this also moves the node in the scene graph. Fails if the parent is the child or attached below it.\nReturns: Child and new parent references.",
 			"input_schema":
 			{
@@ -409,6 +508,35 @@
 				],
 				"type": "object"
 			}
+		},
+		{
+			"description": "Removes a component (not the root).\nThis cannot be undone: only call it after explicit direction or permission from the user.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"target":
+					{
+						"description": "Component ref \"actor#Component\", e.g. \"n12#RotatingMovement\". Fails if it is the actor's root component. (Reference to ActorComponent: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"target"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "actors.remove_component",
+			"output_schema":
+			{
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"undoable": false
 		},
 		{
 			"description": "Sets an actor's location, rotation and/or scale; parts you omit stay unchanged and attached children follow. Undoable.\nReturns: The actor's resulting world transform.",

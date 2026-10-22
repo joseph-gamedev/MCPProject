@@ -152,7 +152,11 @@ namespace
 					continue;
 				}
 				const UPCGSettings* CDO = GetDefault<UPCGSettings>(C);
+#if WITH_EDITOR
 				FString Title = CDO->GetDefaultNodeName().IsNone() ? FString() : SplitWords(CDO->GetDefaultNodeName().ToString());
+#else
+				FString Title; // node display names are editor-only data; fall back to the class name below
+#endif
 				if (Title.IsEmpty())
 				{
 					FString N = C->GetName();

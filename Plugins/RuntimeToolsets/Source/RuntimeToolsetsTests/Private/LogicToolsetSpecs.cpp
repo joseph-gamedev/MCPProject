@@ -349,6 +349,61 @@ void FLogicToolsetSpec::Define()
 		H->CallFails(TEXT("logic.define_ui"), TEXT(R"J({"items":[{"name":"hp2","kind":"bar","text":"HP"}]})J"), ERuntimeToolError::InvalidArguments);
 	});
 
+	It("builds layout UI trees with themes, repeat, buttons and clear errors", [this]()
+	{
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"bag":["a","","b"],"picked":-1}})J"));
+		H->CallOk(TEXT("logic.define_rules"), TEXT(R"J({"rules":[{"name":"pick","on":"button","filter":"slot","actions":[{"set":"picked","value":"event.i"}]}]})J"));
+		const TSharedRef<FJsonObject> Ok = H->CallOk(TEXT("logic.define_ui"), TEXT(R"J({"theme":{"colors":{"brand":"#E8B04B"},"radius":8},"items":[
+			{"name":"inv","kind":"panel","anchor":"top-right","gap":8,"children":[
+				{"kind":"row","children":[{"kind":"text","text":"Bag","weight":"bold","size":"lg"},{"kind":"spacer","grow":1},{"kind":"text","text":"{3 - count(bag, '')}","color":"brand/80"}]},
+				{"kind":"divider"},
+				{"kind":"grid","columns":3,"gap":6,"children":[{"name":"slot","kind":"button","repeat":"len(bag)","as":"i","text":"{bag[i]}","width":60,"height":60,
+					"tooltip":"{bag[i]}","disabled_if":"bag[i] == ''","style_if":[{"if":"picked == i","border_color":"accent"}]}]},
+				{"kind":"bar","value":"2","max":"4","fill":"danger","text":"HP"}]}]})J"));
+		TestEqual(TEXT("one item"), static_cast<int32>(Ok->GetNumberField(TEXT("items"))), 1);
+		const TSharedRef<FJsonObject> Ex = H->CallOk(TEXT("logic.export"));
+		const FString ExText = RuntimeJson::Write(Ex);
+		TestTrue(TEXT("tree and theme exported"), ExText.Contains(TEXT("\"repeat\"")) && ExText.Contains(TEXT("ui_theme")) && ExText.Contains(TEXT("brand")));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"button","name":"slot","data":{"i":2}})J"));
+		TestEqual(TEXT("repeated button rule reads event.i"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"picked"})J"))->GetNumberField(TEXT("value")), 2.0);
+
+		auto Fails = [this](const TCHAR* Items, const TCHAR* Expect)
+		{
+			const FToolResult R = H->Call(TEXT("logic.define_ui"), FString::Printf(TEXT(R"J({"items":[%s]})J"), Items));
+			TestEqual(TEXT("rejected"), R.Error, ERuntimeToolError::InvalidArguments);
+			TestTrue(FString::Printf(TEXT("error mentions '%s': %s"), Expect, *R.Message), R.Message.Contains(Expect));
+		};
+		Fails(TEXT(R"J({"name":"a","kind":"panel","children":[{"kind":"colum"}]})J"), TEXT("unknown kind 'colum'"));
+		Fails(TEXT(R"J({"name":"a","kind":"panel","children":[{"kind":"text","colour":"red"}]})J"), TEXT("unknown field 'colour'"));
+		Fails(TEXT(R"J({"name":"a","kind":"panel","children":[{"kind":"text","text":"x","color":"nope"}]})J"), TEXT("unknown color token 'nope'"));
+		Fails(TEXT(R"J({"name":"a","kind":"panel","children":[{"kind":"button","text":"x"}]})J"), TEXT("needs a name"));
+		Fails(TEXT(R"J({"name":"a","kind":"panel","anchor":"middle"})J"), TEXT("anchor is one of"));
+		Fails(TEXT(R"J({"name":"a","kind":"panel","children":[{"kind":"text","anchor":"top"}]})J"), TEXT("only work on top-level"));
+		Fails(TEXT(R"J({"name":"a","kind":"row","children":[{"kind":"text","visible_if":"1 +"}]})J"), TEXT("visible_if"));
+		H->CallFails(TEXT("logic.define_ui"), TEXT(R"J({"items":[],"theme":{"colours":{}}})J"), ERuntimeToolError::InvalidArguments);
+		H->CallOk(TEXT("logic.define_ui"), TEXT(R"J({"items":[],"theme":{"colors":{"later":"#112233"}}})J"));
+		TestTrue(TEXT("theme patch merges"), RuntimeJson::Write(H->CallOk(TEXT("logic.export"))).Contains(TEXT("later")));
+		H->CallOk(TEXT("history.undo"));
+		const FString Undone = RuntimeJson::Write(H->CallOk(TEXT("logic.export")));
+		TestTrue(TEXT("undo restores the previous theme"), Undone.Contains(TEXT("brand")) && !Undone.Contains(TEXT("later")));
+	});
+
+	It("runs a tween action with emit as a tween and fires the event when it ends", [this]()
+	{
+		const FString Id = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[50,50,50],"location":[0,0,0],"name":"mover"})J"))->GetStringField(TEXT("id"));
+		H->CallOk(TEXT("logic.define_vars"), TEXT(R"J({"vars":{"arrived":"","x":0}})J"));
+		H->CallOk(TEXT("logic.define_rules"), FString::Printf(TEXT(R"J({"rules":[
+			{"name":"go","on":"event","filter":"go","actions":[{"tween":"'%s'","move":"=[300, 0, 0]","duration":0.2,"emit":"there"}]},
+			{"name":"there","on":"event","filter":"there","actions":[{"set":"arrived","value":"event.target"},{"set":"x","value":"pos(event.target)[0]"}]}]})J"), *Id));
+		H->CallOk(TEXT("logic.start"));
+		H->CallOk(TEXT("logic.fire_event"), TEXT(R"J({"on":"event","name":"go"})J"));
+		TestEqual(TEXT("not arrived before the tween ends"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"arrived"})J"))->GetStringField(TEXT("value")), FString());
+		H->CallOk(TEXT("logic.step"), TEXT(R"J({"seconds":0.5})J"));
+		TestEqual(TEXT("event carries the node"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"arrived"})J"))->GetStringField(TEXT("value")), Id);
+		TestTrue(TEXT("moved before the event"), H->CallOk(TEXT("logic.eval"), TEXT(R"J({"expr":"x"})J"))->GetNumberField(TEXT("value")) > 250.0);
+	});
+
 	It("spawns waves from a pool and reports cleared and complete", [this]()
 	{
 		const FString Tpl = H->CallOk(TEXT("build.create_primitive"), TEXT(R"J({"shape":"box","size":[60,60,60],"location":[0,0,-5000],"name":"bot","tags":["enemy"]})J"))->GetStringField(TEXT("id"));

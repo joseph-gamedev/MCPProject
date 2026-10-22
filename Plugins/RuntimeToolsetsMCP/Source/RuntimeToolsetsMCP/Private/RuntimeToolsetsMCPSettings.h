@@ -42,4 +42,23 @@ public:
 	/** Session id given to every MCP client (Epic's server does not expose client sessions to tools). */
 	UPROPERTY(Config, EditAnywhere, Category = "Tools")
 	FString SessionId = TEXT("mcp-local");
+
+	/**
+	 * Relay for remote agents (see Relay/ and McpPublicAccess.h), e.g. "https://unreal-mcp-relay.you.workers.dev".
+	 * Empty = local MCP only. -RuntimeToolsetsRelay=<url> overrides; -NoRuntimeToolsetsRelay turns it off.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
+	FString RelayUrl;
+
+	/** Token the game presents to the relay (the relay's HOST_TOKEN secret). */
+	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
+	FString RelayHostToken;
+
+	/** Packaged builds connect to the relay automatically (editor sessions need -RuntimeToolsetsRelay). */
+	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
+	bool bRelayInPackagedBuilds = true;
+
+	/** Show the AI code in a corner of the screen. */
+	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
+	bool bShowConnectOverlay = true;
 };

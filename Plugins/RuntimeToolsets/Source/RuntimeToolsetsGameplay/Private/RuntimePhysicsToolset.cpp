@@ -8,6 +8,8 @@
 #include "Engine/World.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
+#include "RuntimeToolInvocation.h"
 
 namespace
 {
@@ -494,4 +496,90 @@ FPhysicsToolRagdollResult URuntimePhysicsToolset::Ragdoll(AActor* Target, bool b
 		Out.Bodies = Mesh->Bodies.Num();
 	}
 	return Out;
+}
+
+FPhysicsToolState URuntimePhysicsToolset::SetBody(UPrimitiveComponent* Target, const float& MassKg, const float& Friction, const float& Restitution,
+	const float& LinearDamping, const float& AngularDamping, const bool& bGravity, const TArray<FString>& LockTranslation,
+	const TArray<FString>& LockRotation, const bool& bContinuousCollision)
+{
+	if (!Target)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("target is required"), TEXT("Pass a node id, path, actor:Name or actor#Component"));
+		return FPhysicsToolState();
+	}
+	if (!Target->IsCollisionEnabled())
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::WrongState, FString::Printf(TEXT("%s has no collision"), *Target->GetName()),
+			TEXT("Pick a component with collision (actor#Component) or enable collision first"));
+		return FPhysicsToolState();
+	}
+	const FToolInvocation* Inv = RuntimeToolCall::Current();
+	auto Passed = [Inv](const TCHAR* Arg) { return Inv && Inv->Has(Arg); };
+	auto AxisFlags = [](const TArray<FString>& Axes, bool& X, bool& Y, bool& Z, FString& Bad)
+	{
+		X = Y = Z = false;
+		for (const FString& A : Axes)
+		{
+			const FString L = A.ToLower();
+			if (L == TEXT("x")) X = true;
+			else if (L == TEXT("y")) Y = true;
+			else if (L == TEXT("z")) Z = true;
+			else Bad = A;
+		}
+	};
+	FBodyInstance* BI = Target->GetBodyInstance();
+	if (Passed(TEXT("lock_translation")) || Passed(TEXT("lock_rotation")))
+	{
+		FString Bad;
+		bool TX = false, TY = false, TZ = false, RX = false, RY = false, RZ = false;
+		AxisFlags(LockTranslation, TX, TY, TZ, Bad);
+		AxisFlags(LockRotation, RX, RY, RZ, Bad);
+		if (!Bad.IsEmpty())
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("lock axis '%s' must be x, y or z"), *Bad));
+			return FPhysicsToolState();
+		}
+		if (BI)
+		{
+			BI->bLockXTranslation = TX;
+			BI->bLockYTranslation = TY;
+			BI->bLockZTranslation = TZ;
+			BI->bLockXRotation = RX;
+			BI->bLockYRotation = RY;
+			BI->bLockZRotation = RZ;
+			BI->SetDOFLock(EDOFMode::SixDOF);
+		}
+	}
+	if (Passed(TEXT("mass_kg")))
+	{
+		Target->SetMassOverrideInKg(NAME_None, FMath::Max(0.01f, MassKg), true);
+	}
+	if (Passed(TEXT("linear_damping")))
+	{
+		Target->SetLinearDamping(FMath::Max(0.f, LinearDamping));
+	}
+	if (Passed(TEXT("angular_damping")))
+	{
+		Target->SetAngularDamping(FMath::Max(0.f, AngularDamping));
+	}
+	if (Passed(TEXT("gravity")))
+	{
+		Target->SetEnableGravity(bGravity);
+	}
+	if (Passed(TEXT("continuous_collision")) && BI)
+	{
+		BI->SetUseCCD(bContinuousCollision);
+	}
+	if (Passed(TEXT("friction")) || Passed(TEXT("restitution")))
+	{
+		const UPhysicalMaterial* Current = BI ? BI->GetSimplePhysicalMaterial() : nullptr;
+		UPhysicalMaterial* PM = NewObject<UPhysicalMaterial>(Target);
+		PM->Friction = Passed(TEXT("friction")) ? FMath::Max(0.f, Friction) : (Current ? Current->Friction : 0.7f);
+		PM->StaticFriction = PM->Friction;
+		PM->Restitution = Passed(TEXT("restitution")) ? FMath::Clamp(Restitution, 0.f, 1.f) : (Current ? Current->Restitution : 0.3f);
+		PM->FrictionCombineMode = EFrictionCombineMode::Min;
+		PM->bOverrideFrictionCombineMode = true;
+		Target->SetPhysMaterialOverride(PM);
+	}
+	return GetPhysics(Target);
 }

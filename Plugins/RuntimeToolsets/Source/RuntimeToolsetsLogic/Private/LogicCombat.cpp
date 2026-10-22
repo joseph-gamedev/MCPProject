@@ -553,7 +553,8 @@ bool FLogicWorld::FireWeapon(const FString& Owner, const FString& WeaponName, co
 	}
 	else if (Owner == TEXT("player"))
 	{
-		Aim = IsTopDown() ? AimPoint : IsFlight() && Player.IsValid() ? From + Player->GetActorForwardVector() * 8000.0 : From + FVector(Facing * 1000.0, 0, 0);
+		Aim = IsCustom() ? (Str(PD(), TEXT("facing")) == TEXT("mouse") ? AimPoint : From + Player->GetActorForwardVector() * 1000.0)
+			: IsTopDown() ? AimPoint : IsFlight() && Player.IsValid() ? From + Player->GetActorForwardVector() * 8000.0 : From + FVector(Facing * 1000.0, 0, 0);
 	}
 	else
 	{

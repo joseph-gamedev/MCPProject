@@ -374,7 +374,7 @@ void FLightingToolsetSpec::Define()
 			const float FogBefore = Fog->GetComponent()->FogDensity;
 			const double PitchBefore = Sun->GetActorRotation().Pitch;
 			H->CallOk(TEXT("lighting.apply_mood"), TEXT("{\"mood\":\"foggy\"}"));
-			TestEqual(TEXT("foggy density"), Fog->GetComponent()->FogDensity, 0.25f);
+			TestEqual(TEXT("foggy density"), Fog->GetComponent()->FogDensity, 0.2f);
 			H->CallOk(TEXT("history.undo"));
 			TestEqual(TEXT("fog back"), Fog->GetComponent()->FogDensity, FogBefore);
 			TestTrue(TEXT("sun back"), FMath::IsNearlyEqual(Sun->GetActorRotation().Pitch, PitchBefore, 0.01));

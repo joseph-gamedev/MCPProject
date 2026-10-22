@@ -19,6 +19,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SOverlay.h"
 #include "LogicHud.h"
+#include "LogicUi.h"
 #include "Misc/App.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRuntimeToolsetsLogic, Log, All);
@@ -29,15 +30,15 @@ namespace
 	{
 		static const TArray<FString> Names = {TEXT("start"), TEXT("click"), TEXT("right_click"), TEXT("key"), TEXT("button"), TEXT("timer"),
 			TEXT("var_changed"), TEXT("event"), TEXT("tick"), TEXT("touch"), TEXT("fall"), TEXT("damaged"), TEXT("died"), TEXT("fired"), TEXT("reloaded"), TEXT("state"), TEXT("crash"),
-			TEXT("wave_start"), TEXT("wave_cleared"), TEXT("waves_complete"), TEXT("spawned"), TEXT("interact"), TEXT("interact_denied"), TEXT("dash")};
+			TEXT("wave_start"), TEXT("wave_cleared"), TEXT("waves_complete"), TEXT("spawned"), TEXT("interact"), TEXT("interact_denied"), TEXT("dash"), TEXT("contact"), TEXT("climb")};
 		return Names;
 	}
 
 	const TArray<FString>& ActionNames()
 	{
 		// Actions whose own fields reuse another action's keyword ("weapon" has "set") come first.
-		static const TArray<FString> Names = {TEXT("weapon"), TEXT("health"), TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("call"), TEXT("emit"),
-			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("tween"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback"), TEXT("spawner"), TEXT("drop_loot"), TEXT("give"), TEXT("take"),
+		static const TArray<FString> Names = {TEXT("weapon"), TEXT("health"), TEXT("set"), TEXT("set_item"), TEXT("push"), TEXT("let"), TEXT("if"), TEXT("for"), TEXT("tween"), TEXT("call"), TEXT("emit"),
+			TEXT("timer"), TEXT("cancel_timer"), TEXT("set_ui"), TEXT("log"), TEXT("restart"), TEXT("stop"), TEXT("hide"), TEXT("show"), TEXT("player"), TEXT("spawn"), TEXT("release"), TEXT("damage"), TEXT("heal"), TEXT("fire"), TEXT("feedback"), TEXT("spawner"), TEXT("drop_loot"), TEXT("give"), TEXT("take"),
 			TEXT("save"), TEXT("load"), TEXT("add_tags"), TEXT("remove_tags")};
 		return Names;
 	}
@@ -357,6 +358,12 @@ bool FLogicRule::FromJson(const TSharedPtr<FJsonObject>& J, FLogicRule& Out, FSt
 
 TSharedRef<FJsonObject> FLogicUiItem::ToJson() const
 {
+	if (Tree.IsValid())
+	{
+		TSharedRef<FJsonObject> Copy = MakeShared<FJsonObject>();
+		Copy->Values = Tree->Values;
+		return Copy;
+	}
 	TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
 	J->SetStringField(TEXT("name"), Name);
 	J->SetStringField(TEXT("kind"), Kind);
@@ -386,11 +393,21 @@ bool FLogicUiItem::FromJson(const TSharedPtr<FJsonObject>& J, FLogicUiItem& Out,
 		OutError = TEXT("ui item needs a name");
 		return false;
 	}
+	if (LogicUi::IsLayoutItem(J))
+	{
+		if (!LogicUi::Validate(J, OutError))
+		{
+			return false;
+		}
+		Out.Kind = ReadString(J, TEXT("kind")).ToLower();
+		Out.Tree = J;
+		return true;
+	}
 	FString Kind = ReadString(J, TEXT("kind"));
 	Out.Kind = Kind.IsEmpty() ? TEXT("text") : Kind.ToLower();
 	if (Out.Kind != TEXT("text") && Out.Kind != TEXT("button") && Out.Kind != TEXT("bar"))
 	{
-		OutError = TEXT("ui kind must be text, button or bar");
+		OutError = TEXT("ui kind must be text, button or bar (layout kinds: panel, column, row, grid, stack)");
 		return false;
 	}
 	if (Out.Kind == TEXT("bar"))
@@ -481,6 +498,10 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 		U.Add(MakeShared<FJsonValueObject>(Item.ToJson()));
 	}
 	J->SetArrayField(TEXT("ui"), U);
+	if (UiTheme.IsValid())
+	{
+		J->SetObjectField(TEXT("ui_theme"), UiTheme);
+	}
 	TSharedRef<FJsonObject> D = MakeShared<FJsonObject>();
 	for (const TPair<FString, FLogicValue>& P : NodeData)
 	{
@@ -526,6 +547,7 @@ TSharedRef<FJsonObject> FLogicWorld::ExportDefinitions() const
 	Section(TEXT("brains"), BrainDefs);
 	Section(TEXT("brain_assign"), BrainAssign);
 	Section(TEXT("feedbacks"), FeedbackDefs);
+	Section(TEXT("contacts"), ContactDefs);
 	Section(TEXT("spawners"), SpawnerDefs);
 	Section(TEXT("loot"), LootDefs);
 	Section(TEXT("interactables"), InteractDefs);
@@ -609,6 +631,8 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 	Rules = MoveTemp(NewRules);
 	Ui = MoveTemp(NewUi);
 	NodeData = MoveTemp(NewData);
+	const TSharedPtr<FJsonObject>* Theme = nullptr;
+	UiTheme = J->TryGetObjectField(TEXT("ui_theme"), Theme) ? *Theme : nullptr;
 	FString Mode;
 	if (J->TryGetStringField(TEXT("input_mode"), Mode) && (Mode == TEXT("game") || Mode == TEXT("cursor")))
 	{
@@ -660,6 +684,7 @@ bool FLogicWorld::ImportDefinitions(const TSharedPtr<FJsonObject>& J, FString& O
 	ReadSection(TEXT("brains"), BrainDefs);
 	ReadSection(TEXT("brain_assign"), BrainAssign);
 	ReadSection(TEXT("feedbacks"), FeedbackDefs);
+	ReadSection(TEXT("contacts"), ContactDefs);
 	ReadSection(TEXT("spawners"), SpawnerDefs);
 	ReadSection(TEXT("loot"), LootDefs);
 	ReadSection(TEXT("interactables"), InteractDefs);
@@ -939,6 +964,10 @@ bool FLogicWorld::Matches(const FLogicRule& Rule, const FLogicEvent& E) const
 	if (E.On == TEXT("fall"))
 	{
 		return true;
+	}
+	if (E.On == TEXT("contact") || E.On == TEXT("climb"))
+	{
+		return (Rule.Filter.IsEmpty() || Rule.Filter == E.Name) && (Rule.Target.IsEmpty() || (!E.Target.IsEmpty() && NodeMatches(E.Target, Rule.Target)));
 	}
 	if (E.On == TEXT("crash") || E.On == TEXT("dash"))
 	{
@@ -1362,7 +1391,8 @@ bool FLogicWorld::RunAction(const TSharedPtr<FJsonObject>& A, FFrame& Frame, int
 		}
 		return true;
 	}
-	if (A->TryGetStringField(TEXT("emit"), Name))
+	// A tween with "emit" (event when it ends) is a tween, not an emit action.
+	if (!A->HasField(TEXT("tween")) && A->TryGetStringField(TEXT("emit"), Name))
 	{
 		FLogicEvent E;
 		E.On = TEXT("event");
@@ -2315,6 +2345,7 @@ void FLogicWorld::RemoveUi()
 void FLogicWorld::RefreshUi()
 {
 	RemoveUi();
+	UiWatch.Reset();
 	UWorld* W = World.Get();
 	UGameViewportClient* VP = W ? W->GetGameViewport() : nullptr;
 	if (!VP || (Ui.Num() == 0 && !HudDef.IsValid()) || !FSlateApplication::IsInitialized())
@@ -2326,6 +2357,11 @@ void FLogicWorld::RefreshUi()
 	const FLinearColor Shadow(0.f, 0.f, 0.f, 0.85f);
 	for (const FLogicUiItem& Item : Ui)
 	{
+		if (Item.Tree.IsValid())
+		{
+			LogicUi::AddRoot(*this, Item, Canvas);
+			continue;
+		}
 		const FString Name = Item.Name;
 		const FString Text = Item.Text;
 		const FString VisibleIf = Item.VisibleIf;
@@ -2534,6 +2570,10 @@ bool FLogicManager::Tick(float DeltaTime)
 		if (!W->IsGameWorld())
 		{
 			continue;
+		}
+		if (L->UiWatch.Num() > 0)
+		{
+			L->TickUi();
 		}
 		if (!L->IsRunning())
 		{
