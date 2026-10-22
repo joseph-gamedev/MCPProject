@@ -1,3 +1,4 @@
+#include "RuntimeStateTreeToolset.h"
 #include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
 #include "Modules/ModuleManager.h"
@@ -12,7 +13,7 @@ public:
 	virtual void StartupModule() override
 	{
 		RuntimeToolReflection::RegisterCompiledDocs(GRuntimeToolDocs, UE_ARRAY_COUNT(GRuntimeToolDocs));
-		// Registered = {RuntimeToolReflection::RegisterToolsetClass(U...::StaticClass())};
+		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeStateTreeToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override
