@@ -15,7 +15,7 @@ runs from y = 0 to y = +wall. Sizes in cm, real proportions (storey 300-380, doo
 import math
 import random
 
-from .parts import M, box, cone, cyl, transform
+from .parts import M, box, cone, cyl, extrude, transform
 
 # ------------------------------------------------------------------ materials (named so recipes read clearly)
 
@@ -194,68 +194,66 @@ def shopfront(x, w, h=380, frame="frame_dark", sign=None, awning=None, rng=None)
     return P
 
 
+def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
+    """One straight run of railing between two plan points (any direction) standing on z."""
+    mt = m(mat)
+    out = []
+    ln = math.hypot(bx - ax, by - ay)
+    yaw = math.degrees(math.atan2(by - ay, bx - ax))
+    mx, my = (ax + bx) / 2, (ay + by) / 2
+    def along(t):
+        return ax + (bx - ax) * t, ay + (by - ay) * t
+    if style == "glass":
+        out.append(box([ln, 2, height - 12], [mx, my, z + 6], rot=[0, yaw, 0], m=MAT["railglass"]))
+        out.append(box([ln + 4, 6, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=MAT["steel"]))
+        for k in range(int(ln / 120) + 1):
+            px, py = along(k / max(1, int(ln / 120)))
+            out.append(box([4, 4, height - 5], [px, py, z], rot=[0, yaw, 0], m=MAT["steel"]))
+    elif style == "balustrade":
+        out += [box([ln, 26, 16], [mx, my, z], rot=[0, yaw, 0], m=mt), box([ln + 6, 30, 14], [mx, my, z + height - 14], rot=[0, yaw, 0], m=mt)]
+        n = max(2, int(ln / 26))
+        prof = [[0, 0], [7, 0], [7, 6], [5, 10], [5, 16], [9, 34], [6, 48], [4, 54], [6, 58], [7, 64], [7, height - 30], [0, height - 30]]
+        for k in range(n):
+            px, py = along((k + 0.5) / n)
+            out.append({"shape": "revolve", "profile": prof, "location": [px, py, z + 16], "segments": 10, **mt})
+    elif style == "wood":
+        n = max(1, int(ln / 150))
+        for k in range(n + 1):
+            px, py = along(k / n)
+            out.append(box([9, 9, height], [px, py, z], rot=[0, yaw, 0], m=mt))
+        out += [box([ln, 10, 6], [mx, my, z + height - 6], rot=[0, yaw, 0], m=mt), box([ln, 6, 6], [mx, my, z + 12], rot=[0, yaw, 0], m=mt)]
+        for k in range(int(ln / 13)):
+            px, py = along((k + 0.5) / int(ln / 13))
+            out.append(box([5, 2.5, height - 24], [px, py, z + 18], rot=[0, yaw, 0], m=mt))
+    elif style == "cable":
+        for k in range(max(1, int(ln / 140)) + 1):
+            px, py = along(k / max(1, int(ln / 140)))
+            out.append(box([5, 2, height], [px, py, z], rot=[0, yaw, 0], m=MAT["steel"]))
+        out.append(box([ln, 6, 4], [mx, my, z + height - 4], rot=[0, yaw, 0], m=MAT["wood"]))
+        out += [box([ln, 0.8, 0.8], [mx, my, z + 12 + i * (height - 26) / 6], rot=[0, yaw, 0], m=MAT["steel"]) for i in range(6)]
+    else:                                                # bars (and ornate)
+        out += [box([ln, 5, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=mt), box([ln, 4, 4], [mx, my, z + 8], rot=[0, yaw, 0], m=mt)]
+        n = max(2, int(ln / 11))
+        for k in range(n + 1):
+            px, py = along(k / n)
+            out.append(box([1.8, 1.8, height - 13], [px, py, z + 8], rot=[0, yaw, 0], m=mt))
+        if style == "ornate":                            # a band of rings and a lower band
+            out.append(box([ln, 2, 2], [mx, my, z + height * 0.62], rot=[0, yaw, 0], m=mt))
+            out.append(box([ln, 2, 2], [mx, my, z + height * 0.38], rot=[0, yaw, 0], m=mt))
+            for k in range(n):
+                if k % 2 == 0:
+                    px, py = along((k + 0.5) / n)
+                    out.append({"shape": "torus", "size": [10, 10, 1.6], "location": [px, py, z + height * 0.5 - 5], "rotation": [0, yaw, 90], **mt})
+    return out
+
+
+
 def railing(x0, x1, y, z, height=105, style="bars", mat="iron", return_depth=0):
     """Railing from x0 to x1 at depth y, standing on z. style: bars | ornate | glass | balustrade | wood | cable.
     return_depth > 0 also runs it back to the wall at both ends (balconies)."""
-    mt = m(mat)
-    L = x1 - x0
-    cx = (x0 + x1) / 2
-    P = []
-
-    def run(ax, ay, bx, by):
-        """One straight run of the chosen style between two points in plan."""
-        out = []
-        ln = math.hypot(bx - ax, by - ay)
-        yaw = math.degrees(math.atan2(by - ay, bx - ax))
-        mx, my = (ax + bx) / 2, (ay + by) / 2
-        def along(t):
-            return ax + (bx - ax) * t, ay + (by - ay) * t
-        if style == "glass":
-            out.append(box([ln, 2, height - 12], [mx, my, z + 6], rot=[0, yaw, 0], m=MAT["railglass"]))
-            out.append(box([ln + 4, 6, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=MAT["steel"]))
-            for k in range(int(ln / 120) + 1):
-                px, py = along(k / max(1, int(ln / 120)))
-                out.append(box([4, 4, height - 5], [px, py, z], rot=[0, yaw, 0], m=MAT["steel"]))
-        elif style == "balustrade":
-            out += [box([ln, 26, 16], [mx, my, z], rot=[0, yaw, 0], m=mt), box([ln + 6, 30, 14], [mx, my, z + height - 14], rot=[0, yaw, 0], m=mt)]
-            n = max(2, int(ln / 26))
-            prof = [[0, 0], [7, 0], [7, 6], [5, 10], [5, 16], [9, 34], [6, 48], [4, 54], [6, 58], [7, 64], [7, height - 30], [0, height - 30]]
-            for k in range(n):
-                px, py = along((k + 0.5) / n)
-                out.append({"shape": "revolve", "profile": prof, "location": [px, py, z + 16], "segments": 10, **mt})
-        elif style == "wood":
-            n = max(1, int(ln / 150))
-            for k in range(n + 1):
-                px, py = along(k / n)
-                out.append(box([9, 9, height], [px, py, z], rot=[0, yaw, 0], m=mt))
-            out += [box([ln, 10, 6], [mx, my, z + height - 6], rot=[0, yaw, 0], m=mt), box([ln, 6, 6], [mx, my, z + 12], rot=[0, yaw, 0], m=mt)]
-            for k in range(int(ln / 13)):
-                px, py = along((k + 0.5) / int(ln / 13))
-                out.append(box([5, 2.5, height - 24], [px, py, z + 18], rot=[0, yaw, 0], m=mt))
-        elif style == "cable":
-            for k in range(max(1, int(ln / 140)) + 1):
-                px, py = along(k / max(1, int(ln / 140)))
-                out.append(box([5, 2, height], [px, py, z], rot=[0, yaw, 0], m=MAT["steel"]))
-            out.append(box([ln, 6, 4], [mx, my, z + height - 4], rot=[0, yaw, 0], m=MAT["wood"]))
-            out += [box([ln, 0.8, 0.8], [mx, my, z + 12 + i * (height - 26) / 6], rot=[0, yaw, 0], m=MAT["steel"]) for i in range(6)]
-        else:                                                # bars (and ornate)
-            out += [box([ln, 5, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=mt), box([ln, 4, 4], [mx, my, z + 8], rot=[0, yaw, 0], m=mt)]
-            n = max(2, int(ln / 11))
-            for k in range(n + 1):
-                px, py = along(k / n)
-                out.append(box([1.8, 1.8, height - 13], [px, py, z + 8], rot=[0, yaw, 0], m=mt))
-            if style == "ornate":                            # a band of rings and a lower band
-                out.append(box([ln, 2, 2], [mx, my, z + height * 0.62], rot=[0, yaw, 0], m=mt))
-                out.append(box([ln, 2, 2], [mx, my, z + height * 0.38], rot=[0, yaw, 0], m=mt))
-                for k in range(n):
-                    if k % 2 == 0:
-                        px, py = along((k + 0.5) / n)
-                        out.append({"shape": "torus", "size": [10, 10, 1.6], "location": [px, py, z + height * 0.5 - 5], "rotation": [0, yaw, 90], **mt})
-        return out
-
-    P += run(x0, y, x1, y)
+    P = railing_run(x0, y, x1, y, z, height, style, mat)
     if return_depth > 0:
-        P += run(x0, y, x0, y + return_depth) + run(x1, y, x1, y + return_depth)
+        P += railing_run(x0, y, x0, y + return_depth, z, height, style, mat) + railing_run(x1, y, x1, y + return_depth, z, height, style, mat)
     return P
 
 
@@ -360,7 +358,8 @@ def facade(width, plan, rng):
             pairs = fl.get("pair", False)
             win = dict(fl.get("window", plan.get("ground_window", {})))
             bal = fl.get("balcony")
-            has_bal = (bal == "all" or (bal == "centre" and b == bays // 2) or (bal == "alternate" and b % 2 == 1) or (bal == "ends" and b in (0, bays - 1)))
+            has_bal = (bal == "all" or (bal == "centre" and b == bays // 2) or (bal == "alternate" and b % 2 == 1) or (bal == "ends" and b in (0, bays - 1))
+                       or (isinstance(bal, (set, list, tuple)) and b in bal))
             if has_bal:
                 win = dict(win, kind="french")
                 sz, wh = 0, min(fh - 50, 240)
@@ -440,12 +439,8 @@ def _sides(P, w, d, floors_h, wall_m, t, plan, rng):
 TYPES = ["apartment", "townhouse", "shophouse", "villa", "office", "loft"]
 
 
-def building(kind="apartment", seed=None, width=None, depth=None, floors=None):
-    """A complete building of a type, varied by seed: front facade (the street side, -Y), back, sides, roof.
-    Returns parts; origin = front centre at ground."""
-    rng = random.Random(seed)
-    k = kind
-    P = []
+def _recipe(k, rng, depth=None, floors=None):
+    """Style choices for one building of type k: (facade plan, width, depth, roof kind, bay width)."""
     if k == "apartment":
         n = floors or rng.randint(4, 8)
         bays = rng.choice((3, 4, 5, 6))
@@ -542,16 +537,187 @@ def building(kind="apartment", seed=None, width=None, depth=None, floors=None):
         plan = {"wall": wall, "t": 40, "bays": bays, "floors": [ground] + [dict(upper) for _ in range(n - 1)], "trim": "concrete", "string_courses": True,
                 "cornice": "dentils", "pilasters": rng.random() < 0.5, "plinth": "stone_dark"}
         roof = "flat"
+    return plan, w, d, roof, bay
+
+
+def _with_width(plan, width, bay):
+    """The same plan re-laid for another facade width (bay count follows the type's bay size)."""
+    q = dict(plan, bays=max(1, round(width / bay)))
+    q["floors"] = [dict(f) for f in plan["floors"]]
+    for f in q["floors"]:
+        if f.get("door_bay") is not None and f["door_bay"] >= q["bays"]:
+            f["door_bay"] = q["bays"] // 2
+    return q
+
+
+def _back(plan):
+    """The plan for a back or courtyard facade: plain windows on every storey, no shops, doors or balconies."""
+    floors = []
+    for f in plan["floors"]:
+        b = dict(f, kind="window", balcony=None)
+        if f["kind"] in ("shop", "entrance"):
+            b.update(w=110, wh=150, sill=90, window={"kind": "casement", "curtain": False, "sill": "concrete", "head": "lintel"})
+        floors.append(b)
+    return dict(plan, floors=floors, pilasters=False, quoins=False, cornice=None)
+
+
+def _place(P, parts, cx, cy, yaw):
+    P += transform(parts, (cx, cy, 0), yaw)
+
+
+def _parapet(P, outline, z, plan, h=90):
+    """Parapet with coping along every edge of a closed outline."""
+    t = plan.get("t", 30)
+    wall, trim = m(plan["wall"]), m(plan.get("trim", "concrete"))
+    for i in range(len(outline)):
+        (ax, ay), (bx, by) = outline[i], outline[(i + 1) % len(outline)]
+        ln = math.hypot(bx - ax, by - ay)
+        if ln < 1:
+            continue
+        yaw = math.degrees(math.atan2(by - ay, bx - ax))
+        # inset half the wall so the parapet sits on the wall line, inside the outline
+        nx, ny = -(by - ay) / ln, (bx - ax) / ln
+        cx, cy = (ax + bx) / 2 + nx * t / 2, (ay + by) / 2 + ny * t / 2
+        P.append(box([ln + t, t, h], [cx, cy, z], rot=[0, yaw, 0], m=wall))
+        P.append(box([ln + t + 10, t + 10, 8], [cx, cy, z + h], rot=[0, yaw, 0], m=trim))
+
+
+def _flat_roof(P, outline, z, plan, rng):
+    cx = sum(p[0] for p in outline) / len(outline)
+    cy = sum(p[1] for p in outline) / len(outline)
+    P.append(extrude([[p[0] - cx, p[1] - cy] for p in outline], 20, [cx, cy, z], m=MAT["concrete"]))
+    P.append(extrude([[p[0] - cx, p[1] - cy] for p in outline], 4, [cx, cy, 0.5], m=MAT["concrete"]))      # ground floor slab
+    xs, ys = [p[0] for p in outline], [p[1] for p in outline]
+    for _ in range(rng.randint(1, 3)):
+        P.append(box([rng.choice((120, 180)), rng.choice((90, 120)), rng.choice((90, 140))], [cx + rng.uniform(-50, 50), cy + rng.uniform(-50, 50), z + 20],
+                     m=M("steel", (170, 172, 172), roughness=0.5)))
+    _parapet(P, outline, z, plan)
+
+
+def _rect(kind, rng, width, depth, floors):
+    plan, w, d, roof, bay = _recipe(kind, rng, depth, floors)
     if width:
         w = width
+        plan = _with_width(plan, w, bay)
+    P = []
     front, top_z = facade(w, plan, rng)
     P += front
     _sides(P, w, d, [f["h"] for f in plan["floors"]], m(plan["wall"]), plan.get("t", 30), plan, rng)
-    _roof(P, w, d, top_z, roof, rng)
-    if roof == "flat":                                       # parapet with coping
-        t = plan.get("t", 30)
-        P += [box([w, t, 90], [0, t / 2, top_z], m=m(plan["wall"])), box([w + 10, t + 10, 8], [0, t / 2, top_z + 90], m=m(plan.get("trim", "concrete")))]
-        P += [box([t, d, 90], [s * (w / 2 - t / 2), d / 2, top_z], m=m(plan["wall"])) for s in (-1, 1)]
-        P.append(box([w, t, 90], [0, d - t / 2, top_z], m=m(plan["wall"])))
-    P.append(box([w - 2, d - 2, 4], [0, d / 2, 0.5], m=MAT["concrete"]))                       # ground floor slab
+    if roof == "flat":
+        _flat_roof(P, [(-w / 2, 0), (w / 2, 0), (w / 2, d), (-w / 2, d)], top_z, plan, rng)
+    else:
+        _roof(P, w, d, top_z, roof, rng)
+        P.append(box([w - 2, d - 2, 4], [0, d / 2, 0.5], m=MAT["concrete"]))
     return P
+
+
+def _l_shape(kind, rng, wa, wb, depth, floors, corner):
+    """Two wings meeting at the street corner (the origin): wing A runs along +X with its street facade facing -Y,
+    wing B runs along +Y with its street facade facing -X. corner: square | chamfer | tower | balconies."""
+    plan, w0, d, roof, bay = _recipe(kind, rng, depth, floors)
+    D = depth or d
+    wa = wa or max(w0, 3 * bay + D)
+    wb = wb or max(w0 * rng.uniform(0.7, 1.0), 2 * bay + D)
+    t = plan.get("t", 30)
+    P = []
+    c = {"chamfer": rng.choice((300, 380)), "tower": 0, "square": 0, "balconies": 0}.get(corner, 0)
+    heights = [f["h"] for f in plan["floors"]]
+    top_z = sum(heights)
+    # street facades
+    pa = _with_width(plan, wa - c, bay)
+    pb = _with_width(plan, wb - c, bay)
+    if corner == "balconies":                                # balconies on the corner bays, wrapped round below
+        for q, idx in ((pa, 0), (pb, None)):
+            for f in q["floors"][1:]:
+                if f["kind"] == "window":
+                    f["balcony"] = {idx if idx is not None else q["bays"] - 1}
+                    f["balcony_kind"] = "slab"
+    if corner == "square":
+        pa["quoins"] = pb["quoins"] = True
+    fa, _ = facade(wa - c, pa, rng)
+    _place(P, fa, c + (wa - c) / 2, 0, 0)
+    fb, _ = facade(wb - c, pb, rng)
+    _place(P, fb, 0, c + (wb - c) / 2, -90)
+    if c:                                                    # the cut corner: one bay with an entrance or shop below
+        diag = c * math.sqrt(2)
+        pc = dict(plan, bays=1, floors=[dict(f) for f in plan["floors"]], pilasters=False, quoins=False)
+        g = pc["floors"][0]
+        if g["kind"] == "window":
+            g.update(kind="entrance", door_bay=0)
+        if g["kind"] == "entrance":
+            g["door_bay"] = 0
+        for f in pc["floors"][1:]:
+            if f["kind"] == "window":
+                f["w"] = min(f.get("w", 120), diag - 60)
+                f["balcony"] = "all" if rng.random() < 0.5 else None
+        fc, _ = facade(diag, pc, rng)
+        _place(P, fc, c / 2, c / 2, -45)
+    # courtyard facades and wing ends
+    pba = _with_width(_back(plan), wa - D, bay)
+    bfa, _ = facade(wa - D, pba, rng)
+    _place(P, bfa, D + (wa - D) / 2, D, 180)
+    pbb = _with_width(_back(plan), wb - D, bay)
+    bfb, _ = facade(wb - D, pbb, rng)
+    _place(P, bfb, D, D + (wb - D) / 2, 90)
+    wall = m(plan["wall"])
+    P.append(box([t, D, top_z], [wa - t / 2, D / 2, 0], m=wall))         # wing ends (party walls)
+    P.append(box([D, t, top_z], [D / 2, wb - t / 2, 0], m=wall))
+    if corner == "balconies":                                # one wrap-around balcony per upper floor
+        z = heights[0]
+        rail = plan["floors"][-1].get("rail", "bars")
+        rmat = plan["floors"][-1].get("rail_mat", "iron")
+        dep = 130
+        reach = bay
+        for f in plan["floors"][1:]:
+            P.append(box([reach + dep, dep, 14], [(reach - dep) / 2, -dep / 2, z - 14], m=MAT["concrete"]))
+            P.append(box([dep, reach, 14], [-dep / 2, reach / 2, z - 14], m=MAT["concrete"]))
+            P += railing_run(-dep + 6, -dep + 6, reach, -dep + 6, z, 105, rail, rmat)
+            P += railing_run(-dep + 6, -dep + 6, -dep + 6, reach, z, 105, rail, rmat)
+            P += railing_run(reach, -dep + 6, reach, 0, z, 105, rail, rmat) + railing_run(-dep + 6, reach, 0, reach, z, 105, rail, rmat)
+            z += f["h"]
+    if corner == "tower":                                    # round corner tower rising a storey above the roof
+        r = rng.choice((220, 260))
+        th = top_z + rng.choice((300, 420))
+        tw = m(plan.get("trim", "stone")) if rng.random() < 0.4 else wall
+        P.append(cyl(2 * r, th, [r * 0.35, r * 0.35, 0], m=tw))
+        z = heights[0]
+        for f in plan["floors"][1:] + [{"h": th - top_z}]:
+            for a in (200, 225, 250):                        # windows facing the corner
+                ang = math.radians(a)
+                px, py = r * 0.35 + math.cos(ang) * (r + 1), r * 0.35 + math.sin(ang) * (r + 1)
+                P.append(box([70, 6, min(160, f["h"] - 90)], [px, py, z + 70], rot=[0, a + 90, 0], m=MAT["glass"]))
+                P.append(box([86, 8, 10], [px, py, z + 60], rot=[0, a + 90, 0], m=m(plan.get("trim", "stone"))))
+            z += f["h"]
+        P.append(cyl(2 * r + 30, 24, [r * 0.35, r * 0.35, th], m=m(plan.get("trim", "stone"))))
+        cap = rng.choice(("cone", "dome"))
+        capm = rng.choice([M("slate_roof", (72, 74, 80)), M("verdigris", (90, 140, 120)), M("copper", (160, 100, 64))])
+        if cap == "cone":
+            P.append(cone(2 * r + 40, r * 2.2, [r * 0.35, r * 0.35, th + 24], m=capm))
+        else:
+            P.append({"shape": "dome", "size": [2 * r + 20, 2 * r + 20, r], "location": [r * 0.35, r * 0.35, th + 24], **capm})
+        P.append(cyl(10, 120, [r * 0.35, r * 0.35, th + 24 + (r * 2.2 if cap == "cone" else r)], m=MAT["iron"]))
+    # roofs
+    outline = [(c, 0), (wa, 0), (wa, D), (D, D), (D, wb), (0, wb), (0, c)] if c else [(0, 0), (wa, 0), (wa, D), (D, D), (D, wb), (0, wb)]
+    if roof == "flat":
+        _flat_roof(P, outline, top_z, plan, rng)
+    else:                                                    # two pitched wings meeting at the corner
+        tile = rng.choice([M("roof_tile", (160, 80, 56)), M("slate_roof", (72, 74, 80))])
+        e = 50
+        P.append({"shape": "roof", "size": [D + 2 * e, wa + 2 * e, D * 0.45], "location": [wa / 2, D / 2, top_z], "rotation": [0, 90, 0], **tile})
+        P.append({"shape": "roof", "size": [D + 2 * e, wb - D + e, D * 0.45], "location": [D / 2, D + (wb - D) / 2 + e / 2, top_z], **tile})
+        P.append(extrude([[p[0] - wa / 2, p[1] - wb / 2] for p in outline], 4, [wa / 2, wb / 2, 0.5], m=MAT["concrete"]))
+    return P
+
+
+def building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None):
+    """A complete building of a type, varied by seed.
+    shape rect: front facade on the street (-Y), back, sides, roof; origin = front centre at ground.
+    shape L (corner building): two street facades meeting at the origin, wing A along +X (facing -Y), wing B along +Y
+      (facing -X); width = wing A length, wing = wing B length; corner = square | chamfer | tower | balconies (default:
+      chosen by the seed).
+    Returns parts."""
+    rng = random.Random(seed)
+    if shape in ("L", "corner"):
+        corner = corner or rng.choice(("square", "chamfer", "tower", "balconies"))
+        return _l_shape(kind, rng, width, wing, depth, floors, corner)
+    return _rect(kind, rng, width, depth, floors)
