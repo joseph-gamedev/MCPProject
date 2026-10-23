@@ -337,8 +337,11 @@ QUALITY BAR: a recognisable, realistic recreation at TRUE SCALE. Hero landmarks 
 Units: cm, Z up, rotations [pitch,yaw,roll]. Use real dimensions (Eiffel Tower 33000 tall, base 12500 square;
 Great Pyramid base 23040, height 13860; Taj Mahal dome top 7300).
 
-FASTEST - a generator script plus big batches:
-  If you can run Python, use the kit shipped with the game (session_get_build_info -> scripting; skill python_kit):
+FASTEST - ALWAYS a Python script for anything over ~20 parts (hand-written JSON parts are 10-50x slower to write):
+  import os, sys; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<session_get_build_info scripting.kit>")
+  import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform
+  P = [...loops over real dimensions...]; uk.place("Landmark", P, at=(0, 0, 0)); uk.district("paris") for whole cities.
+  Run it with Bash; it reaches the game by itself (this machine or the relay). Skill python_kit has the API.
   uk.parts builds part dicts with loops (window bays, colonnades, truss bracing, railings, stairs, whole streets),
   uk.place_many sends many objects per request. Example scripts (a realistic city, game pieces) show the patterns.
   Otherwise call build.create_assembly directly with up to 8192 parts per call (one object, one undo step; a whole building fits).

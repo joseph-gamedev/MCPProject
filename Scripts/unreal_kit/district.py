@@ -186,6 +186,15 @@ def district(preset="manhattan", blocks=(3, 2), seed=None, at=(0, 0), styles=Non
                         species = rng.choice(uk.assets.variants(_pick(rng, cfg["trees"])))
                         ins.add(species, (xa + k * cfg.get("tree_gap", 1400), y + s * (sw / 2 + 150), 0), yaw=rng.uniform(0, 360),
                                 scale=rng.uniform(0.75, 1.0))
+        for i in range(nx + 1):                                   # avenues are tree-lined too (boulevards)
+            x = ox + i * pitch_x
+            for s in (-1, 1):
+                for j in range(ny):
+                    ya = oy + j * pitch_y + sw / 2 + walk + 300
+                    for k in range(int((bd - 600) / cfg.get("tree_gap", 1400)) + 1):
+                        species = rng.choice(uk.assets.variants(_pick(rng, cfg["trees"])))
+                        ins.add(species, (x + s * (aw / 2 + 150), ya + k * cfg.get("tree_gap", 1400), 0), yaw=rng.uniform(0, 360),
+                                scale=rng.uniform(0.75, 1.0))
         ins.flush()
     except Exception as e:                                       # trees are optional (older builds without the foliage)
         print("district: trees skipped:", e)

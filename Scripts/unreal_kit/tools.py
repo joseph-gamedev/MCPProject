@@ -5684,23 +5684,42 @@ def _session_list_toolsets():
     return call('session.list_toolsets', **args)
 
 
-def _session_describe_toolset(*, name, include_schemas=None):
-    """Tools of one toolset with input schemas.
+def _session_describe_toolset(*, name, include_schemas=None, tools=None):
+    """Tools of one toolset with input schemas. Big toolsets are long: pass tools:[...] for just the ones you need, or include_schemas:false for names and summaries.
 
     Args:
         name (str): Required. Toolset name from list_toolsets
         include_schemas (bool): Include input schemas Default true.
+        tools (list[str]): Only these tools, e.g. ["tween"] (default: all)
     """
     args = {}
     if name is not None:
         args['name'] = name
     if include_schemas is not None:
         args['include_schemas'] = include_schemas
+    if tools is not None:
+        args['tools'] = tools
     return call('session.describe_toolset', **args)
 
 
 def _session_call_tool(*, name, arguments=None):
     """Call any tool by name (toolset.tool or toolset_tool) with its arguments.
+    NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.
+    RULE: more than ~20 parts, or anything repeated (windows, seats, trees, track, buildings), is ONE Python script, never hand-written JSON parts (writing JSON by hand is 10-50x slower). Template:
+      import os, sys; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<session.get_build_info scripting.kit>")
+      import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform
+      P = [box([200, 200, 300], [i * 400, 0, 0], m="concrete") for i in range(50)]   # loops, math, real sizes
+      uk.place("Name", P, at=(0, 0, 0))   # or uk.place_many([(name, parts, at), ...]); uk.district("paris") for cities
+    Run it with Bash (python script.py); it reaches the game by itself. Loops make detail cheap: a landmark is 500-3000 parts (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.
+    QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):
+      build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}
+      build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object
+      logic.tween {targets:[id], rotate:[p,y,r] | move:[x,y,z] | scale, duration:s, loop: Loop|PingPong, repeat:-1} - spin / bob / slide
+      actors.set_transform {target, location?, rotation?, scale?}   scene.delete_node {target}   scene.clear_all {confirm:true}
+      scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}
+      lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)
+      ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request
+    Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district("paris") builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} first (small), then only the tool you need.
 
     Args:
         name (str): Required. Qualified tool name, e.g. actors.spawn_actor

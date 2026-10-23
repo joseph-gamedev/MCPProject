@@ -220,22 +220,25 @@ def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
     global _max_parts
     for name, parts, _ in jobs:
         check_parts(parts, name)
-    if group:
-        try:
-            group = call("scene.create_group", name=group).get("path", group)
-        except ToolError:
-            pass
+    if group:  # by node id: a name can match a group hidden by an earlier clear
+        g = call("scene.create_group", name=group)
+        group = g.get("id") or g.get("path") or group
 
     def plan(limit):
+        # objects bigger than one assembly get their own group: all such groups in one request, by node id
+        big = [name for name, parts, _ in jobs if len(parts) > limit]
+        gid = {}
+        if big:
+            res = call("ops.run_batch", calls=[{"tool": "scene.create_group", "arguments": dict({"name": n}, **({"parent": group} if group else {}))}
+                                               for n in big])
+            for n, r in zip(big, res.get("results", [])):
+                if not r.get("ok", True):
+                    raise ToolError("scene.create_group", r.get("error", r))
+                gid[n] = r.get("id") or r.get("path") or n
         calls, sizes = [], []
         for name, parts, at in jobs:
             chunks = [parts[i:i + limit] for i in range(0, len(parts), limit)] or [[]]
-            parent = group
-            if len(chunks) > 1:  # big objects: chunks under one group with the object's name
-                g = {"name": name}
-                if group:
-                    g["parent"] = group
-                parent = call("scene.create_group", **g).get("path", name)
+            parent = gid.get(name, group) if len(chunks) > 1 else group
             for k, chunk in enumerate(chunks):
                 args = {"name": name if len(chunks) == 1 else f"{name}_{k}", "parts": chunk, "location": [round(float(v), 2) for v in at]}
                 if parent:

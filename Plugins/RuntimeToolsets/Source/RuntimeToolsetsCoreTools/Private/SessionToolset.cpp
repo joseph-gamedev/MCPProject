@@ -116,7 +116,29 @@ static void DescribeToolset(FToolInvocation& Inv)
 		Inv.Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no enabled toolset '%s'"), *Name), TEXT("See session.list_toolsets"));
 		return;
 	}
-	Inv.Succeed(RuntimeJson::Parse(Json));
+	TSharedPtr<FJsonObject> Out = RuntimeJson::Parse(Json);
+	const TArray<FString> Only = Inv.GetStringArray(TEXT("tools"));
+	const TArray<TSharedPtr<FJsonValue>>* Tools = nullptr;
+	if (Only.Num() && Out.IsValid() && Out->TryGetArrayField(TEXT("tools"), Tools))
+	{
+		// just the tools asked for: "tween" or "logic.tween"
+		TArray<TSharedPtr<FJsonValue>> Kept;
+		for (const TSharedPtr<FJsonValue>& T : *Tools)
+		{
+			const TSharedPtr<FJsonObject>* O = nullptr;
+			FString ToolName;
+			if (T->TryGetObject(O) && (*O)->TryGetStringField(TEXT("name"), ToolName))
+			{
+				const FString Short = ToolName.Contains(TEXT(".")) ? ToolName.RightChop(ToolName.Find(TEXT(".")) + 1) : ToolName;
+				if (Only.ContainsByPredicate([&](const FString& W) { return W.Equals(ToolName, ESearchCase::IgnoreCase) || W.Equals(Short, ESearchCase::IgnoreCase); }))
+				{
+					Kept.Add(T);
+				}
+			}
+		}
+		Out->SetArrayField(TEXT("tools"), Kept);
+	}
+	Inv.Succeed(Out);
 }
 
 static void CallTool(FToolInvocation& Inv)
@@ -190,13 +212,35 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with ops.run_batch (up to 100 calls per request), one logic.import per game, or Python scripts (session_get_build_info -> scripting). If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it."))
 		.Handle(&ListToolsets);
 
-	B.Tool(TEXT("describe_toolset"), TEXT("Tools of one toolset with input schemas."))
+	B.Tool(TEXT("describe_toolset"), TEXT("Tools of one toolset with input schemas. Big toolsets are long: pass tools:[...] for just the ones "
+		"you need, or include_schemas:false for names and summaries."))
 		.Args(FToolSchema()
 			.Add(TEXT("name"), FToolParam::String(TEXT("Toolset name from list_toolsets"), 64).Required())
+			.Add(TEXT("tools"), FToolParam::StringArray(TEXT("Only these tools, e.g. [\"tween\"] (default: all)")))
 			.Add(TEXT("include_schemas"), FToolParam::Boolean(TEXT("Include input schemas")).Default(true)))
 		.Handle(&DescribeToolset);
 
-	B.Tool(TEXT("call_tool"), TEXT("Call any tool by name (toolset.tool or toolset_tool) with its arguments."))
+	// The quick reference lives in this description because every agent reads it: common requests need no
+	// list_toolsets / describe_toolset round trips (each costs the agent several seconds).
+	B.Tool(TEXT("call_tool"), TEXT("Call any tool by name (toolset.tool or toolset_tool) with its arguments.\n"
+		"NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.\n"
+		"RULE: more than ~20 parts, or anything repeated (windows, seats, trees, track, buildings), is ONE Python script, never hand-written JSON parts (writing JSON by hand is 10-50x slower). Template:\n"
+		"  import os, sys; sys.path.insert(0, os.environ.get(\"UNREAL_KIT\") or r\"<session.get_build_info scripting.kit>\")\n"
+		"  import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform\n"
+		"  P = [box([200, 200, 300], [i * 400, 0, 0], m=\"concrete\") for i in range(50)]   # loops, math, real sizes\n"
+		"  uk.place(\"Name\", P, at=(0, 0, 0))   # or uk.place_many([(name, parts, at), ...]); uk.district(\"paris\") for cities\n"
+		"Run it with Bash (python script.py); it reaches the game by itself. Loops make detail cheap: a landmark is 500-3000 parts (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.\n"
+		"QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):\n"
+		"  build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}\n"
+		"  build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object\n"
+		"  logic.tween {targets:[id], rotate:[p,y,r] | move:[x,y,z] | scale, duration:s, loop: Loop|PingPong, repeat:-1} - spin / bob / slide\n"
+		"  actors.set_transform {target, location?, rotation?, scale?}   scene.delete_node {target}   scene.clear_all {confirm:true}\n"
+		"  scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}\n"
+		"  lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)\n"
+		"  ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request\n"
+		"Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district(\"paris\") "
+		"builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} "
+		"first (small), then only the tool you need."))
 		.Args(FToolSchema()
 			.Add(TEXT("name"), FToolParam::String(TEXT("Qualified tool name, e.g. actors.spawn_actor"), 128).Required())
 			.Add(TEXT("arguments"), FToolParam::Object(TEXT("Tool arguments"))))

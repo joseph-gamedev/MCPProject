@@ -262,6 +262,8 @@ URuntimePythonKitSkill::URuntimePythonKitSkill()
 	Instructions = FString(TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
 ## FASTEST (answer in under a minute: do this first, read the rest only if you need more)
+RULE: anything over ~20 parts or repeated is ONE Python script run with Bash, never hand-written JSON parts.
+NEVER save memories or notes about how to use this game: this guidance changes with every build and wins over them.
 Kit: game on this machine -> session_get_build_info scripting.kit; game in the cloud (stream) -> the path in the
 UNREAL_KIT environment variable (Connect.bat sets it). Never search the disk.
     import sys, os; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<scripting.kit>"); import unreal_kit as uk
@@ -270,7 +272,7 @@ UNREAL_KIT environment variable (Connect.bat sets it). Never search the disk.
     uk.district(styles={"nordic": 3, "contemporary": 1}, block=(4000, 3000))   # any other place: pick a style mix
     from unreal_kit import buildings as B; uk.place("Hero", B.building("office", style="art_deco"), at=(0, 0, 0))
 Every run is new (random seed, printed); pass seed=N to repeat one. Big scenes: detail="low"; close-ups: "high".
-Write one short script, run it once, take one screenshot, answer. Do not read example files for a city.
+Write one script with real detail (loops: a landmark is 500-3000 parts, not 20 boxes), run it, look at one screenshot, fix what looks wrong, answer. Do not read example files for a city.
 
 Why scripts: one short script builds thousands of parts with loops and sends them in a few requests.
 It connects by itself (this machine, or the relay from UNREAL_RELAY + UNREAL_TOKEN). Do not download code; do not print
