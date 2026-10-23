@@ -1,5 +1,6 @@
 #include "PrimitiveMesh.h"
 #include "RuntimeBuildToolset.h"
+#include "RuntimeRoadToolset.h"
 #include "RuntimeLayoutToolset.h"
 #include "RuntimeToolReflection.h"
 #include "RuntimeToolsetsCore.h"
@@ -19,7 +20,8 @@ public:
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("mesh:"), &RuntimeMeshAssets::SpawnFromSource);
 		IRuntimeToolsetsCore::Get().RegisterSourceSpawner(TEXT("inst:"), &RuntimeMeshAssets::SpawnInstancesFromSource);
 		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeLayoutToolset::StaticClass()),
-			RuntimeToolReflection::RegisterToolsetClass(URuntimeBuildToolset::StaticClass())};
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeBuildToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeRoadToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override

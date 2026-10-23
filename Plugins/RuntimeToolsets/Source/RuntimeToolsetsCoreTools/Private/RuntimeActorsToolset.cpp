@@ -1,4 +1,5 @@
 #include "RuntimeActorsToolset.h"
+#include "RuntimeToolReflection.h"
 #include "RuntimeToolCall.h"
 #include "RuntimeReflectionToolset.h"
 #include "RuntimeToolInvocation.h"
@@ -63,7 +64,7 @@ namespace
 }
 
 FRuntimeNodeInfo URuntimeActorsToolset::SpawnActor(const FVector& Location, const FRotator& Rotation, const FVector& Scale, const FLinearColor& Color,
-	const TArray<FString>& Tags, const FString& Shape, const FString& Class, const FString& Name, AActor* Parent)
+	const TArray<FString>& Tags, const FRuntimeToolJson& Properties, const FString& Shape, const FString& Class, const FString& Name, AActor* Parent)
 {
 	FToolInvocation& Inv = *RuntimeToolCall::Current();
 	if (Shape.IsEmpty() == Class.IsEmpty())
@@ -99,8 +100,57 @@ FRuntimeNodeInfo URuntimeActorsToolset::SpawnActor(const FVector& Location, cons
 	FTransform Transform(Rotation, Location, Inv.Has(TEXT("scale")) ? Scale : FVector::OneVector);
 	const FString NodeName = !Name.IsEmpty() ? Name : !Shape.IsEmpty() ? Shape : FPaths::GetExtension(Class).IsEmpty() ? FPaths::GetBaseFilename(Class) : FPaths::GetExtension(Class);
 	const bool bColor = Inv.Has(TEXT("color"));
-	auto Spawn = [Source, Transform, NodeName, Color, bColor](FRuntimeCommandContext& Ctx, FString& OutError) -> AActor*
+	const TSharedPtr<FJsonObject> Props = Properties.IsSet() ? Properties.AsObject() : nullptr;
+	if (Properties.IsSet() && (!Props.IsValid() || Class.IsEmpty()))
 	{
+		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, TEXT("properties must be an object and needs class"), TEXT("e.g. {\"Sidewalk R\": true}"));
+		return {};
+	}
+	auto Spawn = [Source, Transform, NodeName, Color, bColor, Props, Class](FRuntimeCommandContext& Ctx, FString& OutError) -> AActor*
+	{
+		if (Props.IsValid())
+		{
+			// deferred: the values are in place when the construction script runs
+			UClass* C = RuntimeSpawn::LoadSpawnClass(Class, OutError);
+			if (!C)
+			{
+				return nullptr;
+			}
+			FActorSpawnParameters P;
+			P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			P.bDeferConstruction = true;
+			AActor* A = Ctx.World->SpawnActor<AActor>(C, Transform, P);
+			if (!A)
+			{
+				OutError = TEXT("spawn failed");
+				return nullptr;
+			}
+			RuntimeToolReflection::FConvertContext Conv;
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : Props->Values)
+			{
+				FProperty* Found = nullptr;
+				for (TFieldIterator<FProperty> It(C); It && !Found; ++It)
+				{
+					if (It->GetAuthoredName().Equals(KV.Key, ESearchCase::IgnoreCase) || It->GetName().Equals(KV.Key, ESearchCase::IgnoreCase))
+					{
+						Found = *It;
+					}
+				}
+				FString PropError;
+				if (!Found || !RuntimeToolReflection::JsonToProperty(KV.Value, Found, Found->ContainerPtrToValuePtr<void>(A), Conv, PropError))
+				{
+					OutError = Found ? FString::Printf(TEXT("properties.%s: %s"), *KV.Key, *PropError) : FString::Printf(TEXT("%s has no property '%s'"), *C->GetName(), *KV.Key);
+					A->Destroy();
+					return nullptr;
+				}
+			}
+			A->FinishSpawning(Transform);
+			if (USceneComponent* Root = A->GetRootComponent())
+			{
+				Root->SetMobility(EComponentMobility::Movable);
+			}
+			return A;
+		}
 		AActor* Actor = RuntimeSpawn::SpawnFromSource(Ctx.World, Source, Transform, NodeName, OutError);
 		if (Actor && bColor)
 		{

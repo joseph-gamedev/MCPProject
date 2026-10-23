@@ -203,7 +203,7 @@ def _actors_set_visibility(*, target, visible, propagate=None):
     return call('actors.set_visibility', **args)
 
 
-def _actors_spawn_actor(*, class_=None, color=None, location=None, name=None, parent=None, rotation=None, scale=None, shape=None, tags=None):
+def _actors_spawn_actor(*, class_=None, color=None, location=None, name=None, parent=None, properties=None, rotation=None, scale=None, shape=None, tags=None):
     """Spawns a basic shape or an actor class as a new scene node. Undoable. With a parent the transform is relative to it. Fails if both or neither of shape and class are given, the shape is unknown, or the class is missing or not allowed.
     Returns: The new node: {id, name, path, actor}.
 
@@ -216,6 +216,9 @@ def _actors_spawn_actor(*, class_=None, color=None, location=None, name=None, pa
             "".
         parent (str): Parent node; the transform is then relative to it. (Reference to Actor: node id (n12), node path,
             actor:Name or object path)
+        properties (any): Class only: property values set before the actor is constructed, so Blueprints that build
+            themselves in their construction script (roads, fences, generators) build from them, e.g. {"Spawn Spline
+            Points": [[0,0,0],[5000,0,0]], "Sidewalk R": true}. Names as reflection lists them. (Any JSON value)
         rotation (list[float]): [pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))
         scale (list[float]): [x, y, z] (default [1, 1, 1]). ([x, y, z] (cm))
         shape (str): Basic 100 cm shape: cube, sphere, cylinder, cone or plane. Default "".
@@ -232,6 +235,8 @@ def _actors_spawn_actor(*, class_=None, color=None, location=None, name=None, pa
         args['name'] = name
     if parent is not None:
         args['parent'] = parent
+    if properties is not None:
+        args['properties'] = properties
     if rotation is not None:
         args['rotation'] = rotation
     if scale is not None:
@@ -975,7 +980,7 @@ def _build_create_river(*, flow_speed=None, foam=None, name=None, overlap=None, 
     return call('build.create_river', **args)
 
 
-def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feature_size=None, flatten=None, height=None, hills=None, location=None, material=None, name=None, parent=None, resolution=None, ridged=None, roughness=None, seed=None, size=None, snow_line=None, tags=None):
+def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feature_size=None, flatten=None, height=None, hills=None, islands=None, location=None, material=None, name=None, parent=None, resolution=None, ridged=None, roughness=None, sand_line=None, sea_level=None, seed=None, size=None, snow_line=None, tags=None):
     """Creates a terrain: ground with real hills and valleys (layered noise), optional extra hills or basins, flat pads for villages and fields, and channels carved along paths (rivers always run downhill; roads follow the ground). The collision is the exact surface, so pcg.scatter, snap_to_ground, buildings and characters follow the slopes. The ground colour blends by biome, slope (rock), wetness (mud by rivers) and bare earth (pads, roads). One undo step. Fails if the size is out of range or a hill, pad or carve entry is malformed.
     Returns: {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
 
@@ -993,6 +998,11 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
             pads and channels). Default 2000.
         hills (list[any]): Extra hills or basins (world x,y): [{at:[x,y], radius, height}] (negative height digs a basin
             or lake bed).
+        islands (list[any]): Coastlines (world x,y) at sea_level: [{area:[[x,y],...], height (peak above the sea, cm,
+            default 800), beach (width of the gentle beach cm, 1500), dune (beach rise cm, 150), depth (sea floor below
+            the sea cm, 900), shelf (how far out it deepens cm, 3000), wobble (coves and points cm, 600; 0 = exact
+            outline), wobble_size (cm, 2500)}]. The ground follows them (an island or archipelago from its outline);
+            hills, pads and channels still apply on top. Use with sea_level and fluid.add coast_water at that z.
         location (list[float]): Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it). ([x, y, z]
             (cm))
         material (str): Override the ground material (preset or allowed path); default the biome ground. Default "".
@@ -1002,6 +1012,10 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
             Default 0.
         ridged (float): 0 rounded hills .. 1 sharp mountain ridges. Default 0.
         roughness (float): Small-scale detail 0..1. Default 0.5.
+        sand_line (float): Beach: sand from the water up to this world z, blending into the ground cover above (rock
+            stays on cliffs).
+        sea_level (float): World z of the sea: darker, glossy wet sand just above it (use the same z for fluid.add
+            coast_water); without sand_line the beach reaches 1.5 m above it.
         seed (int): Same seed, same terrain. Default 1.
         size (list[float]): [x, y] extent cm, centred on location, e.g. [40000, 40000] (500-400000).
         snow_line (float): Snow above this world z (alpine; 0 = biome default). Default 0.
@@ -1024,6 +1038,8 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
         args['height'] = height
     if hills is not None:
         args['hills'] = hills
+    if islands is not None:
+        args['islands'] = islands
     if location is not None:
         args['location'] = location
     if material is not None:
@@ -1038,6 +1054,10 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
         args['ridged'] = ridged
     if roughness is not None:
         args['roughness'] = roughness
+    if sand_line is not None:
+        args['sand_line'] = sand_line
+    if sea_level is not None:
+        args['sea_level'] = sea_level
     if seed is not None:
         args['seed'] = seed
     if size is not None:
@@ -1719,19 +1739,24 @@ console.__doc__ = 'Console: console commands, console variables (cvars), scalabi
 
 # ------------------------------------------------------------------ fluid
 
-def _fluid_add(*, preset, follow_player=None, location=None, material=None, name=None, resolution=None, size_meters=None, yaw=None):
+def _fluid_add(*, preset, follow_player=None, ground=None, location=None, material=None, name=None, resolution=None, size_meters=None, yaw=None):
     """Adds a fluid simulation from a preset: the simulation plus the water surface it drives. Undoable.
     Returns: The new simulation. Fails if FluidNinja is not in the project, the preset or material is unknown, or a value is out of range.
 
     Args:
         preset (str): Required. an effect: bonfire | fire | candle | smoke_column | heavy_smoke | explosion |
             flamethrower | magic | mist | mud | blood | snow_trails | snow_drift | sand_trails | sandstorm | lava (see
-            list `effects`); or water: lake | pool | sea | sea_wavy | sea_200m | sea_wavy_200m | river |
-            river_whitewater | river_whitewater_inverse | water_tank | tracks | default (or a preset asset path). Lakes,
-            pools and seas look right anywhere (put ground below them, e.g. a terrain basin); the river presets are made
-            to follow a spline over a landscape and look like a sandy bed with streaks on open ground.
+            list `effects`); shore water: coast_water (waves and whitewater rolling onto a beach; its sea level is
+            always z = -480: build the ground with sea_level -480; reads the ground's height itself) | coast_sand (wet
+            sand with footprints on the ground under it); or water: lake | pool | sea | sea_wavy | sea_200m |
+            sea_wavy_200m | river | river_whitewater | river_whitewater_inverse | water_tank | tracks | default (or a
+            preset asset path). Lakes, pools and seas look right anywhere (put ground below them, e.g. a terrain basin);
+            the river presets are made to follow a spline over a landscape and look like a sandy bed with streaks on
+            open ground.
         follow_player (bool): The simulation travels with the player's character (a beach, sea or sand area that is
             always around them, like the pack's coast demo); create the character first. Default false.
+        ground (str): How the water reads the ground under it (shallows, shore waves): auto (a Landscape when the level
+            has one, otherwise a top-down capture of whatever is there), landscape, capture, or flat. Default "auto".
         location (list[float]): Centre of the area on the water level (cm), e.g. [0, 0, 20]. ([x, y, z] (cm))
         material (str): Water material, a short name from list `water_materials` (e.g. "MI_Water_Quiet") or a path.
         name (str): Node name, e.g. "Lake".
@@ -1744,6 +1769,8 @@ def _fluid_add(*, preset, follow_player=None, location=None, material=None, name
         args['preset'] = preset
     if follow_player is not None:
         args['follow_player'] = follow_player
+    if ground is not None:
+        args['ground'] = ground
     if location is not None:
         args['location'] = location
     if material is not None:
@@ -5752,10 +5779,199 @@ reflection = SimpleNamespace(call_function=_reflection_call_function, describe_e
 reflection.__doc__ = "Reflection: inspect and change any object's properties and call its Blueprint-callable functions, like Epic's object"
 
 
+# ------------------------------------------------------------------ road
+
+def _road_branch(*, at, road, lanes=None, side=None):
+    """A side road's mouth on an existing road (a T-junction). Start the side road on the exit. Undoable.
+    Returns: The mouth and its exit. Fails on a side with a sidewalk (the mouth would cut it): branch from the other side or a road without one.
+
+    Args:
+        at (list[float]): Required. Near where on the road (cm); the nearest point on it is used. ([x, y, z] (cm))
+        road (str): Required. The road to branch from (road.create id). (Reference to Actor: node id (n12), node path,
+            actor:Name or object path)
+        lanes (int): 1 or 2: the side road's lanes. Default 1.
+        side (str): left, right (of the road's direction) or auto (the side At is on). Default "auto".
+    """
+    args = {}
+    if at is not None:
+        args['at'] = at
+    if road is not None:
+        args['road'] = road
+    if lanes is not None:
+        args['lanes'] = lanes
+    if side is not None:
+        args['side'] = side
+    return call('road.branch', **args)
+
+
+def _road_create(*, closed=None, fences=None, follow_ground=None, guardrails=None, lampposts=None, lights=None, name=None, options=None, points=None, sidewalks=None, spline=None, type=None):
+    """Builds a road along a route. The route is draped onto the ground below (terrain, landscape, anything with collision) every few metres, so the road follows hills. Undoable.
+    Returns: The road, its length and point count. Fails without the pack, with fewer than 2 points, or for an unknown type or setting.
+
+    Args:
+        closed (bool): A loop (ring road, race track). Default false.
+        fences (str): none, left, right or both. Default "none".
+        follow_ground (bool): Drape the route onto the ground (default true). Default true.
+        guardrails (str): none, left, right or both. Default "none".
+        lampposts (str): none, left, right, center or both. Default "none".
+        lights (bool): Lamppost lights on (night scenes). Default false.
+        name (str): Node name. Default "Road".
+        options (any): Any other Road Creator setting by name (road.list settings), e.g. {"Guardrails R": true, "💦 Wet":
+            0.6}. (Any JSON value)
+        points (list[list[float]]): Route [[x,y,z],...] (cm, at least 2), smoothed into a curve; z only matters where
+            follow_ground is false. A first or last point on a junction exit (within 5 m) snaps to it and leaves the
+            junction straight.
+        sidewalks (str): none, left, right or both. Default "none".
+        spline (str): Or follow a spline node (spline.create_spline) instead of points. (Reference to Actor: node id
+            (n12), node path, actor:Name or object path)
+        type (str): Road type from list, e.g. "2-Lane Road" (default). Default "".
+    """
+    args = {}
+    if closed is not None:
+        args['closed'] = closed
+    if fences is not None:
+        args['fences'] = fences
+    if follow_ground is not None:
+        args['follow_ground'] = follow_ground
+    if guardrails is not None:
+        args['guardrails'] = guardrails
+    if lampposts is not None:
+        args['lampposts'] = lampposts
+    if lights is not None:
+        args['lights'] = lights
+    if name is not None:
+        args['name'] = name
+    if options is not None:
+        args['options'] = options
+    if points is not None:
+        args['points'] = points
+    if sidewalks is not None:
+        args['sidewalks'] = sidewalks
+    if spline is not None:
+        args['spline'] = spline
+    if type is not None:
+        args['type'] = type
+    return call('road.create', **args)
+
+
+def _road_generate(*, block=None, buildings=None, cols=None, junctions=None, layout=None, lights=None, location=None, rows=None, seed=None, side_streets=None, size=None, trees=None):
+    """Builds a whole town on the ground below: roads joined by real junctions, side streets and buildings facing the roads, trees on the verges and woods between the roads. organic: junctions scattered at random, joined by curving roads, roundabouts where 3+ roads meet, dead-end side streets. grid: a street grid with intersections, traffic lights and crossings. Make the ground first (build.create_terrain). Undoable piece by piece.
+    Returns: What was made.
+
+    Args:
+        block (float): grid: street spacing (cm). Default 10000.
+        buildings (int): At most this many buildings (0 for roads only). Default 150.
+        cols (int): grid: blocks across. Default 4.
+        junctions (int): organic: how many junctions. Default 12.
+        layout (str): organic or grid. Default "organic".
+        lights (bool): Street and window lights on (night). Default false.
+        location (list[float]): Centre of the town (cm). ([x, y, z] (cm))
+        rows (int): grid: blocks down. Default 3.
+        seed (int): Layout seed. Default 1.
+        side_streets (int): organic: dead-end side streets. Default 8.
+        size (float): organic: width of the area (cm). Default 90000.
+        trees (int): About this many trees: street trees on the verges and woods between the roads (0 for none; needs
+            the RuntimeFoliage trees). Default 1500.
+    """
+    args = {}
+    if block is not None:
+        args['block'] = block
+    if buildings is not None:
+        args['buildings'] = buildings
+    if cols is not None:
+        args['cols'] = cols
+    if junctions is not None:
+        args['junctions'] = junctions
+    if layout is not None:
+        args['layout'] = layout
+    if lights is not None:
+        args['lights'] = lights
+    if location is not None:
+        args['location'] = location
+    if rows is not None:
+        args['rows'] = rows
+    if seed is not None:
+        args['seed'] = seed
+    if side_streets is not None:
+        args['side_streets'] = side_streets
+    if size is not None:
+        args['size'] = size
+    if trees is not None:
+        args['trees'] = trees
+    return call('road.generate', **args)
+
+
+def _road_intersection(*, location, yaw=None):
+    """A 4-way intersection (20 m square, for 2-lane roads with sidewalks). Undoable.
+    Returns: The piece and its 4 exits (start each road on one).
+
+    Args:
+        location (list[float]): Required. Centre (cm); dropped onto the ground. ([x, y, z] (cm))
+        yaw (float): Turn, degrees.
+    """
+    args = {}
+    if location is not None:
+        args['location'] = location
+    if yaw is not None:
+        args['yaw'] = yaw
+    return call('road.intersection', **args)
+
+
+def _road_list():
+    """Road types, the kinds road.place makes, and every road setting by name.
+    Returns: The catalog (installed false without the pack).
+    """
+    args = {}
+    return call('road.list', **args)
+
+
+def _road_place(*, kind, location=None, options=None, yaw=None):
+    """Places street furniture from the pack, standing on the ground. Undoable.
+    Returns: The object. Fails without the pack or for an unknown kind.
+
+    Args:
+        kind (str): Required. From list kinds, e.g. traffic_lights, road_sign, destination_sign, lamp_post,
+            boom_barrier, zebra_crossing, stop_line, speed_limit, parking_area, building, bench, cones.
+        location (list[float]): Where (cm); dropped onto the ground. ([x, y, z] (cm))
+        options (any): The object's settings by name (reflection.list_properties on one shows them). (Any JSON value)
+        yaw (float): Facing, degrees.
+    """
+    args = {}
+    if kind is not None:
+        args['kind'] = kind
+    if location is not None:
+        args['location'] = location
+    if options is not None:
+        args['options'] = options
+    if yaw is not None:
+        args['yaw'] = yaw
+    return call('road.place', **args)
+
+
+def _road_roundabout(*, location, toward):
+    """A roundabout (70 m ring with an island) with one 2-lane arm aimed at each point in toward. Undoable. Keep arms at least ~50 degrees apart.
+    Returns: The ring and one exit per arm, in the order of toward.
+
+    Args:
+        location (list[float]): Required. Centre (cm); dropped onto the ground. ([x, y, z] (cm))
+        toward (list[list[float]]): Required. Where each road goes [[x,y,z],...] (one arm per point, 1 to 6).
+    """
+    args = {}
+    if location is not None:
+        args['location'] = location
+    if toward is not None:
+        args['toward'] = toward
+    return call('road.roundabout', **args)
+
+
+road = SimpleNamespace(branch=_road_branch, create=_road_create, generate=_road_generate, intersection=_road_intersection, list=_road_list, place=_road_place, roundabout=_road_roundabout)
+road.__doc__ = 'Roads (Road Creator Pro): asphalt roads with lane markings, sidewalks and curbs, lampposts with lights, guardrails,'
+
+
 # ------------------------------------------------------------------ scene
 
 def _scene_clear_all(*, confirm=None):
-    """Deletes every node this session created. Creates a checkpoint first. Fails without confirm, or while a history transaction is open.
+    """Deletes every node this session created, and unloads level instances loaded with level.load_level_instance (e.g. a recipe's ground). Creates a checkpoint first. Fails without confirm, or while a history transaction is open.
     Returns: Nodes deleted and the checkpoint name (history.rollback restores them).
 
     Args:
@@ -7412,4 +7628,4 @@ vfx = SimpleNamespace(activate=_vfx_activate, deactivate=_vfx_deactivate, get_su
 vfx.__doc__ = 'Niagara effects at runtime. Effects are scene nodes (spawn_system) or fire-and-forget bursts (spawn_one_shot).'
 
 
-TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'fluid', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'sky', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']
+TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'fluid', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'road', 'scene', 'session', 'skills', 'sky', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']

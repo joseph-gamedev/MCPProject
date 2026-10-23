@@ -15,6 +15,12 @@
 						"description": "The simulation travels with the player's character (a beach, sea or sand area that is always around them, like the pack's coast demo); create the character first.",
 						"type": "boolean"
 					},
+					"ground":
+					{
+						"default": "auto",
+						"description": "How the water reads the ground under it (shallows, shore waves): auto (a Landscape when the level has one, otherwise a top-down capture of whatever is there), landscape, capture, or flat.",
+						"type": "string"
+					},
 					"location":
 					{
 						"description": "Centre of the area on the water level (cm), e.g. [0, 0, 20]. ([x, y, z] (cm))",
@@ -38,7 +44,7 @@
 					},
 					"preset":
 					{
-						"description": "an effect: bonfire | fire | candle | smoke_column | heavy_smoke | explosion | flamethrower | magic | mist | mud | blood | snow_trails | snow_drift | sand_trails | sandstorm | lava (see list `effects`); or water: lake | pool | sea | sea_wavy | sea_200m | sea_wavy_200m | river | river_whitewater | river_whitewater_inverse | water_tank | tracks | default (or a preset asset path). Lakes, pools and seas look right anywhere (put ground below them, e.g. a terrain basin); the river presets are made to follow a spline over a landscape and look like a sandy bed with streaks on open ground.",
+						"description": "an effect: bonfire | fire | candle | smoke_column | heavy_smoke | explosion | flamethrower | magic | mist | mud | blood | snow_trails | snow_drift | sand_trails | sandstorm | lava (see list `effects`); shore water: coast_water (waves and whitewater rolling onto a beach; its sea level is always z = -480: build the ground with sea_level -480; reads the ground's height itself) | coast_sand (wet sand with footprints on the ground under it); or water: lake | pool | sea | sea_wavy | sea_200m | sea_wavy_200m | river | river_whitewater | river_whitewater_inverse | water_tank | tracks | default (or a preset asset path). Lakes, pools and seas look right anywhere (put ground below them, e.g. a terrain basin); the river presets are made to follow a spline over a landscape and look like a sandy bed with streaks on open ground.",
 						"type": "string"
 					},
 					"resolution":

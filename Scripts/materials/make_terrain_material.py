@@ -156,12 +156,12 @@ def build(name=NAME, folder=PATH, weather=None, wet_param=None):
     base = lerp(m, base, sand_col, smask_sand, X + 2000, 1700)
     sand_wet = op(m, unreal.MaterialExpressionMultiply, smask_sand, wet, X + 1500, 2300)
     # footprints and tracks painted by a fluid simulation (fluid.add sand_trails / snow_trails): TrailTex covers the world
-    # rectangle TrailRect (min x, min y, size x, size y); the fluid toolset feeds both while the simulation runs
-    rect = vec(m, "TrailRect", X + 300, 2600, (0.0, 0.0, 1.0, 1.0))
+    # rectangle from TrailMin (x, y) of size TrailSize (x, y); the fluid toolset feeds both while the simulation runs
+    tmin, tsize = vec(m, "TrailMin", X + 300, 2600, (0.0, 0.0, 0.0)), vec(m, "TrailSize", X + 300, 2680, (1.0, 1.0, 1.0))
     rect_min = e(m, unreal.MaterialExpressionComponentMask, X + 500, 2600, r=True, g=True, b=False, a=False)
-    connect(rect, "", rect_min, "")
-    rect_size = e(m, unreal.MaterialExpressionComponentMask, X + 500, 2680, r=False, g=False, b=True, a=True)
-    connect(rect, "", rect_size, "")
+    connect(tmin, "", rect_min, "")
+    rect_size = e(m, unreal.MaterialExpressionComponentMask, X + 500, 2680, r=True, g=True, b=False, a=False)
+    connect(tsize, "", rect_size, "")
     wxy = e(m, unreal.MaterialExpressionComponentMask, X + 300, 2760, r=True, g=True, b=False, a=False)
     connect(wp, "", wxy, "")
     uv = op(m, unreal.MaterialExpressionDivide, op(m, unreal.MaterialExpressionSubtract, wxy, rect_min, X + 700, 2700), rect_size, X + 900, 2700)

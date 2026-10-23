@@ -3,7 +3,7 @@
 	"name": "scene",
 	"tools": [
 		{
-			"description": "Deletes every node this session created. Creates a checkpoint first. Fails without confirm, or while a history transaction is open.\nReturns: Nodes deleted and the checkpoint name (history.rollback restores them).",
+			"description": "Deletes every node this session created, and unloads level instances loaded with level.load_level_instance (e.g. a recipe's ground). Creates a checkpoint first. Fails without confirm, or while a history transaction is open.\nReturns: Nodes deleted and the checkpoint name (history.rollback restores them).",
 			"input_schema":
 			{
 				"additionalProperties": false,

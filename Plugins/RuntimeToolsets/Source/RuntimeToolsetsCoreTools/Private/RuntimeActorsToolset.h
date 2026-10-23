@@ -183,12 +183,15 @@ public:
 	 * @param Scale - [x, y, z] (default [1, 1, 1]).
 	 * @param Color - Shape color [r, g, b] 0-1, e.g. [1, 0.2, 0.1].
 	 * @param Tags - Actor tags, e.g. ["prop"].
+	 * @param Properties - Class only: property values set before the actor is constructed, so Blueprints that build
+	 *                     themselves in their construction script (roads, fences, generators) build from them, e.g.
+	 *                     {"Spawn Spline Points": [[0,0,0],[5000,0,0]], "Sidewalk R": true}. Names as reflection lists them.
 	 * @return The new node: {id, name, path, actor}.
 	 */
-	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Rotation,Scale,Color,Tags"), Category = "Actors")
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,Rotation,Scale,Color,Tags,Properties"), Category = "Actors")
 	static FRuntimeNodeInfo SpawnActor(const FVector& Location, const FRotator& Rotation, const FVector& Scale, const FLinearColor& Color,
-		const TArray<FString>& Tags, const FString& Shape = TEXT(""), const FString& Class = TEXT(""), const FString& Name = TEXT(""),
-		AActor* Parent = nullptr);
+		const TArray<FString>& Tags, const FRuntimeToolJson& Properties, const FString& Shape = TEXT(""), const FString& Class = TEXT(""),
+		const FString& Name = TEXT(""), AActor* Parent = nullptr);
 
 	/**
 	 * Deletes an actor and its node subtree. Undoable (the actors are hidden until the step leaves history).

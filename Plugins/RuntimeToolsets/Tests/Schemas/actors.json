@@ -777,6 +777,10 @@
 						"description": "Parent node; the transform is then relative to it. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
 						"type": "string"
 					},
+					"properties":
+					{
+						"description": "Class only: property values set before the actor is constructed, so Blueprints that build themselves in their construction script (roads, fences, generators) build from them, e.g. {\"Spawn Spline Points\": [[0,0,0],[5000,0,0]], \"Sidewalk R\": true}. Names as reflection lists them. (Any JSON value)"
+					},
 					"rotation":
 					{
 						"description": "[pitch, yaw, roll] in degrees. ([pitch, yaw, roll] (degrees))",

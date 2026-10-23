@@ -1473,6 +1473,15 @@
 						},
 						"type": "array"
 					},
+					"islands":
+					{
+						"description": "Coastlines (world x,y) at sea_level: [{area:[[x,y],...], height (peak above the sea, cm, default 800), beach (width of the gentle beach cm, 1500), dune (beach rise cm, 150), depth (sea floor below the sea cm, 900), shelf (how far out it deepens cm, 3000), wobble (coves and points cm, 600; 0 = exact outline), wobble_size (cm, 2500)}]. The ground follows them (an island or archipelago from its outline); hills, pads and channels still apply on top. Use with sea_level and fluid.add coast_water at that z.",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
 					"location":
 					{
 						"description": "Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it). ([x, y, z] (cm))",
@@ -1517,6 +1526,16 @@
 					{
 						"default": 0.5,
 						"description": "Small-scale detail 0..1.",
+						"type": "number"
+					},
+					"sand_line":
+					{
+						"description": "Beach: sand from the water up to this world z, blending into the ground cover above (rock stays on cliffs).",
+						"type": "number"
+					},
+					"sea_level":
+					{
+						"description": "World z of the sea: darker, glossy wet sand just above it (use the same z for fluid.add coast_water); without sand_line the beach reaches 1.5 m above it.",
 						"type": "number"
 					},
 					"seed":

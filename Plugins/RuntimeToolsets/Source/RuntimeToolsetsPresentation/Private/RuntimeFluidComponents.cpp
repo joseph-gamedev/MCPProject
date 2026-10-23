@@ -161,13 +161,14 @@ void URuntimeFluidTrailFeed::TickComponent(float DeltaTime, ELevelTick TickType,
 		return;
 	}
 	const FVector C = GetOwner()->GetActorLocation();
-	const FLinearColor Rect(C.X - Size.X * 0.5, C.Y - Size.Y * 0.5, Size.X, Size.Y);
+	const FLinearColor Min(C.X - Size.X * 0.5, C.Y - Size.Y * 0.5, 0.f), Extent(Size.X, Size.Y, 1.f);
 	for (const TWeakObjectPtr<UMaterialInstanceDynamic>& M : Targets)
 	{
 		if (M.IsValid())
 		{
 			M->SetTextureParameterValue(TEXT("TrailTex"), RT);
-			M->SetVectorParameterValue(TEXT("TrailRect"), Rect);
+			M->SetVectorParameterValue(TEXT("TrailMin"), Min);
+			M->SetVectorParameterValue(TEXT("TrailSize"), Extent);
 			M->SetScalarParameterValue(TEXT("TrailStrength"), 1.f);
 		}
 	}
