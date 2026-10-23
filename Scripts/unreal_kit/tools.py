@@ -6094,6 +6094,149 @@ skills = SimpleNamespace(delete_skill=_skills_delete_skill, get_skills=_skills_g
 skills.__doc__ = 'Skills: authoritative guidance for kinds of work (outdoor lighting, art styles, PCG graphs, building, game logic).'
 
 
+# ------------------------------------------------------------------ sky
+
+def _sky_get_state():
+    """Reads the sky: time, animation, sky mode, weather preset and values, moon, latitude, and the presets available.
+    Returns: The sky state; `sky` is empty before setup.
+    """
+    args = {}
+    return call('sky.get_state', **args)
+
+
+def _sky_remove():
+    """Removes Ultra Dynamic Sky and Weather and brings back the level's own sun, sky light, atmosphere, clouds and fog (also happens on its own when the sky is deleted, e.g. by scene.clear_all). Undoable.
+    Returns: The sky state (empty sky).
+    """
+    args = {}
+    return call('sky.remove', **args)
+
+
+def _sky_set_sky(*, auroras=None, brightness=None, latitude=None, moon_phase=None, sky_mode=None, stars_intensity=None):
+    """Sets how the sky renders and the night sky.
+    Returns: The sky state. Fails before setup or for an unknown sky mode.
+
+    Args:
+        auroras (bool): Show auroras at night.
+        brightness (float): Overall sky and light intensity multiplier, e.g. 1.
+        latitude (float): Degrees, -90 to 90 (sun path and day length), e.g. 40.7 for New York.
+        moon_phase (float): 0-1: 0 new moon, 0.25 first quarter, 0.5 full, 0.75 last quarter.
+        sky_mode (str): volumetric (3D clouds) | static (cloud texture, cheap) | 2d (panning 2D clouds) | none (no
+            clouds) | aurora (volumetric aurora) | space (no atmosphere) | voxel (cubic clouds).
+        stars_intensity (float): Star brightness, e.g. 1 (0 hides them).
+    """
+    args = {}
+    if auroras is not None:
+        args['auroras'] = auroras
+    if brightness is not None:
+        args['brightness'] = brightness
+    if latitude is not None:
+        args['latitude'] = latitude
+    if moon_phase is not None:
+        args['moon_phase'] = moon_phase
+    if sky_mode is not None:
+        args['sky_mode'] = sky_mode
+    if stars_intensity is not None:
+        args['stars_intensity'] = stars_intensity
+    return call('sky.set_sky', **args)
+
+
+def _sky_set_time(*, hour, animate=None, day_length_minutes=None, night_length_minutes=None):
+    """Sets the time of day, and whether and how fast time passes.
+    Returns: The sky state. Fails before setup, or if hour is outside 0-24.
+
+    Args:
+        hour (float): Required. 0-24, e.g. 6.25 sunrise light, 13 noon, 18.75 golden hour, 22 night.
+        animate (bool): Let time pass on its own.
+        day_length_minutes (float): Real minutes a day lasts when animating, e.g. 20.
+        night_length_minutes (float): Real minutes a night lasts when animating, e.g. 8.
+    """
+    args = {}
+    if hour is not None:
+        args['hour'] = hour
+    if animate is not None:
+        args['animate'] = animate
+    if day_length_minutes is not None:
+        args['day_length_minutes'] = day_length_minutes
+    if night_length_minutes is not None:
+        args['night_length_minutes'] = night_length_minutes
+    return call('sky.set_time', **args)
+
+
+def _sky_set_weather(*, preset, transition_seconds=None):
+    """Changes the weather to a preset with a smooth transition, or to random weather that keeps changing.
+    Returns: The sky state. Fails before setup (or without the weather actor) or for an unknown preset (the error lists them).
+
+    Args:
+        preset (str): Required. clear | partly_cloudy | cloudy | overcast | foggy | light_rain | rain | thunderstorm |
+            light_snow | snow | blizzard | dust | sandstorm | random.
+        transition_seconds (float): How long the change takes, e.g. 10 (0 = instant). Default 10.
+    """
+    args = {}
+    if preset is not None:
+        args['preset'] = preset
+    if transition_seconds is not None:
+        args['transition_seconds'] = transition_seconds
+    return call('sky.set_weather', **args)
+
+
+def _sky_set_weather_values(*, clear_overrides=None, cloud_coverage=None, dust=None, fog=None, rain=None, snow=None, thunder=None, wind=None):
+    """Sets exact weather amounts (0-10 each); values given stay fixed (manual override) until clear_overrides.
+    Returns: The sky state. Fails before setup (or without the weather actor) or for values outside 0-10.
+
+    Args:
+        clear_overrides (bool): Release every manual value back to the preset. Default false.
+        cloud_coverage (float): 0 clear to 10 overcast.
+        dust (float): 0-10.
+        fog (float): 0-10.
+        rain (float): 0-10.
+        snow (float): 0-10.
+        thunder (float): Thunder and lightning, 0-10.
+        wind (float): 0-10.
+    """
+    args = {}
+    if clear_overrides is not None:
+        args['clear_overrides'] = clear_overrides
+    if cloud_coverage is not None:
+        args['cloud_coverage'] = cloud_coverage
+    if dust is not None:
+        args['dust'] = dust
+    if fog is not None:
+        args['fog'] = fog
+    if rain is not None:
+        args['rain'] = rain
+    if snow is not None:
+        args['snow'] = snow
+    if thunder is not None:
+        args['thunder'] = thunder
+    if wind is not None:
+        args['wind'] = wind
+    return call('sky.set_weather_values', **args)
+
+
+def _sky_setup(*, hour=None, preset=None, weather=None):
+    """Puts Ultra Dynamic Sky and Weather in the level (once; later calls return the existing ones) and hides the level's own directional lights, sky light, sky atmosphere, volumetric clouds and height fog so they do not double up.
+    Returns: The sky state. Fails if the Ultra Dynamic Sky content is not in the project.
+
+    Args:
+        hour (float): Starting time of day, 0-24, e.g. 10.5. Default 10.
+        preset (str): Starting weather preset (see get_state presets), e.g. "partly_cloudy". Default "".
+        weather (bool): Also add the weather actor (rain, snow, fog, dust, wet surfaces). Default true.
+    """
+    args = {}
+    if hour is not None:
+        args['hour'] = hour
+    if preset is not None:
+        args['preset'] = preset
+    if weather is not None:
+        args['weather'] = weather
+    return call('sky.setup', **args)
+
+
+sky = SimpleNamespace(get_state=_sky_get_state, remove=_sky_remove, set_sky=_sky_set_sky, set_time=_sky_set_time, set_weather=_sky_set_weather, set_weather_values=_sky_set_weather_values, setup=_sky_setup)
+sky.__doc__ = "Ultra Dynamic Sky (the project's sky and weather system): time of day with a real sun and moon path, volumetric"
+
+
 # ------------------------------------------------------------------ spline
 
 def _spline_create_spline(*, points, closed=None, follow_ground=None, linear=None, name=None, parent=None, profile=None):
@@ -7019,4 +7162,4 @@ vfx = SimpleNamespace(activate=_vfx_activate, deactivate=_vfx_deactivate, get_su
 vfx.__doc__ = 'Niagara effects at runtime. Effects are scene nodes (spawn_system) or fire-and-forget bursts (spawn_one_shot).'
 
 
-TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']
+TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'sky', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']
