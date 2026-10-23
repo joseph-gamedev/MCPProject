@@ -1,0 +1,1353 @@
+{
+	"description": "GIS: land plots (parcels) of any polygon shape. Generate random street blocks and lots, add your own polygons or real\nGIS data (the Python kit's uk.gis loads GeoJSON and GeoRegions files and projects them here), see\nthem with zoning colours and id labels, query them, and put buildings on them (uk.gis.build(\"P12\", style=...)).\nWorld axes: +X east, -Y north, cm. Plots are data: scene.clear_all keeps them (gis.delete_plots all=true clears).",
+	"name": "gis",
+	"tools": [
+		{
+			"description": "Adds plots from your own polygons (any shape, e.g. from real GIS data projected to cm).\nReturns: The ids of the new plots.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"plots":
+					{
+						"description": "[{polygon:[[x,y,z],...], id?, zoning?, props?:{...}, street_edges?:[edge indices], kind?: plot|area|block}, ...]. Edge i runs corner i -> i+1. kind area = land the plots sit in (drawn under them), block = a street block.",
+						"items":
+						{
+							"description": "Any JSON value"
+						},
+						"type": "array"
+					},
+					"redraw":
+					{
+						"default": true,
+						"description": "Redraw the map now (false while sending a big import in several calls: redraw on the last).",
+						"type": "boolean"
+					},
+					"replace":
+					{
+						"default": false,
+						"description": "Delete existing plots first.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"plots"
+				],
+				"type": "object"
+			},
+			"name": "gis.add_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The ids of the new plots.",
+						"properties":
+						{
+							"ids":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "GisIds",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Generates random land: streets cut an area into blocks, blocks into lots (plots) with street frontage, each with a zoning. Shown with zoning colours and id labels. E.g. {\"size\":[40000,30000],\"layout\":\"blocks\",\"seed\":4}.\nReturns: Plots and blocks created, area, plots per zoning and the first plots.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"area":
+					{
+						"description": "Land polygon [[x,y,z],...] in cm (convex works best). Empty: a rectangle of `size` around `center`.",
+						"items":
+						{
+							"description": "[x, y, z] (cm)",
+							"items":
+							{
+								"type": "number"
+							},
+							"maxItems": 3,
+							"minItems": 3,
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"block_size":
+					{
+						"default": [
+							8000,
+							5000
+						],
+						"description": "Typical block [long, short] cm (city 8000x5000, suburb 15000x6000, old town 4000x3000). ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"center":
+					{
+						"description": "Centre of the default rectangle. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"center_commercial":
+					{
+						"default": true,
+						"description": "Commercial and mixed use cluster in the centre, homes and industry outside.",
+						"type": "boolean"
+					},
+					"layout":
+					{
+						"default": "Blocks",
+						"description": "Street pattern: blocks (most towns), grid (Manhattan), organic (old town), radial (rings and spokes).",
+						"enum": [
+							"Blocks",
+							"Grid",
+							"Organic",
+							"Radial"
+						],
+						"type": "string"
+					},
+					"lot_depth":
+					{
+						"default": 0,
+						"description": "Lot depth cm (0 = half the block, as deep as it gets).",
+						"type": "number"
+					},
+					"lot_width":
+					{
+						"default": [
+							1200,
+							2400
+						],
+						"description": "Lot frontage range [min, max] cm along the street (townhouses 600-900, apartments 1500-3000). ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"replace":
+					{
+						"default": true,
+						"description": "Delete existing plots first.",
+						"type": "boolean"
+					},
+					"seed":
+					{
+						"default": -1,
+						"description": "Random seed (-1 = a new layout every call).",
+						"type": "integer"
+					},
+					"size":
+					{
+						"default": [
+							40000,
+							30000
+						],
+						"description": "Size [x,y] cm of the default rectangle. ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"street_width":
+					{
+						"default": 1200,
+						"description": "Street width cm (avenues near the first cuts are 1.4x wider).",
+						"type": "number"
+					},
+					"zoning":
+					{
+						"description": "Land-use weights, e.g. {\"residential\":5,\"commercial\":2,\"mixed\":2,\"industrial\":1,\"green\":1,\"civic\":0.5}. (Any JSON value)"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gis.create_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Plots and blocks created, area, plots per zoning and the first plots.",
+						"properties":
+						{
+							"area_m2":
+							{
+								"description": "Area covered in square metres.",
+								"type": "number"
+							},
+							"blocks":
+							{
+								"description": "Street blocks created.",
+								"type": "integer"
+							},
+							"plots":
+							{
+								"description": "Plots created.",
+								"type": "integer"
+							},
+							"sample":
+							{
+								"description": "The first plots (all of them with list_plots).",
+								"items":
+								{
+									"properties":
+									{
+										"area_m2":
+										{
+											"description": "Area in square metres.",
+											"type": "number"
+										},
+										"block":
+										{
+											"description": "Block the plot belongs to.",
+											"type": "string"
+										},
+										"building":
+										{
+											"description": "Node id of the building placed on it (\"\" = empty plot).",
+											"type": "string"
+										},
+										"centroid":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"id":
+										{
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"type": "string"
+										},
+										"street_edges":
+										{
+											"description": "Edges on a street (frontage).",
+											"type": "integer"
+										},
+										"vertices":
+										{
+											"description": "Corners of the polygon.",
+											"type": "integer"
+										},
+										"zoning":
+										{
+											"description": "Land use: residential, commercial, mixed, industrial, civic, green (or your own).",
+											"type": "string"
+										}
+									},
+									"title": "GisPlotSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"zoning":
+							{
+								"additionalProperties":
+								{
+									"type": "integer"
+								},
+								"description": "Plots per zoning.",
+								"type": "object"
+							}
+						},
+						"title": "GisCreateResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Deletes plots (their buildings stay; delete those with scene.delete_node).\nReturns: The deleted ids.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"all":
+					{
+						"default": false,
+						"description": "Delete every plot, block and street area.",
+						"type": "boolean"
+					},
+					"ids":
+					{
+						"description": "Plot ids to delete.",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gis.delete_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The deleted ids.",
+						"properties":
+						{
+							"ids":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "GisIds",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Exports the plots as a GeoJSON FeatureCollection (longitude/latitude when an origin is set, else metres).\nReturns: The FeatureCollection (plus \"total\": all plots).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"default": 300,
+						"description": "Features per call (answers are size-capped: page big exports; the kit's uk.gis.export joins them).",
+						"type": "integer"
+					},
+					"lon_lat":
+					{
+						"default": true,
+						"description": "Geographic coordinates (needs an origin); false = local metres (+X east, +Y north).",
+						"type": "boolean"
+					},
+					"offset":
+					{
+						"default": 0,
+						"description": "Skip this many plots.",
+						"type": "integer"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gis.export_geo_json",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The FeatureCollection (plus \"total\": all plots)."
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "The plot under a world position.\nReturns: The plot. Fails with not_found when no plot is there.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"location":
+					{
+						"description": "World position (z ignored). ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					}
+				},
+				"required": [
+					"location"
+				],
+				"type": "object"
+			},
+			"name": "gis.find_plot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The plot. Fails with not_found when no plot is there.",
+						"properties":
+						{
+							"area_m2":
+							{
+								"type": "number"
+							},
+							"block":
+							{
+								"type": "string"
+							},
+							"building":
+							{
+								"type": "string"
+							},
+							"centroid":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"convex":
+							{
+								"type": "boolean"
+							},
+							"edges":
+							{
+								"description": "One per corner: edge i runs from corner i to corner i+1.",
+								"items":
+								{
+									"properties":
+									{
+										"a":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"b":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"length":
+										{
+											"description": "Length in cm.",
+											"type": "number"
+										},
+										"outward_yaw":
+										{
+											"description": "Yaw (degrees) of the direction looking out of the plot across this edge.",
+											"type": "number"
+										},
+										"street":
+										{
+											"description": "True when the edge faces a street (a frontage: put the building's front here).",
+											"type": "boolean"
+										}
+									},
+									"title": "GisEdge",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"front":
+							{
+								"description": "Index of the main frontage: the longest street edge (or the longest edge when none faces a street).",
+								"type": "integer"
+							},
+							"id":
+							{
+								"type": "string"
+							},
+							"obb_center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"obb_size":
+							{
+								"description": "[x, y]",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 2,
+								"minItems": 2,
+								"type": "array"
+							},
+							"obb_yaw":
+							{
+								"type": "number"
+							},
+							"polygon":
+							{
+								"description": "Corners counter-clockwise seen from above (cm, z = ground).",
+								"items":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"type": "array"
+							},
+							"props":
+							{
+								"description": "Attributes (imported GIS fields, height, levels, name, your own). (Any JSON value)"
+							},
+							"rectangularity":
+							{
+								"description": "Area / rectangle area: 1 = a rectangle, lower = irregular.",
+								"type": "number"
+							},
+							"zoning":
+							{
+								"type": "string"
+							}
+						},
+						"title": "GisPlotInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "The real-world position of world (0,0), if one is set.\nReturns: The origin.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "gis.get_origin",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The origin.",
+						"properties":
+						{
+							"axes":
+							{
+								"description": "How map axes map to the world: +X east, +Y south (north is -Y, so maps are not mirrored), 1 m = 100 cm.",
+								"type": "string"
+							},
+							"latitude":
+							{
+								"description": "Latitude of world (0,0) in degrees.",
+								"type": "number"
+							},
+							"longitude":
+							{
+								"description": "Longitude of world (0,0) in degrees.",
+								"type": "number"
+							},
+							"set":
+							{
+								"description": "Whether a geographic origin is set (real-world data).",
+								"type": "boolean"
+							}
+						},
+						"title": "GisOrigin",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Everything about one plot: polygon, edges with street frontage, front edge, area, rotated bounding box, attributes.\nReturns: The plot.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"id":
+					{
+						"description": "Plot id, e.g. \"P12\".",
+						"type": "string"
+					}
+				},
+				"required": [
+					"id"
+				],
+				"type": "object"
+			},
+			"name": "gis.get_plot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The plot.",
+						"properties":
+						{
+							"area_m2":
+							{
+								"type": "number"
+							},
+							"block":
+							{
+								"type": "string"
+							},
+							"building":
+							{
+								"type": "string"
+							},
+							"centroid":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"convex":
+							{
+								"type": "boolean"
+							},
+							"edges":
+							{
+								"description": "One per corner: edge i runs from corner i to corner i+1.",
+								"items":
+								{
+									"properties":
+									{
+										"a":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"b":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"length":
+										{
+											"description": "Length in cm.",
+											"type": "number"
+										},
+										"outward_yaw":
+										{
+											"description": "Yaw (degrees) of the direction looking out of the plot across this edge.",
+											"type": "number"
+										},
+										"street":
+										{
+											"description": "True when the edge faces a street (a frontage: put the building's front here).",
+											"type": "boolean"
+										}
+									},
+									"title": "GisEdge",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"front":
+							{
+								"description": "Index of the main frontage: the longest street edge (or the longest edge when none faces a street).",
+								"type": "integer"
+							},
+							"id":
+							{
+								"type": "string"
+							},
+							"obb_center":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"obb_size":
+							{
+								"description": "[x, y]",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 2,
+								"minItems": 2,
+								"type": "array"
+							},
+							"obb_yaw":
+							{
+								"type": "number"
+							},
+							"polygon":
+							{
+								"description": "Corners counter-clockwise seen from above (cm, z = ground).",
+								"items":
+								{
+									"description": "[x, y, z] (cm)",
+									"items":
+									{
+										"type": "number"
+									},
+									"maxItems": 3,
+									"minItems": 3,
+									"type": "array"
+								},
+								"type": "array"
+							},
+							"props":
+							{
+								"description": "Attributes (imported GIS fields, height, levels, name, your own). (Any JSON value)"
+							},
+							"rectangularity":
+							{
+								"description": "Area / rectangle area: 1 = a rectangle, lower = irregular.",
+								"type": "number"
+							},
+							"zoning":
+							{
+								"type": "string"
+							}
+						},
+						"title": "GisPlotInfo",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Lists plots (summary: id, area, centre, zoning, building).\nReturns: Total matching and the plots.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"limit":
+					{
+						"default": 500,
+						"description": "Maximum plots returned (pages of ~1000 stay under the answer size cap).",
+						"type": "integer"
+					},
+					"min_area_m2":
+					{
+						"default": 0,
+						"description": "Only plots at least this big.",
+						"type": "number"
+					},
+					"offset":
+					{
+						"default": 0,
+						"description": "Skip this many matching plots (paging through big imports).",
+						"type": "integer"
+					},
+					"only_empty":
+					{
+						"default": false,
+						"description": "Only plots without a building.",
+						"type": "boolean"
+					},
+					"zoning":
+					{
+						"default": "",
+						"description": "Only this land use (\"\" = all).",
+						"type": "string"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gis.list_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "Total matching and the plots.",
+						"properties":
+						{
+							"plots":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"area_m2":
+										{
+											"description": "Area in square metres.",
+											"type": "number"
+										},
+										"block":
+										{
+											"description": "Block the plot belongs to.",
+											"type": "string"
+										},
+										"building":
+										{
+											"description": "Node id of the building placed on it (\"\" = empty plot).",
+											"type": "string"
+										},
+										"centroid":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"id":
+										{
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"type": "string"
+										},
+										"street_edges":
+										{
+											"description": "Edges on a street (frontage).",
+											"type": "integer"
+										},
+										"vertices":
+										{
+											"description": "Corners of the polygon.",
+											"type": "integer"
+										},
+										"zoning":
+										{
+											"description": "Land use: residential, commercial, mixed, industrial, civic, green (or your own).",
+											"type": "string"
+										}
+									},
+									"title": "GisPlotSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "GisPlotList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Merges plots into one (their outline: the convex hull when they do not share edges exactly).\nReturns: The new plot id.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"ids":
+					{
+						"description": "Plots to merge (2 or more).",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"ids"
+				],
+				"type": "object"
+			},
+			"name": "gis.merge_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new plot id.",
+						"properties":
+						{
+							"ids":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "GisIds",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets the real-world position of world (0,0) for geographic data (the kit's uk.gis loaders set it for you).\nReturns: The origin.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"latitude":
+					{
+						"description": "Degrees.",
+						"type": "number"
+					},
+					"longitude":
+					{
+						"description": "Degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"latitude",
+					"longitude"
+				],
+				"type": "object"
+			},
+			"name": "gis.set_origin",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The origin.",
+						"properties":
+						{
+							"axes":
+							{
+								"description": "How map axes map to the world: +X east, +Y south (north is -Y, so maps are not mirrored), 1 m = 100 cm.",
+								"type": "string"
+							},
+							"latitude":
+							{
+								"description": "Latitude of world (0,0) in degrees.",
+								"type": "number"
+							},
+							"longitude":
+							{
+								"description": "Longitude of world (0,0) in degrees.",
+								"type": "number"
+							},
+							"set":
+							{
+								"description": "Whether a geographic origin is set (real-world data).",
+								"type": "boolean"
+							}
+						},
+						"title": "GisOrigin",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Changes a plot's zoning or attributes, or records the building standing on it.\nReturns: The plot summary.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"building":
+					{
+						"description": "The building node now on the plot. (Reference to Actor: node id (n12), node path, actor:Name or object path)",
+						"type": "string"
+					},
+					"clear_building":
+					{
+						"default": false,
+						"description": "Forget the building (it was deleted or moved).",
+						"type": "boolean"
+					},
+					"id":
+					{
+						"description": "Plot id.",
+						"type": "string"
+					},
+					"props":
+					{
+						"description": "Attributes to merge in (null removes a field). (Any JSON value)"
+					},
+					"zoning":
+					{
+						"default": "",
+						"description": "New land use (\"\" = keep).",
+						"type": "string"
+					}
+				},
+				"required": [
+					"id"
+				],
+				"type": "object"
+			},
+			"name": "gis.set_plot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The plot summary.",
+						"properties":
+						{
+							"area_m2":
+							{
+								"description": "Area in square metres.",
+								"type": "number"
+							},
+							"block":
+							{
+								"description": "Block the plot belongs to.",
+								"type": "string"
+							},
+							"building":
+							{
+								"description": "Node id of the building placed on it (\"\" = empty plot).",
+								"type": "string"
+							},
+							"centroid":
+							{
+								"description": "[x, y, z] (cm)",
+								"items":
+								{
+									"type": "number"
+								},
+								"maxItems": 3,
+								"minItems": 3,
+								"type": "array"
+							},
+							"id":
+							{
+								"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+								"type": "string"
+							},
+							"street_edges":
+							{
+								"description": "Edges on a street (frontage).",
+								"type": "integer"
+							},
+							"vertices":
+							{
+								"description": "Corners of the polygon.",
+								"type": "integer"
+							},
+							"zoning":
+							{
+								"description": "Land use: residential, commercial, mixed, industrial, civic, green (or your own).",
+								"type": "string"
+							}
+						},
+						"title": "GisPlotSummary",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Shows or hides the plot map: zoning-coloured plots, streets and id labels (hide them once buildings stand).\nReturns: The plots shown.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"labels":
+					{
+						"default": true,
+						"description": "Plot id labels.",
+						"type": "boolean"
+					},
+					"max_labels":
+					{
+						"default": 2000,
+						"description": "Labels are skipped above this many plots (thousands of labels cannot be read and cost frame time).",
+						"type": "integer"
+					},
+					"plots":
+					{
+						"default": true,
+						"description": "Coloured plot surfaces.",
+						"type": "boolean"
+					},
+					"streets":
+					{
+						"default": true,
+						"description": "Street, land and block surfaces.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "gis.show_plots",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The plots shown.",
+						"properties":
+						{
+							"plots":
+							{
+								"items":
+								{
+									"properties":
+									{
+										"area_m2":
+										{
+											"description": "Area in square metres.",
+											"type": "number"
+										},
+										"block":
+										{
+											"description": "Block the plot belongs to.",
+											"type": "string"
+										},
+										"building":
+										{
+											"description": "Node id of the building placed on it (\"\" = empty plot).",
+											"type": "string"
+										},
+										"centroid":
+										{
+											"description": "[x, y, z] (cm)",
+											"items":
+											{
+												"type": "number"
+											},
+											"maxItems": 3,
+											"minItems": 3,
+											"type": "array"
+										},
+										"id":
+										{
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"type": "string"
+										},
+										"street_edges":
+										{
+											"description": "Edges on a street (frontage).",
+											"type": "integer"
+										},
+										"vertices":
+										{
+											"description": "Corners of the polygon.",
+											"type": "integer"
+										},
+										"zoning":
+										{
+											"description": "Land use: residential, commercial, mixed, industrial, civic, green (or your own).",
+											"type": "string"
+										}
+									},
+									"title": "GisPlotSummary",
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"type": "integer"
+							}
+						},
+						"title": "GisPlotList",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Cuts a plot into smaller lots along its main street frontage (the original plot is removed).\nReturns: The new plot ids.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"id":
+					{
+						"description": "Plot id.",
+						"type": "string"
+					},
+					"lot_width":
+					{
+						"default": [
+							1000,
+							2000
+						],
+						"description": "Frontage range [min, max] cm when parts is 0. ([x, y])",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 2,
+						"minItems": 2,
+						"type": "array"
+					},
+					"parts":
+					{
+						"default": 0,
+						"description": "Number of lots (0 = from lot_width).",
+						"type": "integer"
+					},
+					"seed":
+					{
+						"default": -1,
+						"description": "Random seed (-1 = random).",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"id"
+				],
+				"type": "object"
+			},
+			"name": "gis.subdivide_plot",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The new plot ids.",
+						"properties":
+						{
+							"ids":
+							{
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "GisIds",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}

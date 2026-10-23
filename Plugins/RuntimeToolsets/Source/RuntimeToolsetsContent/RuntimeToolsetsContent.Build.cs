@@ -9,7 +9,7 @@ public class RuntimeToolsetsContent : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities",
-			"GeometryCore", "GeometryFramework", "GeometryScriptingCore", "RenderCore"
+			"GeometryCore", "GeometryFramework", "GeometryScriptingCore", "RenderCore", "MeshConversion", "MeshDescription", "StaticMeshDescription"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

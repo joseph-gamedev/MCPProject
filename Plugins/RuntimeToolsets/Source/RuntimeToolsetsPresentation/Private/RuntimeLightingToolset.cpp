@@ -1,6 +1,7 @@
 #include "RuntimeLightingToolset.h"
 #include "HAL/IConsoleManager.h"
 #include "PresentationToolCall.h"
+#include "RuntimeSkyToolset.h"
 #include "RuntimeCommand.h"
 #include "RuntimeCommonCommands.h"
 #include "RuntimeJson.h"
@@ -664,6 +665,21 @@ namespace RtLight
 	}
 }
 
+namespace RtLight
+{
+	/** True (and the call fails with a pointer to the sky tools) when Ultra Dynamic Sky drives this part of the lighting. */
+	static bool SkyOwns(const TCHAR* What, const TCHAR* Instead)
+	{
+		if (RuntimeSky::ActiveSky(RuntimeToolCall::GetWorld()))
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::WrongState, FString::Printf(TEXT("Ultra Dynamic Sky controls the %s in this level"), What),
+				FString::Printf(TEXT("Use %s (or sky.remove to go back to the level's own lighting)"), Instead));
+			return true;
+		}
+		return false;
+	}
+}
+
 FRuntimeEnvironment URuntimeLightingToolset::GetEnvironment()
 {
 	using namespace RtLight;
@@ -683,6 +699,10 @@ FRuntimeSunInfo URuntimeLightingToolset::SetSun(const FRotator& Rotation, const 
 	const float& SourceAngle, const float& SoftSourceAngle, AActor* Target)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("sun"), TEXT("sky.set_time (sun position) and sky.set_sky (brightness)")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("intensity"), Intensity, 0.f, 1000000.f) || !InRange(TEXT("temperature"), Temperature, 1700.f, 12000.f)
 		|| !InRange(TEXT("source_angle"), SourceAngle, 0.f, 90.f) || !InRange(TEXT("soft_source_angle"), SoftSourceAngle, 0.f, 90.f))
 	{
@@ -719,6 +739,10 @@ FRuntimeSunInfo URuntimeLightingToolset::SetSun(const FRotator& Rotation, const 
 FRuntimeSkyLightInfo URuntimeLightingToolset::SetSky(const float& Intensity, const FLinearColor& Color)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("sky light"), TEXT("sky.set_sky brightness")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("intensity"), Intensity, 0.f, 1000.f))
 	{
 		return {};
@@ -742,6 +766,10 @@ FRuntimeSkyLightInfo URuntimeLightingToolset::SetSky(const float& Intensity, con
 FRuntimeFogInfo URuntimeLightingToolset::SetFog(const float& Density, const float& HeightFalloff, const float& StartDistance, const FLinearColor& Color, const bool& bVolumetric)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("fog"), TEXT("sky.set_weather_values fog or sky.set_weather foggy")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("density"), Density, 0.f, 10.f) || !InRange(TEXT("height_falloff"), HeightFalloff, 0.f, 10.f)
 		|| !InRange(TEXT("start_distance"), StartDistance, 0.f, 10000000.f))
 	{
@@ -770,6 +798,10 @@ FRuntimeAtmosphereInfo URuntimeLightingToolset::SetAtmosphere(const FLinearColor
 	const float& MieAnisotropy, const float& MultiScatteringFactor)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("atmosphere"), TEXT("sky.set_time and sky.set_sky")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("rayleigh_scattering_scale"), RayleighScatteringScale, 0.f, 2.f) || !InRange(TEXT("mie_scattering_scale"), MieScatteringScale, 0.f, 5.f)
 		|| !InRange(TEXT("mie_anisotropy"), MieAnisotropy, 0.f, 0.999f) || !InRange(TEXT("multi_scattering_factor"), MultiScatteringFactor, 0.f, 2.f))
 	{
@@ -798,6 +830,10 @@ FRuntimeCloudInfo URuntimeLightingToolset::SetClouds(const float& Coverage, cons
 	const float& SkyLightOcclusion, const bool& bCastShadows, const float& ShadowStrength)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("clouds"), TEXT("sky.set_weather_values cloud_coverage or sky.set_sky sky_mode")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("coverage"), Coverage, -1.f, 1.f) || !InRange(TEXT("density"), Density, 0.f, 10.f) || !InRange(TEXT("bottom_altitude_km"), BottomAltitudeKm, 0.f, 50.f)
 		|| !InRange(TEXT("layer_height_km"), LayerHeightKm, 0.1f, 50.f) || !InRange(TEXT("sky_light_occlusion"), SkyLightOcclusion, 0.f, 1.f)
 		|| !InRange(TEXT("shadow_strength"), ShadowStrength, 0.f, 1.f))
@@ -861,6 +897,11 @@ FRuntimePostProcessInfo URuntimeLightingToolset::SetPostProcess(const float& Exp
 	const float& Saturation, const float& Contrast, const float& Vignette, const float& WhiteBalance)
 {
 	using namespace RtLight;
+	if ((Passed(TEXT("exposure_bias")) || Passed(TEXT("exposure_min")) || Passed(TEXT("exposure_max"))) &&
+		SkyOwns(TEXT("exposure"), TEXT("sky.set_sky brightness (bloom, saturation, contrast, vignette and white balance still work here)")))
+	{
+		return {};
+	}
 	if (!InRange(TEXT("exposure_bias"), ExposureBias, -15.f, 15.f) || !InRange(TEXT("exposure_min"), ExposureMin, -15.f, 25.f) || !InRange(TEXT("exposure_max"), ExposureMax, -15.f, 25.f)
 		|| !InRange(TEXT("bloom"), Bloom, 0.f, 8.f) || !InRange(TEXT("saturation"), Saturation, 0.f, 2.f) || !InRange(TEXT("contrast"), Contrast, 0.f, 2.f)
 		|| !InRange(TEXT("vignette"), Vignette, 0.f, 1.f) || !InRange(TEXT("white_balance"), WhiteBalance, 1500.f, 15000.f))
@@ -898,6 +939,10 @@ FRuntimePostProcessInfo URuntimeLightingToolset::SetPostProcess(const float& Exp
 FRuntimeTimeOfDay URuntimeLightingToolset::SetTimeOfDay(float Hour, const float& Yaw, AActor* Target)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("time of day"), TEXT("sky.set_time")))
+	{
+		return {};
+	}
 	if (Hour < 0.f || Hour > 24.f)
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, FString::Printf(TEXT("hour %g is outside 0-24"), Hour));
@@ -930,6 +975,10 @@ FRuntimeTimeOfDay URuntimeLightingToolset::SetTimeOfDay(float Hour, const float&
 FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 {
 	using namespace RtLight;
+	if (SkyOwns(TEXT("lighting mood"), TEXT("sky.set_time and sky.set_weather")))
+	{
+		return {};
+	}
 	struct FMood
 	{
 		double Hour;

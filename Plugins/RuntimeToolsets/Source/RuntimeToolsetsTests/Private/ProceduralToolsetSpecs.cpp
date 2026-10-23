@@ -9,6 +9,8 @@
 #include "Components/SplineComponent.h"
 #include "GameFramework/Actor.h"
 
+static int32 GisRound(double V) { return static_cast<int32>(FMath::RoundToDouble(V)); }
+
 BEGIN_DEFINE_SPEC(FProceduralToolsetSpec, "RuntimeToolsets.Toolsets.Procedural", RUNTIMETOOLSETS_TEST_FLAGS)
 	TUniquePtr<FToolTestHarness> H;
 	AActor* NodeActor(const FString& Id)
@@ -166,6 +168,64 @@ void FProceduralToolsetSpec::Define()
 		}
 		TestEqual(TEXT("nothing on the roof"), OnRoof, 0);
 		TestTrue(FString::Printf(TEXT("the open ground is planted (%d)"), Planted), Planted >= 10);
+	});
+	It("gis: random plots with street frontage, own polygons, queries, subdivide, merge, export", [this]()
+	{
+		const TSharedPtr<FJsonObject> C = Ret(TEXT("gis.create_plots"), TEXT(R"J({"size":[30000,20000],"layout":"Grid","seed":3})J"));
+		const int32 N = static_cast<int32>(C->GetNumberField(TEXT("plots")));
+		TestTrue(FString::Printf(TEXT("random land has lots (%d) on blocks (%d)"), N, static_cast<int32>(C->GetNumberField(TEXT("blocks")))),
+			N > 20 && C->GetNumberField(TEXT("blocks")) >= 4);
+		int32 Fronting = 0;
+		const TArray<TSharedPtr<FJsonValue>> All = Ret(TEXT("gis.list_plots"), TEXT(R"J({"limit":2000})J"))->GetArrayField(TEXT("plots"));
+		for (const TSharedPtr<FJsonValue>& V : All)
+		{
+			Fronting += V->AsObject()->GetNumberField(TEXT("street_edges")) > 0 ? 1 : 0;
+		}
+		TestTrue(FString::Printf(TEXT("lots face a street (%d of %d)"), Fronting, All.Num()), Fronting >= All.Num() * 9 / 10);
+
+		// an L-shaped (concave) plot given clockwise, with one street edge and attributes
+		H->CallOk(TEXT("gis.add_plots"), TEXT(R"J({"replace":true,"plots":[{"id":"L1","zoning":"commercial","props":{"levels":5},"street_edges":[0],
+			"polygon":[[0,0,0],[0,2000,0],[1000,2000,0],[1000,1000,0],[2000,1000,0],[2000,0,0]]}]})J"));
+		const TSharedPtr<FJsonObject> L = Ret(TEXT("gis.get_plot"), TEXT(R"J({"id":"L1"})J"));
+		TestEqual(TEXT("area of the L (m2)"), GisRound(L->GetNumberField(TEXT("area_m2"))), 300);
+		TestFalse(TEXT("the L is not convex"), L->GetBoolField(TEXT("convex")));
+		int32 Streets = 0;
+		for (const TSharedPtr<FJsonValue>& E : L->GetArrayField(TEXT("edges")))
+		{
+			Streets += E->AsObject()->GetBoolField(TEXT("street")) ? 1 : 0;
+		}
+		TestEqual(TEXT("one street edge survives the reorientation"), Streets, 1);
+		const TSharedPtr<FJsonObject> Front = L->GetArrayField(TEXT("edges"))[static_cast<int32>(L->GetNumberField(TEXT("front")))]->AsObject();
+		TestTrue(TEXT("the front is the street edge"), Front->GetBoolField(TEXT("street")));
+		TestEqual(TEXT("attributes kept"), static_cast<int32>(L->GetObjectField(TEXT("props"))->GetNumberField(TEXT("levels"))), 5);
+		TestEqual(TEXT("find by point inside the L"), Ret(TEXT("gis.find_plot"), TEXT(R"J({"location":[500,500,0]})J"))->GetStringField(TEXT("id")), FString(TEXT("L1")));
+		H->CallFails(TEXT("gis.find_plot"), TEXT(R"J({"location":[1500,1500,0]})J"), ERuntimeToolError::NotFound);
+
+		// a rectangle cut into 4 lots along its street, two merged back
+		H->CallOk(TEXT("gis.add_plots"), TEXT(R"J({"plots":[{"id":"R1","street_edges":[0],"polygon":[[0,3000,0],[4000,3000,0],[4000,4600,0],[0,4600,0]]}]})J"));
+		const TArray<TSharedPtr<FJsonValue>> Lots = Ret(TEXT("gis.subdivide_plot"), TEXT(R"J({"id":"R1","parts":4})J"))->GetArrayField(TEXT("ids"));
+		TestEqual(TEXT("four lots"), Lots.Num(), 4);
+		for (const TSharedPtr<FJsonValue>& Id : Lots)
+		{
+			const TSharedPtr<FJsonObject> I = Ret(TEXT("gis.get_plot"), FString::Printf(TEXT(R"J({"id":"%s"})J"), *Id->AsString()));
+			TestEqual(TEXT("each lot is a quarter (m2)"), GisRound(I->GetNumberField(TEXT("area_m2"))), 160);
+			bool bStreet = false;
+			for (const TSharedPtr<FJsonValue>& E : I->GetArrayField(TEXT("edges")))
+			{
+				bStreet |= E->AsObject()->GetBoolField(TEXT("street"));
+			}
+			TestTrue(TEXT("each lot keeps street frontage"), bStreet);
+		}
+		const FString Merged = Ret(TEXT("gis.merge_plots"), FString::Printf(TEXT(R"J({"ids":["%s","%s"]})J"), *Lots[0]->AsString(), *Lots[1]->AsString()))
+			->GetArrayField(TEXT("ids"))[0]->AsString();
+		TestEqual(TEXT("merged lot (m2)"), GisRound(Ret(TEXT("gis.get_plot"), FString::Printf(TEXT(R"J({"id":"%s"})J"), *Merged))->GetNumberField(TEXT("area_m2"))), 320);
+		Ret(TEXT("gis.set_plot"), TEXT(R"J({"id":"L1","zoning":"civic","props":{"name":"Town hall"}})J"));
+		TestEqual(TEXT("filter by zoning"), static_cast<int32>(Ret(TEXT("gis.list_plots"), TEXT(R"J({"zoning":"civic"})J"))->GetNumberField(TEXT("total"))), 1);
+		Ret(TEXT("gis.set_origin"), TEXT(R"J({"latitude":24.49,"longitude":54.6})J"));
+		const TSharedPtr<FJsonObject> Fc = H->CallOk(TEXT("gis.export_geo_json"), TEXT("{}"))->GetObjectField(TEXT("returnValue"));
+		TestEqual(TEXT("export has every plot (L1, two lots, the merged lot)"), Fc->GetArrayField(TEXT("features")).Num(), 4);
+		H->CallOk(TEXT("gis.delete_plots"), TEXT(R"J({"all":true})J"));
+		TestEqual(TEXT("all plots deleted"), static_cast<int32>(Ret(TEXT("gis.list_plots"), TEXT("{}"))->GetNumberField(TEXT("total"))), 0);
 	});
 }
 

@@ -6,7 +6,7 @@ Creates the RuntimeToolsets builder materials in the plugin's content folder (ed
 /RuntimeToolsets/Materials/M_RT_PBR    opaque PBR with world-projected procedural surfaces (no UVs needed):
                                        Color, Roughness, Metallic, Specular, Emissive + EmissiveStrength,
                                        Style (0 smooth, 1 brick, 2 blocks, 3 marble, 4 plaster, 5 concrete, 6 roof tiles,
-                                       7 planks, 8 brushed metal, 9 ground), TileCm, Relief (bump cm), Variation,
+                                       7 planks, 8 brushed metal, 9 ground, 10 windows, 11 curtain wall; TileCm = storey height for 10-11), TileCm, Relief (bump cm), Variation,
                                        PartWeathering (0..1, -1 = scene Weathering): dirt, streaks, dust; per-object tint jitter
 /RuntimeToolsets/Materials/M_RT_Glass  translucent glass: Color, Opacity, Roughness, Metallic
 """
@@ -145,6 +145,35 @@ struct RTSurface
             float b = VNoise(float2(uv.x / tile * 0.5, uv.y / tile * 60.0));
             return float4(1.0 + (b - 0.5) * 0.12 + (big - 0.5) * var, 1.0 + (b - 0.5) * 0.5, b * 0.2, 0.0);
         }
+        if (style > 10.5)
+        {
+            // curtain wall: glass with slim mullions every ~1.5 m and an opaque band at each floor (tile = storey height)
+            float2 q = uv / float2(tile * 0.45, tile);
+            float2 f = frac(q);
+            id = floor(q);
+            float mul = 1.0 - smoothstep(0.0, max(fwidth(f.x), 1e-4) * 1.5, min(f.x, 1.0 - f.x) - 0.025);
+            float band = 1.0 - smoothstep(0.0, max(fwidth(f.y), 1e-4) * 1.5, min(f.y, 1.0 - f.y) - 0.07);
+            float frame = max(mul, band);
+            float pane = 0.9 + 0.2 * H21(id);
+            return float4(lerp(0.55 * pane, 1.0, frame), lerp(0.08, 1.0, frame), frame, frame);
+        }
+        if (style > 9.5)
+        {
+            // punched windows: one per bay per storey (tile = storey height), shopfronts on the ground floor
+            float bay = tile * 1.05;
+            float2 q = float2(uv.x / bay, uv.y / tile);
+            id = floor(q);
+            float2 f = frac(q);
+            bool shop = uv.y < tile * 1.25;
+            float2 lo = shop ? float2(0.04, 0.06) : float2(0.2, 0.3);
+            float2 hi = shop ? float2(0.96, 0.82) : float2(0.8, 0.86);
+            float2 d = min(f - lo, hi - f);
+            float2 w = max(fwidth(q) * 1.5, 1e-4);
+            float win = smoothstep(0.0, w.x, d.x) * smoothstep(0.0, w.y, d.y);
+            float sill = (!shop && f.y < lo.y && f.y > lo.y - 0.05 && f.x > lo.x - 0.03 && f.x < hi.x + 0.03) ? 1.0 : 0.0;
+            float glass = 0.07 + 0.12 * H21(id + 0.37);
+            return float4(lerp(1.0 + (n - 0.5) * var + sill * 0.25, glass, win), lerp(1.0, 0.1, win), 1.0 - win * 0.9, sill * 0.5);
+        }
         float g = Fbm(uv / tile * 8.0);
         return float4(1.0 + (n - 0.5) * var * 3.0 + (g - 0.5) * var * 2.0, 1.0 + (g - 0.5) * 0.2, n * 0.6 + g * 0.4, 0.0);
     }
@@ -163,7 +192,9 @@ RTSurface S;
 float3 nrm = normalize(N);
 float3 an = abs(nrm);
 float2 uv = an.z > 0.7 ? P.xy : (an.x > an.y ? P.yz : P.xz);
-float4 sv = S.Eval(uv, Style, max(Tile, 1.0), Variation);
+// window styles only on walls: roofs and floors get the plain surface
+float st = (Style > 9.5 && an.z > 0.7) ? 0.0 : Style;
+float4 sv = S.Eval(uv, st, max(Tile, 1.0), Variation);
 // per-object random value (object position): every building/prop differs a little in colour and roughness
 float objR = S.H21(Obj.xy * 0.00731 + Obj.z * 0.00517 + 3.1);
 float W = saturate(PartWeathering >= 0.0 ? PartWeathering : Weathering);
@@ -271,6 +302,40 @@ def surface_node(mat, mode, x, y, sources):
     return node
 
 
+def vertex_or(mat, param, channel, x, y):
+    """lerp(param, the part's own value, UseVertexColor): assemblies carry each part's linear colour in UV1 (r, g) and
+    UV2 (b, roughness), so parts that differ only in colour or roughness share one material section."""
+    tc1 = lib.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, x - 500, y + 40)
+    tc1.set_editor_property("coordinate_index", 1)
+    tc2 = lib.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, x - 500, y + 120)
+    tc2.set_editor_property("coordinate_index", 2)
+    use = scalar(mat, "UseVertexColor", 0.0, x - 400, y + 200)
+    mix = lib.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, x, y)
+    if channel == "rgb":
+        mask = lib.create_material_expression(mat, unreal.MaterialExpressionComponentMask, x - 250, y - 60)
+        for c, v in zip("rgba", (True, True, True, False)):
+            mask.set_editor_property(c, v)
+        lib.connect_material_expressions(param, "", mask, "")
+        b = lib.create_material_expression(mat, unreal.MaterialExpressionComponentMask, x - 350, y + 120)
+        for c, v in zip("rgba", (True, False, False, False)):
+            b.set_editor_property(c, v)
+        lib.connect_material_expressions(tc2, "", b, "")
+        rgb = lib.create_material_expression(mat, unreal.MaterialExpressionAppendVector, x - 250, y + 60)
+        lib.connect_material_expressions(tc1, "", rgb, "A")
+        lib.connect_material_expressions(b, "", rgb, "B")
+        lib.connect_material_expressions(mask, "", mix, "A")
+        lib.connect_material_expressions(rgb, "", mix, "B")
+    else:
+        g = lib.create_material_expression(mat, unreal.MaterialExpressionComponentMask, x - 350, y + 120)
+        for c, v in zip("rgba", (False, True, False, False)):
+            g.set_editor_property(c, v)
+        lib.connect_material_expressions(tc2, "", g, "")
+        lib.connect_material_expressions(param, "", mix, "A")
+        lib.connect_material_expressions(g, "", mix, "B")
+    lib.connect_material_expressions(use, "", mix, "Alpha")
+    return mix
+
+
 def build_pbr(mpc):
     mat = fresh_material("M_RT_PBR")
     mat.set_editor_property("tangent_space_normal", False)
@@ -279,7 +344,7 @@ def build_pbr(mpc):
     sources = {
         "P": world,
         "N": normal,
-        "Color": vector(mat, "Color", (0.8, 0.8, 0.8, 1.0), -1500, -300),
+        "Color": vertex_or(mat, vector(mat, "Color", (0.8, 0.8, 0.8, 1.0), -1900, -300), "rgb", -1500, -300),
         "Style": scalar(mat, "Style", 0.0, -1500, 300),
         "Tile": scalar(mat, "TileCm", 100.0, -1500, 400),
         "Relief": scalar(mat, "Relief", 0.0, -1500, 500),
@@ -296,7 +361,7 @@ def build_pbr(mpc):
     nrm = surface_node(mat, "normal", -900, 300, sources)
     lib.connect_material_property(albedo, "", unreal.MaterialProperty.MP_BASE_COLOR)
     rmul = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -500, 50)
-    lib.connect_material_expressions(scalar(mat, "Roughness", 0.5, -700, 0), "", rmul, "A")
+    lib.connect_material_expressions(vertex_or(mat, scalar(mat, "Roughness", 0.5, -1000, 0), "a", -700, 0), "", rmul, "A")
     lib.connect_material_expressions(rough, "", rmul, "B")
     rsat = lib.create_material_expression(mat, unreal.MaterialExpressionSaturate, -350, 50)
     lib.connect_material_expressions(rmul, "", rsat, "")

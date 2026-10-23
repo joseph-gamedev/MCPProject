@@ -4,6 +4,10 @@
 #include "RuntimeToolsetsSettings.h"
 #include "Components/DynamicMeshComponent.h"
 #include "DynamicMeshActor.h"
+#include "DynamicMeshToMeshDescription.h"
+#include "StaticMeshAttributes.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "AI/NavigationSystemBase.h"
 #include "GeometryScript/CollisionFunctions.h"
@@ -111,7 +115,7 @@ namespace RuntimePrimitives
 	const TArray<FString>& StyleNames()
 	{
 		static const TArray<FString> Names = {TEXT("smooth"), TEXT("brick"), TEXT("blocks"), TEXT("marble"), TEXT("plaster"), TEXT("concrete"),
-			TEXT("roof_tiles"), TEXT("planks"), TEXT("brushed"), TEXT("ground")};
+			TEXT("roof_tiles"), TEXT("planks"), TEXT("brushed"), TEXT("ground"), TEXT("windows"), TEXT("curtain")};
 		return Names;
 	}
 
@@ -1176,7 +1180,12 @@ namespace RuntimePrimitives
 	}
 
 	/** Effective material fields of each part (part fields override the assembly's) and the unique set. */
-	static void CollectAssemblyMaterials(const TSharedRef<FJsonObject>& Recipe, TArray<TSharedRef<FJsonObject>>& OutMaterials, TArray<int32>& OutPartSlot)
+	/** Material slots of an assembly. With vertex colours (the default; "vertex_colors": false turns it off) a part's colour
+	 *  and roughness go into its vertices (OutPartColor: linear RGB + roughness), so parts that differ only in those share
+	 *  one section: a city block is a few draw calls instead of one per colour. Glass, emissive parts and unknown
+	 *  materials keep their own colour in the material. */
+	static void CollectAssemblyMaterials(const TSharedRef<FJsonObject>& Recipe, TArray<TSharedRef<FJsonObject>>& OutMaterials, TArray<int32>& OutPartSlot,
+		TArray<FLinearColor>* OutPartColor = nullptr)
 	{
 		TMap<FString, int32> Seen;
 		const TArray<TSharedPtr<FJsonValue>>* Parts = nullptr;
@@ -1184,6 +1193,8 @@ namespace RuntimePrimitives
 		{
 			return;
 		}
+		bool bVertexColors = true;
+		Recipe->TryGetBoolField(TEXT("vertex_colors"), bVertexColors);
 		for (const TSharedPtr<FJsonValue>& V : *Parts)
 		{
 			const TSharedPtr<FJsonObject>* Part = nullptr;
@@ -1200,6 +1211,27 @@ namespace RuntimePrimitives
 				{
 					M->SetField(F, Val);
 				}
+			}
+			FLinearColor PartColor(1, 1, 1, -1);
+			if (bVertexColors)
+			{
+				FString Name = TEXT("white");
+				M->TryGetStringField(TEXT("material"), Name);
+				const FPreset* Preset = Presets().FindByPredicate([&Name](const FPreset& P) { return P.Name == Name; });
+				const bool bEmissive = M->HasField(TEXT("emissive")) || M->HasField(TEXT("emissive_strength")) || (Preset && Preset->Emissive > 0.f);
+				if (Preset && !Preset->bGlass && !bEmissive && Name != TEXT("water") && Name != TEXT("terrain"))
+				{
+					FVector C;
+					PartColor = RuntimeJson::ToVector(M->TryGetField(TEXT("color")), C) ? FLinearColor(C.X, C.Y, C.Z) : Preset->Color;
+					PartColor.A = static_cast<float>(M->HasField(TEXT("roughness")) ? M->GetNumberField(TEXT("roughness")) : Preset->Roughness);
+					M->RemoveField(TEXT("color"));
+					M->RemoveField(TEXT("roughness"));
+					M->SetBoolField(TEXT("vertex_color"), true);
+				}
+			}
+			if (OutPartColor)
+			{
+				OutPartColor->Add(PartColor);
 			}
 			const FString Key = RuntimeJson::Write(M);
 			if (const int32* Slot = Seen.Find(Key))
@@ -1219,6 +1251,9 @@ namespace RuntimePrimitives
 		return Recipe->TryGetStringField(TEXT("shape"), Shape) && Shape == TEXT("assembly");
 	}
 
+	/** Parts smaller than this (cm; windows, mullions, fins, railings, trims) are left out of an assembly's far version. */
+	static constexpr float SmallPartCm = 320.f;
+
 	static bool BuildAssembly(UDynamicMesh* Mesh, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Parts = nullptr;
@@ -1230,12 +1265,15 @@ namespace RuntimePrimitives
 		GAssemblySimple.EmptyElements();
 		TArray<TSharedRef<FJsonObject>> Materials;
 		TArray<int32> PartSlot;
-		CollectAssemblyMaterials(Recipe, Materials, PartSlot);
+		TArray<FLinearColor> PartColor;
+		CollectAssemblyMaterials(Recipe, Materials, PartSlot, &PartColor);
 		UDynamicMesh* Accum = NewObject<UDynamicMesh>();
 		Accum->EditMesh([](UE::Geometry::FDynamicMesh3& M) { M.EnableAttributes(); }, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
 		UGeometryScriptLibrary_MeshMaterialFunctions::EnableMaterialIDs(Accum);
 		UDynamicMesh* Temp = NewObject<UDynamicMesh>();
 		TArray<int32> TriPart;
+		TArray<float> PartSize;  // largest dimension of each part (cm): small parts drop out of the far version
+		PartSize.Init(0.f, Parts->Num());
 		for (int32 i = 0; i < Parts->Num(); ++i)
 		{
 			const TSharedPtr<FJsonObject>* PartObj = nullptr;
@@ -1268,6 +1306,7 @@ namespace RuntimePrimitives
 					AppendBoxDirect(M, Size, bCenter, BoxBevel(Part, Size), T, PartSlot[i], &TriPart, i);
 				}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
 				const FVector World = Size * T.GetScale3D().GetAbs();
+				PartSize[i] = static_cast<float>(World.GetMax());
 				if (World.GetMax() >= 20.0 && GAssemblySimple.BoxElems.Num() < 1024)
 				{
 					FKBoxElem Box(World.X, World.Y, World.Z);
@@ -1291,6 +1330,10 @@ namespace RuntimePrimitives
 			UGeometryScriptLibrary_MeshMaterialFunctions::ClearMaterialIDs(Temp, PartSlot[i]);
 			// Collision: the part's own box, placed like the part. Small trims (frames, sills) need none.
 			const UE::Geometry::FAxisAlignedBox3d PartBox = Temp->GetMeshRef().GetBounds();
+			if (!PartBox.IsEmpty())
+			{
+				PartSize[i] = static_cast<float>((FVector(PartBox.Diagonal()) * T.GetScale3D().GetAbs()).GetMax());
+			}
 			if (!PartBox.IsEmpty() && GAssemblySimple.BoxElems.Num() < 1024)
 			{
 				const FVector Size = FVector(PartBox.Diagonal()) * T.GetScale3D().GetAbs();
@@ -1323,6 +1366,55 @@ namespace RuntimePrimitives
 		{
 			Separated = SeparateCoplanar(Accum->GetMeshRef(), TriPart);
 		}
+		// part colours: linear RGB in UV1 (r, g) and UV2 (b, roughness), one element per part shared by its triangles. The
+		// builder materials are world-projected (no UVs needed), so these channels are free; "UseVertexColor" reads them.
+		if (PartColor.ContainsByPredicate([](const FLinearColor& C) { return C.A >= 0.f; }))
+		{
+			Accum->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+			{
+				if (M.Attributes()->NumUVLayers() < 3)
+				{
+					M.Attributes()->SetNumUVLayers(3);
+				}
+				UE::Geometry::FDynamicMeshUVOverlay* U1 = M.Attributes()->GetUVLayer(1);
+				UE::Geometry::FDynamicMeshUVOverlay* U2 = M.Attributes()->GetUVLayer(2);
+				// overlay elements belong to one vertex each: one element per vertex (a vertex belongs to one part)
+				TArray<FIntPoint> VertexElement;
+				VertexElement.Init(FIntPoint(-1, -1), M.MaxVertexID());
+				for (const int32 T : M.TriangleIndicesItr())
+				{
+					const int32 Part = TriPart.IsValidIndex(T) ? TriPart[T] : -1;
+					FLinearColor C(1.f, 1.f, 1.f, 0.6f);
+					if (Part >= 0 && PartColor.IsValidIndex(Part) && PartColor[Part].A >= 0.f)
+					{
+						C = PartColor[Part];
+					}
+					const UE::Geometry::FIndex3i Tri = M.GetTriangle(T);
+					UE::Geometry::FIndex3i E1, E2;
+					for (int32 k = 0; k < 3; ++k)
+					{
+						FIntPoint& E = VertexElement[Tri[k]];
+						if (E.X < 0)
+						{
+							E = FIntPoint(U1->AppendElement(FVector2f(C.R, C.G)), U2->AppendElement(FVector2f(C.B, C.A)));
+						}
+						E1[k] = E.X;
+						E2[k] = E.Y;
+					}
+					U1->SetTriangle(T, E1);
+					U2->SetTriangle(T, E2);
+				}
+			}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
+		}
+		Accum->EditMesh([&](UE::Geometry::FDynamicMesh3& M)
+		{
+			M.EnableTriangleGroups(0);
+			for (const int32 T : M.TriangleIndicesItr())
+			{
+				const int32 Part = TriPart.IsValidIndex(T) ? TriPart[T] : -1;
+				M.SetTriangleGroup(T, Part >= 0 && PartSize[Part] < SmallPartCm ? 1 : 0);
+			}
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
 		GAssemblyStats.Parts = Parts->Num();
 		GAssemblyStats.Triangles = Accum->GetTriangleCount();
 		GAssemblyStats.Materials = Materials.Num();
@@ -1481,6 +1573,11 @@ namespace RuntimePrimitives
 				MID->SetVectorParameterValue(TEXT("ScanTint"), bColor ? FLinearColor(Ratio(Color.R, ScanRef.R), Ratio(Color.G, ScanRef.G),
 					Ratio(Color.B, ScanRef.B)) : FLinearColor::White);
 				MID->SetTextureParameterValue(TEXT("ScanColor"), Scan->Color.Get());
+				bool bVertexColor = false;
+				Recipe->TryGetBoolField(TEXT("vertex_color"), bVertexColor);
+				MID->SetScalarParameterValue(TEXT("UseVertexColor"), bVertexColor ? 1.f : 0.f);
+				MID->SetVectorParameterValue(TEXT("ScanRef"), ScanRef);
+				MID->SetScalarParameterValue(TEXT("RoughRef"), FMath::Max(Preset->Roughness, 0.05f));
 				if (Scan->Normal.IsValid()) MID->SetTextureParameterValue(TEXT("ScanNormal"), Scan->Normal.Get());
 				if (Scan->Rough.IsValid()) MID->SetTextureParameterValue(TEXT("ScanRough"), Scan->Rough.Get());
 				if (Scan->AO.IsValid()) MID->SetTextureParameterValue(TEXT("ScanAO"), Scan->AO.Get());
@@ -1507,6 +1604,9 @@ namespace RuntimePrimitives
 			MID->SetVectorParameterValue(TEXT("Color"), Color);
 			if (bPbr)
 			{
+				bool bVertexColor = false;
+				Recipe->TryGetBoolField(TEXT("vertex_color"), bVertexColor);
+				MID->SetScalarParameterValue(TEXT("UseVertexColor"), bVertexColor && !Preset->bGlass ? 1.f : 0.f);
 				MID->SetScalarParameterValue(TEXT("Roughness"), static_cast<float>(Num(Recipe, TEXT("roughness"), Preset->Roughness)));
 				MID->SetScalarParameterValue(TEXT("Metallic"), static_cast<float>(Num(Recipe, TEXT("metallic"), Preset->Metallic)));
 				MID->SetScalarParameterValue(TEXT("Variation"), static_cast<float>(Num(Recipe, TEXT("variation"), Preset->Variation)));
@@ -1575,6 +1675,124 @@ namespace RuntimePrimitives
 		return true;
 	}
 
+	/** Assemblies render as a runtime static mesh (static draw path, per-part colours in UV channels 1-2) built from the
+	 *  dynamic mesh, which stays as the editable source and the collision but is not drawn. Rebuilt whenever the
+	 *  assembly or its materials change. */
+	static UStaticMesh* MakeStatic(UObject* Outer, const UE::Geometry::FDynamicMesh3& M, const TArray<UMaterialInterface*>& Materials)
+	{
+		FMeshDescription MD;
+		FStaticMeshAttributes Attr(MD);
+		Attr.Register();
+		FDynamicMeshToMeshDescription Conv;
+		Conv.Convert(&M, MD, false);
+		if (MD.Triangles().Num() == 0)
+		{
+			return nullptr;
+		}
+		UStaticMesh* SM = NewObject<UStaticMesh>(Outer, NAME_None, RF_Transient);
+		TPolygonGroupAttributesRef<FName> SlotNames = Attr.GetPolygonGroupMaterialSlotNames();
+		for (const FPolygonGroupID G : MD.PolygonGroups().GetElementIDs())
+		{
+			const FName Slot(*FString::Printf(TEXT("Slot%d"), G.GetValue()));
+			SlotNames[G] = Slot;
+			SM->GetStaticMaterials().Add(FStaticMaterial(Materials.IsValidIndex(G.GetValue()) ? Materials[G.GetValue()] : nullptr, Slot));
+		}
+		UStaticMesh::FBuildMeshDescriptionsParams P;
+		P.bFastBuild = true;
+		P.bBuildSimpleCollision = false;
+		P.bCommitMeshDescription = false;
+		P.bMarkPackageDirty = false;
+		P.bUseHashAsGuid = true;
+		P.bAllowCpuAccess = false;
+		return SM->BuildFromMeshDescriptions({&MD}, P) ? SM : nullptr;
+	}
+
+	static UStaticMeshComponent* AddStatic(ADynamicMeshActor* Actor, UStaticMesh* SM)
+	{
+		UDynamicMeshComponent* Comp = Actor->GetDynamicMeshComponent();
+		UStaticMeshComponent* SMC = NewObject<UStaticMeshComponent>(Actor, NAME_None, RF_Transient);
+		SMC->ComponentTags.Add(TEXT("RTBaked"));
+		SMC->SetMobility(Comp->Mobility);
+		SMC->SetupAttachment(Comp);
+		SMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SMC->SetCanEverAffectNavigation(false);
+		SMC->SetStaticMesh(SM);
+		for (int32 i = 0; i < SM->GetStaticMaterials().Num(); ++i)
+		{
+			SMC->SetMaterial(i, SM->GetStaticMaterials()[i].MaterialInterface);
+		}
+		return SMC;
+	}
+
+	/** Assemblies render as runtime static meshes (static draw path; per-part colours in UV channels 1-2) built from the
+	 *  dynamic mesh, which stays as the editable source and the collision but is not drawn. With enough small parts
+	 *  there are two: the full mesh near the camera and, beyond a distance that grows with the object's size, a far
+	 *  version without the small parts (windows, mullions, fins, railings). Rebuilt when the assembly or its
+	 *  materials change. */
+	static void BakeStatic(ADynamicMeshActor* Actor, const TArray<UMaterialInterface*>& Materials)
+	{
+		UDynamicMeshComponent* Comp = Actor->GetDynamicMeshComponent();
+		TArray<UStaticMeshComponent*> Old;
+		Actor->GetComponents(Old);
+		for (UStaticMeshComponent* C : Old)
+		{
+			if (C->ComponentHasTag(TEXT("RTBaked")))
+			{
+				C->DestroyComponent();
+			}
+		}
+		UStaticMesh* Near = nullptr;
+		UStaticMesh* Far = nullptr;
+		double Radius = 0.0;
+		Comp->ProcessMesh([&](const UE::Geometry::FDynamicMesh3& M)
+		{
+			Near = MakeStatic(Actor, M, Materials);
+			Radius = M.GetBounds().Extents().Length();
+			if (!M.HasTriangleGroups())
+			{
+				return;
+			}
+			int32 Small = 0;
+			for (const int32 T : M.TriangleIndicesItr())
+			{
+				Small += M.GetTriangleGroup(T) == 1 ? 1 : 0;
+			}
+			if (Small < M.TriangleCount() / 4)
+			{
+				return;  // little to gain
+			}
+			UE::Geometry::FDynamicMesh3 Coarse(M);
+			for (const int32 T : M.TriangleIndicesItr())
+			{
+				if (M.GetTriangleGroup(T) == 1)
+				{
+					Coarse.RemoveTriangle(T, true, false);
+				}
+			}
+			Far = MakeStatic(Actor, Coarse, Materials);
+		});
+		if (!Near)
+		{
+			Comp->SetVisibility(true, false);
+			return;
+		}
+		UStaticMeshComponent* N = AddStatic(Actor, Near);
+		if (Far)
+		{
+			// swap distance: 250 m for a house, more for big objects (distances are to the bounds centre)
+			const float Swap = static_cast<float>(25000.0 + Radius * 1.5);
+			N->LDMaxDrawDistance = Swap;
+			N->CachedMaxDrawDistance = Swap;
+			UStaticMeshComponent* F = AddStatic(Actor, Far);
+			F->MinDrawDistance = Swap;
+			F->RegisterComponent();
+			Actor->AddInstanceComponent(F);
+		}
+		N->RegisterComponent();
+		Actor->AddInstanceComponent(N);
+		Comp->SetVisibility(false, false);
+	}
+
 	bool ApplyMaterial(AActor* Actor, const TSharedRef<FJsonObject>& Recipe, FString& OutError)
 	{
 		ADynamicMeshActor* MeshActor = Cast<ADynamicMeshActor>(Actor);
@@ -1600,6 +1818,12 @@ namespace RuntimePrimitives
 				Set.Add(M);
 			}
 			Comp->ConfigureMaterialSet(Set);
+			bool bBake = true;  // "static": false keeps the dynamic mesh drawing (slower for big scenes)
+			Recipe->TryGetBoolField(TEXT("static"), bBake);
+			if (bBake)
+			{
+				BakeStatic(MeshActor, Set);
+			}
 			return true;
 		}
 		UMaterialInterface* Final = MakeMaterial(Recipe, Comp, OutError);

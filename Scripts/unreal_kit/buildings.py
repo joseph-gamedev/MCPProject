@@ -1102,13 +1102,20 @@ def building(kind="apartment", seed=None, width=None, depth=None, floors=None, s
       volumes on a lot (width x depth, front edge at y = 0, centred on x = 0) and every exposed face gets a facade.
       party: lot sides that touch neighbours and stay blank ("-x", "+x"); street: faces that get the shop / entrance
       ground floor and the main facade.
-    style: an architectural style (see STYLES, or "auto" to pick one that suits the type): materials, window system,
+    style: None / "auto" / "modern" = a contemporary building from big primitives (unreal_kit.modern: every type in
+      modern.KINDS: school, hospital, office_tower, hotel, mall, mosque, warehouse, ...); a historic style name (see STYLES): materials, window system,
       balconies, base, crown and roof. Implies massing="auto" unless a massing is given.
     detail: high (close-ups, every louvre and railing bar) | medium (streets, about half the parts) | low (districts
       seen from above or far away, about a quarter).
     seed: None = a new random building every call; pass a number to get the same one again.
     Returns parts."""
     global _LOD
+    from . import modern
+    if style in (None, "auto", "modern") and kind in modern.KINDS and massing in (None, "auto"):   # contemporary, from big primitives
+        parts = modern.building(kind, seed=seed, width=width, depth=depth, floors=floors, detail=detail, site=False)
+        LAST_MASSING.clear()
+        LAST_MASSING.update(massing=modern.LAST["form"], storeys=modern.LAST["storeys"], volumes=modern.LAST["volumes"])
+        return parts
     rng = random.Random(seed)
     old, _LOD = _LOD, DETAIL.get(detail, 2) if isinstance(detail, str) else int(detail)
     try:
@@ -1361,6 +1368,9 @@ def _put(P, parts, dirn, plane, u, z):
     P += transform(parts, *pos)
 
 
+LAST_MASSING = {}  # the last massed building: massing name, volumes and storeys (for checks)
+
+
 def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",), style=None):
     """Builds a building of type `kind` from a massing model (name in MASSINGS or "auto") in an architectural style
     (name in STYLES, "auto", or None for the type's plain recipe)."""
@@ -1377,7 +1387,7 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
     if massing in (None, "auto"):
         massing = rng.choice(KIND_MASSINGS.get(kind, ["block"]))
     gen = MASSINGS[massing]
-    n = len(plan["floors"])
+    n = int(floors) if floors else len(plan["floors"])         # asked-for floors win over the style's own count
     bar = rng.uniform(*_BAR.get(kind, (1100, 1400)))
     mw, md = _LOT.get(massing, (0, 0))
     # open space between wings: at least 12 m and ~0.7 x the building height (daylight in the court)
@@ -1392,6 +1402,18 @@ def massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, 
     if party is None:
         party = ("-x", "+x") if kind in ("townhouse", "shophouse") and massing in ("block", "T", "terraced") else ()
     V = gen(w, d, n, rng, min(bar, d))
+    if floors:
+        # exact height: no volume above n storeys (towers, crowns, +1 wings), and the tallest part reaches n
+        V = [v for v in V if v["f0"] < n]
+        for v in V:
+            v["n"] = max(1, min(v["n"], n - v["f0"]))
+        tallest = max(v["f0"] + v["n"] for v in V)
+        if tallest < n:
+            for v in V:
+                if v["f0"] + v["n"] == tallest:
+                    v["n"] += n - tallest
+    LAST_MASSING.clear()
+    LAST_MASSING.update(massing=massing, volumes=[dict(v) for v in V], storeys=max(v["f0"] + v["n"] for v in V))
     # one storey grid for the whole building: ground, the recipe's storeys, then its typical storey repeated
     pf = plan["floors"]
     typical = pf[-2] if len(pf) > 2 else (pf[1] if len(pf) > 1 else dict(pf[0], kind="window", balcony=None))
@@ -1893,3 +1915,171 @@ KIND_STYLES = {
     "shophouse": ["straits", "victorian", "mediterranean", "haussmann"],
     "villa": ["mediterranean", "modernist", "nordic"],
 }
+
+
+# ------------------------------------------------------------------ 6. any footprint (GIS plots, real building outlines)
+
+def _signed_area(pts):
+    return 0.5 * sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts)))
+
+
+def _is_convex(pts):
+    n, sign = len(pts), 0
+    for i in range(n):
+        ax, ay = pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]
+        bx, by = pts[(i + 2) % n][0] - pts[(i + 1) % n][0], pts[(i + 2) % n][1] - pts[(i + 1) % n][1]
+        c = ax * by - ay * bx
+        if abs(c) < 1e-6:
+            continue
+        s = 1 if c > 0 else -1
+        if sign and s != sign:
+            return False
+        sign = sign or s
+    return True
+
+
+def inset_polygon(pts, d):
+    """Shrinks a polygon (positive area) by d cm: exact offsets when convex, a scale toward the centre otherwise."""
+    n = len(pts)
+    if n < 3 or d <= 0:
+        return list(pts)
+    cx = sum(p[0] for p in pts) / n
+    cy = sum(p[1] for p in pts) / n
+    if not _is_convex(pts):
+        r = abs(_signed_area(pts)) ** 0.5
+        s = max(0.5, 1 - 2 * d / max(r, 1))
+        return [(cx + (p[0] - cx) * s, cy + (p[1] - cy) * s) for p in pts]
+    out = []
+    for i in range(n):
+        a0, a1, b1 = pts[i - 1], pts[i], pts[(i + 1) % n]
+        d1 = (a1[0] - a0[0], a1[1] - a0[1])
+        d2 = (b1[0] - a1[0], b1[1] - a1[1])
+        l1, l2 = math.hypot(*d1) or 1, math.hypot(*d2) or 1
+        d1, d2 = (d1[0] / l1, d1[1] / l1), (d2[0] / l2, d2[1] / l2)
+        n1, n2 = (-d1[1], d1[0]), (-d2[1], d2[0])               # inward normals (positive area)
+        p1 = (a0[0] + n1[0] * d, a0[1] + n1[1] * d)
+        p2 = (a1[0] + n2[0] * d, a1[1] + n2[1] * d)
+        den = d1[0] * d2[1] - d1[1] * d2[0]
+        if abs(den) < 1e-9:
+            out.append(p2)
+            continue
+        wx, wy = p2[0] - p1[0], p2[1] - p1[1]
+        t = (wx * d2[1] - wy * d2[0]) / den
+        out.append((p1[0] + d1[0] * t, p1[1] + d1[1] * t))
+    return out if _signed_area(out) > 0 else list(pts)
+
+
+def footprint(polygon, kind="apartment", style="auto", floors=None, height=None, seed=None, street_edges=None, detail="medium", roof=None,
+              wall=None):
+    """A building on ANY footprint polygon [[x, y(, z)], ...] in world cm (a GIS plot, a real building outline):
+    every edge gets a facade of the style (street_edges: indices of edges facing a street get the main facade with
+    shops and doors; None = the longest edge), roof flat with parapet (any shape) or hip / mansard (convex shapes).
+    floors or height (cm) set the size; detail "mass" = a quick massing block (thousands of plots at once).
+    Returns parts in world coordinates (place them at (0, 0, 0))."""
+    global _LOD
+    pts = [(float(p[0]), float(p[1])) for p in polygon]
+    zs = [float(p[2]) for p in polygon if len(p) > 2]
+    z0 = sum(zs) / len(zs) if zs else 0.0
+    if len(pts) > 3 and math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 1:
+        pts.pop()
+    n = len(pts)
+    edges = set(street_edges) if street_edges is not None else None
+    if _signed_area(pts) < 0:                                  # positive area: outward normal of edge (dx, dy) is (dy, -dx)
+        pts = pts[::-1]
+        if edges is not None:
+            edges = {(n - 2 - e) % n for e in edges}
+    lengths = [math.hypot(pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]) for i in range(n)]
+    if not edges:
+        edges = {max(range(n), key=lambda i: lengths[i])}
+    rng = random.Random(seed)
+    mass = detail == "mass"
+    old, _LOD = _LOD, (0 if mass else DETAIL.get(detail, 1) if isinstance(detail, str) else int(detail))
+    try:
+        plan, _w, _d, roof0, bay = _recipe(kind, rng, None, floors)
+        lang = {}
+        if style:
+            name = rng.choice(KIND_STYLES.get(kind, list(STYLES))) if style == "auto" else style
+            lang = STYLES[name](kind, rng, plan, bay) or {}
+            roof0 = lang.get("roof", roof0)
+        roof = roof or roof0
+        if wall:
+            plan["wall"] = m(wall)
+        pf = plan["floors"]
+        typical = pf[-2] if len(pf) > 2 else (pf[1] if len(pf) > 1 else dict(pf[0], kind="window", balcony=None))
+        if typical["kind"] != "window":
+            typical = dict(typical, kind="window")
+        top_f = pf[-1] if len(pf) > 1 else typical
+        count = int(floors or (max(1, round(height / typical["h"])) if height else len(pf)))
+        storeys = []
+        for i in range(count):
+            f = dict(pf[0] if i == 0 else (top_f if i == count - 1 and count > 2 else (pf[i] if i < len(pf) - 1 else typical)))
+            if f["kind"] not in ("window", "shop", "entrance", "blank", "arcade", "pilotis", "lobby"):
+                f["kind"] = "window"
+            f["h"] = pf[0]["h"] if i == 0 else typical["h"]
+            storeys.append(f)
+        top_z = z0 + sum(f["h"] for f in storeys)
+        cx = sum(p[0] for p in pts) / n
+        cy = sum(p[1] for p in pts) / n
+        local = [[round(p[0] - cx, 1), round(p[1] - cy, 1)] for p in pts]
+        wall_m = m(plan["wall"])
+        trim = m(plan.get("trim", "concrete"))
+        P = []
+        if mass:                                               # massing model: body, glazed floor lines, roof band
+            P.append(extrude(local, top_z - z0, [cx, cy, z0], m=wall_m))
+            for i in range(1, count):
+                zf = z0 + pf[0]["h"] + (i - 1) * typical["h"]
+                P.append(extrude([[x * 1.004, y * 1.004] for x, y in local], 60, [cx, cy, zf + 90], m=MAT["glass"]))
+            P.append(extrude([[x * 1.01, y * 1.01] for x, y in local], 30, [cx, cy, top_z], m=trim))
+            return P
+        t = plan.get("t", 30)
+        for i in range(n):
+            a, b = pts[i], pts[(i + 1) % n]
+            L = lengths[i]
+            if L < 20:
+                continue
+            ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+            nx, ny = uy, -ux                                   # outward
+            yaw = math.degrees(math.atan2(nx, -ny))            # facade local -y -> outward
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if L < bay * 0.55:
+                P += transform([box([L, t, top_z - z0], [0, t / 2, 0], m=wall_m)], (mx, my, z0), yaw)
+                continue
+            q = dict(plan, floors=[dict(f) for f in storeys], ground=True, at_top=True)
+            if i not in edges:
+                q = _back(q)
+            q = _with_width(q, L, bay)
+            fp, _ = facade(L, q, rng)
+            P += transform(fp, (mx, my, z0), yaw)
+        P.append(extrude(local, 4, [cx, cy, z0 + 0.5], m=MAT["concrete"]))      # ground floor slab
+        convex = _is_convex(pts)
+        rm = lang.get("roof_m") or rng.choice([M("roof_tile", (160, 80, 56)), M("slate_roof", (72, 74, 80))])
+        if roof in ("hip", "gable", "gable_steep") and convex and n <= 8:
+            e = 1.06
+            ring = [[cx + x * e, cy + y * e, top_z] for x, y in local]
+            h = min(800.0, (abs(_signed_area(pts)) ** 0.5) * 0.38)
+            apex = [[cx + x * 0.04, cy + y * 0.04, top_z + h] for x, y in local]
+            P.append({"shape": "loft", "sections": [ring, apex], "location": [0, 0, 0], "closed": True, "cap": True, **rm})
+        elif roof == "mansard" and convex:
+            ring = [[cx + x, cy + y, top_z + 10] for x, y in local]
+            inner = inset_polygon(pts, 110)
+            top = [[p[0], p[1], top_z + 310] for p in inner]
+            P.append({"shape": "loft", "sections": [ring, top], "location": [0, 0, 0], "closed": True, "cap": True, **rm})
+        else:                                                  # flat roof: slab, parapet with coping, plant
+            P.append(extrude(local, 20, [cx, cy, top_z], m=MAT["concrete"]))
+            for i in range(n):
+                a, b = pts[i], pts[(i + 1) % n]
+                L = lengths[i]
+                if L < 10:
+                    continue
+                ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+                yaw = math.degrees(math.atan2(uy, ux))
+                ix, iy = -uy, ux                               # inward
+                mx, my = (a[0] + b[0]) / 2 + ix * t / 2, (a[1] + b[1]) / 2 + iy * t / 2
+                P += [box([L + t, t, 90], [mx, my, top_z], rot=[0, yaw, 0], m=wall_m),
+                      box([L + t + 8, t + 10, 8], [mx, my, top_z + 90], rot=[0, yaw, 0], m=trim)]
+            for _ in range(rng.randint(1, 3)):
+                P.append(box([rng.choice((120, 180)), rng.choice((90, 120)), rng.choice((90, 140))],
+                             [cx + rng.uniform(-150, 150), cy + rng.uniform(-150, 150), top_z + 20], m=M("steel", (170, 172, 172), roughness=0.5)))
+        return P
+    finally:
+        _LOD = old

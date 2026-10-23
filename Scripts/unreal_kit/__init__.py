@@ -22,7 +22,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
 
-__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look", "assets", "district"]
+__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look", "assets", "district", "gis"]
 
 last_images = []  # images (base64 + mimeType) returned by the last call: screenshots, captures
 
@@ -215,7 +215,8 @@ _max_parts = None  # parts per assembly: 800 on plugin 0.14+, 500 on older build
 
 
 def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
-    """jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns node ids.
+    """jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns one node id
+    per job (the object, or its group when it is bigger than one assembly).
     Every part is checked first, so a typo fails before anything is built. A whole building is usually one object."""
     global _max_parts
     for name, parts, _ in jobs:
@@ -224,19 +225,23 @@ def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
         g = call("scene.create_group", name=group)
         group = g.get("id") or g.get("path") or group
 
+    owner, job_group = [], {}
+
     def plan(limit):
         # objects bigger than one assembly get their own group: all such groups in one request, by node id
         big = [name for name, parts, _ in jobs if len(parts) > limit]
         gid = {}
-        if big:
+        for b in range(0, len(big), 100):  # a batch takes at most 100 calls
+            part = big[b:b + 100]
             res = call("ops.run_batch", calls=[{"tool": "scene.create_group", "arguments": dict({"name": n}, **({"parent": group} if group else {}))}
-                                               for n in big])
-            for n, r in zip(big, res.get("results", [])):
+                                               for n in part])
+            for n, r in zip(part, res.get("results", [])):
                 if not r.get("ok", True):
                     raise ToolError("scene.create_group", r.get("error", r))
                 gid[n] = r.get("id") or r.get("path") or n
         calls, sizes = [], []
-        for name, parts, at in jobs:
+        owner.clear()
+        for j, (name, parts, at) in enumerate(jobs):
             chunks = [parts[i:i + limit] for i in range(0, len(parts), limit)] or [[]]
             parent = gid.get(name, group) if len(chunks) > 1 else group
             for k, chunk in enumerate(chunks):
@@ -245,6 +250,8 @@ def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
                     args["parent"] = parent
                 calls.append({"tool": "build.create_assembly", "arguments": args})
                 sizes.append(len(chunk))
+                owner.append(j)
+            job_group[j] = gid.get(name) if len(chunks) > 1 else None
         requests, cur, n = [], [], 0
         for c, sz in zip(calls, sizes):  # pack whole assemblies into requests of about parts_per_request parts
             if cur and (n + sz > parts_per_request or len(cur) >= 100):
@@ -266,7 +273,12 @@ def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
                 if not r.get("ok", True):
                     raise ToolError("build.create_assembly", r.get("error", r))
                 ids.append(r.get("id"))
-        return ids
+        out = [job_group.get(j) for j in range(len(jobs))]
+        for k, nid in enumerate(ids):                         # single-assembly jobs: the assembly itself
+            j = owner[k]
+            if out[j] is None:
+                out[j] = nid
+        return out
 
     if _max_parts is None:  # plugin 0.14+ takes 8192 parts per assembly; older builds 512
         try:
@@ -282,4 +294,5 @@ def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
 
 from . import tools  # noqa: E402  (generated: one function per tool)
 from . import assets, look, parts, rules, ui  # noqa: E402,F401
-from .district import district  # noqa: E402,F401  (one call: a whole styled district)  (generic helpers; content examples are in kit_examples/)
+from .district import district  # noqa: E402,F401  (one call: a whole styled district)
+from . import gis  # noqa: E402,F401  (land plots: random, GeoJSON, GeoRegions; buildings on plots)  (generic helpers; content examples are in kit_examples/)

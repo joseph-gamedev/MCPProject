@@ -1,3 +1,4 @@
+#include "GisToolset.h"
 #include "PcgScatter.h"
 #include "RuntimePcgToolset.h"
 #include "RuntimeSplineToolset.h"
@@ -22,7 +23,8 @@ public:
 		Core.RegisterSourceSpawner(TEXT("scatter:"), &RuntimePcg::SpawnScatterFromSource);
 		Core.RegisterSourceSpawner(TEXT("pcginst:"), &RuntimePcg::SpawnInstanceFromSource);
 		Registered = {RuntimeToolReflection::RegisterToolsetClass(URuntimeSplineToolset::StaticClass()),
-			RuntimeToolReflection::RegisterToolsetClass(URuntimePcgToolset::StaticClass())};
+			RuntimeToolReflection::RegisterToolsetClass(URuntimePcgToolset::StaticClass()),
+			RuntimeToolReflection::RegisterToolsetClass(URuntimeGisToolset::StaticClass())};
 	}
 
 	virtual void ShutdownModule() override

@@ -238,6 +238,7 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		"  scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}\n"
 		"  lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)\n"
 		"  ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request\n"
+		"  gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - random land plots; gis.list_plots / get_plot {id}; GeoJSON / GeoRegions files and buildings on plots: Python uk.gis.load_geojson | load_georegions, uk.gis.build(\"P12\", style=...), uk.gis.build_all(...)\n"
 		"Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district(\"paris\") "
 		"builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} "
 		"first (small), then only the tool you need."))

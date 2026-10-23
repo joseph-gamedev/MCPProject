@@ -141,7 +141,7 @@ def write_cheatsheet():
 
     import unreal_kit as uk
     describe(uk, "unreal_kit (import unreal_kit as uk)", ["connect", "call", "batch", "place", "place_many", "check_parts", "save_image"])
-    for m in ("parts", "assets", "rules", "ui", "look", "buildings", "district"):
+    for m in ("parts", "assets", "rules", "ui", "look", "buildings", "modern", "district", "gis"):
         describe(importlib.import_module("unreal_kit." + m), f"uk.{m}")
     for m in ("city", "game_pieces", "combat_presets"):
         describe(importlib.import_module(m), f"examples: {m}.py")

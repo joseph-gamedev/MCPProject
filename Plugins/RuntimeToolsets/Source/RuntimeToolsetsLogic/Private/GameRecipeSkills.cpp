@@ -271,6 +271,9 @@ UNREAL_KIT environment variable (Connect.bat sets it). Never search the disk.
                                         # mediterranean scandinavian singapore soviet industrial; blocks=(3, 2); seed=None
     uk.district(styles={"nordic": 3, "contemporary": 1}, block=(4000, 3000))   # any other place: pick a style mix
     from unreal_kit import buildings as B; uk.place("Hero", B.building("office", style="art_deco"), at=(0, 0, 0))
+    uk.gis.create(size=(40000, 30000), layout="blocks")      # land plots (any polygon) with streets, zoning, id labels
+    uk.gis.load_geojson(path) / uk.gis.load_georegions(path)   # plots from GeoJSON or GeoRegions files
+    uk.gis.build("P12", style="modernist"); uk.gis.build_all(zoning="residential", limit=200)   # buildings fitted to plots
 Every run is new (random seed, printed); pass seed=N to repeat one. Big scenes: detail="low"; close-ups: "high".
 Write one script with real detail (loops: a landmark is 500-3000 parts, not 20 boxes), run it, look at one screenshot, fix what looks wrong, answer. Do not read example files for a city.
 

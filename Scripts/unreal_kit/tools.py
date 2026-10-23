@@ -2158,6 +2158,282 @@ gas = SimpleNamespace(add_ability_system=_gas_add_ability_system, add_loose_tags
 gas.__doc__ = 'Gameplay Ability System at runtime: inspect and drive attributes, gameplay effects, abilities, gameplay events,'
 
 
+# ------------------------------------------------------------------ gis
+
+def _gis_add_plots(*, plots, redraw=None, replace=None):
+    """Adds plots from your own polygons (any shape, e.g. from real GIS data projected to cm).
+    Returns: The ids of the new plots.
+
+    Args:
+        plots (list[any]): Required. [{polygon:[[x,y,z],...], id?, zoning?, props?:{...}, street_edges?:[edge indices],
+            kind?: plot|area|block}, ...]. Edge i runs corner i -> i+1. kind area = land the plots sit in (drawn under
+            them), block = a street block.
+        redraw (bool): Redraw the map now (false while sending a big import in several calls: redraw on the last).
+            Default true.
+        replace (bool): Delete existing plots first. Default false.
+    """
+    args = {}
+    if plots is not None:
+        args['plots'] = plots
+    if redraw is not None:
+        args['redraw'] = redraw
+    if replace is not None:
+        args['replace'] = replace
+    return call('gis.add_plots', **args)
+
+
+def _gis_create_plots(*, area=None, block_size=None, center=None, center_commercial=None, layout=None, lot_depth=None, lot_width=None, replace=None, seed=None, size=None, street_width=None, zoning=None):
+    """Generates random land: streets cut an area into blocks, blocks into lots (plots) with street frontage, each with a zoning. Shown with zoning colours and id labels. E.g. {"size":[40000,30000],"layout":"blocks","seed":4}.
+    Returns: Plots and blocks created, area, plots per zoning and the first plots.
+
+    Args:
+        area (list[list[float]]): Land polygon [[x,y,z],...] in cm (convex works best). Empty: a rectangle of `size`
+            around `center`.
+        block_size (list[float]): Typical block [long, short] cm (city 8000x5000, suburb 15000x6000, old town
+            4000x3000). ([x, y]) Default [8000, 5000].
+        center (list[float]): Centre of the default rectangle. ([x, y, z] (cm))
+        center_commercial (bool): Commercial and mixed use cluster in the centre, homes and industry outside. Default
+            true.
+        layout ('Blocks' | 'Grid' | 'Organic' | 'Radial'): Street pattern: blocks (most towns), grid (Manhattan),
+            organic (old town), radial (rings and spokes). Default "Blocks".
+        lot_depth (float): Lot depth cm (0 = half the block, as deep as it gets). Default 0.
+        lot_width (list[float]): Lot frontage range [min, max] cm along the street (townhouses 600-900, apartments
+            1500-3000). ([x, y]) Default [1200, 2400].
+        replace (bool): Delete existing plots first. Default true.
+        seed (int): Random seed (-1 = a new layout every call). Default -1.
+        size (list[float]): Size [x,y] cm of the default rectangle. ([x, y]) Default [40000, 30000].
+        street_width (float): Street width cm (avenues near the first cuts are 1.4x wider). Default 1200.
+        zoning (any): Land-use weights, e.g.
+            {"residential":5,"commercial":2,"mixed":2,"industrial":1,"green":1,"civic":0.5}. (Any JSON value)
+    """
+    args = {}
+    if area is not None:
+        args['area'] = area
+    if block_size is not None:
+        args['block_size'] = block_size
+    if center is not None:
+        args['center'] = center
+    if center_commercial is not None:
+        args['center_commercial'] = center_commercial
+    if layout is not None:
+        args['layout'] = layout
+    if lot_depth is not None:
+        args['lot_depth'] = lot_depth
+    if lot_width is not None:
+        args['lot_width'] = lot_width
+    if replace is not None:
+        args['replace'] = replace
+    if seed is not None:
+        args['seed'] = seed
+    if size is not None:
+        args['size'] = size
+    if street_width is not None:
+        args['street_width'] = street_width
+    if zoning is not None:
+        args['zoning'] = zoning
+    return call('gis.create_plots', **args)
+
+
+def _gis_delete_plots(*, all=None, ids=None):
+    """Deletes plots (their buildings stay; delete those with scene.delete_node).
+    Returns: The deleted ids.
+
+    Args:
+        all (bool): Delete every plot, block and street area. Default false.
+        ids (list[str]): Plot ids to delete.
+    """
+    args = {}
+    if all is not None:
+        args['all'] = all
+    if ids is not None:
+        args['ids'] = ids
+    return call('gis.delete_plots', **args)
+
+
+def _gis_export_geo_json(*, limit=None, lon_lat=None, offset=None):
+    """Exports the plots as a GeoJSON FeatureCollection (longitude/latitude when an origin is set, else metres).
+    Returns: The FeatureCollection (plus "total": all plots).
+
+    Args:
+        limit (int): Features per call (answers are size-capped: page big exports; the kit's uk.gis.export joins them).
+            Default 300.
+        lon_lat (bool): Geographic coordinates (needs an origin); false = local metres (+X east, +Y north). Default
+            true.
+        offset (int): Skip this many plots. Default 0.
+    """
+    args = {}
+    if limit is not None:
+        args['limit'] = limit
+    if lon_lat is not None:
+        args['lon_lat'] = lon_lat
+    if offset is not None:
+        args['offset'] = offset
+    return call('gis.export_geo_json', **args)
+
+
+def _gis_find_plot(*, location):
+    """The plot under a world position.
+    Returns: The plot. Fails with not_found when no plot is there.
+
+    Args:
+        location (list[float]): Required. World position (z ignored). ([x, y, z] (cm))
+    """
+    args = {}
+    if location is not None:
+        args['location'] = location
+    return call('gis.find_plot', **args)
+
+
+def _gis_get_origin():
+    """The real-world position of world (0,0), if one is set.
+    Returns: The origin.
+    """
+    args = {}
+    return call('gis.get_origin', **args)
+
+
+def _gis_get_plot(*, id):
+    """Everything about one plot: polygon, edges with street frontage, front edge, area, rotated bounding box, attributes.
+    Returns: The plot.
+
+    Args:
+        id (str): Required. Plot id, e.g. "P12".
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    return call('gis.get_plot', **args)
+
+
+def _gis_list_plots(*, limit=None, min_area_m2=None, offset=None, only_empty=None, zoning=None):
+    """Lists plots (summary: id, area, centre, zoning, building).
+    Returns: Total matching and the plots.
+
+    Args:
+        limit (int): Maximum plots returned (pages of ~1000 stay under the answer size cap). Default 500.
+        min_area_m2 (float): Only plots at least this big. Default 0.
+        offset (int): Skip this many matching plots (paging through big imports). Default 0.
+        only_empty (bool): Only plots without a building. Default false.
+        zoning (str): Only this land use ("" = all). Default "".
+    """
+    args = {}
+    if limit is not None:
+        args['limit'] = limit
+    if min_area_m2 is not None:
+        args['min_area_m2'] = min_area_m2
+    if offset is not None:
+        args['offset'] = offset
+    if only_empty is not None:
+        args['only_empty'] = only_empty
+    if zoning is not None:
+        args['zoning'] = zoning
+    return call('gis.list_plots', **args)
+
+
+def _gis_merge_plots(*, ids):
+    """Merges plots into one (their outline: the convex hull when they do not share edges exactly).
+    Returns: The new plot id.
+
+    Args:
+        ids (list[str]): Required. Plots to merge (2 or more).
+    """
+    args = {}
+    if ids is not None:
+        args['ids'] = ids
+    return call('gis.merge_plots', **args)
+
+
+def _gis_set_origin(*, latitude, longitude):
+    """Sets the real-world position of world (0,0) for geographic data (the kit's uk.gis loaders set it for you).
+    Returns: The origin.
+
+    Args:
+        latitude (float): Required. Degrees.
+        longitude (float): Required. Degrees.
+    """
+    args = {}
+    if latitude is not None:
+        args['latitude'] = latitude
+    if longitude is not None:
+        args['longitude'] = longitude
+    return call('gis.set_origin', **args)
+
+
+def _gis_set_plot(*, id, building=None, clear_building=None, props=None, zoning=None):
+    """Changes a plot's zoning or attributes, or records the building standing on it.
+    Returns: The plot summary.
+
+    Args:
+        id (str): Required. Plot id.
+        building (str): The building node now on the plot. (Reference to Actor: node id (n12), node path, actor:Name or
+            object path)
+        clear_building (bool): Forget the building (it was deleted or moved). Default false.
+        props (any): Attributes to merge in (null removes a field). (Any JSON value)
+        zoning (str): New land use ("" = keep). Default "".
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    if building is not None:
+        args['building'] = building
+    if clear_building is not None:
+        args['clear_building'] = clear_building
+    if props is not None:
+        args['props'] = props
+    if zoning is not None:
+        args['zoning'] = zoning
+    return call('gis.set_plot', **args)
+
+
+def _gis_show_plots(*, labels=None, max_labels=None, plots=None, streets=None):
+    """Shows or hides the plot map: zoning-coloured plots, streets and id labels (hide them once buildings stand).
+    Returns: The plots shown.
+
+    Args:
+        labels (bool): Plot id labels. Default true.
+        max_labels (int): Labels are skipped above this many plots (thousands of labels cannot be read and cost frame
+            time). Default 2000.
+        plots (bool): Coloured plot surfaces. Default true.
+        streets (bool): Street, land and block surfaces. Default true.
+    """
+    args = {}
+    if labels is not None:
+        args['labels'] = labels
+    if max_labels is not None:
+        args['max_labels'] = max_labels
+    if plots is not None:
+        args['plots'] = plots
+    if streets is not None:
+        args['streets'] = streets
+    return call('gis.show_plots', **args)
+
+
+def _gis_subdivide_plot(*, id, lot_width=None, parts=None, seed=None):
+    """Cuts a plot into smaller lots along its main street frontage (the original plot is removed).
+    Returns: The new plot ids.
+
+    Args:
+        id (str): Required. Plot id.
+        lot_width (list[float]): Frontage range [min, max] cm when parts is 0. ([x, y]) Default [1000, 2000].
+        parts (int): Number of lots (0 = from lot_width). Default 0.
+        seed (int): Random seed (-1 = random). Default -1.
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    if lot_width is not None:
+        args['lot_width'] = lot_width
+    if parts is not None:
+        args['parts'] = parts
+    if seed is not None:
+        args['seed'] = seed
+    return call('gis.subdivide_plot', **args)
+
+
+gis = SimpleNamespace(add_plots=_gis_add_plots, create_plots=_gis_create_plots, delete_plots=_gis_delete_plots, export_geo_json=_gis_export_geo_json, find_plot=_gis_find_plot, get_origin=_gis_get_origin, get_plot=_gis_get_plot, list_plots=_gis_list_plots, merge_plots=_gis_merge_plots, set_origin=_gis_set_origin, set_plot=_gis_set_plot, show_plots=_gis_show_plots, subdivide_plot=_gis_subdivide_plot)
+gis.__doc__ = 'GIS: land plots (parcels) of any polygon shape. Generate random street blocks and lots, add your own polygons or real'
+
+
 # ------------------------------------------------------------------ history
 
 def _history_undo(*, count=None, to_checkpoint=None):
@@ -5719,6 +5995,7 @@ def _session_call_tool(*, name, arguments=None):
       scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}
       lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)
       ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request
+      gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - random land plots; gis.list_plots / get_plot {id}; GeoJSON / GeoRegions files and buildings on plots: Python uk.gis.load_geojson | load_georegions, uk.gis.build("P12", style=...), uk.gis.build_all(...)
     Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district("paris") builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} first (small), then only the tool you need.
 
     Args:
@@ -6742,4 +7019,4 @@ vfx = SimpleNamespace(activate=_vfx_activate, deactivate=_vfx_deactivate, get_su
 vfx.__doc__ = 'Niagara effects at runtime. Effects are scene nodes (spawn_system) or fire-and-forget bursts (spawn_one_shot).'
 
 
-TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'game', 'gas', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']
+TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']

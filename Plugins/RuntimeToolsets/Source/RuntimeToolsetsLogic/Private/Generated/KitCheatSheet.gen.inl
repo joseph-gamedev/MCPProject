@@ -8,7 +8,7 @@ call(tool, **arguments)  # Runs one tool by its qualified name, e.g. call("build
 check_parts(parts, where="parts")  # Raises ToolError for unknown materials or shapes before anything is built (no half-built scenes).
 connect(url=None, relay=None, token=None)  # Chooses the connection: url=<local MCP URL>, or relay=<https://.../s/CODE> + token. Default: the game on this
 place(name, parts, at=(0, 0, 0), group=None)  # Builds parts (dicts) as one object (more objects above 500 parts) at a location; returns node ids.
-place_many(jobs, group=None, parts_per_request=12000, in_flight=3)  # jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns node 
+place_many(jobs, group=None, parts_per_request=12000, in_flight=3)  # jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns one n
 save_image(path, index=0)  # Writes an image from the last call (capture.screenshot, capture.scene_capture, build.capture_view) to a file.
 ### uk.parts
 M(preset, rgb=None, **kw)  # Material: a builder preset (PRESETS) or a PALETTE name, with an optional real sRGB colour 0-255 and fields.
@@ -105,6 +105,8 @@ building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape
 cornice(width, z, depth=40, mat="stone", kind="moulded")  # Cornice band along the facade at height z (moulded = stepped profile, dentils = with a row of dentils).
 door(x, w=110, h=230, kind="panel", mat="wood_dark", frame="stone", reveal=20, fanlight=False, rng=None)  # Entrance door at ground level: panelled, glazed or double; stone surround, step, handle, optional fanlight.
 facade(width, plan, rng)  # Builds one facade from a plan:
+footprint(polygon, kind="apartment", style="auto", floors=None, height=None, seed=None, street_edges=None, detail="medium", roof=None, wall=None)  # A building on ANY footprint polygon [[x, y(, z)], ...] in world cm (a GIS plot, a real building outline):
+inset_polygon(pts, d)  # Shrinks a polygon (positive area) by d cm: exact offsets when convex, a scale toward the centre otherwise.
 m(x)
 massed(kind, massing, rng, width=None, depth=None, floors=None, party=None, street=("-y",), style=None)  # Builds a building of type `kind` from a massing model (name in MASSINGS or "auto") in an architectural style
 pilaster(x, z0, z1, w=40, mat="stone")
@@ -113,8 +115,125 @@ railing(x0, x1, y, z, height=105, style="bars", mat="iron", return_depth=0)  # R
 railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron")  # One straight run of railing between two plan points (any direction) standing on z.
 shopfront(x, w, h=380, frame="frame_dark", sign=None, awning=None, rng=None)  # Shop: stall riser, big glazing with mullions and transom, recessed door, sign fascia, cornice, optional awning
 window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2, 3), sill="stone", head="lintel", surround=False, shutters=None, curtain=None, rng=None)  # A window opening at (x, sill height z), w x h. kind: casement | sash | french | modern | arched | fixed.
+### uk.modern
+arc_bar(cx, cy, radius, depth, a0, a1, n=16)  # A bar bent along a circle (centre cx, cy), from angle a0 to a1 (degrees).
+bbox(p)
+bench(x, y, yaw, z=0.0)
+building(kind="office", seed=None, width=None, depth=None, floors=None, polygon=None, form=None, skin=None, detail="medium", site=True, street=None)  # A contemporary building of a type in KINDS (apartment, villa, townhouse, shophouse, office, loft, office_tower
+canopy(cx, y, w, d, z, rng, m=None, kind=None)  # Entrance canopy against a facade at y, projecting toward -y: thin plate on posts | cantilever | glass | slats.
+ccw(p)
+chimney(x, y, h, dia, rng)
+cross_sign(x, y, z, size, color=(200, 20, 30))
+crown(v, z, kind, pal, rng, lod)  # Tower tops: fins rising past the roof, a glowing band, a spire, a lantern plate.
+dome(cx, cy, z, dia, rng, m=None, kind=None)
+edges(p, min_len=0.0)  # Straight edges: (ax, ay, bx, by, length, ux, uy, nx, ny).
+ellipse(cx, cy, a, b, n=32)
+f_bar(w, d, n, rng, b, R)
+f_block(w, d, n, rng, b, R)
+f_bridge(w, d, n, rng, b, R)  # Two blocks joined high up by a bridge volume, open below.
+f_campus(w, d, n, rng, b, R)  # Two to four pavilions of different heights, turned against each other, linked by a low glass spine.
+f_cantilever(w, d, n, rng, b, R)  # Stacked boxes shifted against each other: the upper ones cantilever out over the lower.
+f_courtyard(w, d, n, rng, b, R)
+f_curve(w, d, n, rng, b, R)  # A ba)KIT"))
+	+ FString(TEXT(R"KIT(r curving along the street, convex or concave.
+f_h(w, d, n, rng, b, R)
+f_l(w, d, n, rng, b, R)
+f_mall(w, d, n, rng, b, R)
+f_notched(w, d, n, rng, b, R)
+f_podium_tower(w, d, n, rng, b, R)
+f_polygon(poly, n, rng, kind)  # Volumes on a footprint polygon: the polygon itself, sometimes with upper floors set back or a tower on it.
+f_round(w, d, n, rng, b, R)
+f_setback(w, d, n, rng, b, R)
+f_slab(w, d, n, rng, b, R)
+f_stepped(w, d, n, rng, b, R)
+f_tower(w, d, n, rng, b, R)  # A free-standing tower: square, round, elliptic, chamfered or rounded, perhaps twisting or tapering.
+f_twin(w, d, n, rng, b, R)
+f_u(w, d, n, rng, b, R)
+f_wedge(w, d, n, rng, b, R)
+flags(x0, y, count, rng, h=None)
+flower_bed(cx, cy, w, d, rng)
+glazing(p, zs, top, pal, spandrel=None, inset=0.0)  # Glass storey by storey: each floor a pane band in a slightly different tone, with an opaque spandrel band at
+ground(p, z, h, kind, pal, rng, lod)  # Ground storey: lobby (recessed glass behind columns), shops (glass with a sign band), glass, solid.
+hedge(x0, y0, x1, y1, h)
+helipad(cx, cy, z, r=900)
+landscape(c)  # The lot round the building: a tiled forecourt with a banded pattern and planted trees, and a lawn garden with
+member(pt, along, out, h, z, m, off=0.0, yaw_add=0.0)  # A piece standing on the outline at a walk() point: `along` wide (tangent), `out` deep (normal), h tall.
+minaret(x, y, h, dia, rng, m, kind=None)
+offset(p, d)  # Outline moved outward by d cm (inward when negative), mitred corners (limited on sharp ones).
+palette(rng, skin, solids=None, glasses=None)  # Colours and proportions of one building: glass tint, main and second cladding, frame, fins, slabs.
+parking(cx, cy, w, d, rng, lamps=True)
+place(kind="office", at=(0, 0, 0), yaw=0.0, name=None, **kw)  # Builds a building (see building()), places it at `at` turned by yaw, and plants its trees, shrubs and benches.
+plant(props=None, at=(0, 0, 0), yaw=0.0, name="Plants")  # Places a building's real meshes (LAST["props"] by default), moved like its parts (at, yaw), as GPU instances.
+plates(v, zs, top, pal, rng, lod, twist=0.0, taper=1.0)  # Tower made of one plate per storey, each turned and scaled a little more: twisting or tapering towers.
+playground(cx, cy, rng, w=1400, d=1100)
+prop(key, x, y, z=0.0, yaw=0.0, scale=1.0)
+rect(x0, y0, x1, y1, r=0.0, cham=0.0, seg=5)  # Rectangle, optionally with rounded (r) or chamfered (cham) corners.
+roof(p, z, kind, pal, rng, lod)  # Roof: parapet cap and deck, then plant | pv | green | terrace | overhang | barrel.
+rotate(p, deg, cx=0.0, cy=0.0)
+scale(p, f, cx=None, cy=None)
+silo(x, y, h, dia, rng)
+sk_balconies(p, zs, top, pal, rng, lod, party)
+sk_curtain(p, zs, top, pal, rng, lod, party)
+sk_diagrid(p, zs, top, pal, rng, lod, party)
+sk_fins(p, zs, top, pal, rng, lod, party)
+sk_grid(p, zs, top, pal, rng, lod, party)
+sk_louvres(p, zs, top, pal, rng, lod, party)
+sk_monolith(p, zs, top, pal, rng, lod, party)  # A solid volume with a few large cuts: one glazed band, vertical slots, a big window.
+sk_open_deck(p, zs, top, pal, rng, lod, party)  # Open car-park decks: dark interior, floor slabs, spandrel upstands, columns, optional coloured fins.
+sk_punched(p, zs, top, pal, rng, lod, party)
+sk_ribbed(p, zs, top, pal, rng, lod, party)
+sk_ribbon(p, zs, top, pal, rng, lod, party)
+sk_screen(p, zs, top, pal, rng, lod, party)
+sk_tiles(p, zs, top, pal, rng, lod, party)  # Large cladding panels in two or three tones.
+slab(p, z, h, m, d=0.0)  # The outline (moved out by d) pushed up h from z: a whole storey, a floor edge, a balcony plate, a roof.
+sports(cx, cy, w, d, rng, kind=None)  # Sports ground: football pitch | courts | pitch inside a running track.
+tree(x, y, rng, h=None, z=0.0, species=None)  # A real tree mesh (maple, oak, birch, Japanese maple, aspen, jacaranda), planted as a GPU instance.
+walk(p, step, phase=0.5, margin=0.0, normals=None)  # Points every ~step cm along a closed outline: (x, y, yaw, nx, ny) with the outward normal; points closer than
+window(pt, w, h, z, glass, frame, lod, t=7)  # A window on a wall at a walk() point: glass just proud of the wall, a slim frame round it, a sill.
+x_annex(c, floors=2)
+x_campus(c)
+x_church(c)
+x_clinic(c)
+x_entrance(c)
+x_factory(c)
+x_fire(c)
+x_government(c)
+x_hospital(c)
+x_hotel(c)
+x_kindergarten(c)
+x_mall(c)
+x_mosque(c)
+x_parkfront(c)
+x_parking(c)
+x_petrol(c)
+x_plaza(c)
+x_police(c)
+x_school(c)
+x_villa(c)
+x_warehouse(c)
 ### uk.district
 district(preset="manhattan", blocks=(3, 2), seed=None, at=(0, 0), styles=None, block=None, street=None, avenue=None, lots=None, attached=None, trees=None, detail="auto", clear=True, mood=True, camera=True, name="District")  # Builds a district and returns {seed, buildings, parts, styles, seconds, center, size}. seed None = new every r
+### uk.gis
+add(features, geographic=True, origin_latlon=None, replace=True, frontage="auto", chunk=2500, z=0.0)  # Sends features [{ring: [(lon, lat) | (x_cm, y_cm)], kind: plot|area|block, id?, zoning?, props?}] to the game.
+build(pid, kind=None, style="auto", floors=None, setback=None, detail="medium", seed=None, massing=None)  # A building on one plot (any shape), recorded on the plot. Returns {plot, node, kind, parts}.
+build_all(ids=None, zoning="", limit=300, detail="auto", style="auto", styles=None, seed=None, hide_plots=False, greenery=True)  # Buildings on many plots in one go (empty plots only unless ids are given). detail auto: medium up to 40 plots,
+clear(buildings=True)  # Removes all plots (and the buildings standing on them).
+create(size=(40000, 30000), layout="blocks", center=(0, 0, 0), area=None, street_width=1200, block_size=(8000, 5000), lot_width=(1200, 2400), lot_depth=0, zoning=None, center_commercial=True, seed=None, replace=True)  # Random land: streets, blocks and lots (layout blocks | grid | organic | radial). Returns the game's summary.
+export(path=None, lonlat=True)  # The plots as GeoJSON (dict); written to path when given.
+fetch(ids, batch=40)  # Full plot data for many ids in few requests (answers are )KIT"))
+	+ FString(TEXT(R"KIT(capped at 256 KB: batches halve when a batch is too b
+kind_for(zoning, area_m2)  # A building type that suits the land use and plot size.
+load_geojson(src, replace=True, origin_latlon=None, kind="plot")  # GeoJSON (path, text or dict): Polygon / MultiPolygon features become plots with their properties (WGS84 lon/la
+load_georegions(path, types=("Plot",), sectors=None, communities=None, landuse=None, coords="geo", areas=True, limit=None, replace=True, origin_latlon=None)  # GeoRegions JSON ({mapName, features: [{type: Sector|Community|Plot, name, id, metadata, polygon: [[lon, lat, h
+origin()  # The game's geographic origin {set, latitude, longitude} (None when not set).
+parts_for(info, kind=None, style="auto", floors=None, setback=None, detail="medium", seed=None, massing=None)  # Parts (world cm) of a building fitted to a plot: rectangular plots get the full building pipeline (massing, st
+plot(pid)
+plots(zoning="", empty=False, min_area_m2=0, limit=100000)  # Plot summaries (id, area_m2, centroid, zoning, building, ...), paged in requests of 500.
+set_origin(lat, lon)
+show(plots=True, labels=True, streets=True, max_labels=2000)
+street_edges(polys, tolerance=150.0)  # For each polygon, the edges NOT shared with a neighbour (they face a street or open land).
+trees(infos, density=1.0, mix=None, seed=None)  # Trees and palms scattered inside green plots (GPU instances, one request).
+zoning_of(props, default="other")  # Land use from typical GIS attributes -> residential | commercial | mixed | industrial | civic | green | water 
 ### examples: city.py
 add_style(name, wall, trim, frame, roof=("roof_flat",), door=("door_wood",))  # Registers a facade style: lists of PALETTE names or M(...) dicts, e.g.
 bench(x, y, yaw=0)
@@ -124,8 +243,7 @@ building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None
 car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark glass, four wheels, lights.
 city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=None, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
-door(x, w=110, h=230, recess=22, m="door_wood", frame)KIT"))
-	+ FString(TEXT(R"KIT(="trim_stone", step=True)
+door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
 facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe knobs (so neighbours differ):
 glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
 lamp_post(x, y, yaw=0)
@@ -146,7 +264,8 @@ pool(name, template, size=10)
 score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
 side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
-third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailing at eye height.
+third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailin)KIT"))
+	+ FString(TEXT(R"KIT(g at eye height.
 topdown_player(at, walk_speed=600, camera_height=1500, camera_back=900, aim_with_mouse=True, body=None, **movement)  # Top-down / twin-stick player: WASD move, faces the mouse (or movement), camera above and behind.
 win(message="YOU WIN!")
 ### examples: combat_presets.py
@@ -169,8 +288,7 @@ turret_brain(name="turret", weapon="enemy_gun", sight=3000)  # Stands still, tur
 waves(name, template, waves, points=None, around_player=None, interval=1.2, max_alive=6, wave_gap=4)  # Spawner with waves: waves = [count, count, ...] or [{count, interval, max_alive}]. template = a node used as t
 ### materials
 PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concrete, plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water, grass, sand, asphalt, roof_tile, cobblestone, paving, corrugated, light, white, black, red, green, blue
-PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, pla)KIT"))
-	+ FString(TEXT(R"KIT(ster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
+PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, plaster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
 city STYLES: brick, plaster, stone, office, glass, loft, deco, residential, brutalist, painted
 buildings TYPES: apartment, townhouse, shophouse, villa, office, loft; L corners: square, chamfer, tower, balconies
 buildings STYLES: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary, victorian, straits; per type (auto picks): apartment: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary; office: glass, art_deco, brutalist, modernist, warehouse, contemporary, haussmann; loft: warehouse, contemporary, brutalist, nordic; townhouse: victorian, haussmann, mediterranean, nordic, straits, contemporary; shophouse: straits, victorian, mediterranean, haussmann; villa: mediterranean, modernist, nordic

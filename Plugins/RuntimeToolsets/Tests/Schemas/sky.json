@@ -1,0 +1,863 @@
+{
+	"description": "Ultra Dynamic Sky (the project's sky and weather system): time of day with a real sun and moon path, volumetric\nclouds, weather presets with rain, snow, thunder, wind, fog and dust particles, wet / snowy / dusty surfaces, stars and\nauroras. Follow the outdoor_lighting skill for composition.\nWorkflow: setup once (spawns the sky and weather actors and hides the level's own sun, sky light, atmosphere, clouds and\nfog; they come back when the sky is deleted or with remove) -> set_time -> set_weather (a preset with a transition) or set_weather_values (exact amounts) -> set_sky for the\ncloud mode, moon, stars and auroras -> get_state. Weather drives cloud coverage and fog; set them with\nset_weather_values. The lighting toolset's sun and fog tools do not apply while this sky is in use.",
+	"name": "sky",
+	"tools": [
+		{
+			"description": "Reads the sky: time, animation, sky mode, weather preset and values, moon, latitude, and the presets available.\nReturns: The sky state; `sky` is empty before setup.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "sky.get_state",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state; `sky` is empty before setup.",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Removes Ultra Dynamic Sky and Weather and brings back the level's own sun, sky light, atmosphere, clouds and fog (also happens on its own when the sky is deleted, e.g. by scene.clear_all). Undoable.\nReturns: The sky state (empty sky).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "sky.remove",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state (empty sky).",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"description": "Sets how the sky renders and the night sky.\nReturns: The sky state. Fails before setup or for an unknown sky mode.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"auroras":
+					{
+						"description": "Show auroras at night.",
+						"type": "boolean"
+					},
+					"brightness":
+					{
+						"description": "Overall sky and light intensity multiplier, e.g. 1.",
+						"type": "number"
+					},
+					"latitude":
+					{
+						"description": "Degrees, -90 to 90 (sun path and day length), e.g. 40.7 for New York.",
+						"type": "number"
+					},
+					"moon_phase":
+					{
+						"description": "0-1: 0 new moon, 0.25 first quarter, 0.5 full, 0.75 last quarter.",
+						"type": "number"
+					},
+					"sky_mode":
+					{
+						"description": "volumetric (3D clouds) | static (cloud texture, cheap) | 2d (panning 2D clouds) | none (no clouds) | aurora (volumetric aurora) | space (no atmosphere) | voxel (cubic clouds).",
+						"type": "string"
+					},
+					"stars_intensity":
+					{
+						"description": "Star brightness, e.g. 1 (0 hides them).",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "sky.set_sky",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state. Fails before setup or for an unknown sky mode.",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets the time of day, and whether and how fast time passes.\nReturns: The sky state. Fails before setup, or if hour is outside 0-24.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"animate":
+					{
+						"description": "Let time pass on its own.",
+						"type": "boolean"
+					},
+					"day_length_minutes":
+					{
+						"description": "Real minutes a day lasts when animating, e.g. 20.",
+						"type": "number"
+					},
+					"hour":
+					{
+						"description": "0-24, e.g. 6.25 sunrise light, 13 noon, 18.75 golden hour, 22 night.",
+						"type": "number"
+					},
+					"night_length_minutes":
+					{
+						"description": "Real minutes a night lasts when animating, e.g. 8.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"hour"
+				],
+				"type": "object"
+			},
+			"name": "sky.set_time",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state. Fails before setup, or if hour is outside 0-24.",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Changes the weather to a preset with a smooth transition, or to random weather that keeps changing.\nReturns: The sky state. Fails before setup (or without the weather actor) or for an unknown preset (the error lists them).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"preset":
+					{
+						"description": "clear | partly_cloudy | cloudy | overcast | foggy | light_rain | rain | thunderstorm | light_snow | snow | blizzard | dust | sandstorm | random.",
+						"type": "string"
+					},
+					"transition_seconds":
+					{
+						"default": 10,
+						"description": "How long the change takes, e.g. 10 (0 = instant).",
+						"type": "number"
+					}
+				},
+				"required": [
+					"preset"
+				],
+				"type": "object"
+			},
+			"name": "sky.set_weather",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state. Fails before setup (or without the weather actor) or for an unknown preset (the error lists them).",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Sets exact weather amounts (0-10 each); values given stay fixed (manual override) until clear_overrides.\nReturns: The sky state. Fails before setup (or without the weather actor) or for values outside 0-10.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"clear_overrides":
+					{
+						"default": false,
+						"description": "Release every manual value back to the preset.",
+						"type": "boolean"
+					},
+					"cloud_coverage":
+					{
+						"description": "0 clear to 10 overcast.",
+						"type": "number"
+					},
+					"dust":
+					{
+						"description": "0-10.",
+						"type": "number"
+					},
+					"fog":
+					{
+						"description": "0-10.",
+						"type": "number"
+					},
+					"rain":
+					{
+						"description": "0-10.",
+						"type": "number"
+					},
+					"snow":
+					{
+						"description": "0-10.",
+						"type": "number"
+					},
+					"thunder":
+					{
+						"description": "Thunder and lightning, 0-10.",
+						"type": "number"
+					},
+					"wind":
+					{
+						"description": "0-10.",
+						"type": "number"
+					}
+				},
+				"type": "object"
+			},
+			"name": "sky.set_weather_values",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state. Fails before setup (or without the weather actor) or for values outside 0-10.",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
+			"description": "Puts Ultra Dynamic Sky and Weather in the level (once; later calls return the existing ones) and hides the level's own directional lights, sky light, sky atmosphere, volumetric clouds and height fog so they do not double up.\nReturns: The sky state. Fails if the Ultra Dynamic Sky content is not in the project.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hour":
+					{
+						"default": 10,
+						"description": "Starting time of day, 0-24, e.g. 10.5.",
+						"type": "number"
+					},
+					"preset":
+					{
+						"default": "",
+						"description": "Starting weather preset (see get_state presets), e.g. \"partly_cloudy\".",
+						"type": "string"
+					},
+					"weather":
+					{
+						"default": true,
+						"description": "Also add the weather actor (rain, snow, fog, dust, wet surfaces).",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "sky.setup",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The sky state. Fails if the Ultra Dynamic Sky content is not in the project.",
+						"properties":
+						{
+							"animate_time":
+							{
+								"description": "Whether time passes on its own.",
+								"type": "boolean"
+							},
+							"day_length_minutes":
+							{
+								"description": "Real minutes a full day (dawn to dusk) lasts when animating.",
+								"type": "number"
+							},
+							"hour":
+							{
+								"description": "Time of day in hours, 0-24 (6.5 = 06:30).",
+								"type": "number"
+							},
+							"installed":
+							{
+								"description": "Whether the Ultra Dynamic Sky content is in the project (/Game/UltraDynamicSky).",
+								"type": "boolean"
+							},
+							"latitude":
+							{
+								"description": "Latitude in degrees (sun path and day length).",
+								"type": "number"
+							},
+							"moon_phase":
+							{
+								"description": "Moon phase 0-1 (0 and 1 new moon, 0.5 full).",
+								"type": "number"
+							},
+							"night_length_minutes":
+							{
+								"description": "Real minutes a night lasts when animating.",
+								"type": "number"
+							},
+							"presets":
+							{
+								"description": "Weather presets set_weather accepts.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"sky":
+							{
+								"description": "The sky actor (node id); empty before sky.setup.",
+								"type": "string"
+							},
+							"sky_mode":
+							{
+								"description": "volumetric | static | 2d | none | aurora | space | voxel.",
+								"type": "string"
+							},
+							"values":
+							{
+								"additionalProperties":
+								{
+									"type": "number"
+								},
+								"description": "Current weather values, 0-10 each: cloud_coverage, rain, snow, thunder, wind, fog, dust.",
+								"type": "object"
+							},
+							"weather":
+							{
+								"description": "The weather actor (node id); empty when there is none.",
+								"type": "string"
+							},
+							"weather_preset":
+							{
+								"description": "Weather preset in effect (or \"manual\" / \"random\").",
+								"type": "string"
+							}
+						},
+						"title": "RuntimeSkyState",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		}
+	],
+	"version": "1.0.0"
+}
