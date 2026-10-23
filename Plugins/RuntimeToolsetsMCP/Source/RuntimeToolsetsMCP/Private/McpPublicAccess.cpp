@@ -10,7 +10,9 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Math/RandomStream.h"
+#include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Compression.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -83,7 +85,26 @@ namespace McpPublicAccessPrivate
 				Req->SetHeader(H.Key, H.Value->AsString());
 			}
 		}
-		Req->SetContentAsString(Job->GetStringField(TEXT("body")));
+		// Big requests (hundreds of building parts) come gzip-compressed from the relay: about 10x less to download.
+		FString Gz;
+		if (Job->TryGetStringField(TEXT("body_gz"), Gz))
+		{
+			TArray<uint8> Packed, Raw;
+			const int32 Len = static_cast<int32>(Job->GetNumberField(TEXT("body_len")));
+			if (Len <= 0 || !FBase64::Decode(Gz, Packed) || (Raw.SetNumUninitialized(Len), !FCompression::UncompressMemory(NAME_Gzip, Raw.GetData(), Len, Packed.GetData(), Packed.Num())))
+			{
+				UE_LOG(LogMcpRelay, Warning, TEXT("Relay job %s: could not unpack the compressed body"), *Id);
+				TSharedRef<FJsonObject> Hdr = MakeShared<FJsonObject>();
+				Hdr->SetStringField(TEXT("content-type"), TEXT("application/json"));
+				PostResult(Id, 400, Hdr, TEXT("{\"error\":\"could not unpack the compressed request\"}"));
+				return;
+			}
+			Req->SetContent(MoveTemp(Raw));
+		}
+		else
+		{
+			Req->SetContentAsString(Job->GetStringField(TEXT("body")));
+		}
 		Req->SetTimeout(115.f);
 		Req->OnProcessRequestComplete().BindLambda([Id](FHttpRequestPtr, FHttpResponsePtr Resp, bool bOk)
 		{
@@ -114,7 +135,7 @@ namespace McpPublicAccessPrivate
 			return;
 		}
 		TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
-		Req->SetURL(FString::Printf(TEXT("%s/host/%s/poll"), *Relay, *SessionCode));
+		Req->SetURL(FString::Printf(TEXT("%s/host/%s/poll?gz=1"), *Relay, *SessionCode));
 		Req->SetVerb(TEXT("GET"));
 		Req->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + HostToken);
 		Req->SetTimeout(40.f);

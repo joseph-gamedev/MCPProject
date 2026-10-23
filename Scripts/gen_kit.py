@@ -111,11 +111,12 @@ def main():
     import shutil
     ex = os.path.join(DIST, "kit_examples")
     shutil.rmtree(ex, ignore_errors=True)
-    shutil.copytree(os.path.join(HERE, "kit_examples"), ex, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(os.path.join(HERE, "kit_examples"), ex, ignore=shutil.ignore_patterns("__pycache__", "kerala.py", "osm_town.py"))
     relay = os.path.join(HERE, "..", "..", "Relay", "src")
     if os.path.isdir(relay):  # the relay serves it at /s/<code>/kit.zip (redeploy the relay after changes)
         import shutil
         shutil.copy(zpath, os.path.join(relay, "unreal_kit.zip"))
+        shutil.copy(zpath, os.path.join(relay, "..", "unreal_kit.zip"))  # next to Connect.bat: UNREAL_KIT points here
     write_cheatsheet()
     print(f"{total} tools in {len(namespaces)} toolsets -> unreal_kit/tools.py; {zpath} ({os.path.getsize(zpath) // 1024} KB)")
 
@@ -140,7 +141,7 @@ def write_cheatsheet():
 
     import unreal_kit as uk
     describe(uk, "unreal_kit (import unreal_kit as uk)", ["connect", "call", "batch", "place", "place_many", "check_parts", "save_image"])
-    for m in ("parts", "assets", "rules", "ui", "look", "buildings"):
+    for m in ("parts", "assets", "rules", "ui", "look", "buildings", "district"):
         describe(importlib.import_module("unreal_kit." + m), f"uk.{m}")
     for m in ("city", "game_pieces", "combat_presets"):
         describe(importlib.import_module(m), f"examples: {m}.py")

@@ -748,7 +748,7 @@ def city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "s
     return out
 
 
-def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City",
+def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=None, towers=0.15, group="City",
          max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil",
          street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True):
     """A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
@@ -763,6 +763,8 @@ def city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, side
             street_trees = {"maple": 2, "oak": 1, "birch": 1}
         except Exception:
             street_trees = {}
+    seed = random.randrange(1 << 30) if seed is None else seed   # a new city every run; print it to rebuild the same one
+    print("city seed:", seed)
     rng = random.Random(seed)
     pitch_x = block_w + street_w + 2 * sidewalk
     pitch_y = block_d + street_w + 2 * sidewalk

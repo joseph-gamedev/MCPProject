@@ -456,7 +456,7 @@ struct FBuildToolMaterialList
  * Builder: realistic objects and landmarks from parametric parts at true scale (cm, Z up), as editable meshes with
  * procedural PBR materials. Every create tool is one undo step and rebuilds exactly from its recipe (undo, duplicate,
  * export).
- * Workflow: get_guide (READ FIRST) -> create_assembly (up to 512 parts per call: the fast way) or create_primitive /
+ * Workflow: get_guide (READ FIRST) -> create_assembly (up to 8192 parts per call: the fast way) or create_primitive /
  * create_profile_solid -> boolean_op / array / mirror -> set_material -> capture_view, check_overlaps, measure,
  * get_build_stats to verify -> refine.
  * Material fields (on every create tool, per assembly part and in set_material): material (preset from list_materials or
@@ -588,7 +588,7 @@ public:
 		float Variation = -1.f, const FString& Style = TEXT(""), float Tile = -1.f, float Relief = -1.f, float Bevel = -1.f, bool bSnapToGround = false);
 
 	/**
-	 * Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape
+	 * Builds many parts (up to 8192) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape
 	 * recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults
 	 * given here. One undo step. Fails with the part index when a part is invalid.
 	 *

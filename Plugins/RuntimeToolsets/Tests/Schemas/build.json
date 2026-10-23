@@ -428,7 +428,7 @@
 			}
 		},
 		{
-			"description": "Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults given here. One undo step. Fails with the part index when a part is invalid.\nReturns: {id, name, path, triangles, parts, materials, coplanar_faces_separated, snapped_to_ground}.",
+			"description": "Builds many parts (up to 8192) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults given here. One undo step. Fails with the part index when a part is invalid.\nReturns: {id, name, path, triangles, parts, materials, coplanar_faces_separated, snapped_to_ground}.",
 			"input_schema":
 			{
 				"additionalProperties": false,

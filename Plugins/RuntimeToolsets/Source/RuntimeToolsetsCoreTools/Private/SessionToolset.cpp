@@ -49,6 +49,11 @@ static void GetBuildInfo(FToolInvocation& Inv)
 			break;
 		}
 	}
+	Scripting->SetStringField(TEXT("remote"), TEXT("Game in the cloud (streamed): the kit is on YOUR machine at the path in the UNREAL_KIT environment "
+		"variable (Connect.bat sets it, with UNREAL_RELAY and UNREAL_TOKEN); uk.connect() then goes through the relay by itself. Do not search the disk."));
+	Scripting->SetStringField(TEXT("fastest"), TEXT("Cities and streets: uk.district(\"manhattan\" | \"paris\" | \"london\" | ... , blocks=(3, 2)) builds "
+		"a whole district (streets, styled buildings, trees) in one call in seconds; every run is different. Single buildings: "
+		"from unreal_kit import buildings as B; B.building(kind, style=...)."));
 	Scripting->SetStringField(TEXT("how"), TEXT("Python: import sys; sys.path.insert(0, r'<kit>'); import unreal_kit as uk. It connects by itself to the "
 		"game on this machine (uk.connect(url='http://127.0.0.1:<port>/mcp') for another port). uk.tools.<toolset>.<tool>(...) is every tool; "
 		"uk.parts builds part lists (box, cyl, sphere, beam, extrude, sweep, transform, grid, ring, PALETTE materials); uk.place / "

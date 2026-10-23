@@ -24,7 +24,7 @@ using namespace RuntimeTools;
 namespace
 {
 	constexpr int32 BuildMaxCopies = 1000;
-	constexpr int32 BuildMaxParts = 512;
+	constexpr int32 BuildMaxParts = 8192;
 
 	FToolInvocation& BuildCall()
 	{
@@ -341,7 +341,7 @@ FASTEST - a generator script plus big batches:
   If you can run Python, use the kit shipped with the game (session_get_build_info -> scripting; skill python_kit):
   uk.parts builds part dicts with loops (window bays, colonnades, truss bracing, railings, stairs, whole streets),
   uk.place_many sends many objects per request. Example scripts (a realistic city, game pieces) show the patterns.
-  Otherwise call build.create_assembly directly with up to 512 parts per call (one object, one undo step).
+  Otherwise call build.create_assembly directly with up to 8192 parts per call (one object, one undo step; a whole building fits).
 REUSE - scene.save_template {target, name, description} keeps anything you built; scene.place_template places copies
   in later sessions; scene.list_templates shows what exists. Check it before building something again.
 

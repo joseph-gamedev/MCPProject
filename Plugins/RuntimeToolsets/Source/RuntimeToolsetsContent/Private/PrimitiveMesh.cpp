@@ -30,8 +30,8 @@ namespace RuntimePrimitives
 	/** Scanned-texture master (project content, from Scripts/architecture/import_architecture.py); used when a preset has textures. */
 	static const TCHAR* ScannedMaterialPath = TEXT("/Game/RuntimeArchitecture/Materials/M_RT_Scanned.M_RT_Scanned");
 	static constexpr int32 MaxOps = 64;
-	static constexpr int32 MaxParts = 512;
-	static constexpr int32 MaxAssemblyTriangles = 400000;
+	static constexpr int32 MaxParts = 8192;
+	static constexpr int32 MaxAssemblyTriangles = 1500000;
 
 	const TArray<FString>& ShapeNames()
 	{

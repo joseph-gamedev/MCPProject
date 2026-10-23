@@ -646,7 +646,7 @@ def _build_check_overlaps(*, limit=None, tolerance=None, under=None):
 
 
 def _build_create_assembly(*, parts, color=None, emissive=None, emissive_strength=None, location=None, material=None, metallic=None, name=None, opacity=None, parent=None, relief=None, repair_coplanar=None, rotation=None, roughness=None, scale=None, snap_to_ground=None, style=None, tags=None, tile=None, variation=None):
-    """Builds many parts (up to 512) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults given here. One undo step. Fails with the part index when a part is invalid.
+    """Builds many parts (up to 8192) as ONE object in one call: the fast way to make detailed buildings. Each part is a shape recipe plus location/rotation/scale and its own material fields; parts without material fields use the defaults given here. One undo step. Fails with the part index when a part is invalid.
     Returns: {id, name, path, triangles, parts, materials, coplanar_faces_separated, snapped_to_ground}.
 
     Args:

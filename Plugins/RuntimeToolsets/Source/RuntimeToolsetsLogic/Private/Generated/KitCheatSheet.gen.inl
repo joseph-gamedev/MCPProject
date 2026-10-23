@@ -8,7 +8,7 @@ call(tool, **arguments)  # Runs one tool by its qualified name, e.g. call("build
 check_parts(parts, where="parts")  # Raises ToolError for unknown materials or shapes before anything is built (no half-built scenes).
 connect(url=None, relay=None, token=None)  # Chooses the connection: url=<local MCP URL>, or relay=<https://.../s/CODE> + token. Default: the game on this
 place(name, parts, at=(0, 0, 0), group=None)  # Builds parts (dicts) as one object (more objects above 500 parts) at a location; returns node ids.
-place_many(jobs, group=None, per_request=16)  # jobs = [(name, parts, location)]: many objects, sent several per request. Returns created node ids.
+place_many(jobs, group=None, parts_per_request=12000, in_flight=3)  # jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns node 
 save_image(path, index=0)  # Writes an image from the last call (capture.screenshot, capture.scene_capture, build.capture_view) to a file.
 ### uk.parts
 M(preset, rgb=None, **kw)  # Material: a builder preset (PRESETS) or a PALETTE name, with an optional real sRGB colour 0-255 and fields.
@@ -75,8 +75,8 @@ column(children, gap=6, align=None, **kw)
 define(items, theme=None, replace=False)  # Creates or updates UI items (merged by name). theme: dict or a THEMES key.
 divider()
 grid(children, columns=3, gap=8, cell=None, **kw)  # cell = [width, height] gives every cell the same size.
-hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")], bars = [(label, value_expr, m)KIT"))
-	+ FString(TEXT(R"KIT(ax_expr, fill)].
+hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")KIT"))
+	+ FString(TEXT(R"KIT()], bars = [(label, value_expr, max_expr, fill)].
 inventory(name, list_var, columns=5, visible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
 menu(name, heading, buttons, visible_if=None, subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
 panel(name, children, anchor="center", visible_if=None, width=None, padding=16, gap=10, **kw)  # A top-level window/card. Every screen is a panel with a name.
@@ -101,7 +101,7 @@ style(preset="realistic", weathering=None, **material)  # Visual style preset; w
 time_of_day(hour, yaw=None)
 ### uk.buildings
 balcony(x, z, w, depth=120, kind="slab", rail="bars", rail_mat="iron", slab_mat="concrete")  # Balcony on the wall face at floor height z: slab with a moulded edge; brackets (classic) or a clean cantilever
-building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None, massing=None, party=None, street=("-y",), style=None)  # A complete building of a type, varied by seed.
+building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None, massing=None, party=None, street=("-y",), style=None, detail="high")  # A complete building of a type, varied by seed.
 cornice(width, z, depth=40, mat="stone", kind="moulded")  # Cornice band along the facade at height z (moulded = stepped profile, dentils = with a row of dentils).
 door(x, w=110, h=230, kind="panel", mat="wood_dark", frame="stone", reveal=20, fanlight=False, rng=None)  # Entrance door at ground level: panelled, glazed or double; stone surround, step, handle, optional fanlight.
 facade(width, plan, rng)  # Builds one facade from a plan:
@@ -113,6 +113,8 @@ railing(x0, x1, y, z, height=105, style="bars", mat="iron", return_depth=0)  # R
 railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron")  # One straight run of railing between two plan points (any direction) standing on z.
 shopfront(x, w, h=380, frame="frame_dark", sign=None, awning=None, rng=None)  # Shop: stall riser, big glazing with mullions and transom, recessed door, sign fascia, cornice, optional awning
 window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2, 3), sill="stone", head="lintel", surround=False, shutters=None, curtain=None, rng=None)  # A window opening at (x, sill height z), w x h. kind: casement | sash | french | modern | arched | fixed.
+### uk.district
+district(preset="manhattan", blocks=(3, 2), seed=None, at=(0, 0), styles=None, block=None, street=None, avenue=None, lots=None, attached=None, trees=None, detail="auto", clear=True, mood=True, camera=True, name="District")  # Builds a district and returns {seed, buildings, parts, styles, seconds, center, size}. seed None = new every r
 ### examples: city.py
 add_style(name, wall, trim, frame, roof=("roof_flat",), door=("door_wood",))  # Registers a facade style: lists of PALETTE names or M(...) dicts, e.g.
 bench(x, y, yaw=0)
@@ -120,11 +122,11 @@ bin_(x, y)
 bollard(x, y)
 building(width=1600, depth=1200, floors=4, style="brick", roof="flat", seed=None, shop=None, floor_h=320, ground_h=None, win_w=None, win_h=None, bay=340, wall_t=30, setbacks=None, crown=None, massing=None)  # A complete building centred on its footprint: four facades, roof (flat with parapet + rooftop units, gable or 
 car(x, y, yaw=0, rng=None)  # Sedan, 4.6 x 1.8 x 1.45 m: body, cabin with dark glass, four wheels, lights.
-city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=1, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
+city(blocks_x=3, blocks_y=2, block_w=6000, block_d=4000, street_w=1050, sidewalk=320, seed=None, towers=0.15, group="City", max_floors=8, styles=("brick", "plaster", "stone", "office"), make_building=None, make_street=None, extras=None, ground="soil", street_trees=None, lots=(1200, 1500, 1800, 2400), lot_depth=None, courtyard=True)  # A district: a grid of perimeter blocks separated by complete streets. Builds it (place) and returns the group.
 city_block(width=6000, depth=4000, seed=None, styles=("brick", "plaster", "stone", "office"), max_floors=8, towers=0.0, make_building=None, lots=(1200, 1500, 1800, 2400), courtyard=True, lot_depth=None)  # Perimeter block: varied buildings around the edge, lots 12-24 m wide, heights and styles mixed.
-door(x, w=110, h=230, recess=22, m="door_wood", frame="trim_stone", step=True)
-facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe kn)KIT"))
-	+ FString(TEXT(R"KIT(obs (so neighbours differ):
+door(x, w=110, h=230, recess=22, m="door_wood", frame)KIT"))
+	+ FString(TEXT(R"KIT(="trim_stone", step=True)
+facade(width, floors, floor_h=320, ground_h=420, bays=None, wall="brick_red", trim="trim_stone", frame="frame_white", door_bay=None, shop=False, win_w=None, win_h=None, wall_t=30, rng=None, wtype="punched", bands="every", piers=False, cornice="cornice", attic=False, balconies=(), rail="metal", oriels=(), fire_escape=None, upper=False)  # One wall with real openings. Recipe knobs (so neighbours differ):
 glass_tower(width, depth, floors, floor_h, rng, setbacks=None, crown=None, skin=None, shape=None, tint=None, podium=None)  # Curtain-wall tower with a random (or given) tint, skin, shape, top and podium:
 lamp_post(x, y, yaw=0)
 plaza(width=2000, depth=2000, seed=None)  # Paved square with a lawn, trees, benches and lamps.
@@ -167,10 +169,10 @@ turret_brain(name="turret", weapon="enemy_gun", sight=3000)  # Stands still, tur
 waves(name, template, waves, points=None, around_player=None, interval=1.2, max_alive=6, wave_gap=4)  # Spawner with waves: waves = [count, count, ...] or [{count, interval, max_alive}]. template = a node used as t
 ### materials
 PRESETS: marble, sandstone, limestone, granite, stone, brick, terracotta, concrete, plaster, wood, slate_roof, copper, verdigris, bronze, gold, steel, iron, painted_iron, glass, tinted_glass, water, grass, sand, asphalt, roof_tile, cobblestone, paving, corrugated, light, white, black, red, green, blue
-PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, plaster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
+PALETTE: aluminium, asphalt, bark, brick_brown, brick_buff, brick_red, cobble, concrete, curb, door_green, door_wood, frame_dark, frame_white, frame_wood, glass, glass_dark, grass, leaves, leaves_light, marking, metal, metal_dark, plaster_cream, pla)KIT"))
+	+ FString(TEXT(R"KIT(ster_grey, plaster_ochre, plaster_terracotta, plaster_white, roof_flat, roof_slate, roof_tile, sidewalk, soil, stone_light, stone_warm, tar, trim_stone, trim_white
 city STYLES: brick, plaster, stone, office, glass, loft, deco, residential, brutalist, painted
 buildings TYPES: apartment, townhouse, shophouse, villa, office, loft; L corners: square, chamfer, tower, balconies
-buildings STYLES: haussmann, )KIT"))
-	+ FString(TEXT(R"KIT(warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary, victorian, straits; per type (auto picks): apartment: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary; office: glass, art_deco, brutalist, modernist, warehouse, contemporary, haussmann; loft: warehouse, contemporary, brutalist, nordic; townhouse: victorian, haussmann, mediterranean, nordic, straits, contemporary; shophouse: straits, victorian, mediterranean, haussmann; villa: mediterranean, modernist, nordic
+buildings STYLES: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary, victorian, straits; per type (auto picks): apartment: haussmann, warehouse, brutalist, modernist, glass, art_deco, mediterranean, nordic, contemporary; office: glass, art_deco, brutalist, modernist, warehouse, contemporary, haussmann; loft: warehouse, contemporary, brutalist, nordic; townhouse: victorian, haussmann, mediterranean, nordic, straits, contemporary; shophouse: straits, victorian, mediterranean, haussmann; villa: mediterranean, modernist, nordic
 buildings MASSINGS: block, slab, podium_tower, twin_towers, setback, terraced, courtyard, U, L, T, H, stacked, notched, stepped; per type (auto picks): apartment: block, slab, podium_tower, courtyard, U, T, terraced, stacked, notched, stepped, setback; office: block, podium_tower, twin_towers, setback, H, notched, stacked, stepped, slab; loft: block, courtyard, U, L, stepped, setback, notched; townhouse: block, T, L, terraced; shophouse: block, T, terraced; villa: block, L, T, H, U
 )KIT"));

@@ -36,6 +36,10 @@ def m(x):
     return MAT.get(x, x) if isinstance(x, str) else x
 
 
+_LOD = 2  # detail level while a building is generated: 2 high, 1 medium, 0 low (set by building(detail=...))
+DETAIL = {"high": 2, "medium": 1, "low": 0}
+
+
 # ------------------------------------------------------------------ 1. components
 
 def _frame(x, y, z, w, h, t, d, mat):
@@ -46,6 +50,8 @@ def _frame(x, y, z, w, h, t, d, mat):
 
 def _bars(x, y, z, w, h, cols, rows, mat, t=2.4):
     P = []
+    if _LOD == 0:                                            # low detail: no glazing bars
+        return P
     for i in range(1, cols):
         P.append(box([t, 2.5, h], [x - w / 2 + i * w / cols, y, z], m=mat))
     for j in range(1, rows):
@@ -64,15 +70,26 @@ def window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2
     yf = reveal                                              # frame plane, set back in the reveal
     # room behind: dark back wall, side jambs of the reveal, a curtain
     P.append(box([w + 20, 4, h + 20], [x, yf + 70, z - 10], m=MAT["room"]))
-    if curtain is not False:
+    if curtain is not False and _LOD > 0:
         cur = curtain if isinstance(curtain, dict) else rng.choice(CURTAINS)
         open_l, open_r = rng.uniform(0.15, 0.45), rng.uniform(0.15, 0.45)
         P.append(box([w * open_l, 3, h - 10], [x - w / 2 + w * open_l / 2, yf + 25, z + 5], m=cur))
-        P.append(box([w * open_r, 3, h - 10], [x + w / 2 - w * open_r / 2, yf + 25, z + 5], m=cur))
+        if _LOD > 1:
+            P.append(box([w * open_r, 3, h - 10], [x + w / 2 - w * open_r / 2, yf + 25, z + 5], m=cur))
     P.append(box([w, 1.5, h], [x, yf + 3, z], m=MAT["glass"]))
     t = 7 if kind != "modern" else 5
     P += _frame(x, yf, z, w, h, t, 8, fr)
     iw, ih = w - 2 * t, h - 2 * t
+    if _LOD == 0:                                            # low detail: frame, one mullion, sill, lintel, shutter panels
+        if kind in ("casement", "french", "sash", "fixed") and w > 70:
+            P.append(box([5, 7, ih], [x, yf - 1, z + t], m=fr) if kind != "sash" else box([iw, 7, 5], [x, yf - 1, z + h / 2], m=fr))
+        if sill and kind != "french":
+            P.append(box([w + 18, yf + 8, 6], [x, yf / 2 - 4, z - 6], m=m(sill)))
+        if head not in ("none", "flat", None):
+            P.append(box([w + 30, 4, 18], [x, -2, z + h + 2], m=m(sill or "stone")))
+        if shutters:
+            P += [box([w / 2, 4, h], [x + sg * (w * 0.75 + 4), -4, z], m=m(shutters)) for sg in (-1, 1)]
+        return P
     if kind == "casement":                                   # two side-hung leaves with glazing bars, a transom light
         tr = z + t + ih * 0.78
         P.append(box([iw, 7, 6], [x, yf - 1, tr - 3], m=fr))
@@ -106,8 +123,9 @@ def window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2
         P += _bars(x, yf - 2, z + t, iw, ih, 2, 4, fr)
     elif kind == "fixed":
         P += _bars(x, yf - 2, z + t, iw, ih, panes[0], panes[1], fr)
-    # reveal jambs (the wall's thickness shows round the window)
-    P += [box([4, yf, h], [x - w / 2 - 2, yf / 2, z], m=MAT["concrete"]), box([4, yf, h], [x + w / 2 + 2, yf / 2, z], m=MAT["concrete"])]
+    # reveal jambs (the wall's thickness shows round the window): close-ups only
+    if _LOD > 1:
+        P += [box([4, yf, h], [x - w / 2 - 2, yf / 2, z], m=MAT["concrete"]), box([4, yf, h], [x + w / 2 + 2, yf / 2, z], m=MAT["concrete"])]
     # sill: projecting stone with a drip, or a threshold for doors
     if sill and kind != "french":
         P.append(box([w + 18, yf + 8, 6], [x, yf / 2 - 4, z - 6], m=m(sill)))
@@ -138,9 +156,13 @@ def window(x, z, w, h, kind="casement", frame="frame_white", reveal=14, panes=(2
         sw = w / 2
         for s in (-1, 1):
             cx = x + s * (w / 2 + sw / 2 + 4)
+            if _LOD == 0:                                    # low detail: a plain panel
+                P.append(box([sw, 4, h], [cx, -4, z], m=sh))
+                continue
             P += _frame(cx, -4, z, sw, h, 5, 4, sh)
-            for k in range(int((h - 10) / 9)):
-                P.append(box([sw - 10, 3, 5], [cx, -5, z + 5 + k * 9], rot=[-25, 0, 0], m=sh))
+            step = 9 if _LOD > 1 else 16
+            for k in range(int((h - 10) / step)):
+                P.append(box([sw - 10, 3, step * 0.55], [cx, -5, z + 5 + k * step], rot=[-25, 0, 0], m=sh))
     return P
 
 
@@ -222,7 +244,7 @@ def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
             out.append(box([4, 4, height - 5], [px, py, z], rot=[0, yaw, 0], m=MAT["steel"]))
     elif style == "balustrade":
         out += [box([ln, 26, 16], [mx, my, z], rot=[0, yaw, 0], m=mt), box([ln + 6, 30, 14], [mx, my, z + height - 14], rot=[0, yaw, 0], m=mt)]
-        n = max(2, int(ln / 26))
+        n = max(2, int(ln / (26, 40, 60)[2 - _LOD]))
         prof = [[0, 0], [7, 0], [7, 6], [5, 10], [5, 16], [9, 34], [6, 48], [4, 54], [6, 58], [7, 64], [7, height - 30], [0, height - 30]]
         for k in range(n):
             px, py = along((k + 0.5) / n)
@@ -233,8 +255,9 @@ def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
             px, py = along(k / n)
             out.append(box([9, 9, height], [px, py, z], rot=[0, yaw, 0], m=mt))
         out += [box([ln, 10, 6], [mx, my, z + height - 6], rot=[0, yaw, 0], m=mt), box([ln, 6, 6], [mx, my, z + 12], rot=[0, yaw, 0], m=mt)]
-        for k in range(int(ln / 13)):
-            px, py = along((k + 0.5) / int(ln / 13))
+        sp = (13, 20, 32)[2 - _LOD]
+        for k in range(int(ln / sp)):
+            px, py = along((k + 0.5) / int(ln / sp))
             out.append(box([5, 2.5, height - 24], [px, py, z + 18], rot=[0, yaw, 0], m=mt))
     elif style == "cable":
         for k in range(max(1, int(ln / 140)) + 1):
@@ -244,7 +267,7 @@ def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
         out += [box([ln, 0.8, 0.8], [mx, my, z + 12 + i * (height - 26) / 6], rot=[0, yaw, 0], m=MAT["steel"]) for i in range(6)]
     else:                                                # bars (and ornate)
         out += [box([ln, 5, 5], [mx, my, z + height - 5], rot=[0, yaw, 0], m=mt), box([ln, 4, 4], [mx, my, z + 8], rot=[0, yaw, 0], m=mt)]
-        n = max(2, int(ln / 11))
+        n = max(2, int(ln / (11, 16, 30)[2 - _LOD]))
         for k in range(n + 1):
             px, py = along(k / n)
             out.append(box([1.8, 1.8, height - 13], [px, py, z + 8], rot=[0, yaw, 0], m=mt))
@@ -252,9 +275,9 @@ def railing_run(ax, ay, bx, by, z, height=105, style="bars", mat="iron"):
             out.append(box([ln, 2, 2], [mx, my, z + height * 0.62], rot=[0, yaw, 0], m=mt))
             out.append(box([ln, 2, 2], [mx, my, z + height * 0.38], rot=[0, yaw, 0], m=mt))
             for k in range(n):
-                if k % 2 == 0:
+                if _LOD and k % (2 if _LOD > 1 else 4) == 0:
                     px, py = along((k + 0.5) / n)
-                    out.append({"shape": "torus", "size": [10, 10, 1.6], "location": [px, py, z + height * 0.5 - 5], "rotation": [0, yaw, 90], **mt})
+                    out.append({"shape": "torus", "size": [10, 10, 1.6], "location": [px, py, z + height * 0.5 - 5], "rotation": [0, yaw, 90], "detail": "low", **mt})
     return out
 
 
@@ -289,7 +312,7 @@ def cornice(width, z, depth=40, mat="stone", kind="moulded"):
     mm = m(mat)
     P = [box([width + 2 * depth, depth + 8, 12], [0, -depth / 2 + 4, z + 26], m=mm), box([width + depth, depth * 0.7, 10], [0, -depth * 0.35 + 4, z + 16], m=mm),
          box([width + depth * 0.4, depth * 0.4, 16], [0, -depth * 0.2 + 4, z], m=mm)]
-    if kind == "dentils":
+    if kind == "dentils" and _LOD:
         P += [box([8, 10, 10], [-width / 2 + 10 + i * 18, -depth * 0.45, z + 6], m=mm) for i in range(int(width / 18))]
     return P
 
@@ -355,7 +378,7 @@ def _skin(pieces, plan, rng):
             continue
         sm = m(plan.get("skin_m", plan["wall"]))
         if skin == "battens":                                # vertical timber slats with shadow gaps
-            n = max(1, int(sx / plan.get("batten_gap", 11)))
+            n = max(1, int(sx / (plan.get("batten_gap", 11) * (1, 1.5, 2.5)[2 - _LOD])))
             for k in range(n):
                 out.append(box([4.5, 3, sz], [x - sx / 2 + (k + 0.5) * sx / n, -1.5, z], m=sm))
         elif skin == "boards":                               # horizontal weatherboarding: shadow lines every board
@@ -365,6 +388,8 @@ def _skin(pieces, plan, rng):
         elif skin == "panels":                               # rainscreen panels in a few tones
             tones = plan.get("skin_tones") or [sm]
             pw, ph = plan.get("panel", (120, 60))
+            if _LOD == 0:
+                pw, ph = pw * 2, ph * 2
             nx, nz = max(1, round(sx / pw)), max(1, round(sz / ph))
             for i in range(nx):
                 for j in range(nz):
@@ -380,6 +405,8 @@ def _life(x, z_sill, w, plan, wall_m, rng):
     """Signs of use round a window: flower boxes, an AC unit, rain streaks under the sill."""
     L = plan.get("life") or {}
     P = []
+    if _LOD == 0:
+        return P
     r = rng.random()
     if r < L.get("flowers", 0):
         P.append(box([w + 6, 22, 18], [x, -14, z_sill - 2], m=M("terracotta", (150, 80, 56))))
@@ -1065,7 +1092,7 @@ def _l_shape(kind, rng, wa, wb, depth, floors, corner):
 
 
 def building(kind="apartment", seed=None, width=None, depth=None, floors=None, shape="rect", corner=None, wing=None,
-             massing=None, party=None, street=("-y",), style=None):
+             massing=None, party=None, street=("-y",), style=None, detail="high"):
     """A complete building of a type, varied by seed.
     shape rect: front facade on the street (-Y), back, sides, roof; origin = front centre at ground.
     shape L (corner building): two street facades meeting at the origin, wing A along +X (facing -Y), wing B along +Y
@@ -1077,14 +1104,22 @@ def building(kind="apartment", seed=None, width=None, depth=None, floors=None, s
       ground floor and the main facade.
     style: an architectural style (see STYLES, or "auto" to pick one that suits the type): materials, window system,
       balconies, base, crown and roof. Implies massing="auto" unless a massing is given.
+    detail: high (close-ups, every louvre and railing bar) | medium (streets, about half the parts) | low (districts
+      seen from above or far away, about a quarter).
+    seed: None = a new random building every call; pass a number to get the same one again.
     Returns parts."""
+    global _LOD
     rng = random.Random(seed)
-    if massing or style:
-        return massed(kind, massing or "auto", rng, width, depth, floors, party, street, style)
-    if shape in ("L", "corner"):
-        corner = corner or rng.choice(("square", "chamfer", "tower", "balconies"))
-        return _l_shape(kind, rng, width, wing, depth, floors, corner)
-    return _rect(kind, rng, width, depth, floors)
+    old, _LOD = _LOD, DETAIL.get(detail, 2) if isinstance(detail, str) else int(detail)
+    try:
+        if massing or style:
+            return massed(kind, massing or "auto", rng, width, depth, floors, party, street, style)
+        if shape in ("L", "corner"):
+            corner = corner or rng.choice(("square", "chamfer", "tower", "balconies"))
+            return _l_shape(kind, rng, width, wing, depth, floors, corner)
+        return _rect(kind, rng, width, depth, floors)
+    finally:
+        _LOD = old
 
 
 # ------------------------------------------------------------------ 4. massing models

@@ -12,12 +12,17 @@ Results come back as plain JSON (dicts); a failing tool raises ToolError with th
 Units: centimetres, degrees, Z up. help(uk.tools.<toolset>) lists a toolset's tools.
 """
 
+import gzip
+import http.client
 import json
 import os
+import threading
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlsplit
 
-__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look", "assets"]
+__all__ = ["connect", "call", "batch", "place", "place_many", "save_image", "ToolError", "tools", "parts", "rules", "ui", "look", "assets", "district"]
 
 last_images = []  # images (base64 + mimeType) returned by the last call: screenshots, captures
 
@@ -33,17 +38,39 @@ class ToolError(RuntimeError):
         super().__init__(f"{tool}: {msg}" + (f" (hint: {hint})" if hint else ""))
 
 
-def _http(url, body, headers, timeout=300):
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("User-Agent", USER_AGENT)
-    for k, v in headers.items():
-        req.add_header(k, v)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, dict(r.headers), r.read().decode()
-    except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers), e.read().decode(errors="replace")
+_conns = threading.local()  # one kept-alive connection per thread and host: no TLS handshake per request (~0.5 s far away)
+
+
+def _http(url, body, headers, timeout=300, compress=False):
+    data = json.dumps(body, separators=(",", ":")).encode()
+    hdrs = {"Content-Type": "application/json", "User-Agent": USER_AGENT, **headers}
+    if compress and len(data) > 32768:  # the relay unpacks it: big part lists shrink about 8x
+        data = gzip.compress(data, 5)
+        hdrs["Content-Encoding"] = "gzip"
+    u = urlsplit(url)
+    key = (u.scheme, u.netloc)
+    pool = getattr(_conns, "pool", None)
+    if pool is None:
+        pool = _conns.pool = {}
+    path = u.path + ("?" + u.query if u.query else "")
+    for attempt in range(2):
+        conn = pool.get(key)
+        if conn is None:
+            cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+            conn = pool[key] = cls(u.netloc, timeout=timeout)
+        try:
+            conn.request("POST", path, body=data, headers=hdrs)
+            r = conn.getresponse()
+            text = r.read().decode(errors="replace")
+            if r.getheader("Connection", "").lower() == "close":
+                conn.close()
+                pool.pop(key, None)
+            return r.status, {k: v for k, v in r.getheaders()}, text
+        except (http.client.HTTPException, ConnectionError, OSError):
+            conn.close()
+            pool.pop(key, None)
+            if attempt:
+                raise
 
 
 class _Relay:
@@ -54,7 +81,7 @@ class _Relay:
         self.token = token
 
     def __call__(self, tool, arguments):
-        status, _, body = _http(self.base + "/call", {"tool": tool, "arguments": arguments}, {"Authorization": "Bearer " + self.token})
+        status, _, body = _http(self.base + "/call", {"tool": tool, "arguments": arguments}, {"Authorization": "Bearer " + self.token}, compress=True)
         try:
             value = json.loads(body)
         except ValueError:
@@ -184,9 +211,13 @@ def check_parts(parts, where="parts"):
             raise ToolError("check_parts", {"message": f"{where}[{i}]: unknown shape '{p.get('shape')}'", "hint": ", ".join(sorted(shapes))})
 
 
-def place_many(jobs, group=None, per_request=16):
-    """jobs = [(name, parts, location)]: many objects, sent several per request. Returns created node ids.
-    Every part is checked first, so a typo fails before anything is built."""
+_max_parts = None  # parts per assembly: 800 on plugin 0.14+, 500 on older builds (checked once)
+
+
+def place_many(jobs, group=None, parts_per_request=12000, in_flight=3):
+    """jobs = [(name, parts, location)]: many objects, sent in big requests, several in flight at once. Returns node ids.
+    Every part is checked first, so a typo fails before anything is built. A whole building is usually one object."""
+    global _max_parts
     for name, parts, _ in jobs:
         check_parts(parts, name)
     if group:
@@ -194,29 +225,58 @@ def place_many(jobs, group=None, per_request=16):
             group = call("scene.create_group", name=group).get("path", group)
         except ToolError:
             pass
-    calls = []
-    for name, parts, at in jobs:
-        chunks = [parts[i:i + 500] for i in range(0, len(parts), 500)] or [[]]
-        parent = group
-        if len(chunks) > 1:  # big objects: chunks under one group with the object's name
-            g = {"name": name}
-            if group:
-                g["parent"] = group
-            parent = call("scene.create_group", **g).get("path", name)
-        for k, chunk in enumerate(chunks):
-            args = {"name": name if len(chunks) == 1 else f"{name}_{k}", "parts": chunk, "location": [round(float(v), 2) for v in at]}
-            if parent:
-                args["parent"] = parent
-            calls.append({"tool": "build.create_assembly", "arguments": args})
-    ids = []
-    for i in range(0, len(calls), per_request):
-        res = call("ops.run_batch", calls=calls[i:i + per_request])
-        for r in res.get("results", []):
-            if not r.get("ok", True):
-                raise ToolError("build.create_assembly", r.get("error", r))
-            ids.append(r.get("id"))
-    return ids
+
+    def plan(limit):
+        calls, sizes = [], []
+        for name, parts, at in jobs:
+            chunks = [parts[i:i + limit] for i in range(0, len(parts), limit)] or [[]]
+            parent = group
+            if len(chunks) > 1:  # big objects: chunks under one group with the object's name
+                g = {"name": name}
+                if group:
+                    g["parent"] = group
+                parent = call("scene.create_group", **g).get("path", name)
+            for k, chunk in enumerate(chunks):
+                args = {"name": name if len(chunks) == 1 else f"{name}_{k}", "parts": chunk, "location": [round(float(v), 2) for v in at]}
+                if parent:
+                    args["parent"] = parent
+                calls.append({"tool": "build.create_assembly", "arguments": args})
+                sizes.append(len(chunk))
+        requests, cur, n = [], [], 0
+        for c, sz in zip(calls, sizes):  # pack whole assemblies into requests of about parts_per_request parts
+            if cur and (n + sz > parts_per_request or len(cur) >= 100):
+                requests.append(cur)
+                cur, n = [], 0
+            cur.append(c)
+            n += sz
+        if cur:
+            requests.append(cur)
+        return requests
+
+    def send(req):
+        return call("ops.run_batch", calls=req)
+
+    def check(results):
+        ids = []
+        for res in results:
+            for r in res.get("results", []):
+                if not r.get("ok", True):
+                    raise ToolError("build.create_assembly", r.get("error", r))
+                ids.append(r.get("id"))
+        return ids
+
+    if _max_parts is None:  # plugin 0.14+ takes 8192 parts per assembly; older builds 512
+        try:
+            v = tuple(int(x) for x in str(call("session.get_build_info").get("plugin_version", "0")).split(".")[:2])
+        except (ToolError, ValueError):
+            v = (0, 0)
+        _max_parts = 800 if v >= (0, 14) else 500  # past ~1000 parts an assembly builds slower per part
+    requests, done = plan(_max_parts), []
+    with ThreadPoolExecutor(max_workers=max(1, in_flight)) as pool:
+        done += list(pool.map(send, requests))
+    return check(done)
 
 
 from . import tools  # noqa: E402  (generated: one function per tool)
-from . import assets, look, parts, rules, ui  # noqa: E402,F401  (generic helpers; content examples are in kit_examples/)
+from . import assets, look, parts, rules, ui  # noqa: E402,F401
+from .district import district  # noqa: E402,F401  (one call: a whole styled district)  (generic helpers; content examples are in kit_examples/)

@@ -58,7 +58,7 @@ def _frame(origin, yaw):
     return world
 
 
-def terrace(origin=(0, 0, 0), yaw=0.0, houses=8, style="london", floors=4, depth=1000.0, seed=1, ins=None, pavement=True, ground=BASE,
+def terrace(origin=(0, 0, 0), yaw=0.0, houses=8, style="london", floors=4, depth=1000.0, seed=None, ins=None, pavement=True, ground=BASE,
             lamps=False):
     """One terrace. origin = the left end of the front wall plane at pavement level; bays run along local +X and the
     facade faces local -Y (world direction yaw - 90). The area floor is 180 cm below the pavement and the pavement

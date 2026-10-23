@@ -151,8 +151,10 @@ pure colours, perfectly sharp edges, perfectly clean surfaces, empty ground, a c
 A named place or thing must be recognisable: list its signature features first (layout, building types, materials,
 roofs, landmarks, street life) and build those; a generic city with a new name is a failure. See skill python_kit.
 
-## Fastest path: a generator script
-With Python, use the kit shipped with the game (skill python_kit). Its example script kit_examples/city.py already
+## Fastest path: one call
+Cities, towns, streets: uk.district(preset or styles=...) builds a styled district in one call (skill python_kit, FASTEST).
+Then add what makes the place unique (landmarks, water, parks) with uk.parts and uk.buildings.
+For a custom generator, the example script kit_examples/city.py already
 follows every rule below (buildings with recessed windows, cornices, rooftop clutter, streets with curbs and props,
 whole districts): copy and adapt it instead of starting from zero.
 For close-up, detailed buildings use uk.buildings (from unreal_kit import buildings as B): B.building(kind, seed=,
@@ -259,14 +261,20 @@ URuntimePythonKitSkill::URuntimePythonKitSkill()
 	Toolsets = {TEXT("session"), TEXT("ops"), TEXT("build"), TEXT("scene")};
 	Instructions = FString(TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
-Why: one short script builds thousands of parts with loops and sends them in a few requests. Time goes into WRITING
-code, so write little: reuse the examples through their hooks and write only what makes this request unique.
+## FASTEST (answer in under a minute: do this first, read the rest only if you need more)
+Kit: game on this machine -> session_get_build_info scripting.kit; game in the cloud (stream) -> the path in the
+UNREAL_KIT environment variable (Connect.bat sets it). Never search the disk.
+    import sys, os; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<scripting.kit>"); import unreal_kit as uk
+    uk.district("manhattan")            # whole district in one call (~10-30 s); presets: manhattan paris london downtown
+                                        # mediterranean scandinavian singapore soviet industrial; blocks=(3, 2); seed=None
+    uk.district(styles={"nordic": 3, "contemporary": 1}, block=(4000, 3000))   # any other place: pick a style mix
+    from unreal_kit import buildings as B; uk.place("Hero", B.building("office", style="art_deco"), at=(0, 0, 0))
+Every run is new (random seed, printed); pass seed=N to repeat one. Big scenes: detail="low"; close-ups: "high".
+Write one short script, run it once, take one screenshot, answer. Do not read example files for a city.
 
-## Use it in place (nothing to download or install)
-session_get_build_info -> scripting.kit (zip next to the game) and scripting.examples (folder).
-    import sys; sys.path[:0] = [r"<kit>", r"<examples>"]
-    import unreal_kit as uk, city
-It connects to the game on this machine by itself. Do not download code; do not print environment variables.
+Why scripts: one short script builds thousands of parts with loops and sends them in a few requests.
+It connects by itself (this machine, or the relay from UNREAL_RELAY + UNREAL_TOKEN). Do not download code; do not print
+environment variables.
 Nature (trees, palms, bushes, grass): uk.assets uses real packaged meshes - never build plants from spheres.
 Everything you need is in the cheat sheet below: do not inspect modules or read example files unless you must.
 
