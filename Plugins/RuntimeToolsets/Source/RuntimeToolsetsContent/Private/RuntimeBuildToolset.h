@@ -679,11 +679,20 @@ public:
 	 * @param Parent - Parent group.
 	 * @param Material - Override the ground material (preset or allowed path); default the biome ground.
 	 * @param Color - Override the ground-cover colour [r,g,b] linear 0-1.
+	 * @param SandLine - Beach: sand from the water up to this world z, blending into the ground cover above (rock stays on cliffs).
+	 * @param SeaLevel - World z of the sea: darker, glossy wet sand just above it (use the same z for fluid.add coast_water);
+	 *                   without sand_line the beach reaches 1.5 m above it.
+	 * @param Islands - Coastlines (world x,y) at sea_level: [{area:[[x,y],...], height (peak above the sea, cm, default 800),
+	 *                  beach (width of the gentle beach cm, 1500), dune (beach rise cm, 150), depth (sea floor below the sea cm,
+	 *                  900), shelf (how far out it deepens cm, 3000), wobble (coves and points cm, 600; 0 = exact outline),
+	 *                  wobble_size (cm, 2500)}]. The ground follows them (an island or archipelago from its outline); hills,
+	 *                  pads and channels still apply on top. Use with sea_level and fluid.add coast_water at that z.
 	 * @return {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
 	 */
-	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Size,Location,Hills,Flatten,Carve,Tags,Color"), Category = "Build|Create")
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Size,Location,Hills,Flatten,Carve,Tags,Color,SandLine,SeaLevel,Islands"), Category = "Build|Create")
 	static FBuildToolTerrainResult CreateTerrain(const FVector2D& Size, const FVector& Location, const TArray<FRuntimeToolJson>& Hills,
-		const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height = 2000.f,
+		const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color,
+		const float& SandLine, const float& SeaLevel, const TArray<FRuntimeToolJson>& Islands, float Height = 2000.f,
 		float FeatureSize = 20000.f, float Ridged = 0.f, float Roughness = 0.5f, int32 Seed = 1, float Edge = 0.f, EBuildToolBiome Biome = EBuildToolBiome::Temperate,
 		float Resolution = 0.f, float SnowLine = 0.f, const FString& Name = TEXT("Terrain"), AActor* Parent = nullptr, const FString& Material = TEXT(""));
 

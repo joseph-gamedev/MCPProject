@@ -5,6 +5,9 @@
 #include "LogicUi.h"
 #include "RuntimeCharacterToolset.h"
 #include "RuntimeCommand.h"
+#include "RuntimeCommonCommands.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
 #include "RuntimeJson.h"
 #include "RuntimeSceneGraph.h"
 #include "RuntimeToolInvocation.h"
@@ -1689,4 +1692,67 @@ int32 URuntimeLogicToolset::WatchContacts(const FString& Name, const TArray<FStr
 		return true;
 	});
 	return Count;
+}
+
+FLogicThirdPersonResult URuntimeCharacterToolset::ThirdPerson(const FVector& Location, float Yaw, const FString& CharacterClass)
+{
+	FLogicThirdPersonResult Out;
+	// the project's third-person character: the one asked for, else FluidNinja LIVE's, else the UE template's
+	TArray<FString> Candidates;
+	if (!CharacterClass.IsEmpty())
+	{
+		Candidates.Add(CharacterClass.EndsWith(TEXT("_C")) || !CharacterClass.StartsWith(TEXT("/")) ? CharacterClass
+			: CharacterClass + TEXT(".") + FPaths::GetBaseFilename(CharacterClass) + TEXT("_C"));
+	}
+	else
+	{
+		Candidates = {TEXT("/Game/FluidNinjaLive/Meshes/ThirdPersonCharacter.ThirdPersonCharacter_C"),
+			TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"),
+			TEXT("/Game/ThirdPersonBP/Blueprints/ThirdPersonCharacter.ThirdPersonCharacter_C")};
+	}
+	UClass* Class = nullptr;
+	for (const FString& C : Candidates)
+	{
+		Class = C.StartsWith(TEXT("/")) ? LoadObject<UClass>(nullptr, *C, nullptr, LOAD_NoWarn | LOAD_Quiet) : FindFirstObject<UClass>(*C, EFindFirstObjectOptions::None);
+		if (Class)
+		{
+			break;
+		}
+	}
+	if (!Class || !Class->IsChildOf(ACharacter::StaticClass()))
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound,
+			Class ? FString::Printf(TEXT("%s is not a Character"), *Class->GetPathName()) : TEXT("no third-person character Blueprint in the project"),
+			TEXT("Pass character_class, e.g. /Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter, or use character.create"));
+		return Out;
+	}
+	const FTransform T(FRotator(0.f, Yaw, 0.f), Location + FVector(0.0, 0.0, 100.0));
+	auto Spawn = [Class, T](FRuntimeCommandContext& Ctx, FString& Err) -> AActor*
+	{
+		FActorSpawnParameters P;
+		P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		ACharacter* C = Ctx.World->SpawnActor<ACharacter>(Class, T, P);
+		if (!C)
+		{
+			Err = TEXT("could not spawn the character");
+			return nullptr;
+		}
+		if (APlayerController* PC = Ctx.World->GetFirstPlayerController())
+		{
+			PC->Possess(C);
+			PC->SetViewTarget(C);
+		}
+		return C;
+	};
+	TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(TEXT("add third-person character"), Spawn, TEXT("ThirdPersonCharacter"), FString(),
+		ERuntimeNodeKind::Actor, TEXT("class:") + Class->GetPathName(), TArray<FName>());
+	FCreateNodeCommand* Raw = Cmd.Get();
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
+	{
+		return Out;
+	}
+	Out.Id = Raw->GetNodeId();
+	Out.Class = Class->GetPathName();
+	Out.Controls = TEXT("W/A/S/D: move, mouse: look, Space: jump");
+	return Out;
 }

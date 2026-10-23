@@ -1575,7 +1575,27 @@ def _character_set_climbable(*, targets, climbable=None):
     return call('character.set_climbable', **args)
 
 
-character = SimpleNamespace(create=_character_create, set_climbable=_character_set_climbable)
+def _character_third_person(*, yaw, character_class=None, location=None):
+    """Places a ready-made third-person character (animated mannequin, follow camera, WASD + mouse, Space jumps) and gives the player control of it. Its skeleton disturbs fluids (mud, water, snow, smoke) and touches physics like a real body. Undoable (removes it). Use it instead of character.create when a realistic walking body is wanted.
+    Returns: The character. Fails if the project has no third-person character Blueprint or the class is not a Character.
+
+    Args:
+        yaw (float): Required. Facing, degrees.
+        character_class (str): A Character Blueprint (path or class), default: the project's third-person character
+            (FluidNinja LIVE's or the UE template's).
+        location (list[float]): Feet position (cm), e.g. [0, 0, 0]. ([x, y, z] (cm))
+    """
+    args = {}
+    if yaw is not None:
+        args['yaw'] = yaw
+    if character_class is not None:
+        args['character_class'] = character_class
+    if location is not None:
+        args['location'] = location
+    return call('character.third_person', **args)
+
+
+character = SimpleNamespace(create=_character_create, set_climbable=_character_set_climbable, third_person=_character_third_person)
 character.__doc__ = "Generic playable character: any game's hero built from settings instead of a genre preset. Movement numbers, key"
 
 
@@ -1695,6 +1715,171 @@ def _console_set_scalability(*, anti_aliasing=None, effects=None, foliage=None, 
 
 console = SimpleNamespace(exec_command=_console_exec_command, get_cvar=_console_get_cvar, get_user_settings=_console_get_user_settings, list_cvars=_console_list_cvars, set_cvar=_console_set_cvar, set_scalability=_console_set_scalability)
 console.__doc__ = 'Console: console commands, console variables (cvars), scalability and user settings of the running game.'
+
+
+# ------------------------------------------------------------------ fluid
+
+def _fluid_add(*, preset, follow_player=None, location=None, material=None, name=None, resolution=None, size_meters=None, yaw=None):
+    """Adds a fluid simulation from a preset: the simulation plus the water surface it drives. Undoable.
+    Returns: The new simulation. Fails if FluidNinja is not in the project, the preset or material is unknown, or a value is out of range.
+
+    Args:
+        preset (str): Required. an effect: bonfire | fire | candle | smoke_column | heavy_smoke | explosion |
+            flamethrower | magic | mist | mud | blood | snow_trails | snow_drift | sand_trails | sandstorm | lava (see
+            list `effects`); or water: lake | pool | sea | sea_wavy | sea_200m | sea_wavy_200m | river |
+            river_whitewater | river_whitewater_inverse | water_tank | tracks | default (or a preset asset path). Lakes,
+            pools and seas look right anywhere (put ground below them, e.g. a terrain basin); the river presets are made
+            to follow a spline over a landscape and look like a sandy bed with streaks on open ground.
+        follow_player (bool): The simulation travels with the player's character (a beach, sea or sand area that is
+            always around them, like the pack's coast demo); create the character first. Default false.
+        location (list[float]): Centre of the area on the water level (cm), e.g. [0, 0, 20]. ([x, y, z] (cm))
+        material (str): Water material, a short name from list `water_materials` (e.g. "MI_Water_Quiet") or a path.
+        name (str): Node name, e.g. "Lake".
+        resolution (int): Grid cells per side, 256-2048 (higher = finer ripples, more GPU), e.g. 1024.
+        size_meters (float): Side of the simulated square in metres, e.g. 80 (the preset's own size when omitted).
+        yaw (float): Turn the whole effect around its vertical axis, degrees (fire and smoke face the camera anyway).
+    """
+    args = {}
+    if preset is not None:
+        args['preset'] = preset
+    if follow_player is not None:
+        args['follow_player'] = follow_player
+    if location is not None:
+        args['location'] = location
+    if material is not None:
+        args['material'] = material
+    if name is not None:
+        args['name'] = name
+    if resolution is not None:
+        args['resolution'] = resolution
+    if size_meters is not None:
+        args['size_meters'] = size_meters
+    if yaw is not None:
+        args['yaw'] = yaw
+    return call('fluid.add', **args)
+
+
+def _fluid_add_source(*, kind, location=None, rotation=None):
+    """Places a flow source: it pushes fluid and feeds density into the simulations it is inside (or near). Undoable.
+    Returns: The source. Fails if FluidNinja is not in the project or the kind is unknown.
+
+    Args:
+        kind (str): Required. water_hose | water_hose_mini | jet | vortex | avalanche | bonfire | smoke | smoke_light |
+            burst | burst_radial | radial | linear | turret | cauldron | grid.
+        location (list[float]): Where (cm), e.g. [0, 0, 50]. ([x, y, z] (cm))
+        rotation (list[float]): Direction it points, [pitch, yaw, roll], e.g. [0, 90, 0]. ([pitch, yaw, roll] (degrees))
+    """
+    args = {}
+    if kind is not None:
+        args['kind'] = kind
+    if location is not None:
+        args['location'] = location
+    if rotation is not None:
+        args['rotation'] = rotation
+    return call('fluid.add_source', **args)
+
+
+def _fluid_ambient(*, kind, location=None, scale=None):
+    """Places an ambient particle effect (no simulation): weather and atmosphere around a spot. Undoable.
+    Returns: The effect. Fails if FluidNinja is not in the project or the kind is unknown.
+
+    Args:
+        kind (str): Required. blizzard | sandstorm | rain | rain_translucent | sparks | sparks_burning | magic |
+            plankton | plankton_soft.
+        location (list[float]): Where (cm), e.g. [0, 0, 200]. ([x, y, z] (cm))
+        scale (float): Size multiplier, e.g. 1.
+    """
+    args = {}
+    if kind is not None:
+        args['kind'] = kind
+    if location is not None:
+        args['location'] = location
+    if scale is not None:
+        args['scale'] = scale
+    return call('fluid.ambient', **args)
+
+
+def _fluid_float(*, targets, buoyancy=None, drag=None, water_level=None):
+    """Makes objects float on water: boats, barrels, crates, debris bob at the surface, drift and settle (turns their physics on).
+    Returns: The floating objects and the water level. Fails if a target has no collision (physics needs it).
+
+    Args:
+        targets (list[str]): Required. Objects to float, e.g. ["n12", "n13"].
+        buoyancy (float): Lift when fully under water, in multiples of the object's weight (1.2 rides low, 3 rides
+            high). Default 2.
+        drag (float): Water drag (0.3 drifts freely, 3 calms quickly). Default 1.
+        water_level (float): Water surface height (cm); default: the nearest water simulation's surface.
+    """
+    args = {}
+    if targets is not None:
+        args['targets'] = targets
+    if buoyancy is not None:
+        args['buoyancy'] = buoyancy
+    if drag is not None:
+        args['drag'] = drag
+    if water_level is not None:
+        args['water_level'] = water_level
+    return call('fluid.float', **args)
+
+
+def _fluid_get_settings(*, id):
+    """A simulation's tunable settings and surface look, with current values. Main simulation settings: SimSpeed (how fast it moves; lower = thicker, slower), BrushStrength (how hard things push), GlobalBrushSize, SkeletalMeshBrushSize (characters), PrimitiveObjBrushSize (objects), VehicleBrushSize, BrushHardness (soft 0 .. sharp 1 marks), DensityAccumulation (how fast it fills back in), PersistencyOfFieldAndPointData (how long marks last), VelocityFeedback (how long motion carries on, 0..1), VelocityClamp, PressureFeedback, VeloFromBrushMotion (how much movement drags it along), DensityNoiseAmount and BrushDensityNoise (irregularity).
+    Returns: Settings and surface parameters. Fails if there is no such simulation.
+
+    Args:
+        id (str): Required. The simulation (id from list / add), e.g. "n4".
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    return call('fluid.get_settings', **args)
+
+
+def _fluid_list():
+    """Lists the fluid simulations in the level, the presets and the water materials.
+    Returns: Simulations, presets and materials; `installed` false when the FluidNinja content is missing.
+    """
+    args = {}
+    return call('fluid.list', **args)
+
+
+def _fluid_remove(*, id):
+    """Removes a fluid simulation and its surface. Undoable.
+    Returns: The list after the removal. Fails if the id is not a fluid simulation.
+
+    Args:
+        id (str): Required. The simulation (node id from add or list).
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    return call('fluid.remove', **args)
+
+
+def _fluid_set_settings(*, id, colors=None, simulation=None, surface=None):
+    """Tunes a simulation live: behaviour settings and its surface look (see get_settings for names and current values).
+    Returns: The settings after the change. Fails if there is no such simulation or a name is unknown.
+
+    Args:
+        id (str): Required. The simulation, e.g. "n4".
+        colors (dict): Surface material colours by name, as hex, e.g. {"Color": "#4a3222"}.
+        simulation (dict): Behaviour settings by name, e.g. {"SimSpeed": 2, "BrushStrength": 0.5}.
+        surface (dict): Surface material numbers by name, e.g. {"Roughness": 0.3}.
+    """
+    args = {}
+    if id is not None:
+        args['id'] = id
+    if colors is not None:
+        args['colors'] = colors
+    if simulation is not None:
+        args['simulation'] = simulation
+    if surface is not None:
+        args['surface'] = surface
+    return call('fluid.set_settings', **args)
+
+
+fluid = SimpleNamespace(add=_fluid_add, add_source=_fluid_add_source, ambient=_fluid_ambient, float=_fluid_float, get_settings=_fluid_get_settings, list=_fluid_list, remove=_fluid_remove, set_settings=_fluid_set_settings)
+fluid.__doc__ = 'Real-time fluid simulation (FluidNinja LIVE) on a 2D GPU grid: water (lakes, pools, seas) that ripples and wakes around'
 
 
 # ------------------------------------------------------------------ game
@@ -3008,6 +3193,19 @@ def _lighting_get_environment():
     return call('lighting.get_environment', **args)
 
 
+def _lighting_hide_environment(*, hidden=None):
+    """Sets aside the level's own sun, sky light, atmosphere, clouds, fog and post process (the ones that came with the map), so a scene can bring its own lighting; tool-made ones are kept. Call again with hidden false to bring them back.
+    Returns: The actors changed.
+
+    Args:
+        hidden (bool): true sets them aside, false brings them back. Default true.
+    """
+    args = {}
+    if hidden is not None:
+        args['hidden'] = hidden
+    return call('lighting.hide_environment', **args)
+
+
 def _lighting_set_atmosphere(*, mie_anisotropy=None, mie_scattering_scale=None, multi_scattering_factor=None, rayleigh_scattering=None, rayleigh_scattering_scale=None):
     """Sets the sky atmosphere's scattering (sky colour and haze). Undoable.
     Returns: The atmosphere after the change. Fails if the level has no sky atmosphere.
@@ -3197,7 +3395,7 @@ def _lighting_set_time_of_day(*, hour, target=None, yaw=None):
     return call('lighting.set_time_of_day', **args)
 
 
-lighting = SimpleNamespace(apply_mood=_lighting_apply_mood, get_environment=_lighting_get_environment, set_atmosphere=_lighting_set_atmosphere, set_clouds=_lighting_set_clouds, set_fog=_lighting_set_fog, set_post_process=_lighting_set_post_process, set_sky=_lighting_set_sky, set_sun=_lighting_set_sun, set_time_of_day=_lighting_set_time_of_day)
+lighting = SimpleNamespace(apply_mood=_lighting_apply_mood, get_environment=_lighting_get_environment, hide_environment=_lighting_hide_environment, set_atmosphere=_lighting_set_atmosphere, set_clouds=_lighting_set_clouds, set_fog=_lighting_set_fog, set_post_process=_lighting_set_post_process, set_sky=_lighting_set_sky, set_sun=_lighting_set_sun, set_time_of_day=_lighting_set_time_of_day)
 lighting.__doc__ = 'Outdoor lighting at runtime: sun (directional light), sky light, sky atmosphere, volumetric clouds, height fog and the'
 
 
@@ -4495,6 +4693,14 @@ def _ops_get_test_status(*, max_failures=None):
     return call('ops.get_test_status', **args)
 
 
+def _ops_list_recipes():
+    """Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.
+    Returns: The recipes: name, what they build, parts that can be skipped, number of calls.
+    """
+    args = {}
+    return call('ops.list_recipes', **args)
+
+
 def _ops_list_tests(*, filter=None, limit=None):
     """Lists the automation tests available in this build.
     Returns: {total, tests} with full test paths sorted alphabetically. Fails if the filter names an unknown group.
@@ -4548,6 +4754,22 @@ def _ops_run_batch(*, calls, atomic=None, label=None, stop_on_error=None):
     if stop_on_error is not None:
         args['stop_on_error'] = stop_on_error
     return call('ops.run_batch', **args)
+
+
+def _ops_run_recipe(*, name, skip=None):
+    """Builds a ready-made scene or setup by running its stored tool calls (like run_batch; it clears the scene first when the recipe says so). Everything it makes is ordinary nodes: change or extend it with the other tools afterwards.
+    Returns: Like run_batch: {completed, total, failed_at, results} (a recipe keeps going past calls that fail). Fails if the recipe does not exist.
+
+    Args:
+        name (str): Required. Recipe name from list_recipes, e.g. "sea_coast".
+        skip (list[str]): Parts to leave out, e.g. ["props", "player"].
+    """
+    args = {}
+    if name is not None:
+        args['name'] = name
+    if skip is not None:
+        args['skip'] = skip
+    return call('ops.run_recipe', **args)
 
 
 def _ops_stop_tests():
@@ -4606,7 +4828,7 @@ def _ops_wait_for_condition(*, tool, arguments=None, interval_s=None, op=None, p
     return call('ops.wait_for_condition', **args)
 
 
-ops = SimpleNamespace(get_test_results=_ops_get_test_results, get_test_status=_ops_get_test_status, list_tests=_ops_list_tests, run_automation_test=_ops_run_automation_test, run_batch=_ops_run_batch, stop_tests=_ops_stop_tests, wait=_ops_wait, wait_for_condition=_ops_wait_for_condition)
+ops = SimpleNamespace(get_test_results=_ops_get_test_results, get_test_status=_ops_get_test_status, list_recipes=_ops_list_recipes, list_tests=_ops_list_tests, run_automation_test=_ops_run_automation_test, run_batch=_ops_run_batch, run_recipe=_ops_run_recipe, stop_tests=_ops_stop_tests, wait=_ops_wait, wait_for_condition=_ops_wait_for_condition)
 ops.__doc__ = 'Orchestration and testing: run many tool calls in one request (optionally atomic, one undo step), wait for game state,'
 
 
@@ -6112,6 +6334,34 @@ def _sky_remove():
     return call('sky.remove', **args)
 
 
+def _sky_set_ground(*, dust=None, mud=None, puddles=None, release=None, snow=None, wetness=None):
+    """Sets the state of the ground and surfaces: wet ground, puddles in hollows (with rain ripples), snow and dust cover on terrain, buildings and props, and mud spreading over flat wet ground. Values given stay fixed until release; otherwise the weather drives them over time (rain wets and fills puddles, then they dry; snow settles and melts).
+    Returns: The sky state with `ground`. Fails before setup (or without the weather actor) or for values out of range.
+
+    Args:
+        dust (float): Dust / sand cover, 0-1.
+        mud (float): How strongly wet flat ground turns to mud, 0-2 (1 default, 0 no mud).
+        puddles (float): Puddle coverage on the ground, 0-1 (0.3 scattered, 0.7 large pools).
+        release (bool): Hand every fixed value back to the weather. Default false.
+        snow (float): Snow cover on ground and tops of surfaces, 0-1.
+        wetness (float): Wet, darker, shinier surfaces, 0-1.
+    """
+    args = {}
+    if dust is not None:
+        args['dust'] = dust
+    if mud is not None:
+        args['mud'] = mud
+    if puddles is not None:
+        args['puddles'] = puddles
+    if release is not None:
+        args['release'] = release
+    if snow is not None:
+        args['snow'] = snow
+    if wetness is not None:
+        args['wetness'] = wetness
+    return call('sky.set_ground', **args)
+
+
 def _sky_set_sky(*, auroras=None, brightness=None, latitude=None, moon_phase=None, sky_mode=None, stars_intensity=None):
     """Sets how the sky renders and the night sky.
     Returns: The sky state. Fails before setup or for an unknown sky mode.
@@ -6233,7 +6483,7 @@ def _sky_setup(*, hour=None, preset=None, weather=None):
     return call('sky.setup', **args)
 
 
-sky = SimpleNamespace(get_state=_sky_get_state, remove=_sky_remove, set_sky=_sky_set_sky, set_time=_sky_set_time, set_weather=_sky_set_weather, set_weather_values=_sky_set_weather_values, setup=_sky_setup)
+sky = SimpleNamespace(get_state=_sky_get_state, remove=_sky_remove, set_ground=_sky_set_ground, set_sky=_sky_set_sky, set_time=_sky_set_time, set_weather=_sky_set_weather, set_weather_values=_sky_set_weather_values, setup=_sky_setup)
 sky.__doc__ = "Ultra Dynamic Sky (the project's sky and weather system): time of day with a real sun and moon path, volumetric"
 
 
@@ -7162,4 +7412,4 @@ vfx = SimpleNamespace(activate=_vfx_activate, deactivate=_vfx_deactivate, get_su
 vfx.__doc__ = 'Niagara effects at runtime. Effects are scene nodes (spawn_system) or fire-and-forget bursts (spawn_one_shot).'
 
 
-TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'sky', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']
+TOOLSETS = ['actors', 'ai', 'build', 'camera', 'capture', 'character', 'console', 'fluid', 'game', 'gas', 'gis', 'history', 'input', 'layout', 'level', 'lighting', 'log', 'logic', 'materials', 'ops', 'pcg', 'physics', 'profiling', 'reflection', 'scene', 'session', 'skills', 'sky', 'spline', 'statetree', 'style', 'tags', 'ui', 'vfx']

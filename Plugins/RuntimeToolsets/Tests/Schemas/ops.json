@@ -197,6 +197,64 @@
 			}
 		},
 		{
+			"description": "Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.\nReturns: The recipes: name, what they build, parts that can be skipped, number of calls.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"name": "ops.list_recipes",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The recipes: name, what they build, parts that can be skipped, number of calls.",
+						"items":
+						{
+							"properties":
+							{
+								"about":
+								{
+									"description": "What it builds.",
+									"type": "string"
+								},
+								"calls":
+								{
+									"description": "Number of tool calls.",
+									"type": "integer"
+								},
+								"name":
+								{
+									"type": "string"
+								},
+								"parts":
+								{
+									"description": "Parts that can be left out with run_recipe skip, e.g. \"props\".",
+									"items":
+									{
+										"type": "string"
+									},
+									"type": "array"
+								}
+							},
+							"title": "OpsToolRecipe",
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Lists the automation tests available in this build.\nReturns: {total, tests} with full test paths sorted alphabetically. Fails if the filter names an unknown group.",
 			"input_schema":
 			{
@@ -409,6 +467,85 @@
 			},
 			"mutating": true,
 			"name": "ops.run_batch",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"properties":
+						{
+							"completed":
+							{
+								"description": "Calls that ran (including a failed one).",
+								"type": "integer"
+							},
+							"failed_at":
+							{
+								"description": "Index of the first failed call, -1 if none failed.",
+								"type": "integer"
+							},
+							"history_id":
+							{
+								"description": "History entry of an atomic batch (undo it with history.undo), -1 otherwise.",
+								"type": "integer"
+							},
+							"results":
+							{
+								"description": "One result per call that ran, in order: {i, tool, ok, ...result} or {i, tool, ok:false, error:{code, message, hint}}.",
+								"items":
+								{
+									"description": "Any JSON value"
+								},
+								"type": "array"
+							},
+							"total":
+							{
+								"description": "Calls in the batch.",
+								"type": "integer"
+							}
+						},
+						"title": "OpsToolBatchResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
+			"async": true,
+			"description": "Builds a ready-made scene or setup by running its stored tool calls (like run_batch; it clears the scene first when the recipe says so). Everything it makes is ordinary nodes: change or extend it with the other tools afterwards.\nReturns: Like run_batch: {completed, total, failed_at, results} (a recipe keeps going past calls that fail). Fails if the recipe does not exist.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"name":
+					{
+						"description": "Recipe name from list_recipes, e.g. \"sea_coast\".",
+						"type": "string"
+					},
+					"skip":
+					{
+						"description": "Parts to leave out, e.g. [\"props\", \"player\"].",
+						"items":
+						{
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "ops.run_recipe",
 			"output_schema":
 			{
 				"properties":

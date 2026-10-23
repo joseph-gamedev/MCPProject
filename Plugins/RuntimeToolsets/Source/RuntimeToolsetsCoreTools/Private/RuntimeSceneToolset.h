@@ -449,7 +449,8 @@ public:
 	static FRuntimeClearResult ClearScope(AActor* Root, bool bConfirm = false);
 
 	/**
-	 * Deletes every node this session created. Creates a checkpoint first.
+	 * Deletes every node this session created, and unloads level instances loaded with level.load_level_instance (e.g. a
+	 * recipe's ground). Creates a checkpoint first.
 	 * Fails without confirm, or while a history transaction is open.
 	 *
 	 * @param bConfirm - Must be true.

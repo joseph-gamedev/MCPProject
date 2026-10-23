@@ -1,5 +1,6 @@
 #include "RuntimeCameraToolset.h"
 #include "RuntimeLightingToolset.h"
+#include "RuntimeFluidToolset.h"
 #include "RuntimeMaterialsToolset.h"
 #include "RuntimeSkyToolset.h"
 #include "RuntimeStyleToolset.h"
@@ -25,7 +26,7 @@ public:
 		Core.RegisterSourceSpawner(TEXT("label:"), &URuntimeUiToolset::SpawnLabelFromSource);
 		for (UClass* Class : {URuntimeMaterialsToolset::StaticClass(), URuntimeCameraToolset::StaticClass(), URuntimeUiToolset::StaticClass(),
 				 URuntimeVfxToolset::StaticClass(), URuntimeLightingToolset::StaticClass(), URuntimeStyleToolset::StaticClass(),
-				 URuntimeSkyToolset::StaticClass()})
+				 URuntimeSkyToolset::StaticClass(), URuntimeFluidToolset::StaticClass()})
 		{
 			Registered.Add(RuntimeToolReflection::RegisterToolsetClass(Class));
 		}

@@ -457,6 +457,77 @@
 				"type": "object"
 			},
 			"undoable": true
+		},
+		{
+			"description": "Places a ready-made third-person character (animated mannequin, follow camera, WASD + mouse, Space jumps) and gives the player control of it. Its skeleton disturbs fluids (mud, water, snow, smoke) and touches physics like a real body. Undoable (removes it). Use it instead of character.create when a realistic walking body is wanted.\nReturns: The character. Fails if the project has no third-person character Blueprint or the class is not a Character.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"character_class":
+					{
+						"description": "A Character Blueprint (path or class), default: the project's third-person character (FluidNinja LIVE's or the UE template's).",
+						"type": "string"
+					},
+					"location":
+					{
+						"description": "Feet position (cm), e.g. [0, 0, 0]. ([x, y, z] (cm))",
+						"items":
+						{
+							"type": "number"
+						},
+						"maxItems": 3,
+						"minItems": 3,
+						"type": "array"
+					},
+					"yaw":
+					{
+						"description": "Facing, degrees.",
+						"type": "number"
+					}
+				},
+				"required": [
+					"yaw"
+				],
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "character.third_person",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The character. Fails if the project has no third-person character Blueprint or the class is not a Character.",
+						"properties":
+						{
+							"class":
+							{
+								"description": "Its Blueprint class.",
+								"type": "string"
+							},
+							"controls":
+							{
+								"type": "string"
+							},
+							"id":
+							{
+								"description": "The character's node id.",
+								"type": "string"
+							}
+						},
+						"title": "LogicThirdPersonResult",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
 		}
 	],
 	"version": "1.0.0"

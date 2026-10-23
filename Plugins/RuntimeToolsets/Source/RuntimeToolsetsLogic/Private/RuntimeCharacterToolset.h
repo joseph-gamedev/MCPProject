@@ -167,6 +167,23 @@ struct FLogicCameraRig
 };
 
 USTRUCT()
+struct FLogicThirdPersonResult
+{
+	GENERATED_BODY()
+
+	/** The character's node id. */
+	UPROPERTY()
+	FString Id;
+
+	/** Its Blueprint class. */
+	UPROPERTY()
+	FString Class;
+
+	UPROPERTY()
+	FString Controls;
+};
+
+USTRUCT()
 struct FLogicClimbableResult
 {
 	GENERATED_BODY()
@@ -218,4 +235,18 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Character")
 	static FLogicClimbableResult SetClimbable(const TArray<FString>& Targets, bool bClimbable = true);
+
+	/**
+	 * Places a ready-made third-person character (animated mannequin, follow camera, WASD + mouse, Space jumps) and gives the
+	 * player control of it. Its skeleton disturbs fluids (mud, water, snow, smoke) and touches physics like a real body.
+	 * Undoable (removes it). Use it instead of character.create when a realistic walking body is wanted.
+	 *
+	 * @param Location - Feet position (cm), e.g. [0, 0, 0].
+	 * @param Yaw - Facing, degrees.
+	 * @param CharacterClass - A Character Blueprint (path or class), default: the project's third-person character
+	 *                         (FluidNinja LIVE's or the UE template's).
+	 * @return The character. Fails if the project has no third-person character Blueprint or the class is not a Character.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,CharacterClass"), Category = "Character")
+	static FLogicThirdPersonResult ThirdPerson(const FVector& Location, float Yaw, const FString& CharacterClass);
 };

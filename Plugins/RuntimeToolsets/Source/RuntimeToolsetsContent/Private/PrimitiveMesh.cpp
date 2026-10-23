@@ -31,6 +31,8 @@ namespace RuntimePrimitives
 	static const TCHAR* BasicMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	static const TCHAR* PbrMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_PBR.M_RT_PBR");
 	static const TCHAR* GlassMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_Glass.M_RT_Glass");
+	// made by Scripts/materials/make_weather_materials.py in projects with Ultra Dynamic Sky
+	static const TCHAR* PbrWeatherMaterialPath = TEXT("/Game/RuntimeWeather/M_RT_PBR_Weather.M_RT_PBR_Weather");
 	/** Scanned-texture master (project content, from Scripts/architecture/import_architecture.py); used when a preset has textures. */
 	static const TCHAR* ScannedMaterialPath = TEXT("/Game/RuntimeArchitecture/Materials/M_RT_Scanned.M_RT_Scanned");
 	static constexpr int32 MaxOps = 64;
@@ -1593,7 +1595,12 @@ namespace RuntimePrimitives
 				MID->SetScalarParameterValue(TEXT("EmissiveStrength"), static_cast<float>(Num(Recipe, TEXT("emissive_strength"), bEmissiveColor ? 5.0 : Preset->Emissive)));
 				return MID;
 			}
-			UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);
+			// weather-aware variant (wet / snowy / dusty with Ultra Dynamic Weather) when the project has it
+			UMaterialInterface* Base = Preset->bGlass ? nullptr : LoadObject<UMaterialInterface>(nullptr, PbrWeatherMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Base)
+			{
+				Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);
+			}
 			const bool bPbr = Base != nullptr;
 			if (!Base)
 			{

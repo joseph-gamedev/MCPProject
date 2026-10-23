@@ -21,6 +21,28 @@ struct FOpsToolBatchCall
 	FRuntimeToolJson Arguments;
 };
 
+/** A ready-made scene or setup: a stored batch of tool calls. */
+USTRUCT()
+struct FOpsToolRecipe
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Name;
+
+	/** What it builds. */
+	UPROPERTY()
+	FString About;
+
+	/** Parts that can be left out with run_recipe skip, e.g. "props". */
+	UPROPERTY()
+	TArray<FString> Parts;
+
+	/** Number of tool calls. */
+	UPROPERTY()
+	int32 Calls = 0;
+};
+
 USTRUCT()
 struct FOpsToolBatchResult
 {
@@ -306,6 +328,27 @@ public:
 	UFUNCTION(meta = (AICallable, Undoable), Category = "Ops|Batch")
 	static UOpsToolBatchAsyncResult* RunBatch(const TArray<FOpsToolBatchCall>& Calls, bool bAtomic = false, bool bStopOnError = true,
 		const FString& Label = TEXT("batch"));
+
+	/**
+	 * Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with
+	 * waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.
+	 *
+	 * @return The recipes: name, what they build, parts that can be skipped, number of calls.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Ops|Batch")
+	static TArray<FOpsToolRecipe> ListRecipes();
+
+	/**
+	 * Builds a ready-made scene or setup by running its stored tool calls (like run_batch; it clears the scene first when
+	 * the recipe says so). Everything it makes is ordinary nodes: change or extend it with the other tools afterwards.
+	 *
+	 * @param Name - Recipe name from list_recipes, e.g. "sea_coast".
+	 * @param Skip - Parts to leave out, e.g. ["props", "player"].
+	 * @return Like run_batch: {completed, total, failed_at, results} (a recipe keeps going past calls that fail).
+	 * Fails if the recipe does not exist.
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, AutoCreateRefTerm = "Skip"), Category = "Ops|Batch")
+	static UOpsToolBatchAsyncResult* RunRecipe(const FString& Name, const TArray<FString>& Skip);
 
 	/**
 	 * Polls a tool until a field of its result meets a condition, or times out. Soft errors of the polled tool (e.g.

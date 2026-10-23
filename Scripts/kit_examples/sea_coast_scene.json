@@ -1,0 +1,4254 @@
+{
+ "source": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea",
+ "ground_level": "/Game/RuntimeFluid/Scenes/L_SeaCoast_Ground",
+ "sims": {
+  "coast_sand": {
+   "label": "NinjaLive_Sand",
+   "preset": "/Game/RuntimeFluid/Presets/FX_coast_sand.FX_coast_sand",
+   "location": [
+    2930.9,
+    -9049.19,
+    -302.81
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    5.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "extents": [
+    65.0,
+    65.0,
+    2.0
+   ],
+   "drive_tag": "None",
+   "auto_activate": false,
+   "hidden": false,
+   "hosted": [],
+   "secondary_materials": [
+    "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_SandyCoast_Placeholder.MI_SandyCoast_Placeholder",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Various/MI_Sand_Wetlands1_CoastFlat.MI_Sand_Wetlands1_CoastFlat",
+    "/Game/FluidNinjaLive/OutputMaterials/CompositeExamples_SURFACE/MI_Sandy_SeaCoastMountain_Composite1.MI_Sandy_SeaCoastMountain_Composite1",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Various/MI_Sand_Wetlands3.MI_Sand_Wetlands3",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Various/MI_Sand_Wetlands4.MI_Sand_Wetlands4",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Various/MI_Sand_Wetlands5.MI_Sand_Wetlands5"
+   ],
+   "primary_materials": [
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Various/BufferVisualize/MI_DensityBuffer_Black.MI_DensityBuffer_Black"
+   ]
+  },
+  "coast_water": {
+   "label": "NinjaLive_Water_100m",
+   "preset": "/Game/RuntimeFluid/Presets/FX_coast_water.FX_coast_water",
+   "location": [
+    2930.9,
+    -9048.93,
+    -299.82
+   ],
+   "rotation": [
+    0.0,
+    90.0,
+    -0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "extents": [
+    100.0,
+    100.0,
+    2.0
+   ],
+   "drive_tag": "NinjaTarget",
+   "auto_activate": false,
+   "hidden": false,
+   "hosted": [
+    {
+     "name": "PARTICLES 100m simdriven - whitewater",
+     "system": "/Game/FluidNinjaLive/OutputNiagara/SurfaceAlignedParticles.SurfaceAlignedParticles",
+     "location": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rotation": [
+      0.0,
+      0.0,
+      -0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    }
+   ],
+   "secondary_materials": [
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_SLW_minimal.MI_Water_DENSE_SLW_minimal",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_OPAQUE_detailed_MeshDistStronger.MI_Water_DENSE_OPAQUE_detailed_MeshDistStronger",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_wavetile.MI_Water_DENSE_Coast_shiny_cyan_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_wavetile_v2.MI_Water_DENSE_Coast_shiny_cyan_wavetile_v2",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_gold1_wavetile_v2.MI_Water_DENSE_Coast_shiny_gold1_wavetile_v2",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_gold2_wavetile.MI_Water_DENSE_Coast_shiny_gold2_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_noisetile.MI_Water_DENSE_Coast_shiny_cyan_noisetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_cyan_wavetile.MI_Water_DENSE_Coast_cyan_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_cyan_noisetile.MI_Water_DENSE_Coast_cyan_noisetile"
+   ],
+   "primary_materials": []
+  },
+  "coast_water_far": {
+   "label": "NinjaLive_Water_200m_DISABLED",
+   "preset": "/Game/RuntimeFluid/Presets/FX_coast_water_far.FX_coast_water_far",
+   "location": [
+    2930.9,
+    -9048.93,
+    -299.82
+   ],
+   "rotation": [
+    -5.0,
+    90.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "extents": [
+    200.0,
+    200.0,
+    4.0
+   ],
+   "drive_tag": "NinjaTarget",
+   "auto_activate": false,
+   "hidden": false,
+   "hosted": [
+    {
+     "name": "PARTICLES 100m simdriven - whitewater",
+     "system": "/Game/FluidNinjaLive/OutputNiagara/SurfaceAlignedParticles.SurfaceAlignedParticles",
+     "location": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rotation": [
+      0.0,
+      0.0,
+      -0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    }
+   ],
+   "secondary_materials": [
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_SLW_minimal.MI_Water_DENSE_SLW_minimal",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_OPAQUE_detailed_MeshDistStronger.MI_Water_DENSE_OPAQUE_detailed_MeshDistStronger",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_wavetile.MI_Water_DENSE_Coast_shiny_cyan_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_wavetile_v2.MI_Water_DENSE_Coast_shiny_cyan_wavetile_v2",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_gold1_wavetile_v2.MI_Water_DENSE_Coast_shiny_gold1_wavetile_v2",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_gold2_wavetile.MI_Water_DENSE_Coast_shiny_gold2_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_shiny_cyan_noisetile.MI_Water_DENSE_Coast_shiny_cyan_noisetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_cyan_wavetile.MI_Water_DENSE_Coast_cyan_wavetile",
+    "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Dense/MI_Water_DENSE_Coast_cyan_noisetile.MI_Water_DENSE_Coast_cyan_noisetile"
+   ],
+   "primary_materials": []
+  }
+ },
+ "meshes": [
+  {
+   "label": "wreck4_Ship4",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    28732.67,
+    -6745.77,
+    -283.22
+   ],
+   "rotation": [
+    20.307,
+    22.107,
+    25.395
+   ],
+   "scale": [
+    2.5,
+    2.5,
+    2.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Plane02b2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane02b.wreck4_Plane02b",
+   "location": [
+    9234.25,
+    -12091.69,
+    -370.07
+   ],
+   "rotation": [
+    -1.6,
+    -24.361,
+    0.933
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal7.MI_WreckMetal7"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Plane7",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane04.wreck4_Plane04",
+   "location": [
+    35567.12,
+    -3721.07,
+    68.5
+   ],
+   "rotation": [
+    -68.07,
+    42.989,
+    112.366
+   ],
+   "scale": [
+    2.0,
+    2.0,
+    2.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Mesha3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesha.wreck4_Mesha",
+   "location": [
+    8734.6,
+    -6255.82,
+    -538.21
+   ],
+   "rotation": [
+    11.317,
+    14.086,
+    3.065
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Ship03_2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship03.wreck4_Ship03",
+   "location": [
+    -36625.32,
+    -8936.99,
+    -371.58
+   ],
+   "rotation": [
+    31.772,
+    147.477,
+    12.399
+   ],
+   "scale": [
+    2.0,
+    2.0,
+    2.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Ship03_1",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship03.wreck4_Ship03",
+   "location": [
+    30730.68,
+    -6369.89,
+    -177.9
+   ],
+   "rotation": [
+    42.237,
+    -79.779,
+    159.701
+   ],
+   "scale": [
+    2.5,
+    2.5,
+    2.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Mesha4",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesha.wreck4_Mesha",
+   "location": [
+    9378.48,
+    -6850.42,
+    -516.13
+   ],
+   "rotation": [
+    -7.985,
+    53.554,
+    -9.087
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_1",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    4721.63,
+    -7414.52,
+    -429.09
+   ],
+   "rotation": [
+    88.637,
+    8.6,
+    166.443
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 60.0,
+   "attach_to": ""
+  },
+  {
+   "label": "InvisibleCollider3",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    13686.9,
+    -5360.08,
+    -506.96
+   ],
+   "rotation": [
+    -1.044,
+    56.45,
+    -1.362
+   ],
+   "scale": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_ONLY",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    9478.66,
+    -11316.77,
+    -341.15
+   ],
+   "rotation": [
+    81.966,
+    81.963,
+    93.108
+   ],
+   "scale": [
+    0.8061,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 50.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_5",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    30226.95,
+    -16826.01,
+    -190.66
+   ],
+   "rotation": [
+    82.979,
+    -68.362,
+    88.745
+   ],
+   "scale": [
+    0.8061,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 75.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_4",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    20463.99,
+    -5795.54,
+    -468.09
+   ],
+   "rotation": [
+    80.09,
+    -41.3,
+    116.091
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 40.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_floatie3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    2371.51,
+    -2969.86,
+    -444.39
+   ],
+   "rotation": [
+    17.869,
+    -25.551,
+    -79.148
+   ],
+   "scale": [
+    1.09626,
+    0.81752,
+    0.8
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "SM_Mountain3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_Mountain.SM_Mountain",
+   "location": [
+    -1464952.0,
+    -3184873.5,
+    -59015.02
+   ],
+   "rotation": [
+    0.0,
+    70.0,
+    1.09
+   ],
+   "scale": [
+    1500.0,
+    1500.0,
+    1000.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Mountain/MI_Mountain2flat.MI_Mountain2flat"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "SM_Mountain_OG2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_Mountain.SM_Mountain",
+   "location": [
+    1699030.38,
+    -2786855.0,
+    -32756.23
+   ],
+   "rotation": [
+    0.0,
+    -164.606,
+    0.0
+   ],
+   "scale": [
+    3000.0,
+    3000.0,
+    2000.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Mountain/MI_Mountain2flat.MI_Mountain2flat"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Ship6",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    -5322.07,
+    -5187.39,
+    -606.81
+   ],
+   "rotation": [
+    18.096,
+    128.611,
+    -1.509
+   ],
+   "scale": [
+    1.0,
+    1.39481,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder5_SDF",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SharpEdges.SM_Boulder_SharpEdges",
+   "location": [
+    -5786.08,
+    -18069.99,
+    -505.31
+   ],
+   "rotation": [
+    7.866,
+    -88.589,
+    179.818
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Bright.MI_Boulder1_Wetmap_ShrinkedSurface_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    15427.07,
+    -9514.09,
+    -826.3
+   ],
+   "rotation": [
+    -11.047,
+    152.394,
+    -8.619
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Bright.MI_Boulder1_Wetmap_ShrinkedSurface_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    17880.03,
+    -8325.34,
+    -269.48
+   ],
+   "rotation": [
+    -6.503,
+    126.272,
+    -175.316
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Bright.MI_Boulder1_Wetmap_ShrinkedSurface_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF5",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    -999.24,
+    -10248.25,
+    -166.39
+   ],
+   "rotation": [
+    -16.481,
+    -3.863,
+    -174.641
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_Bright.MI_Boulder1_Wetmap_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF7",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    9531.02,
+    2342.21,
+    -458.7
+   ],
+   "rotation": [
+    29.348,
+    -112.195,
+    -178.837
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF8",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    -10446.24,
+    -9519.25,
+    -376.39
+   ],
+   "rotation": [
+    -16.481,
+    31.137,
+    -174.641
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_Bright.MI_Boulder1_Wetmap_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF9",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    -8830.24,
+    -10203.25,
+    -415.39
+   ],
+   "rotation": [
+    14.258,
+    -9.198,
+    -41.353
+   ],
+   "scale": [
+    8.0,
+    8.0,
+    8.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_Bright.MI_Boulder1_Wetmap_Bright"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF10",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    6783.03,
+    819.66,
+    174.42
+   ],
+   "rotation": [
+    -9.439,
+    126.545,
+    162.611
+   ],
+   "scale": [
+    20.0,
+    20.0,
+    20.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF11",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    4566.17,
+    -2078.23,
+    -781.48
+   ],
+   "rotation": [
+    17.18,
+    -134.623,
+    -26.145
+   ],
+   "scale": [
+    10.0,
+    10.0,
+    10.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF12",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SharpEdges.SM_Boulder_SharpEdges",
+   "location": [
+    23717.68,
+    -9789.35,
+    174.42
+   ],
+   "rotation": [
+    -36.174,
+    74.282,
+    108.953
+   ],
+   "scale": [
+    50.0,
+    50.0,
+    50.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Plane11",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane04.wreck4_Plane04",
+   "location": [
+    -85487.27,
+    184043.32,
+    -3617.04
+   ],
+   "rotation": [
+    5.687,
+    174.05,
+    90.224
+   ],
+   "scale": [
+    30.0,
+    30.0,
+    30.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Ship5",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    -93007.79,
+    167462.36,
+    5463.63
+   ],
+   "rotation": [
+    60.171,
+    134.802,
+    156.233
+   ],
+   "scale": [
+    35.0,
+    35.0,
+    35.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_floatie4",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    7940.47,
+    2794.23,
+    -444.39
+   ],
+   "rotation": [
+    17.869,
+    159.186,
+    -79.148
+   ],
+   "scale": [
+    1.09626,
+    0.81752,
+    0.8
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_floatie5",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    -3666.97,
+    -4864.99,
+    -479.16
+   ],
+   "rotation": [
+    17.869,
+    58.188,
+    -79.148
+   ],
+   "scale": [
+    1.09626,
+    0.81752,
+    0.8
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF13",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SharpEdges.SM_Boulder_SharpEdges",
+   "location": [
+    -116916.01,
+    -21839.99,
+    3124.98
+   ],
+   "rotation": [
+    76.653,
+    -138.723,
+    129.894
+   ],
+   "scale": [
+    50.0,
+    50.0,
+    50.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF14",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    -116200.85,
+    -18481.13,
+    -202.25
+   ],
+   "rotation": [
+    5.028,
+    173.794,
+    154.186
+   ],
+   "scale": [
+    20.0,
+    20.0,
+    20.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF15",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SharpEdges.SM_Boulder_SharpEdges",
+   "location": [
+    8236.82,
+    -16000.47,
+    4302.72
+   ],
+   "rotation": [
+    -17.452,
+    -104.99,
+    107.387
+   ],
+   "scale": [
+    50.0,
+    50.0,
+    50.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF16",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SharpEdges.SM_Boulder_SharpEdges",
+   "location": [
+    10667.0,
+    -10635.61,
+    1404.17
+   ],
+   "rotation": [
+    48.691,
+    -95.124,
+    2.698
+   ],
+   "scale": [
+    48.0,
+    48.0,
+    48.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF17A",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    6948.27,
+    1818.24,
+    -6.72
+   ],
+   "rotation": [
+    -40.224,
+    53.062,
+    -158.094
+   ],
+   "scale": [
+    3.9101,
+    5.10101,
+    3.9101
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Boulder6_SDF18B",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Boulder/SM_Boulder_SmoothedEdges.SM_Boulder_SmoothedEdges",
+   "location": [
+    6897.28,
+    1778.73,
+    -427.64
+   ],
+   "rotation": [
+    -59.307,
+    -23.74,
+    -66.322
+   ],
+   "scale": [
+    3.73501,
+    4.79642,
+    3.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Boulder/MI_Boulder1_Wetmap_ShrinkedSurface_Dark.MI_Boulder1_Wetmap_ShrinkedSurface_Dark"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_floatie6",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    7145.17,
+    3428.24,
+    -444.39
+   ],
+   "rotation": [
+    -70.054,
+    82.467,
+    25.514
+   ],
+   "scale": [
+    1.09626,
+    0.81752,
+    0.8
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wrecktank_floatie7",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Mesh01.wreck4_Mesh01",
+   "location": [
+    5162.49,
+    3428.24,
+    -444.39
+   ],
+   "rotation": [
+    -22.337,
+    178.209,
+    109.182
+   ],
+   "scale": [
+    1.09626,
+    0.81752,
+    0.8
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": true,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Moon1",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_sphere_200segments.SM_sphere_200segments",
+   "location": [
+    -51171762.35,
+    -5221520.46,
+    13481491.09
+   ],
+   "rotation": [
+    0.0,
+    -35.53,
+    0.0
+   ],
+   "scale": [
+    150000.0,
+    150000.0,
+    150000.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Mountain/MI_Moon_Shiny.MI_Moon_Shiny"
+   ],
+   "tags": [],
+   "collision": "QUERY_ONLY",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Moon2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_sphere_200segments.SM_sphere_200segments",
+   "location": [
+    1729685.29,
+    81825651.41,
+    21324080.71
+   ],
+   "rotation": [
+    0.0,
+    -35.53,
+    0.0
+   ],
+   "scale": [
+    400000.0,
+    400000.0,
+    400000.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Mountain/MI_Moon.MI_Moon"
+   ],
+   "tags": [],
+   "collision": "QUERY_ONLY",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": ""
+  },
+  {
+   "label": "Invisible_Collider4",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    13813.49,
+    -7660.96,
+    -481.11
+   ],
+   "rotation": [
+    30.824,
+    -59.071,
+    -89.962
+   ],
+   "scale": [
+    0.6,
+    0.6,
+    0.9
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": ""
+  },
+  {
+   "label": "wreck4_Plane10",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane04.wreck4_Plane04",
+   "location": [
+    -36919.07,
+    -8091.62,
+    -663.97
+   ],
+   "rotation": [
+    22.208,
+    -115.411,
+    31.874
+   ],
+   "scale": [
+    2.0,
+    2.0,
+    2.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "wreck4_Ship03_2"
+  },
+  {
+   "label": "InvisibleCollider4",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    -36959.37,
+    -9718.44,
+    -490.26
+   ],
+   "rotation": [
+    -1.044,
+    125.05,
+    -1.362
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_ONLY",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": "wreck4_Ship03_2"
+  },
+  {
+   "label": "InvisibleCollider5",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    -36369.34,
+    -9142.04,
+    -490.26
+   ],
+   "rotation": [
+    -1.044,
+    125.05,
+    -1.362
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_ONLY",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": "wreck4_Ship03_2"
+  },
+  {
+   "label": "wreck4_Plane9",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane04.wreck4_Plane04",
+   "location": [
+    35528.71,
+    -3579.46,
+    -98.03
+   ],
+   "rotation": [
+    -29.626,
+    -90.866,
+    22.943
+   ],
+   "scale": [
+    2.0,
+    2.0,
+    2.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "wreck4_Plane7"
+  },
+  {
+   "label": "Cube_Large_Collision2",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    35341.56,
+    -4186.42,
+    -559.7
+   ],
+   "rotation": [
+    18.758,
+    116.454,
+    23.866
+   ],
+   "scale": [
+    1.25,
+    1.25,
+    1.25
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "wreck4_Plane7"
+  },
+  {
+   "label": "Cube_Large_Collision4",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    35820.43,
+    -3378.3,
+    -559.48
+   ],
+   "rotation": [
+    18.76,
+    56.45,
+    23.851
+   ],
+   "scale": [
+    1.25,
+    1.25,
+    1.25
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "wreck4_Plane7"
+  },
+  {
+   "label": "Invisible_Collider1",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    28796.49,
+    -6648.71,
+    -480.92
+   ],
+   "rotation": [
+    30.824,
+    -59.071,
+    -89.962
+   ],
+   "scale": [
+    1.70074,
+    1.70074,
+    1.70074
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": "wreck4_Ship4"
+  },
+  {
+   "label": "Invisible_Collider2",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    27749.47,
+    -7020.15,
+    -547.14
+   ],
+   "rotation": [
+    1.278,
+    -71.101,
+    -15.494
+   ],
+   "scale": [
+    1.8109,
+    1.8109,
+    1.8109
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": "wreck4_Ship4"
+  },
+  {
+   "label": "Invisible_Collider3",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    30830.58,
+    -6217.81,
+    -480.92
+   ],
+   "rotation": [
+    30.824,
+    -59.071,
+    -89.962
+   ],
+   "scale": [
+    1.70074,
+    1.70074,
+    1.70074
+   ],
+   "materials": [
+    "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 70.0,
+   "attach_to": "wreck4_Ship03_1"
+  },
+  {
+   "label": "wreck4_Plane8",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Plane04.wreck4_Plane04",
+   "location": [
+    35310.0,
+    -3573.27,
+    -660.39
+   ],
+   "rotation": [
+    19.104,
+    168.667,
+    -1.437
+   ],
+   "scale": [
+    1.4,
+    1.4,
+    1.25
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "wreck4_Plane7"
+  },
+  {
+   "label": "CruiserMesh",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    -5682.23,
+    -4673.16,
+    -472.59
+   ],
+   "rotation": [
+    -3.645,
+    -151.866,
+    93.455
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "VerticalSineMovement1"
+  },
+  {
+   "label": "CruiserTwinMesh1",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    -5608.45,
+    -4869.98,
+    -432.18
+   ],
+   "rotation": [
+    -3.644,
+    -151.875,
+    0.375
+   ],
+   "scale": [
+    0.5,
+    0.564,
+    0.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "CruiserTwinMesh3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Wreck/wreck4_Ship02.wreck4_Ship02",
+   "location": [
+    -5884.09,
+    -4661.59,
+    -326.85
+   ],
+   "rotation": [
+    -4.205,
+    -152.423,
+    -176.71
+   ],
+   "scale": [
+    0.2,
+    0.2256,
+    0.2
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Meshes/Wreck/MI_WreckMetal6.MI_WreckMetal6"
+   ],
+   "tags": [],
+   "collision": "NO_COLLISION",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "SDFcollisionbox1",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    -5626.07,
+    -4669.46,
+    -487.42
+   ],
+   "rotation": [
+    -4.368,
+    -62.188,
+    -3.865
+   ],
+   "scale": [
+    2.21979,
+    8.16613,
+    1.95102
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Core/Assets/M_Null.M_Null"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "SDFcollisionbox3",
+   "mesh": "/Engine/BasicShapes/Cube.Cube",
+   "location": [
+    -5515.05,
+    -4796.04,
+    -500.62
+   ],
+   "rotation": [
+    -4.368,
+    -62.188,
+    -3.865
+   ],
+   "scale": [
+    1.37142,
+    2.53149,
+    1.18155
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Core/Assets/M_Null.M_Null"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "SDFcollisionsph1",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_Sphere.SM_Sphere",
+   "location": [
+    -5337.07,
+    -4528.69,
+    -489.18
+   ],
+   "rotation": [
+    -4.368,
+    -62.188,
+    -3.865
+   ],
+   "scale": [
+    2.5,
+    2.5,
+    2.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Core/Assets/M_Null.M_Null"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "SDFcollisionsph2",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_Sphere.SM_Sphere",
+   "location": [
+    -5446.42,
+    -4708.6,
+    -502.65
+   ],
+   "rotation": [
+    -4.368,
+    -62.188,
+    -3.865
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Core/Assets/M_Null.M_Null"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  },
+  {
+   "label": "SDFcollisionsph3",
+   "mesh": "/Game/FluidNinjaLive/Meshes/Primitives/SM_Sphere.SM_Sphere",
+   "location": [
+    -5849.72,
+    -4619.0,
+    -468.85
+   ],
+   "rotation": [
+    -4.368,
+    -62.188,
+    -3.865
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "materials": [
+    "/Game/FluidNinjaLive/Core/Assets/M_Null.M_Null"
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "collision": "QUERY_AND_PHYSICS",
+   "hidden": false,
+   "physics": false,
+   "mass_kg": 100.0,
+   "attach_to": "CruiserMesh"
+  }
+ ],
+ "ground": [
+  {
+   "label": "Landscape_Mountain",
+   "class": "/Script/Landscape.Landscape",
+   "location": [
+    -163235.0,
+    -369707.0,
+    14350.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    -0.0
+   ],
+   "scale": [
+    1000.0,
+    1000.0,
+    100.0
+   ],
+   "tags": [
+    "TargetLandscape"
+   ]
+  },
+  {
+   "label": "Drive Landscape with SimData",
+   "class": "/Game/FluidNinjaLive/Utilities/DriveExternalSystemsWithSimData.DriveExternalSystemsWithSimData_C",
+   "location": [
+    2403.45,
+    -9043.55,
+    -71.36
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    -0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "tags": []
+  }
+ ],
+ "actors": {
+  "PostProcess_Warm": {
+   "class": "/Script/Engine.PostProcessVolume",
+   "location": [
+    3834.4439,
+    -9033.9143,
+    -193.6584
+   ],
+   "rotation": [
+    0,
+    -179.9995,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "bUnbound": true,
+    "BrushType": "Brush_Add",
+    "Settings": {
+     "bOverride_TemperatureType": false,
+     "bOverride_WhiteTemp": false,
+     "bOverride_WhiteTint": false,
+     "bOverride_ColorSaturation": false,
+     "bOverride_ColorContrast": false,
+     "bOverride_ColorGamma": false,
+     "bOverride_ColorGain": false,
+     "bOverride_ColorOffset": false,
+     "bOverride_ColorSaturationShadows": false,
+     "bOverride_ColorContrastShadows": false,
+     "bOverride_ColorGammaShadows": false,
+     "bOverride_ColorGainShadows": false,
+     "bOverride_ColorOffsetShadows": false,
+     "bOverride_ColorSaturationMidtones": false,
+     "bOverride_ColorContrastMidtones": false,
+     "bOverride_ColorGammaMidtones": false,
+     "bOverride_ColorGainMidtones": false,
+     "bOverride_ColorOffsetMidtones": false,
+     "bOverride_ColorSaturationHighlights": false,
+     "bOverride_ColorContrastHighlights": false,
+     "bOverride_ColorGammaHighlights": false,
+     "bOverride_ColorGainHighlights": false,
+     "bOverride_ColorOffsetHighlights": false,
+     "bOverride_ColorCorrectionShadowsMax": false,
+     "bOverride_ColorCorrectionHighlightsMin": false,
+     "bOverride_ColorCorrectionHighlightsMax": false,
+     "bOverride_BlueCorrection": false,
+     "bOverride_ExpandGamut": false,
+     "bOverride_ToneCurveAmount": false,
+     "bOverride_TonemappingMethod": false,
+     "bOverride_FilmSlope": false,
+     "bOverride_FilmToe": false,
+     "bOverride_FilmShoulder": false,
+     "bOverride_FilmBlackClip": false,
+     "bOverride_FilmWhiteClip": false,
+     "bOverride_SceneColorTint": false,
+     "bOverride_SceneFringeIntensity": true,
+     "bOverride_ChromaticAberrationStartOffset": false,
+     "bOverride_bMegaLights": false,
+     "bOverride_MegaLightsFrontLayerTranslucency": false,
+     "bOverride_AmbientCubemapTint": false,
+     "bOverride_AmbientCubemapIntensity": false,
+     "bOverride_BloomMethod": true,
+     "bOverride_BloomIntensity": true,
+     "bOverride_BloomGaussianIntensity": false,
+     "bOverride_BloomThreshold": true,
+     "bOverride_Bloom1Tint": false,
+     "bOverride_Bloom1Size": false,
+     "bOverride_Bloom2Size": false,
+     "bOverride_Bloom2Tint": false,
+     "bOverride_Bloom3Tint": false,
+     "bOverride_Bloom3Size": false,
+     "bOverride_Bloom4Tint": false,
+     "bOverride_Bloom4Size": false,
+     "bOverride_Bloom5Tint": false,
+     "bOverride_Bloom5Size": false,
+     "bOverride_Bloom6Tint": false,
+     "bOverride_Bloom6Size": false,
+     "bOverride_BloomSizeScale": false,
+     "bOverride_BloomConvolutionIntensity": false,
+     "bOverride_BloomConvolutionTexture": false,
+     "bOverride_BloomConvolutionScatterDispersion": false,
+     "bOverride_BloomConvolutionSize": false,
+     "bOverride_BloomConvolutionCenterUV": false,
+     "bOverride_BloomConvolutionPreFilterMin": false,
+     "bOverride_BloomConvolutionPreFilterMax": false,
+     "bOverride_BloomConvolutionPreFilterMult": false,
+     "bOverride_BloomConvolutionBufferScale": false,
+     "bOverride_BloomDirtMaskIntensity": false,
+     "bOverride_BloomDirtMaskTint": false,
+     "bOverride_BloomDirtMask": false,
+     "bOverride_CameraShutterSpeed": false,
+     "bOverride_CameraISO": false,
+     "bOverride_AutoExposureMethod": false,
+     "bOverride_AutoExposureLowPercent": false,
+     "bOverride_AutoExposureHighPercent": false,
+     "bOverride_AutoExposureMinBrightness": true,
+     "bOverride_AutoExposureMaxBrightness": true,
+     "bOverride_AutoExposureSpeedUp": false,
+     "bOverride_AutoExposureSpeedDown": false,
+     "bOverride_AutoExposureBias": false,
+     "bOverride_AutoExposureBiasCurve": false,
+     "bOverride_AutoExposureMeterMask": false,
+     "bOverride_AutoExposureApplyPhysicalCameraExposure": false,
+     "bOverride_HistogramLogMin": false,
+     "bOverride_HistogramLogMax": false,
+     "bOverride_LocalExposureMethod": false,
+     "bOverride_LocalExposureHighlightContrastScale": false,
+     "bOverride_LocalExposureShadowContrastScale": false,
+     "bOverride_LocalExposureHighlightContrastCurve": false,
+     "bOverride_LocalExposureShadowContrastCurve": false,
+     "bOverride_LocalExposureHighlightThreshold": false,
+     "bOverride_LocalExposureShadowThreshold": false,
+     "bOverride_LocalExposureDetailStrength": false,
+     "bOverride_LocalExposureBlurredLuminanceBlend": false,
+     "bOverride_LocalExposureBlurredLuminanceKernelSizePercent": false,
+     "bOverride_LocalExposureHighlightThresholdStrength": false,
+     "bOverride_LocalExposureShadowThresholdStrength": false,
+     "bOverride_LocalExposureMiddleGreyBias": false,
+     "bOverride_LensFlareIntensity": false,
+     "bOverride_LensFlareTint": false,
+     "bOverride_LensFlareTints": false,
+     "bOverride_LensFlareBokehSize": false,
+     "bOverride_LensFlareBokehShape": false,
+     "bOverride_LensFlareThreshold": false,
+     "bOverride_VignetteIntensity": false,
+     "bOverride_VignetteType": false,
+     "bOverride_VignetteCenter": false,
+     "bOverride_VignetteColor": false,
+     "bOverride_VignetteSize": false,
+     "bOverride_VignetteSoftness": false,
+     "bOverride_VignetteTexture": false,
+     "bOverride_Sharpen": true,
+     "bOverride_FilmGrainIntensity": true,
+     "bOverride_FilmGrainIntensityShadows": false,
+     "bOverride_FilmGrainIntensityMidtones": false,
+     "bOverride_FilmGrainIntensityHighlights": false,
+     "bOverride_FilmGrainShadowsMax": false,
+     "bOverride_FilmGrainHighlightsMin": false,
+     "bOverride_FilmGrainHighlightsMax": false,
+     "bOverride_FilmGrainScale": false,
+     "bOverride_FilmGrainTexture": false,
+     "bOverride_AmbientOcclusionIntensity": false,
+     "bOverride_AmbientOcclusionStaticFraction": false,
+     "bOverride_AmbientOcclusionRadius": false,
+     "bOverride_AmbientOcclusionFadeDistance": false,
+     "bOverride_AmbientOcclusionFadeRadius": false,
+     "bOverride_AmbientOcclusionRadiusInWS": false,
+     "bOverride_AmbientOcclusionPower": false,
+     "bOverride_AmbientOcclusionBias": false,
+     "bOverride_AmbientOcclusionQuality": false,
+     "bOverride_AmbientOcclusionMipBlend": false,
+     "bOverride_AmbientOcclusionMipScale": false,
+     "bOverride_AmbientOcclusionMipThreshold": false,
+     "bOverride_AmbientOcclusionTemporalBlendWeight": false,
+     "bOverride_RayTracingAO": false,
+     "bOverride_RayTracingAOSamplesPerPixel": false,
+     "bOverride_RayTracingAOIntensity": false,
+     "bOverride_RayTracingAORadius": false,
+     "bOverride_IndirectLightingColor": false,
+     "bOverride_IndirectLightingIntensity": false,
+     "bOverride_ColorGradingIntensity": false,
+     "bOverride_ColorGradingLUT": false,
+     "bOverride_DepthOfFieldEnabled": false,
+     "bOverride_DepthOfFieldFocalDistance": true,
+     "bOverride_DepthOfFieldFstop": true,
+     "bOverride_DepthOfFieldMinFstop": false,
+     "bOverride_DepthOfFieldBladeCount": false,
+     "bOverride_DepthOfFieldSensorWidth": false,
+     "bOverride_DepthOfFieldSqueezeFactor": false,
+     "bOverride_DepthOfFieldDepthBlurRadius": true,
+     "bOverride_DepthOfFieldUseHairDepth": false,
+     "bOverride_DepthOfFieldPetzvalBokeh": false,
+     "bOverride_DepthOfFieldPetzvalBokehFalloff": false,
+     "bOverride_DepthOfFieldPetzvalExclusionBoxExtents": false,
+     "bOverride_DepthOfFieldPetzvalExclusionBoxRadius": false,
+     "bOverride_DepthOfFieldAspectRatioScalar": false,
+     "bOverride_DepthOfFieldMatteBoxFlags": false,
+     "bOverride_DepthOfFieldBarrelRadius": false,
+     "bOverride_DepthOfFieldBarrelLength": false,
+     "bOverride_DepthOfFieldDepthBlurAmount": true,
+     "bOverride_DepthOfFieldFocalRegion": true,
+     "bOverride_DepthOfFieldNearTransitionRegion": true,
+     "bOverride_DepthOfFieldFarTransitionRegion": true,
+     "bOverride_DepthOfFieldScale": false,
+     "bOverride_DepthOfFieldNearBlurSize": true,
+     "bOverride_DepthOfFieldFarBlurSize": true,
+     "bOverride_MobileHQGaussian": false,
+     "bOverride_DepthOfFieldOcclusion": false,
+     "bOverride_DepthOfFieldSkyFocusDistance": false,
+     "bOverride_DepthOfFieldVignetteSize": false,
+     "bOverride_MotionBlurAmount": false,
+     "bOverride_MotionBlurMax": false,
+     "bOverride_MotionBlurTargetFPS": false,
+     "bOverride_MotionBlurPerObjectSize": false,
+     "bOverride_ReflectionMethod": false,
+     "bOverride_LumenReflectionQuality": false,
+     "bOverride_ScreenSpaceReflectionIntensity": true,
+     "bOverride_ScreenSpaceReflectionQuality": true,
+     "bOverride_ScreenSpaceReflectionMaxRoughness": true,
+     "bOverride_ScreenSpaceReflectionRoughnessScale": false,
+     "bOverride_UserFlags": false,
+     "bOverride_RayTracingReflectionsMaxRoughness": false,
+     "bOverride_RayTracingReflectionsMaxBounces": false,
+     "bOverride_RayTracingReflectionsSamplesPerPixel": false,
+     "bOverride_RayTracingReflectionsShadows": false,
+     "bOverride_RayTracingReflectionsTranslucency": false,
+     "bOverride_TranslucencyType": false,
+     "bOverride_RayTracingTranslucencyMaxRoughness": false,
+     "bOverride_RayTracingTranslucencyRefractionRays": false,
+     "bOverride_RayTracingTranslucencySamplesPerPixel": false,
+     "bOverride_RayTracingTranslucencyShadows": false,
+     "bOverride_RayTracingTranslucencyRefraction": false,
+     "bOverride_RayTracingTranslucencyMaxPrimaryHitEvents": false,
+     "bOverride_RayTracingTranslucencyMaxSecondaryHitEvents": false,
+     "bOverride_RayTracingTranslucencyUseRayTracedRefraction": false,
+     "bOverride_DynamicGlobalIlluminationMethod": false,
+     "bOverride_LumenSceneLightingQuality": false,
+     "bOverride_LumenSceneDetail": false,
+     "bOverride_LumenSceneViewDistance": false,
+     "bOverride_LumenSceneLightingUpdateSpeed": false,
+     "bOverride_LumenFinalGatherQuality": false,
+     "bOverride_LumenFinalGatherLightingUpdateSpeed": false,
+     "bOverride_LumenFinalGatherScreenTraces": false,
+     "bOverride_LumenMaxTraceDistance": false,
+     "bOverride_LumenDiffuseColorBoost": false,
+     "bOverride_LumenAmbientOcclusionIntensity": false,
+     "bOverride_LumenSkylightLeaking": false,
+     "bOverride_LumenSkylightLeakingTint": false,
+     "bOverride_LumenFullSkylightLeakingDistance": false,
+     "bOverride_LumenRayLightingMode": false,
+     "bOverride_LumenReflectionsScreenTraces": false,
+     "bOverride_LumenFrontLayerTranslucencyReflections": false,
+     "bOverride_LumenMaxRoughnessToTraceReflections": false,
+     "bOverride_LumenMaxReflectionBounces": false,
+     "bOverride_LumenMaxRefractionBounces": false,
+     "bOverride_LumenSurfaceCacheResolution": false,
+     "bOverride_RayTracingGI": false,
+     "bOverride_RayTracingGIMaxBounces": false,
+     "bOverride_RayTracingGISamplesPerPixel": false,
+     "bOverride_PathTracingMaxBounces": false,
+     "bOverride_PathTracingSamplesPerPixel": false,
+     "bOverride_PathTracingMaxPathIntensity": false,
+     "bOverride_PathTracingEnableEmissiveMaterials": false,
+     "bOverride_PathTracingEnableReferenceDOF": false,
+     "bOverride_PathTracingEnableReferenceAtmosphere": false,
+     "bOverride_PathTracingEnableDenoiser": false,
+     "bOverride_PathTracingIncludeEmissive": false,
+     "bOverride_PathTracingIncludeDiffuse": false,
+     "bOverride_PathTracingIncludeIndirectDiffuse": false,
+     "bOverride_PathTracingIncludeSpecular": false,
+     "bOverride_PathTracingIncludeIndirectSpecular": false,
+     "bOverride_PathTracingIncludeVolume": false,
+     "bOverride_PathTracingIncludeIndirectVolume": false,
+     "bMobileHQGaussian": false,
+     "bloomMethod": "BM_SOG",
+     "autoExposureMethod": "AEM_Basic",
+     "temperatureType": "TEMP_WhiteBalance",
+     "whiteTemp": 6500,
+     "whiteTint": 0,
+     "colorSaturation": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrast": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGamma": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGain": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffset": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetShadows": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetMidtones": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetHighlights": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorCorrectionHighlightsMin": 0.5,
+     "colorCorrectionHighlightsMax": 1,
+     "colorCorrectionShadowsMax": 0.09000000357627869,
+     "blueCorrection": 0.6000000238418579,
+     "expandGamut": 1,
+     "toneCurveAmount": 1,
+     "tonemappingMethod": "Filmic",
+     "filmSlope": 0.8799999952316284,
+     "filmToe": 0.550000011920929,
+     "filmShoulder": 0.25999999046325684,
+     "filmBlackClip": 0,
+     "filmWhiteClip": 0.03999999910593033,
+     "sceneColorTint": {
+      "r": 0.5432239770889282,
+      "g": 0.7592960000038147,
+      "b": 0.875,
+      "a": 1
+     },
+     "sceneFringeIntensity": 0,
+     "chromaticAberrationStartOffset": 0,
+     "bloomIntensity": 10,
+     "bloomGaussianIntensity": 1,
+     "bloomThreshold": 1,
+     "bloomSizeScale": 4,
+     "bloom1Size": 0.30000001192092896,
+     "bloom2Size": 1,
+     "bloom3Size": 2,
+     "bloom4Size": 10,
+     "bloom5Size": 30,
+     "bloom6Size": 64,
+     "bloom1Tint": {
+      "r": 0.3465000092983246,
+      "g": 0.3465000092983246,
+      "b": 0.3465000092983246,
+      "a": 1
+     },
+     "bloom2Tint": {
+      "r": 0.1379999965429306,
+      "g": 0.1379999965429306,
+      "b": 0.1379999965429306,
+      "a": 1
+     },
+     "bloom3Tint": {
+      "r": 0.11760000139474869,
+      "g": 0.11760000139474869,
+      "b": 0.11760000139474869,
+      "a": 1
+     },
+     "bloom4Tint": {
+      "r": 0.06599999964237213,
+      "g": 0.06599999964237213,
+      "b": 0.06599999964237213,
+      "a": 1
+     },
+     "bloom5Tint": {
+      "r": 0.06599999964237213,
+      "g": 0.06599999964237213,
+      "b": 0.06599999964237213,
+      "a": 1
+     },
+     "bloom6Tint": {
+      "r": 0.061000000685453415,
+      "g": 0.061000000685453415,
+      "b": 0.061000000685453415,
+      "a": 1
+     },
+     "bloomConvolutionIntensity": 1,
+     "bloomConvolutionScatterDispersion": 1,
+     "bloomConvolutionSize": 1,
+     "bloomConvolutionTexture": "None",
+     "bloomConvolutionCenterUV": {
+      "x": 0.5,
+      "y": 0.5
+     },
+     "bloomConvolutionPreFilterMin": 7,
+     "bloomConvolutionPreFilterMax": 15000,
+     "bloomConvolutionPreFilterMult": 15,
+     "bloomConvolutionBufferScale": 0.13300000131130219,
+     "bloomDirtMask": "None",
+     "bloomDirtMaskIntensity": 0,
+     "bloomDirtMaskTint": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+     },
+     "dynamicGlobalIlluminationMethod": "Lumen",
+     "indirectLightingColor": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "indirectLightingIntensity": 1,
+     "lumenRayLightingMode": "Default",
+     "lumenSceneLightingQuality": 1,
+     "lumenSceneDetail": 1,
+     "lumenSceneViewDistance": 20000,
+     "lumenSceneLightingUpdateSpeed": 1,
+     "lumenFinalGatherQuality": 1,
+     "lumenFinalGatherLightingUpdateSpeed": 1,
+     "lumenFinalGatherScreenTraces": true,
+     "lumenMaxTraceDistance": 20000,
+     "lumenDiffuseColorBoost": 1,
+     "lumenAmbientOcclusionIntensity": 1,
+     "lumenSkylightLeaking": 0,
+     "lumenSkylightLeakingTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "lumenFullSkylightLeakingDistance": 1000,
+     "lumenSurfaceCacheResolution": 1,
+     "reflectionMethod": "Lumen",
+     "lumenReflectionQuality": 1,
+     "lumenReflectionsScreenTraces": true,
+     "lumenFrontLayerTranslucencyReflections": false,
+     "lumenMaxRoughnessToTraceReflections": 0.4000000059604645,
+     "lumenMaxReflectionBounces": 1,
+     "lumenMaxRefractionBounces": 0,
+     "screenSpaceReflectionIntensity": 100,
+     "screenSpaceReflectionQuality": 50,
+     "screenSpaceReflectionMaxRoughness": 0.6000000238418579,
+     "bMegaLights": true,
+     "megaLightsFrontLayerTranslucency": false,
+     "ambientCubemapTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "ambientCubemapIntensity": 1,
+     "ambientCubemap": "None",
+     "cameraShutterSpeed": 60,
+     "cameraISO": 100,
+     "depthOfFieldFstop": 1,
+     "depthOfFieldMinFstop": 1.2000000476837158,
+     "depthOfFieldBladeCount": 5,
+     "autoExposureBias": 0,
+     "autoExposureBiasBackup": 1,
+     "bOverride_AutoExposureBiasBackup": false,
+     "autoExposureApplyPhysicalCameraExposure": true,
+     "autoExposureBiasCurve": "None",
+     "autoExposureMeterMask": "None",
+     "autoExposureLowPercent": 10,
+     "autoExposureHighPercent": 90,
+     "autoExposureMinBrightness": 1,
+     "autoExposureMaxBrightness": 1,
+     "autoExposureSpeedUp": 3,
+     "autoExposureSpeedDown": 1,
+     "histogramLogMin": -8,
+     "histogramLogMax": 4,
+     "localExposureMethod": "Bilateral",
+     "localExposureHighlightContrastScale": 1,
+     "localExposureShadowContrastScale": 1,
+     "localExposureHighlightContrastCurve": "None",
+     "localExposureShadowContrastCurve": "None",
+     "localExposureHighlightThreshold": 0,
+     "localExposureShadowThreshold": 0,
+     "localExposureDetailStrength": 1,
+     "localExposureBlurredLuminanceBlend": 0.6000000238418579,
+     "localExposureBlurredLuminanceKernelSizePercent": 50,
+     "localExposureHighlightThresholdStrength": 1,
+     "localExposureShadowThresholdStrength": 1,
+     "localExposureMiddleGreyBias": 0,
+     "lensFlareIntensity": 1,
+     "lensFlareTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "lensFlareBokehSize": 3,
+     "lensFlareThreshold": 8,
+     "lensFlareBokehShape": "None",
+     "lensFlareTints": [
+      {
+       "r": 1,
+       "g": 0.800000011920929,
+       "b": 0.4000000059604645,
+       "a": 0.6000000238418579
+      },
+      {
+       "r": 1,
+       "g": 1,
+       "b": 0.6000000238418579,
+       "a": 0.5299999713897705
+      },
+      {
+       "r": 0.800000011920929,
+       "g": 0.800000011920929,
+       "b": 1,
+       "a": 0.46000000834465027
+      },
+      {
+       "r": 0.5,
+       "g": 1,
+       "b": 0.4000000059604645,
+       "a": 0.38999998569488525
+      },
+      {
+       "r": 0.5,
+       "g": 0.800000011920929,
+       "b": 1,
+       "a": 0.3100000023841858
+      },
+      {
+       "r": 0.8999999761581421,
+       "g": 1,
+       "b": 0.800000011920929,
+       "a": 0.27000001072883606
+      },
+      {
+       "r": 1,
+       "g": 0.800000011920929,
+       "b": 0.4000000059604645,
+       "a": 0.2199999988079071
+      },
+      {
+       "r": 0.8999999761581421,
+       "g": 0.699999988079071,
+       "b": 0.699999988079071,
+       "a": 0.15000000596046448
+      }
+     ],
+     "vignetteIntensity": 0.4000000059604645,
+     "vignetteType": "CosineFourthLaw",
+     "vignetteCenter": {
+      "x": 0.5,
+      "y": 0.5
+     },
+     "vignetteColor": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 1
+     },
+     "vignetteSize": {
+      "x": 1,
+      "y": 1
+     },
+     "vignetteSoftness": 5,
+     "vignetteTexture": "None",
+     "sharpen": 0.5,
+     "filmGrainIntensity": 0,
+     "filmGrainIntensityShadows": 1,
+     "filmGrainIntensityMidtones": 1,
+     "filmGrainIntensityHighlights": 1,
+     "filmGrainShadowsMax": 0.09000000357627869,
+     "filmGrainHighlightsMin": 0.5,
+     "filmGrainHighlightsMax": 1,
+     "filmGrainScale": {
+      "x": 1,
+      "y": 1
+     },
+     "filmGrainTexture": "None",
+     "ambientOcclusionIntensity": 0.5,
+     "ambientOcclusionStaticFraction": 1,
+     "ambientOcclusionRadius": 200,
+     "ambientOcclusionRadiusInWS": false,
+     "ambientOcclusionFadeDistance": 8000,
+     "ambientOcclusionFadeRadius": 5000,
+     "ambientOcclusionPower": 2,
+     "ambientOcclusionBias": 3,
+     "ambientOcclusionQuality": 50,
+     "ambientOcclusionMipBlend": 0.6000000238418579,
+     "ambientOcclusionMipScale": 1.7000000476837158,
+     "ambientOcclusionMipThreshold": 0.009999999776482582,
+     "ambientOcclusionTemporalBlendWeight": 0.10000000149011612,
+     "rayTracingAO": false,
+     "rayTracingAOSamplesPerPixel": 1,
+     "rayTracingAOIntensity": 1,
+     "rayTracingAORadius": 200,
+     "colorGradingIntensity": 1,
+     "colorGradingLUT": "None",
+     "depthOfFieldEnabled": true,
+     "depthOfFieldSensorWidth": 24.576000213623047,
+     "depthOfFieldSqueezeFactor": 1,
+     "depthOfFieldFocalDistance": 10000,
+     "depthOfFieldDepthBlurAmount": 1,
+     "depthOfFieldDepthBlurRadius": 0,
+     "depthOfFieldUseHairDepth": false,
+     "depthOfFieldPetzvalBokeh": 0,
+     "depthOfFieldPetzvalBokehFalloff": 1,
+     "depthOfFieldPetzvalExclusionBoxExtents": {
+      "x": 0,
+      "y": 0
+     },
+     "depthOfFieldPetzvalExclusionBoxRadius": 0,
+     "depthOfFieldAspectRatioScalar": 1,
+     "depthOfFieldBarrelRadius": 5,
+     "depthOfFieldBarrelLength": 0,
+     "depthOfFieldMatteBoxFlags": [
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      },
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      },
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      }
+     ],
+     "depthOfFieldFocalRegion": 700,
+     "depthOfFieldNearTransitionRegion": 300,
+     "depthOfFieldFarTransitionRegion": 1000,
+     "depthOfFieldScale": 0,
+     "depthOfFieldNearBlurSize": 0,
+     "depthOfFieldFarBlurSize": 3,
+     "depthOfFieldOcclusion": 0.4000000059604645,
+     "depthOfFieldSkyFocusDistance": 0,
+     "depthOfFieldVignetteSize": 200,
+     "motionBlurAmount": 0.5,
+     "motionBlurMax": 5,
+     "motionBlurTargetFPS": 30,
+     "motionBlurPerObjectSize": 0,
+     "translucencyType": "Raster",
+     "rayTracingTranslucencyMaxRoughness": 0.6000000238418579,
+     "rayTracingTranslucencyRefractionRays": 3,
+     "rayTracingTranslucencySamplesPerPixel": 1,
+     "rayTracingTranslucencyMaxPrimaryHitEvents": 4,
+     "rayTracingTranslucencyMaxSecondaryHitEvents": 2,
+     "rayTracingTranslucencyShadows": "Hard_shadows",
+     "rayTracingTranslucencyRefraction": true,
+     "rayTracingTranslucencyUseRayTracedRefraction": false,
+     "pathTracingMaxBounces": 32,
+     "pathTracingSamplesPerPixel": 2048,
+     "pathTracingMaxPathIntensity": 24,
+     "pathTracingEnableEmissiveMaterials": true,
+     "pathTracingEnableReferenceDOF": false,
+     "pathTracingEnableReferenceAtmosphere": false,
+     "pathTracingEnableDenoiser": true,
+     "pathTracingIncludeEmissive": true,
+     "pathTracingIncludeDiffuse": true,
+     "pathTracingIncludeIndirectDiffuse": true,
+     "pathTracingIncludeSpecular": true,
+     "pathTracingIncludeIndirectSpecular": true,
+     "pathTracingIncludeVolume": true,
+     "pathTracingIncludeIndirectVolume": true,
+     "userFlags": 0,
+     "weightedBlendables": {
+      "array": []
+     }
+    },
+    "BlendWeight": 1,
+    "Priority": 0,
+    "BlendRadius": 100,
+    "bEnabled": true
+   },
+   "components": {
+    "BrushComponent0": {
+     "class": "BrushComponent",
+     "props": {}
+    }
+   },
+   "scale": [
+    0.2,
+    0.2,
+    0.2
+   ]
+  },
+  "LightSource_0": {
+   "class": "/Script/Engine.DirectionalLight",
+   "location": [
+    3570.9617,
+    -9038.1242,
+    -191.4025
+   ],
+   "rotation": [
+    -48.0937,
+    -57.9668,
+    -167.6524
+   ],
+   "tags": [],
+   "actor": {
+    "SpriteScale": 0.6000000238418579
+   },
+   "components": {
+    "LightComponent0": {
+     "class": "DirectionalLightComponent",
+     "props": {
+      "DynamicShadowDistanceMovableLight": 80000,
+      "DynamicShadowCascades": 3,
+      "DistanceFieldShadowDistance": 30000,
+      "CloudScatteredLuminanceScale": {
+       "r": 1.399999976158142,
+       "g": 1.399999976158142,
+       "b": 1.1666669845581055,
+       "a": 1
+      },
+      "ShadowAmount": 0.800000011920929,
+      "ShadowResolutionScale": 2,
+      "ShadowSlopeBias": 2,
+      "BloomScale": 10,
+      "bUseRayTracedDistanceFieldShadows": false,
+      "Intensity": 5,
+      "LightColor": {
+       "b": 255,
+       "g": 240,
+       "r": 215,
+       "a": 255
+      }
+     }
+    }
+   },
+   "scale": [
+    2.5,
+    2.5,
+    2.5
+   ]
+  },
+  "PostProcess_Cold": {
+   "class": "/Script/Engine.PostProcessVolume",
+   "location": [
+    3916.4282,
+    -9033.9147,
+    -193.6584
+   ],
+   "rotation": [
+    0,
+    -179.9995,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "BlendWeight": 0,
+    "bUnbound": true,
+    "BrushType": "Brush_Add",
+    "Settings": {
+     "bOverride_TemperatureType": false,
+     "bOverride_WhiteTemp": false,
+     "bOverride_WhiteTint": false,
+     "bOverride_ColorSaturation": false,
+     "bOverride_ColorContrast": false,
+     "bOverride_ColorGamma": false,
+     "bOverride_ColorGain": false,
+     "bOverride_ColorOffset": false,
+     "bOverride_ColorSaturationShadows": false,
+     "bOverride_ColorContrastShadows": false,
+     "bOverride_ColorGammaShadows": false,
+     "bOverride_ColorGainShadows": false,
+     "bOverride_ColorOffsetShadows": false,
+     "bOverride_ColorSaturationMidtones": false,
+     "bOverride_ColorContrastMidtones": false,
+     "bOverride_ColorGammaMidtones": false,
+     "bOverride_ColorGainMidtones": false,
+     "bOverride_ColorOffsetMidtones": false,
+     "bOverride_ColorSaturationHighlights": false,
+     "bOverride_ColorContrastHighlights": false,
+     "bOverride_ColorGammaHighlights": false,
+     "bOverride_ColorGainHighlights": false,
+     "bOverride_ColorOffsetHighlights": false,
+     "bOverride_ColorCorrectionShadowsMax": false,
+     "bOverride_ColorCorrectionHighlightsMin": false,
+     "bOverride_ColorCorrectionHighlightsMax": false,
+     "bOverride_BlueCorrection": false,
+     "bOverride_ExpandGamut": false,
+     "bOverride_ToneCurveAmount": false,
+     "bOverride_TonemappingMethod": false,
+     "bOverride_FilmSlope": false,
+     "bOverride_FilmToe": false,
+     "bOverride_FilmShoulder": false,
+     "bOverride_FilmBlackClip": false,
+     "bOverride_FilmWhiteClip": false,
+     "bOverride_SceneColorTint": true,
+     "bOverride_SceneFringeIntensity": true,
+     "bOverride_ChromaticAberrationStartOffset": false,
+     "bOverride_bMegaLights": false,
+     "bOverride_MegaLightsFrontLayerTranslucency": false,
+     "bOverride_AmbientCubemapTint": false,
+     "bOverride_AmbientCubemapIntensity": false,
+     "bOverride_BloomMethod": true,
+     "bOverride_BloomIntensity": true,
+     "bOverride_BloomGaussianIntensity": false,
+     "bOverride_BloomThreshold": true,
+     "bOverride_Bloom1Tint": false,
+     "bOverride_Bloom1Size": false,
+     "bOverride_Bloom2Size": false,
+     "bOverride_Bloom2Tint": false,
+     "bOverride_Bloom3Tint": false,
+     "bOverride_Bloom3Size": false,
+     "bOverride_Bloom4Tint": false,
+     "bOverride_Bloom4Size": false,
+     "bOverride_Bloom5Tint": false,
+     "bOverride_Bloom5Size": false,
+     "bOverride_Bloom6Tint": false,
+     "bOverride_Bloom6Size": false,
+     "bOverride_BloomSizeScale": false,
+     "bOverride_BloomConvolutionIntensity": false,
+     "bOverride_BloomConvolutionTexture": false,
+     "bOverride_BloomConvolutionScatterDispersion": false,
+     "bOverride_BloomConvolutionSize": false,
+     "bOverride_BloomConvolutionCenterUV": false,
+     "bOverride_BloomConvolutionPreFilterMin": false,
+     "bOverride_BloomConvolutionPreFilterMax": false,
+     "bOverride_BloomConvolutionPreFilterMult": false,
+     "bOverride_BloomConvolutionBufferScale": false,
+     "bOverride_BloomDirtMaskIntensity": false,
+     "bOverride_BloomDirtMaskTint": false,
+     "bOverride_BloomDirtMask": false,
+     "bOverride_CameraShutterSpeed": false,
+     "bOverride_CameraISO": false,
+     "bOverride_AutoExposureMethod": false,
+     "bOverride_AutoExposureLowPercent": false,
+     "bOverride_AutoExposureHighPercent": false,
+     "bOverride_AutoExposureMinBrightness": true,
+     "bOverride_AutoExposureMaxBrightness": true,
+     "bOverride_AutoExposureSpeedUp": false,
+     "bOverride_AutoExposureSpeedDown": false,
+     "bOverride_AutoExposureBias": false,
+     "bOverride_AutoExposureBiasCurve": false,
+     "bOverride_AutoExposureMeterMask": false,
+     "bOverride_AutoExposureApplyPhysicalCameraExposure": false,
+     "bOverride_HistogramLogMin": false,
+     "bOverride_HistogramLogMax": false,
+     "bOverride_LocalExposureMethod": false,
+     "bOverride_LocalExposureHighlightContrastScale": false,
+     "bOverride_LocalExposureShadowContrastScale": false,
+     "bOverride_LocalExposureHighlightContrastCurve": false,
+     "bOverride_LocalExposureShadowContrastCurve": false,
+     "bOverride_LocalExposureHighlightThreshold": false,
+     "bOverride_LocalExposureShadowThreshold": false,
+     "bOverride_LocalExposureDetailStrength": false,
+     "bOverride_LocalExposureBlurredLuminanceBlend": false,
+     "bOverride_LocalExposureBlurredLuminanceKernelSizePercent": false,
+     "bOverride_LocalExposureHighlightThresholdStrength": false,
+     "bOverride_LocalExposureShadowThresholdStrength": false,
+     "bOverride_LocalExposureMiddleGreyBias": false,
+     "bOverride_LensFlareIntensity": false,
+     "bOverride_LensFlareTint": false,
+     "bOverride_LensFlareTints": false,
+     "bOverride_LensFlareBokehSize": false,
+     "bOverride_LensFlareBokehShape": false,
+     "bOverride_LensFlareThreshold": false,
+     "bOverride_VignetteIntensity": false,
+     "bOverride_VignetteType": false,
+     "bOverride_VignetteCenter": false,
+     "bOverride_VignetteColor": false,
+     "bOverride_VignetteSize": false,
+     "bOverride_VignetteSoftness": false,
+     "bOverride_VignetteTexture": false,
+     "bOverride_Sharpen": true,
+     "bOverride_FilmGrainIntensity": true,
+     "bOverride_FilmGrainIntensityShadows": false,
+     "bOverride_FilmGrainIntensityMidtones": false,
+     "bOverride_FilmGrainIntensityHighlights": false,
+     "bOverride_FilmGrainShadowsMax": false,
+     "bOverride_FilmGrainHighlightsMin": false,
+     "bOverride_FilmGrainHighlightsMax": false,
+     "bOverride_FilmGrainScale": false,
+     "bOverride_FilmGrainTexture": false,
+     "bOverride_AmbientOcclusionIntensity": false,
+     "bOverride_AmbientOcclusionStaticFraction": false,
+     "bOverride_AmbientOcclusionRadius": false,
+     "bOverride_AmbientOcclusionFadeDistance": false,
+     "bOverride_AmbientOcclusionFadeRadius": false,
+     "bOverride_AmbientOcclusionRadiusInWS": false,
+     "bOverride_AmbientOcclusionPower": false,
+     "bOverride_AmbientOcclusionBias": false,
+     "bOverride_AmbientOcclusionQuality": false,
+     "bOverride_AmbientOcclusionMipBlend": false,
+     "bOverride_AmbientOcclusionMipScale": false,
+     "bOverride_AmbientOcclusionMipThreshold": false,
+     "bOverride_AmbientOcclusionTemporalBlendWeight": false,
+     "bOverride_RayTracingAO": false,
+     "bOverride_RayTracingAOSamplesPerPixel": false,
+     "bOverride_RayTracingAOIntensity": false,
+     "bOverride_RayTracingAORadius": false,
+     "bOverride_IndirectLightingColor": false,
+     "bOverride_IndirectLightingIntensity": false,
+     "bOverride_ColorGradingIntensity": false,
+     "bOverride_ColorGradingLUT": false,
+     "bOverride_DepthOfFieldEnabled": false,
+     "bOverride_DepthOfFieldFocalDistance": true,
+     "bOverride_DepthOfFieldFstop": true,
+     "bOverride_DepthOfFieldMinFstop": false,
+     "bOverride_DepthOfFieldBladeCount": false,
+     "bOverride_DepthOfFieldSensorWidth": false,
+     "bOverride_DepthOfFieldSqueezeFactor": false,
+     "bOverride_DepthOfFieldDepthBlurRadius": true,
+     "bOverride_DepthOfFieldUseHairDepth": false,
+     "bOverride_DepthOfFieldPetzvalBokeh": false,
+     "bOverride_DepthOfFieldPetzvalBokehFalloff": false,
+     "bOverride_DepthOfFieldPetzvalExclusionBoxExtents": false,
+     "bOverride_DepthOfFieldPetzvalExclusionBoxRadius": false,
+     "bOverride_DepthOfFieldAspectRatioScalar": false,
+     "bOverride_DepthOfFieldMatteBoxFlags": false,
+     "bOverride_DepthOfFieldBarrelRadius": false,
+     "bOverride_DepthOfFieldBarrelLength": false,
+     "bOverride_DepthOfFieldDepthBlurAmount": true,
+     "bOverride_DepthOfFieldFocalRegion": true,
+     "bOverride_DepthOfFieldNearTransitionRegion": true,
+     "bOverride_DepthOfFieldFarTransitionRegion": true,
+     "bOverride_DepthOfFieldScale": false,
+     "bOverride_DepthOfFieldNearBlurSize": true,
+     "bOverride_DepthOfFieldFarBlurSize": true,
+     "bOverride_MobileHQGaussian": false,
+     "bOverride_DepthOfFieldOcclusion": false,
+     "bOverride_DepthOfFieldSkyFocusDistance": false,
+     "bOverride_DepthOfFieldVignetteSize": false,
+     "bOverride_MotionBlurAmount": false,
+     "bOverride_MotionBlurMax": false,
+     "bOverride_MotionBlurTargetFPS": false,
+     "bOverride_MotionBlurPerObjectSize": false,
+     "bOverride_ReflectionMethod": false,
+     "bOverride_LumenReflectionQuality": false,
+     "bOverride_ScreenSpaceReflectionIntensity": true,
+     "bOverride_ScreenSpaceReflectionQuality": true,
+     "bOverride_ScreenSpaceReflectionMaxRoughness": true,
+     "bOverride_ScreenSpaceReflectionRoughnessScale": false,
+     "bOverride_UserFlags": false,
+     "bOverride_RayTracingReflectionsMaxRoughness": false,
+     "bOverride_RayTracingReflectionsMaxBounces": false,
+     "bOverride_RayTracingReflectionsSamplesPerPixel": false,
+     "bOverride_RayTracingReflectionsShadows": false,
+     "bOverride_RayTracingReflectionsTranslucency": false,
+     "bOverride_TranslucencyType": false,
+     "bOverride_RayTracingTranslucencyMaxRoughness": false,
+     "bOverride_RayTracingTranslucencyRefractionRays": false,
+     "bOverride_RayTracingTranslucencySamplesPerPixel": false,
+     "bOverride_RayTracingTranslucencyShadows": false,
+     "bOverride_RayTracingTranslucencyRefraction": false,
+     "bOverride_RayTracingTranslucencyMaxPrimaryHitEvents": false,
+     "bOverride_RayTracingTranslucencyMaxSecondaryHitEvents": false,
+     "bOverride_RayTracingTranslucencyUseRayTracedRefraction": false,
+     "bOverride_DynamicGlobalIlluminationMethod": false,
+     "bOverride_LumenSceneLightingQuality": false,
+     "bOverride_LumenSceneDetail": false,
+     "bOverride_LumenSceneViewDistance": false,
+     "bOverride_LumenSceneLightingUpdateSpeed": false,
+     "bOverride_LumenFinalGatherQuality": false,
+     "bOverride_LumenFinalGatherLightingUpdateSpeed": false,
+     "bOverride_LumenFinalGatherScreenTraces": false,
+     "bOverride_LumenMaxTraceDistance": false,
+     "bOverride_LumenDiffuseColorBoost": false,
+     "bOverride_LumenAmbientOcclusionIntensity": false,
+     "bOverride_LumenSkylightLeaking": false,
+     "bOverride_LumenSkylightLeakingTint": false,
+     "bOverride_LumenFullSkylightLeakingDistance": false,
+     "bOverride_LumenRayLightingMode": false,
+     "bOverride_LumenReflectionsScreenTraces": false,
+     "bOverride_LumenFrontLayerTranslucencyReflections": false,
+     "bOverride_LumenMaxRoughnessToTraceReflections": false,
+     "bOverride_LumenMaxReflectionBounces": false,
+     "bOverride_LumenMaxRefractionBounces": false,
+     "bOverride_LumenSurfaceCacheResolution": false,
+     "bOverride_RayTracingGI": false,
+     "bOverride_RayTracingGIMaxBounces": false,
+     "bOverride_RayTracingGISamplesPerPixel": false,
+     "bOverride_PathTracingMaxBounces": false,
+     "bOverride_PathTracingSamplesPerPixel": false,
+     "bOverride_PathTracingMaxPathIntensity": false,
+     "bOverride_PathTracingEnableEmissiveMaterials": false,
+     "bOverride_PathTracingEnableReferenceDOF": false,
+     "bOverride_PathTracingEnableReferenceAtmosphere": false,
+     "bOverride_PathTracingEnableDenoiser": false,
+     "bOverride_PathTracingIncludeEmissive": false,
+     "bOverride_PathTracingIncludeDiffuse": false,
+     "bOverride_PathTracingIncludeIndirectDiffuse": false,
+     "bOverride_PathTracingIncludeSpecular": false,
+     "bOverride_PathTracingIncludeIndirectSpecular": false,
+     "bOverride_PathTracingIncludeVolume": false,
+     "bOverride_PathTracingIncludeIndirectVolume": false,
+     "bMobileHQGaussian": false,
+     "bloomMethod": "BM_SOG",
+     "autoExposureMethod": "AEM_Basic",
+     "temperatureType": "TEMP_WhiteBalance",
+     "whiteTemp": 6500,
+     "whiteTint": 0,
+     "colorSaturation": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrast": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGamma": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGain": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffset": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainShadows": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetShadows": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainMidtones": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetMidtones": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorSaturationHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorContrastHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGammaHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorGainHighlights": {
+      "x": 1,
+      "y": 1,
+      "z": 1,
+      "w": 1
+     },
+     "colorOffsetHighlights": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 0
+     },
+     "colorCorrectionHighlightsMin": 0.5,
+     "colorCorrectionHighlightsMax": 1,
+     "colorCorrectionShadowsMax": 0.09000000357627869,
+     "blueCorrection": 0.6000000238418579,
+     "expandGamut": 1,
+     "toneCurveAmount": 1,
+     "tonemappingMethod": "Filmic",
+     "filmSlope": 0.8799999952316284,
+     "filmToe": 0.550000011920929,
+     "filmShoulder": 0.25999999046325684,
+     "filmBlackClip": 0,
+     "filmWhiteClip": 0.03999999910593033,
+     "sceneColorTint": {
+      "r": 0.35294100642204285,
+      "g": 0.6666669845581055,
+      "b": 1,
+      "a": 1
+     },
+     "sceneFringeIntensity": 0,
+     "chromaticAberrationStartOffset": 0,
+     "bloomIntensity": 10,
+     "bloomGaussianIntensity": 1,
+     "bloomThreshold": 1,
+     "bloomSizeScale": 4,
+     "bloom1Size": 0.30000001192092896,
+     "bloom2Size": 1,
+     "bloom3Size": 2,
+     "bloom4Size": 10,
+     "bloom5Size": 30,
+     "bloom6Size": 64,
+     "bloom1Tint": {
+      "r": 0.3465000092983246,
+      "g": 0.3465000092983246,
+      "b": 0.3465000092983246,
+      "a": 1
+     },
+     "bloom2Tint": {
+      "r": 0.1379999965429306,
+      "g": 0.1379999965429306,
+      "b": 0.1379999965429306,
+      "a": 1
+     },
+     "bloom3Tint": {
+      "r": 0.11760000139474869,
+      "g": 0.11760000139474869,
+      "b": 0.11760000139474869,
+      "a": 1
+     },
+     "bloom4Tint": {
+      "r": 0.06599999964237213,
+      "g": 0.06599999964237213,
+      "b": 0.06599999964237213,
+      "a": 1
+     },
+     "bloom5Tint": {
+      "r": 0.06599999964237213,
+      "g": 0.06599999964237213,
+      "b": 0.06599999964237213,
+      "a": 1
+     },
+     "bloom6Tint": {
+      "r": 0.061000000685453415,
+      "g": 0.061000000685453415,
+      "b": 0.061000000685453415,
+      "a": 1
+     },
+     "bloomConvolutionIntensity": 1,
+     "bloomConvolutionScatterDispersion": 1,
+     "bloomConvolutionSize": 1,
+     "bloomConvolutionTexture": "None",
+     "bloomConvolutionCenterUV": {
+      "x": 0.5,
+      "y": 0.5
+     },
+     "bloomConvolutionPreFilterMin": 7,
+     "bloomConvolutionPreFilterMax": 15000,
+     "bloomConvolutionPreFilterMult": 15,
+     "bloomConvolutionBufferScale": 0.13300000131130219,
+     "bloomDirtMask": "None",
+     "bloomDirtMaskIntensity": 0,
+     "bloomDirtMaskTint": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+     },
+     "dynamicGlobalIlluminationMethod": "Lumen",
+     "indirectLightingColor": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "indirectLightingIntensity": 1,
+     "lumenRayLightingMode": "Default",
+     "lumenSceneLightingQuality": 1,
+     "lumenSceneDetail": 1,
+     "lumenSceneViewDistance": 20000,
+     "lumenSceneLightingUpdateSpeed": 1,
+     "lumenFinalGatherQuality": 1,
+     "lumenFinalGatherLightingUpdateSpeed": 1,
+     "lumenFinalGatherScreenTraces": true,
+     "lumenMaxTraceDistance": 20000,
+     "lumenDiffuseColorBoost": 1,
+     "lumenAmbientOcclusionIntensity": 1,
+     "lumenSkylightLeaking": 0,
+     "lumenSkylightLeakingTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "lumenFullSkylightLeakingDistance": 1000,
+     "lumenSurfaceCacheResolution": 1,
+     "reflectionMethod": "Lumen",
+     "lumenReflectionQuality": 1,
+     "lumenReflectionsScreenTraces": true,
+     "lumenFrontLayerTranslucencyReflections": false,
+     "lumenMaxRoughnessToTraceReflections": 0.4000000059604645,
+     "lumenMaxReflectionBounces": 1,
+     "lumenMaxRefractionBounces": 0,
+     "screenSpaceReflectionIntensity": 100,
+     "screenSpaceReflectionQuality": 50,
+     "screenSpaceReflectionMaxRoughness": 0.6000000238418579,
+     "bMegaLights": true,
+     "megaLightsFrontLayerTranslucency": false,
+     "ambientCubemapTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "ambientCubemapIntensity": 1,
+     "ambientCubemap": "None",
+     "cameraShutterSpeed": 60,
+     "cameraISO": 100,
+     "depthOfFieldFstop": 1,
+     "depthOfFieldMinFstop": 1.2000000476837158,
+     "depthOfFieldBladeCount": 5,
+     "autoExposureBias": 0,
+     "autoExposureBiasBackup": 1,
+     "bOverride_AutoExposureBiasBackup": false,
+     "autoExposureApplyPhysicalCameraExposure": true,
+     "autoExposureBiasCurve": "None",
+     "autoExposureMeterMask": "None",
+     "autoExposureLowPercent": 10,
+     "autoExposureHighPercent": 90,
+     "autoExposureMinBrightness": 1,
+     "autoExposureMaxBrightness": 1,
+     "autoExposureSpeedUp": 3,
+     "autoExposureSpeedDown": 1,
+     "histogramLogMin": -8,
+     "histogramLogMax": 4,
+     "localExposureMethod": "Bilateral",
+     "localExposureHighlightContrastScale": 1,
+     "localExposureShadowContrastScale": 1,
+     "localExposureHighlightContrastCurve": "None",
+     "localExposureShadowContrastCurve": "None",
+     "localExposureHighlightThreshold": 0,
+     "localExposureShadowThreshold": 0,
+     "localExposureDetailStrength": 1,
+     "localExposureBlurredLuminanceBlend": 0.6000000238418579,
+     "localExposureBlurredLuminanceKernelSizePercent": 50,
+     "localExposureHighlightThresholdStrength": 1,
+     "localExposureShadowThresholdStrength": 1,
+     "localExposureMiddleGreyBias": 0,
+     "lensFlareIntensity": 1,
+     "lensFlareTint": {
+      "r": 1,
+      "g": 1,
+      "b": 1,
+      "a": 1
+     },
+     "lensFlareBokehSize": 3,
+     "lensFlareThreshold": 8,
+     "lensFlareBokehShape": "None",
+     "lensFlareTints": [
+      {
+       "r": 1,
+       "g": 0.800000011920929,
+       "b": 0.4000000059604645,
+       "a": 0.6000000238418579
+      },
+      {
+       "r": 1,
+       "g": 1,
+       "b": 0.6000000238418579,
+       "a": 0.5299999713897705
+      },
+      {
+       "r": 0.800000011920929,
+       "g": 0.800000011920929,
+       "b": 1,
+       "a": 0.46000000834465027
+      },
+      {
+       "r": 0.5,
+       "g": 1,
+       "b": 0.4000000059604645,
+       "a": 0.38999998569488525
+      },
+      {
+       "r": 0.5,
+       "g": 0.800000011920929,
+       "b": 1,
+       "a": 0.3100000023841858
+      },
+      {
+       "r": 0.8999999761581421,
+       "g": 1,
+       "b": 0.800000011920929,
+       "a": 0.27000001072883606
+      },
+      {
+       "r": 1,
+       "g": 0.800000011920929,
+       "b": 0.4000000059604645,
+       "a": 0.2199999988079071
+      },
+      {
+       "r": 0.8999999761581421,
+       "g": 0.699999988079071,
+       "b": 0.699999988079071,
+       "a": 0.15000000596046448
+      }
+     ],
+     "vignetteIntensity": 0.4000000059604645,
+     "vignetteType": "CosineFourthLaw",
+     "vignetteCenter": {
+      "x": 0.5,
+      "y": 0.5
+     },
+     "vignetteColor": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 1
+     },
+     "vignetteSize": {
+      "x": 1,
+      "y": 1
+     },
+     "vignetteSoftness": 5,
+     "vignetteTexture": "None",
+     "sharpen": 0.5,
+     "filmGrainIntensity": 0,
+     "filmGrainIntensityShadows": 1,
+     "filmGrainIntensityMidtones": 1,
+     "filmGrainIntensityHighlights": 1,
+     "filmGrainShadowsMax": 0.09000000357627869,
+     "filmGrainHighlightsMin": 0.5,
+     "filmGrainHighlightsMax": 1,
+     "filmGrainScale": {
+      "x": 1,
+      "y": 1
+     },
+     "filmGrainTexture": "None",
+     "ambientOcclusionIntensity": 0.5,
+     "ambientOcclusionStaticFraction": 1,
+     "ambientOcclusionRadius": 200,
+     "ambientOcclusionRadiusInWS": false,
+     "ambientOcclusionFadeDistance": 8000,
+     "ambientOcclusionFadeRadius": 5000,
+     "ambientOcclusionPower": 2,
+     "ambientOcclusionBias": 3,
+     "ambientOcclusionQuality": 50,
+     "ambientOcclusionMipBlend": 0.6000000238418579,
+     "ambientOcclusionMipScale": 1.7000000476837158,
+     "ambientOcclusionMipThreshold": 0.009999999776482582,
+     "ambientOcclusionTemporalBlendWeight": 0.10000000149011612,
+     "rayTracingAO": false,
+     "rayTracingAOSamplesPerPixel": 1,
+     "rayTracingAOIntensity": 1,
+     "rayTracingAORadius": 200,
+     "colorGradingIntensity": 1,
+     "colorGradingLUT": "None",
+     "depthOfFieldEnabled": true,
+     "depthOfFieldSensorWidth": 24.576000213623047,
+     "depthOfFieldSqueezeFactor": 1,
+     "depthOfFieldFocalDistance": 10000,
+     "depthOfFieldDepthBlurAmount": 1,
+     "depthOfFieldDepthBlurRadius": 0,
+     "depthOfFieldUseHairDepth": false,
+     "depthOfFieldPetzvalBokeh": 0,
+     "depthOfFieldPetzvalBokehFalloff": 1,
+     "depthOfFieldPetzvalExclusionBoxExtents": {
+      "x": 0,
+      "y": 0
+     },
+     "depthOfFieldPetzvalExclusionBoxRadius": 0,
+     "depthOfFieldAspectRatioScalar": 1,
+     "depthOfFieldBarrelRadius": 5,
+     "depthOfFieldBarrelLength": 0,
+     "depthOfFieldMatteBoxFlags": [
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      },
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      },
+      {
+       "pitch": 0,
+       "roll": 0,
+       "length": 0
+      }
+     ],
+     "depthOfFieldFocalRegion": 700,
+     "depthOfFieldNearTransitionRegion": 300,
+     "depthOfFieldFarTransitionRegion": 1000,
+     "depthOfFieldScale": 0,
+     "depthOfFieldNearBlurSize": 0,
+     "depthOfFieldFarBlurSize": 3,
+     "depthOfFieldOcclusion": 0.4000000059604645,
+     "depthOfFieldSkyFocusDistance": 0,
+     "depthOfFieldVignetteSize": 200,
+     "motionBlurAmount": 0.5,
+     "motionBlurMax": 5,
+     "motionBlurTargetFPS": 30,
+     "motionBlurPerObjectSize": 0,
+     "translucencyType": "Raster",
+     "rayTracingTranslucencyMaxRoughness": 0.6000000238418579,
+     "rayTracingTranslucencyRefractionRays": 3,
+     "rayTracingTranslucencySamplesPerPixel": 1,
+     "rayTracingTranslucencyMaxPrimaryHitEvents": 4,
+     "rayTracingTranslucencyMaxSecondaryHitEvents": 2,
+     "rayTracingTranslucencyShadows": "Hard_shadows",
+     "rayTracingTranslucencyRefraction": true,
+     "rayTracingTranslucencyUseRayTracedRefraction": false,
+     "pathTracingMaxBounces": 32,
+     "pathTracingSamplesPerPixel": 2048,
+     "pathTracingMaxPathIntensity": 24,
+     "pathTracingEnableEmissiveMaterials": true,
+     "pathTracingEnableReferenceDOF": false,
+     "pathTracingEnableReferenceAtmosphere": false,
+     "pathTracingEnableDenoiser": true,
+     "pathTracingIncludeEmissive": true,
+     "pathTracingIncludeDiffuse": true,
+     "pathTracingIncludeIndirectDiffuse": true,
+     "pathTracingIncludeSpecular": true,
+     "pathTracingIncludeIndirectSpecular": true,
+     "pathTracingIncludeVolume": true,
+     "pathTracingIncludeIndirectVolume": true,
+     "userFlags": 0,
+     "weightedBlendables": {
+      "array": []
+     }
+    },
+    "Priority": 0,
+    "BlendRadius": 100,
+    "bEnabled": true
+   },
+   "components": {
+    "BrushComponent0": {
+     "class": "BrushComponent",
+     "props": {}
+    }
+   },
+   "scale": [
+    0.2,
+    0.2,
+    0.2
+   ]
+  },
+  "ExponentialHeightFog_1": {
+   "class": "/Script/Engine.ExponentialHeightFog",
+   "location": [
+    3381.2545,
+    -9043.3239,
+    -197.5685
+   ],
+   "rotation": [
+    0,
+    90.0001,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "SpriteScale": 0.699999988079071
+   },
+   "components": {
+    "HeightFogComponent0": {
+     "class": "ExponentialHeightFogComponent",
+     "props": {
+      "FogDensity": 0.009999999776482582,
+      "FogInscatteringLuminance": {
+       "r": 0.030257999897003174,
+       "g": 0.032979000359773636,
+       "b": 0.05000000074505806,
+       "a": 1
+      },
+      "SkyAtmosphereAmbientContributionColorScale": {
+       "r": 2.200000047683716,
+       "g": 2.195517063140869,
+       "b": 2.0840349197387695,
+       "a": 1
+      },
+      "DirectionalInscatteringExponent": 1,
+      "DirectionalInscatteringLuminance": {
+       "r": 0.04839500039815903,
+       "g": 0.12078599631786346,
+       "b": 0.2826699912548065,
+       "a": 1
+      }
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "SkyLight_0": {
+   "class": "/Script/Engine.SkyLight",
+   "location": [
+    3473.0838,
+    -9043.3171,
+    -197.5685
+   ],
+   "rotation": [
+    0,
+    90.0005,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "SpriteScale": 0.4000000059604645
+   },
+   "components": {
+    "SkyLightComponent0": {
+     "class": "SkyLightComponent",
+     "props": {
+      "bRealTimeCapture": true,
+      "CubemapResolution": 256,
+      "LowerHemisphereColor": {
+       "r": 0.009494000114500523,
+       "g": 0.012912999838590622,
+       "b": 0.026041999459266663,
+       "a": 1
+      },
+      "LightColor": {
+       "b": 255,
+       "g": 238,
+       "r": 227,
+       "a": 255
+      },
+      "CastRaytracedShadow": "Disabled"
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "SkyAtmosphere_0": {
+   "class": "/Script/Engine.SkyAtmosphere",
+   "location": [
+    3288.6631,
+    -9043.3239,
+    -197.5685
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "SpriteScale": 0.800000011920929
+   },
+   "components": {
+    "SkyAtmosphereComponent": {
+     "class": "SkyAtmosphereComponent",
+     "props": {
+      "RayleighScatteringScale": 0.02500000037252903
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "MovingBall_Area11": {
+   "class": "/Game/FluidNinjaLive/Meshes/MovingBall1.MovingBall1_C",
+   "location": [
+    4480.27,
+    -5030.2526,
+    -457.7185
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "Root": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area11.Root",
+    "Sphere": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area11.Sphere",
+    "AbsoluteLocation": true,
+    "Time": 8.139088597148657,
+    "Speed": 0.25,
+    "RandomizeSpeed": 0,
+    "RndFreq": 0.25,
+    "Amplitude": 2,
+    "Scale": 0.699999988079071,
+    "Material": "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2",
+    "Xmult": -200,
+    "Ymult": 200,
+    "Zmult": 0,
+    "Random": 0.42387163639068604,
+    "Xfreq": 5,
+    "Yfreq": 5,
+    "Zfreq": 5
+   },
+   "components": {
+    "Root": {
+     "class": "SceneComponent",
+     "props": {}
+    },
+    "Sphere": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bEvaluateWorldPositionOffsetInRayTracing": true,
+      "OverrideMaterials": [
+       "/Script/Engine.MaterialInstanceConstant'/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2'"
+      ]
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "MovingBall_Area12": {
+   "class": "/Game/FluidNinjaLive/Meshes/MovingBall1.MovingBall1_C",
+   "location": [
+    7961.9666,
+    -4478.8155,
+    -27.4926
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "Root": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area12.Root",
+    "Sphere": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area12.Sphere",
+    "AbsoluteLocation": true,
+    "Time": 8.189089097082615,
+    "Speed": 0.5,
+    "RandomizeSpeed": 0,
+    "RndFreq": 0.5,
+    "Amplitude": 1.5,
+    "Scale": 1,
+    "Material": "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2",
+    "Xmult": 20,
+    "Ymult": 20,
+    "Zmult": 200,
+    "Random": 0.21835994720458984,
+    "Xfreq": 5.269999980926514,
+    "Yfreq": 4.369999885559082,
+    "Zfreq": 5
+   },
+   "components": {
+    "Root": {
+     "class": "SceneComponent",
+     "props": {}
+    },
+    "Sphere": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bEvaluateWorldPositionOffsetInRayTracing": true,
+      "OverrideMaterials": [
+       "/Script/Engine.MaterialInstanceConstant'/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2'"
+      ]
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "MovingBall_Area4_0": {
+   "class": "/Game/FluidNinjaLive/Meshes/MovingBall1.MovingBall1_C",
+   "location": [
+    5846.9313,
+    -4951.5488,
+    -486.7608
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "Root": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area4_0.Root",
+    "Sphere": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area4_0.Sphere",
+    "AbsoluteLocation": true,
+    "Time": 8.239089798182249,
+    "Speed": 0.4000000059604645,
+    "RandomizeSpeed": 0,
+    "RndFreq": 0.4000000059604645,
+    "Amplitude": 2,
+    "Scale": 2,
+    "Material": "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2",
+    "Xmult": 200,
+    "Ymult": 200,
+    "Zmult": 4,
+    "Random": -0.5725577473640442,
+    "Xfreq": 4.369999885559082,
+    "Yfreq": 5.269999980926514,
+    "Zfreq": 17.209999084472656
+   },
+   "components": {
+    "Root": {
+     "class": "SceneComponent",
+     "props": {}
+    },
+    "Sphere": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bEvaluateWorldPositionOffsetInRayTracing": true,
+      "OverrideMaterials": [
+       "/Script/Engine.MaterialInstanceConstant'/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2'"
+      ],
+      "ComponentTags": []
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "MovingBall_Area5": {
+   "class": "/Game/FluidNinjaLive/Meshes/MovingBall1.MovingBall1_C",
+   "location": [
+    6012.9789,
+    -6000.2398,
+    -476.4097
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "Root": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area5.Root",
+    "Sphere": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.MovingBall_Area5.Sphere",
+    "AbsoluteLocation": true,
+    "Time": 8.305757395923138,
+    "Speed": 0.25,
+    "RandomizeSpeed": 0,
+    "RndFreq": 0.25,
+    "Amplitude": 2,
+    "Scale": 0.75,
+    "Material": "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2",
+    "Xmult": 200,
+    "Ymult": 200,
+    "Zmult": 0,
+    "Random": -0.34458446502685547,
+    "Xfreq": 4.369999885559082,
+    "Yfreq": 5.269999980926514,
+    "Zfreq": 5
+   },
+   "components": {
+    "Root": {
+     "class": "SceneComponent",
+     "props": {}
+    },
+    "Sphere": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bEvaluateWorldPositionOffsetInRayTracing": true,
+      "OverrideMaterials": [
+       "/Script/Engine.MaterialInstanceConstant'/Game/FluidNinjaLive/Misc/Materials_Decor/MI_Shiny2.MI_Shiny2'"
+      ]
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "VerticalSineMovement1": {
+   "class": "/Game/FluidNinjaLive/Meshes/MovingBall1.MovingBall1_C",
+   "location": [
+    -7167.2108,
+    -764.5205,
+    -589.6956
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "Root": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.VerticalSineMovement1.Root",
+    "Sphere": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.VerticalSineMovement1.Sphere",
+    "AbsoluteLocation": true,
+    "Time": 8.372425496578217,
+    "Speed": 0.02,
+    "RandomizeSpeed": 0,
+    "RndFreq": 0.02,
+    "Amplitude": 2.5,
+    "Scale": 1.6,
+    "Material": "/Game/FluidNinjaLive/Misc/Materials_Decor/MI_SolidColorYellow.MI_SolidColorYellow",
+    "Xmult": 2,
+    "Ymult": 3,
+    "Zmult": 20,
+    "Random": 0.20273447036743164,
+    "Xfreq": 42.70000076293945,
+    "Yfreq": 36.79999923706055,
+    "Zfreq": 74.79999542236328,
+    "Y-rotation": 8,
+    "Z-rotation": 10
+   },
+   "components": {
+    "RotatingMovement": {
+     "class": "RotatingMovementComponent",
+     "props": {
+      "RotationRate": [
+       0,
+       0,
+       0
+      ],
+      "PivotTranslation": [
+       0,
+       0,
+       0
+      ],
+      "bRotationInLocalSpace": true,
+      "Velocity": [
+       0,
+       0,
+       0
+      ],
+      "PlaneConstraintNormal": [
+       0,
+       0,
+       0
+      ],
+      "PlaneConstraintOrigin": [
+       0,
+       0,
+       0
+      ],
+      "bUpdateOnlyIfRendered": false,
+      "bAutoUpdateTickRegistration": true,
+      "bTickBeforeOwner": true,
+      "bAutoRegisterUpdatedComponent": true,
+      "bConstrainToPlane": false,
+      "bSnapToPlaneAtStart": false,
+      "bAutoRegisterPhysicsVolumeUpdates": false,
+      "bComponentShouldUpdatePhysicsVolume": false,
+      "PlaneConstraintAxisSetting": "Custom",
+      "PrimaryComponentTick": {
+       "tickGroup": "TG_PrePhysics",
+       "endTickGroup": "TG_PrePhysics",
+       "bTickEvenWhenPaused": false,
+       "bCanEverTick": true,
+       "bStartWithTickEnabled": true,
+       "bAllowTickOnDedicatedServer": true,
+       "tickInterval": 0
+      },
+      "ComponentTags": [],
+      "AssetUserData": [],
+      "AssetUserDataEditorOnly": [],
+      "bReplicateUsingRegisteredSubObjectList": false,
+      "bReplicates": false,
+      "bAutoActivate": true,
+      "bEditableWhenInherited": true,
+      "bCanEverAffectNavigation": false,
+      "bIsEditorOnly": false
+     }
+    },
+    "Root": {
+     "class": "SceneComponent",
+     "props": {}
+    },
+    "Sphere": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bEvaluateWorldPositionOffsetInRayTracing": true,
+      "OverrideMaterials": [
+       "/Script/Engine.MaterialInstanceConstant'/Game/FluidNinjaLive/Misc/Materials_Decor/MI_SolidColorYellow.MI_SolidColorYellow'"
+      ],
+      "bGenerateOverlapEvents": false,
+      "bVisible": false,
+      "bHiddenInGame": true
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "PointLight_1": {
+   "class": "/Script/Engine.PointLight",
+   "location": [
+    9498.9493,
+    2580.9172,
+    -337.7692
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {
+    "SpawnCollisionHandlingMethod": "AdjustIfPossibleButDontSpawnIfColliding"
+   },
+   "components": {
+    "LightComponent0": {
+     "class": "PointLightComponent",
+     "props": {
+      "SourceRadius": 100,
+      "SoftSourceRadius": 50,
+      "IntensityUnits": "Lumens",
+      "AttenuationRadius": 40000,
+      "MaxDrawDistance": 14000,
+      "MaxDistanceFadeRange": 5000,
+      "Intensity": 0,
+      "LightColor": {
+       "b": 255,
+       "g": 164,
+       "r": 0,
+       "a": 255
+      },
+      "VolumetricScatteringIntensity": 2
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "VolumetricCloud_1": {
+   "class": "/Script/Engine.VolumetricCloud",
+   "location": [
+    3745.3433,
+    -9043.3171,
+    -194.436
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "tags": [],
+   "actor": {},
+   "components": {
+    "VolumetricCloudComponent": {
+     "class": "VolumetricCloudComponent",
+     "props": {
+      "LayerBottomAltitude": 3,
+      "TracingMaxDistance": 100,
+      "Material": "/Game/FluidNinjaLive/OutputMaterials/CVOL/MI_CVOL_PASSIVE_Cloudscape_Nimbus_CullNearby.MI_CVOL_PASSIVE_Cloudscape_Nimbus_CullNearby",
+      "SkyLightCloudBottomOcclusion": 1,
+      "ViewSampleCountScale": 5,
+      "ShadowTracingDistance": 5,
+      "bVisible": false
+     }
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "Vehicle_QuadDrone_C_1": {
+   "class": "/Game/FluidNinjaLive/Meshes/Vehicle_QuadDrone.Vehicle_QuadDrone_C",
+   "location": [
+    4675.1577,
+    -9084.2605,
+    -356.175
+   ],
+   "rotation": [
+    -0.489,
+    179.9577,
+    -5.2762
+   ],
+   "tags": [
+    "SDFSource"
+   ],
+   "actor": {
+    "MidLights": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.MidLights",
+    "SpotLight": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SpotLight",
+    "FrontLights": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.FrontLights",
+    "RearLights": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.RearLights",
+    "Camera": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.Camera",
+    "SpringArm": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SpringArm",
+    "SM_Frame": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SM_Frame",
+    "SM_Wheel_Rear_R": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SM_Wheel_Rear_R",
+    "SM_Wheel_Rear_L": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SM_Wheel_Rear_L",
+    "SM_Wheel_Front_L": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SM_Wheel_Front_L",
+    "SM_Wheel_Front_R": "/Game/FluidNinjaLive/Levels/Water_Dense_Sea.Water_Dense_Sea:PersistentLevel.Vehicle_QuadDrone_C_1.SM_Wheel_Front_R",
+    "AutoPilot": false,
+    "TargetProximityRadius": 1000,
+    "NetPriority": 3
+   },
+   "components": {
+    "VehicleMesh": {
+     "class": "SkeletalMeshComponent",
+     "props": {}
+    },
+    "VehicleMovementComp": {
+     "class": "ChaosWheeledVehicleMovementComponent",
+     "props": {}
+    },
+    "SM_Wheel_Front_R": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bCastInsetShadow": true,
+      "ComponentTags": [
+       "SDFSource"
+      ]
+     }
+    },
+    "SM_Wheel_Front_L": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bCastInsetShadow": true,
+      "ComponentTags": [
+       "SDFSource"
+      ]
+     }
+    },
+    "SM_Wheel_Rear_L": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bCastInsetShadow": true,
+      "ComponentTags": [
+       "SDFSource"
+      ]
+     }
+    },
+    "SM_Wheel_Rear_R": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bCastInsetShadow": true,
+      "ComponentTags": [
+       "SDFSource"
+      ]
+     }
+    },
+    "SM_Frame": {
+     "class": "StaticMeshComponent",
+     "props": {
+      "bCastInsetShadow": true,
+      "ComponentTags": [
+       "SDFSource"
+      ]
+     }
+    },
+    "RearLights": {
+     "class": "StaticMeshComponent",
+     "props": {}
+    },
+    "FrontLights": {
+     "class": "StaticMeshComponent",
+     "props": {}
+    },
+    "SpotLight": {
+     "class": "SpotLightComponent",
+     "props": {}
+    },
+    "MidLights": {
+     "class": "StaticMeshComponent",
+     "props": {}
+    },
+    "SpringArm": {
+     "class": "SpringArmComponent",
+     "props": {}
+    },
+    "Camera": {
+     "class": "CameraComponent",
+     "props": {}
+    }
+   },
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  }
+ },
+ "niagara": {
+  "whitewater": {
+   "system": "/Game/FluidNinjaLive/OutputNiagara/SurfaceAlignedParticles.SurfaceAlignedParticles",
+   "params": {
+    "Bounce": 0.5,
+    "ClampingValue": -480,
+    "CoastlineProtector": true,
+    "CollisionBasedParticleAging": 1,
+    "CollisionRadius": 12,
+    "ColorScaledByDivergencePow": 8,
+    "CurlNoiseFreq": 20,
+    "CurlNoiseMult": 4000,
+    "CurlyNoiseMultByDensity": 0.85,
+    "DistanceBasedHeightOffset": 1,
+    "Drag": 18,
+    "ForceField": [
+     0,
+     0,
+     0
+    ],
+    "HeightOffset": 4,
+    "HeightUpScale": 100,
+    "InitialParticleColor": [
+     1.029,
+     1.192,
+     1.3,
+     0.2
+    ],
+    "KillParticlesBelowThisVelocity": 60,
+    "KillParticlesInThisRangeAtSimEdges": 0.5,
+    "MaskAccelerationWithDensity": false,
+    "MaskPressureWithDensity": false,
+    "MeshRenderer": false,
+    "MeshScale": 0.1,
+    "OnlyPositivePressureValues": false,
+    "PanNoiseField": [
+     0.5,
+     0,
+     1
+    ],
+    "ParticleCollision": false,
+    "ParticleLifetime": 6,
+    "ParticleVelocityDistributionPow": 5,
+    "ParticleVelocityLowerClamp": -10,
+    "ParticleZAcceleration": 1,
+    "PressureMax": 250,
+    "PressureMin": -250,
+    "PressureMult": 10,
+    "PressurePow": 1,
+    "RunWithoutElevationData": false,
+    "ScaleInputVelocity": 20,
+    "ScaleSizeByVelocity": 5,
+    "SimRelativeHeightInput": true,
+    "SpawnRate": 300000,
+    "SpriteEmissive": 0.15,
+    "SpriteGradientHardness": -3,
+    "SpriteRenderer": true,
+    "SpriteSize": 1.5,
+    "VerticalBoost": false
+   }
+  },
+  "sea_surface": {
+   "system": "/Game/FluidNinjaLive/OutputNiagara/SurfaceAlignedMeshes.SurfaceAlignedMeshes",
+   "params": {
+    "ClampHeightLowerValues": false,
+    "ClampingValue": -480,
+    "EmitterExtents": [
+     10000,
+     10000,
+     1
+    ],
+    "EnableLandscapeSampler": false,
+    "EnableMeshRenderer": true,
+    "EnableRenderTargetExport": false,
+    "EnableRVTSampler": false,
+    "ExposeRelativeHeight": false,
+    "HeightClampingValue": 0,
+    "HeightDownScaleFactor": 1,
+    "HeightUpScale": 100,
+    "KillDistantMeshes": false,
+    "KillMeshesViaGroundSteepness": false,
+    "KillRange": 100,
+    "KillSteepness": 0,
+    "LODsensitivity": 1,
+    "MeshNumberMultX": 201,
+    "MeshNumberMultY": 201,
+    "MeshRotationRandom": 0,
+    "MeshScale": [
+     50,
+     50,
+     50
+    ],
+    "MeshScaleRandom": 0,
+    "PositionOffsetZ": 0,
+    "PositionRandomX": 0,
+    "PositionRandomY": 0,
+    "PositionRandomZ": 0,
+    "ShowBoundingBox": false,
+    "SimRelativeHeightInput": true,
+    "TemplateMesh": "/Game/FluidNinjaLive/Meshes/Planes/SM_plane_500x500_MultiLOD.SM_plane_500x500_MultiLOD",
+    "MeshMaterialTemplate": "/Game/FluidNinjaLive/OutputMaterials/Surface_Water_Sparse/MI_Water_SingleLayerWater_Placeholder.MI_Water_SingleLayerWater_Placeholder"
+   },
+   "location": [
+    2378.7,
+    -9120.4,
+    -480.0
+   ],
+   "tags": [
+    "NinjaTarget"
+   ]
+  }
+ },
+ "player": {
+  "location": [
+   2930.9,
+   -9044.8,
+   -253.0
+  ],
+  "yaw": 90.0,
+  "class": "/Game/FluidNinjaLive/Meshes/ThirdPersonCharacter.ThirdPersonCharacter_C"
+ },
+ "camera": {
+  "location": [
+   2906.7,
+   -9970.1,
+   212.6
+  ],
+  "rotation": [
+   -21.8,
+   89.6,
+   0.0
+  ],
+  "label": "CineCameraActor_Example_Coastline"
+ }
+}

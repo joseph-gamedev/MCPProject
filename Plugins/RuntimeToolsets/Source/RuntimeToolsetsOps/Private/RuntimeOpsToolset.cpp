@@ -8,6 +8,9 @@
 #include "RuntimeToolsetsCore.h"
 #include "RuntimeToolsetsSettings.h"
 #include "Containers/Ticker.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 namespace
 {
@@ -203,6 +206,7 @@ namespace
 		int32 Next = 0;
 		bool bAtomic = false;
 		bool bStopOnError = true;
+		bool bCompact = false;   // successful calls report only {i, tool, ok} (recipes: hundreds of calls)
 		bool bStopped = false;
 		bool bDone = false;
 		int32 FailedIndex = INDEX_NONE;
@@ -326,7 +330,11 @@ namespace
 		{
 			return;
 		}
-		TSharedRef<FJsonObject> Item = R.ToJson();
+		TSharedRef<FJsonObject> Item = (S->bCompact && R.IsOk()) ? MakeShared<FJsonObject>() : R.ToJson();
+		if (S->bCompact && R.IsOk())
+		{
+			Item->SetBoolField(TEXT("ok"), true);
+		}
 		Item->SetNumberField(TEXT("i"), Index);
 		Item->SetStringField(TEXT("tool"), S->Calls[Index].Tool);
 		S->Value.Results.Add(FRuntimeToolJson::Make(Item));
@@ -512,12 +520,13 @@ namespace
 
 // ---- batch ----------------------------------------------------------------------------------------------------------
 
-UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatchCall>& Calls, bool bAtomic, bool bStopOnError, const FString& Label)
+static UOpsToolBatchAsyncResult* OpsStartBatch(const TArray<FOpsToolBatchCall>& Calls, bool bAtomic, bool bStopOnError, const FString& Label, int32 MaxCalls,
+	bool bCompact = false)
 {
-	if (Calls.Num() == 0 || Calls.Num() > MaxBatchCalls)
+	if (Calls.Num() == 0 || Calls.Num() > MaxCalls)
 	{
 		RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments,
-			Calls.Num() == 0 ? FString(TEXT("calls is empty")) : FString::Printf(TEXT("at most %d calls per batch (got %d)"), MaxBatchCalls, Calls.Num()),
+			Calls.Num() == 0 ? FString(TEXT("calls is empty")) : FString::Printf(TEXT("at most %d calls per batch (got %d)"), MaxCalls, Calls.Num()),
 			Calls.Num() == 0 ? TEXT("Pass [{\"tool\": \"...\", \"arguments\": {...}}]") : TEXT("Split the work into several batches"));
 		return nullptr;
 	}
@@ -554,6 +563,7 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 	S->Result = Result;
 	S->Inv = RuntimeToolCall::Current()->AsShared();
 	S->bAtomic = bAtomic;
+	S->bCompact = bCompact;
 	S->bStopOnError = bAtomic || bStopOnError;
 	if (bAtomic)
 	{
@@ -583,6 +593,93 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 	RuntimeToolCall::SetTimeout(600.0);
 	OpsRunStep(S);
 	return Result;
+}
+
+UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatchCall>& Calls, bool bAtomic, bool bStopOnError, const FString& Label)
+{
+	return OpsStartBatch(Calls, bAtomic, bStopOnError, Label, MaxBatchCalls);
+}
+
+// ---- recipes ----------------------------------------------------------------------------------------------------------
+
+// recipes made by Scripts/recipes/make_recipes.py (sea_coast from the FluidNinja LIVE demo harvest)
+#include "Generated/OpsRecipes.gen.inl"
+
+namespace
+{
+	TSharedPtr<FJsonObject> OpsRecipes()
+	{
+		static TSharedPtr<FJsonObject> Parsed;
+		if (!Parsed.IsValid())
+		{
+			FString Text;
+			for (const TCHAR* Part : GOpsRecipesJsonParts)
+			{
+				Text += Part;
+			}
+			TSharedRef<TJsonReader<>> R = TJsonReaderFactory<>::Create(Text);
+			if (!FJsonSerializer::Deserialize(R, Parsed) || !Parsed.IsValid())
+			{
+				Parsed = MakeShared<FJsonObject>();
+			}
+		}
+		return Parsed;
+	}
+}
+
+TArray<FOpsToolRecipe> URuntimeOpsToolset::ListRecipes()
+{
+	TArray<FOpsToolRecipe> Out;
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : OpsRecipes()->Values)
+	{
+		const TSharedPtr<FJsonObject> R = KV.Value->AsObject();
+		FOpsToolRecipe& O = Out.AddDefaulted_GetRef();
+		O.Name = KV.Key;
+		O.About = R->GetStringField(TEXT("about"));
+		TSet<FString> Parts;
+		for (const TSharedPtr<FJsonValue>& C : R->GetArrayField(TEXT("calls")))
+		{
+			FString Part;
+			if (C->AsObject()->TryGetStringField(TEXT("part"), Part))
+			{
+				Parts.Add(Part);
+			}
+		}
+		O.Parts = Parts.Array();
+		O.Calls = R->GetArrayField(TEXT("calls")).Num();
+	}
+	return Out;
+}
+
+UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunRecipe(const FString& Name, const TArray<FString>& Skip)
+{
+	const TSharedPtr<FJsonObject>* R = nullptr;
+	if (!OpsRecipes()->TryGetObjectField(Name, R))
+	{
+		TArray<FString> Names;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : OpsRecipes()->Values)
+		{
+			Names.Add(KV.Key);
+		}
+		RuntimeToolCall::Fail(ERuntimeToolError::NotFound, FString::Printf(TEXT("no recipe '%s' (%s)"), *Name, *FString::Join(Names, TEXT(", "))),
+			TEXT("ops.list_recipes lists them"));
+		return nullptr;
+	}
+	TArray<FOpsToolBatchCall> Calls;
+	for (const TSharedPtr<FJsonValue>& V : (*R)->GetArrayField(TEXT("calls")))
+	{
+		const TSharedPtr<FJsonObject> C = V->AsObject();
+		FString Part;
+		if (C->TryGetStringField(TEXT("part"), Part) && Skip.Contains(Part))
+		{
+			continue;
+		}
+		FOpsToolBatchCall& Call = Calls.AddDefaulted_GetRef();
+		Call.Tool = C->GetStringField(TEXT("tool"));
+		const TSharedPtr<FJsonObject>* Args = nullptr;
+		Call.Arguments = FRuntimeToolJson::Make(MakeShared<FJsonValueObject>(C->TryGetObjectField(TEXT("arguments"), Args) ? *Args : MakeShared<FJsonObject>()));
+	}
+	return OpsStartBatch(Calls, false, false, TEXT("recipe ") + Name, 2000, true);
 }
 
 // ---- waiting --------------------------------------------------------------------------------------------------------

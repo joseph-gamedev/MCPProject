@@ -7,6 +7,20 @@
 class AActor;
 
 /** Directional light (sun). */
+/** The level lighting parts set aside (or brought back). */
+USTRUCT()
+struct FRuntimeEnvironmentHidden
+{
+	GENERATED_BODY()
+
+	/** Actors changed. */
+	UPROPERTY()
+	TArray<FString> Actors;
+
+	UPROPERTY()
+	bool bHidden = true;
+};
+
 USTRUCT()
 struct FRuntimeSunInfo
 {
@@ -448,4 +462,14 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Lighting")
 	static FRuntimeMoodResult ApplyMood(ERuntimeLightingMood Mood);
+
+	/**
+	 * Sets aside the level's own sun, sky light, atmosphere, clouds, fog and post process (the ones that came with the map),
+	 * so a scene can bring its own lighting; tool-made ones are kept. Call again with hidden false to bring them back.
+	 *
+	 * @param bHidden - true sets them aside, false brings them back.
+	 * @return The actors changed.
+	 */
+	UFUNCTION(meta = (AICallable, RequiresWorld), Category = "Lighting")
+	static FRuntimeEnvironmentHidden HideEnvironment(bool bHidden = true);
 };

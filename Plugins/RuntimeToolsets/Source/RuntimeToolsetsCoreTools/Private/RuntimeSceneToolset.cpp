@@ -1,4 +1,6 @@
 #include "RuntimeSceneToolset.h"
+#include "Engine/LevelStreamingDynamic.h"
+#include "Engine/World.h"
 #include "Helpers/SpawnHelpers.h"
 #include "Helpers/ToolsCommon.h"
 #include "Helpers/TreeSerializer.h"
@@ -750,7 +752,22 @@ FRuntimeClearResult URuntimeSceneToolset::ClearScope(AActor* Root, bool bConfirm
 
 FRuntimeClearResult URuntimeSceneToolset::ClearAll(bool bConfirm)
 {
-	return ClearNodes(bConfirm, RuntimeToolCall::GetGraph()->GetRootIds(), TEXT("clear_all"));
+	FRuntimeClearResult Out = ClearNodes(bConfirm, RuntimeToolCall::GetGraph()->GetRootIds(), TEXT("clear_all"));
+	if (bConfirm && !RuntimeToolCall::HasFailed())
+	{
+		// level instances streamed in with level.load_level_instance (e.g. a recipe's ground) go too
+		if (UWorld* World = RuntimeToolCall::GetWorld())
+		{
+			for (ULevelStreaming* L : World->GetStreamingLevels())
+			{
+				if (ULevelStreamingDynamic* D = Cast<ULevelStreamingDynamic>(L))
+				{
+					D->SetIsRequestingUnloadAndRemoval(true);
+				}
+			}
+		}
+	}
+	return Out;
 }
 
 FRuntimeToolJson URuntimeSceneToolset::ExportTree(AActor* Root)

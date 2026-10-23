@@ -580,7 +580,8 @@ FBuildToolNodeResult URuntimeBuildToolset::CreateRiver(const TArray<FVector>& Pa
 }
 
 FBuildToolTerrainResult URuntimeBuildToolset::CreateTerrain(const FVector2D& Size, const FVector& Location, const TArray<FRuntimeToolJson>& Hills,
-	const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color, float Height,
+	const TArray<FRuntimeToolJson>& Flatten, const TArray<FRuntimeToolJson>& Carve, const TArray<FString>& Tags, const FVector& Color,
+	const float& SandLine, const float& SeaLevel, const TArray<FRuntimeToolJson>& Islands, float Height,
 	float FeatureSize, float Ridged, float Roughness, int32 Seed, float Edge, EBuildToolBiome Biome, float Resolution, float SnowLine, const FString& Name,
 	AActor* Parent, const FString& Material)
 {
@@ -651,12 +652,16 @@ FBuildToolTerrainResult URuntimeBuildToolset::CreateTerrain(const FVector2D& Siz
 		}
 		return true;
 	};
-	if (!LocalList(Hills, TEXT("hills"), TEXT("hills")) || !LocalList(Flatten, TEXT("flatten"), TEXT("flatten")) || !LocalList(Carve, TEXT("carve"), TEXT("carve")))
+	if (!LocalList(Hills, TEXT("hills"), TEXT("hills")) || !LocalList(Flatten, TEXT("flatten"), TEXT("flatten")) || !LocalList(Carve, TEXT("carve"), TEXT("carve"))
+		|| !LocalList(Islands, TEXT("islands"), TEXT("islands")))
 	{
 		return Out;
 	}
 	Recipe->SetStringField(TEXT("biome"), BuildEnumText(Biome));
 	SetNum(TEXT("snow_line"), SnowLine - Location.Z, SnowLine != 0);
+	const bool bSea = BuildCall().Has(TEXT("sea_level")), bSand = BuildCall().Has(TEXT("sand_line"));
+	SetNum(TEXT("sea_level"), SeaLevel - Location.Z, bSea);
+	SetNum(TEXT("sand_line"), (bSand ? SandLine : SeaLevel + 150.0) - Location.Z, bSand || bSea);
 	if (!Material.IsEmpty())
 	{
 		Recipe->SetStringField(TEXT("material"), Material);

@@ -11,6 +11,8 @@ Creates the RuntimeToolsets builder materials in the plugin's content folder (ed
 /RuntimeToolsets/Materials/M_RT_Glass  translucent glass: Color, Opacity, Roughness, Metallic
 """
 
+import os
+
 import unreal
 
 FOLDER = "/RuntimeToolsets/Materials"
@@ -18,13 +20,14 @@ lib = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 
 
-def fresh_material(name):
+def fresh_material(name, folder=None):
     """Existing asset: clear its graph and reuse it (keeps references); otherwise create it."""
-    mat = unreal.load_asset(f"{FOLDER}/{name}.{name}")
+    folder = folder or FOLDER
+    mat = unreal.load_asset(f"{folder}/{name}.{name}")
     if mat:
         lib.delete_all_material_expressions(mat)
     else:
-        mat = tools.create_asset(name, FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+        mat = tools.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
     # Shaders for these uses must be compiled up front: cooked builds cannot add them later
     # (otherwise PCG instances, spline meshes and Niagara meshes fall back to the default material).
     for usage in ("used_with_instanced_static_meshes", "used_with_spline_meshes", "used_with_niagara_mesh_particles"):
@@ -250,7 +253,7 @@ return RimColor.rgb * fres * RimStrength;
 """, "CMOT_FLOAT3"),
 }
 
-STYLE_SCALARS = [("Faceted", 0.0), ("Pattern", 1.0), ("Steps", 0.0), ("Saturation", 1.0), ("RimStrength", 0.0), ("Weathering", 0.25)]
+STYLE_SCALARS = [("Faceted", 0.0), ("Pattern", 1.0), ("Steps", 0.0), ("Saturation", 1.0), ("RimStrength", 0.0), ("Weathering", 0.25), ("Mud", 1.0)]
 STYLE_VECTORS = [("Tint", (1.0, 1.0, 1.0, 1.0)), ("RimColor", (1.0, 0.9, 0.7, 1.0))]
 
 
@@ -336,8 +339,16 @@ def vertex_or(mat, param, channel, x, y):
     return mix
 
 
-def build_pbr(mpc):
-    mat = fresh_material("M_RT_PBR")
+def build_pbr(mpc, name="M_RT_PBR", folder=None, weather=None):
+    """weather: a function(mat, outputs) that wires the surface outputs {property: node} itself (weather variants)."""
+    mat = fresh_material(name, folder)
+    outputs = {}
+
+    def out(node, prop):
+        if weather:
+            outputs[prop] = node
+        else:
+            lib.connect_material_property(node, "", prop)
     mat.set_editor_property("tangent_space_normal", False)
     world = lib.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1500, 0)
     normal = lib.create_material_expression(mat, unreal.MaterialExpressionVertexNormalWS, -1500, 150)
@@ -359,16 +370,16 @@ def build_pbr(mpc):
     albedo = surface_node(mat, "albedo", -900, -200, sources)
     rough = surface_node(mat, "rough", -900, 50, sources)
     nrm = surface_node(mat, "normal", -900, 300, sources)
-    lib.connect_material_property(albedo, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    out(albedo, unreal.MaterialProperty.MP_BASE_COLOR)
     rmul = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -500, 50)
     lib.connect_material_expressions(vertex_or(mat, scalar(mat, "Roughness", 0.5, -1000, 0), "a", -700, 0), "", rmul, "A")
     lib.connect_material_expressions(rough, "", rmul, "B")
     rsat = lib.create_material_expression(mat, unreal.MaterialExpressionSaturate, -350, 50)
     lib.connect_material_expressions(rmul, "", rsat, "")
-    lib.connect_material_property(rsat, "", unreal.MaterialProperty.MP_ROUGHNESS)
-    lib.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
-    lib.connect_material_property(scalar(mat, "Metallic", 0.0, -300, 200), "", unreal.MaterialProperty.MP_METALLIC)
-    lib.connect_material_property(scalar(mat, "Specular", 0.5, -300, 300), "", unreal.MaterialProperty.MP_SPECULAR)
+    out(rsat, unreal.MaterialProperty.MP_ROUGHNESS)
+    out(nrm, unreal.MaterialProperty.MP_NORMAL)
+    out(scalar(mat, "Metallic", 0.0, -300, 200), unreal.MaterialProperty.MP_METALLIC)
+    out(scalar(mat, "Specular", 0.5, -300, 300), unreal.MaterialProperty.MP_SPECULAR)
     emissive = vector(mat, "Emissive", (0.0, 0.0, 0.0, 1.0), -500, 450)
     strength = scalar(mat, "EmissiveStrength", 0.0, -500, 600)
     glow = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -300, 450)
@@ -378,10 +389,12 @@ def build_pbr(mpc):
     total = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, -200, 500)
     lib.connect_material_expressions(glow, "", total, "A")
     lib.connect_material_expressions(rim, "", total, "B")
-    lib.connect_material_property(total, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    out(total, unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    if weather:
+        weather(mat, outputs)
     lib.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
-    unreal.log("Created M_RT_PBR")
+    unreal.log("Created " + name)
 
 
 PP_HLSL = r"""
@@ -532,6 +545,7 @@ def build_glass():
     unreal.log("Created M_RT_Glass")
 
 
-build_pbr(style_collection())
-build_glass()
-build_post()
+if not os.environ.get("RT_MATERIALS_LIBRARY_ONLY"):
+    build_pbr(style_collection())
+    build_glass()
+    build_post()

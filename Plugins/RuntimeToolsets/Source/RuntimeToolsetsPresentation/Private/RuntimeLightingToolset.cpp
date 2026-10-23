@@ -14,6 +14,7 @@
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
+#include "Components/SkyAtmosphereComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -1076,6 +1077,45 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
 	{
 		return {};
+	}
+	return Out;
+}
+
+FRuntimeEnvironmentHidden URuntimeLightingToolset::HideEnvironment(bool bHidden)
+{
+	FRuntimeEnvironmentHidden Out;
+	Out.bHidden = bHidden;
+	UWorld* World = RuntimeToolCall::GetWorld();
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* A = *It;
+		if (A->Tags.ContainsByPredicate([](const FName& T) { return T.ToString().StartsWith(TEXT("rt:")); }))
+		{
+			continue;   // made by the tools: the scene's own lighting
+		}
+		bool bLighting = false;
+		for (UActorComponent* C : TInlineComponentArray<UActorComponent*>(A))
+		{
+			if (C->IsA<UDirectionalLightComponent>() || C->IsA<USkyLightComponent>() || C->IsA<USkyAtmosphereComponent>() ||
+				C->IsA<UVolumetricCloudComponent>() || C->IsA<UExponentialHeightFogComponent>())
+			{
+				CastChecked<USceneComponent>(C)->SetVisibility(!bHidden);
+				bLighting = true;
+			}
+		}
+		if (APostProcessVolume* V = Cast<APostProcessVolume>(A))
+		{
+			V->bEnabled = !bHidden;
+			bLighting = true;
+		}
+		if (bLighting)
+		{
+			if (!A->IsA<APostProcessVolume>())
+			{
+				A->SetActorHiddenInGame(bHidden);
+			}
+			Out.Actors.Add(A->GetName());
+		}
 	}
 	return Out;
 }

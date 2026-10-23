@@ -10,6 +10,8 @@
 #include "Components/SkyLightComponent.h"
 #include "Components/VolumetricCloudComponent.h"
 #include "Engine/World.h"
+#include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialParameterCollectionInstance.h"
 #include "EngineUtils.h"
 #include "Containers/Ticker.h"
 #include "UObject/UnrealType.h"
@@ -298,6 +300,19 @@ namespace RtSky
 		return W;
 	}
 
+	static UMaterialParameterCollection* StyleCollection()
+	{
+		return LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/RuntimeToolsets/Materials/MPC_RT_Style.MPC_RT_Style"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+
+	static float MudAmount(UWorld* World)
+	{
+		UMaterialParameterCollection* C = StyleCollection();
+		UMaterialParameterCollectionInstance* I = C && World ? World->GetParameterCollectionInstance(C) : nullptr;
+		float V = 1.f;
+		return I && I->GetScalarParameterValue(TEXT("Mud"), V) ? V : 1.f;
+	}
+
 	static FRuntimeSkyState State()
 	{
 		FRuntimeSkyState Out;
@@ -328,6 +343,11 @@ namespace RtSky
 			{
 				Out.Values.Add(V.Key, static_cast<float>(GetNum(W, V.Value)));
 			}
+			Out.Ground.Add(TEXT("wetness"), static_cast<float>(GetNum(W, TEXT("Material Wetness"))));
+			Out.Ground.Add(TEXT("puddles"), static_cast<float>(GetNum(W, TEXT("Puddle Coverage"))));
+			Out.Ground.Add(TEXT("snow"), static_cast<float>(GetNum(W, TEXT("Material Snow Coverage"))));
+			Out.Ground.Add(TEXT("dust"), static_cast<float>(GetNum(W, TEXT("Material Dust Coverage"))));
+			Out.Ground.Add(TEXT("mud"), MudAmount(World));
 		}
 		else
 		{
@@ -730,4 +750,62 @@ FRuntimeSkyState URuntimeSkyToolset::Remove()
 AActor* RuntimeSky::ActiveSky(UWorld* World)
 {
 	return RtSky::Installed() ? RtSky::Sky(World) : nullptr;
+}
+
+FRuntimeSkyState URuntimeSkyToolset::SetGround(const float& Wetness, const float& Puddles, const float& Snow, const float& Dust, const float& Mud, bool bRelease)
+{
+	using namespace RtSky;
+	AActor* W = RequireWeather();
+	if (!W)
+	{
+		return {};
+	}
+	struct FGround
+	{
+		const TCHAR* Arg;
+		float Value;
+		const TCHAR* Prop;
+	};
+	const FGround Given[] = {{TEXT("wetness"), Wetness, TEXT("Material Wetness")}, {TEXT("snow"), Snow, TEXT("Material Snow Coverage")},
+		{TEXT("dust"), Dust, TEXT("Material Dust Coverage")}};
+	for (const FGround& G : Given)
+	{
+		if (Passed(G.Arg) && !InRange(G.Arg, G.Value, 0.0, 1.0))
+		{
+			return {};
+		}
+	}
+	if ((Passed(TEXT("puddles")) && !InRange(TEXT("puddles"), Puddles, 0.0, 1.0)) || (Passed(TEXT("mud")) && !InRange(TEXT("mud"), Mud, 0.0, 2.0)))
+	{
+		return {};
+	}
+	for (const FGround& G : Given)
+	{
+		const FString Override = FString(G.Prop) + TEXT(" - Manual Override");
+		if (bRelease)
+		{
+			SetNum(W, *Override, 0.0);
+		}
+		if (Passed(G.Arg))
+		{
+			SetNum(W, *Override, 1.0);
+			SetNum(W, G.Prop, G.Value);
+		}
+	}
+	if (Passed(TEXT("puddles")))
+	{
+		SetNum(W, TEXT("Puddle Coverage"), Puddles);
+	}
+	if (Passed(TEXT("mud")))
+	{
+		UWorld* World = RuntimeToolCall::GetWorld();
+		if (UMaterialParameterCollection* C = StyleCollection())
+		{
+			if (UMaterialParameterCollectionInstance* I = World->GetParameterCollectionInstance(C))
+			{
+				I->SetScalarParameterValue(TEXT("Mud"), Mud);
+			}
+		}
+	}
+	return State();
 }

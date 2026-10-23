@@ -67,6 +67,10 @@ struct FRuntimeSkyState
 	UPROPERTY()
 	float Latitude = 0.f;
 
+	/** Ground and surfaces, 0-1 each: wetness, puddles, snow, dust, mud. */
+	UPROPERTY()
+	TMap<FString, float> Ground;
+
 	/** Weather presets set_weather accepts. */
 	UPROPERTY()
 	TArray<FString> Presets;
@@ -78,7 +82,8 @@ struct FRuntimeSkyState
  * auroras. Follow the outdoor_lighting skill for composition.
  * Workflow: setup once (spawns the sky and weather actors and hides the level's own sun, sky light, atmosphere, clouds and
  * fog; they come back when the sky is deleted or with remove) -> set_time -> set_weather (a preset with a transition) or set_weather_values (exact amounts) -> set_sky for the
- * cloud mode, moon, stars and auroras -> get_state. Weather drives cloud coverage and fog; set them with
+ * cloud mode, moon, stars and auroras -> get_state. set_ground: wet ground, puddles, mud, snow and dust on surfaces.
+ * Weather drives cloud coverage and fog; set them with
  * set_weather_values. The lighting toolset's sun and fog tools do not apply while this sky is in use.
  */
 UCLASS()
@@ -161,6 +166,23 @@ public:
 	UFUNCTION(meta = (AICallable, RequiresWorld, AutoCreateRefTerm = "CloudCoverage,Rain,Snow,Thunder,Wind,Fog,Dust"), Category = "Sky")
 	static FRuntimeSkyState SetWeatherValues(const float& CloudCoverage, const float& Rain, const float& Snow, const float& Thunder, const float& Wind,
 		const float& Fog, const float& Dust, bool bClearOverrides = false);
+
+	/**
+	 * Sets the state of the ground and surfaces: wet ground, puddles in hollows (with rain ripples), snow and dust cover
+	 * on terrain, buildings and props, and mud spreading over flat wet ground. Values given stay fixed until release;
+	 * otherwise the weather drives them over time (rain wets and fills puddles, then they dry; snow settles and melts).
+	 *
+	 * @param Wetness - Wet, darker, shinier surfaces, 0-1.
+	 * @param Puddles - Puddle coverage on the ground, 0-1 (0.3 scattered, 0.7 large pools).
+	 * @param Snow - Snow cover on ground and tops of surfaces, 0-1.
+	 * @param Dust - Dust / sand cover, 0-1.
+	 * @param Mud - How strongly wet flat ground turns to mud, 0-2 (1 default, 0 no mud).
+	 * @param bRelease - Hand every fixed value back to the weather.
+	 * @return The sky state with `ground`.
+	 * Fails before setup (or without the weather actor) or for values out of range.
+	 */
+	UFUNCTION(meta = (AICallable, RequiresWorld, AutoCreateRefTerm = "Wetness,Puddles,Snow,Dust,Mud"), Category = "Sky")
+	static FRuntimeSkyState SetGround(const float& Wetness, const float& Puddles, const float& Snow, const float& Dust, const float& Mud, bool bRelease = false);
 
 	/**
 	 * Sets how the sky renders and the night sky.

@@ -423,6 +423,56 @@
 			}
 		},
 		{
+			"description": "Sets aside the level's own sun, sky light, atmosphere, clouds, fog and post process (the ones that came with the map), so a scene can bring its own lighting; tool-made ones are kept. Call again with hidden false to bring them back.\nReturns: The actors changed.",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+					"hidden":
+					{
+						"default": true,
+						"description": "true sets them aside, false brings them back.",
+						"type": "boolean"
+					}
+				},
+				"type": "object"
+			},
+			"name": "lighting.hide_environment",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "The actors changed.",
+						"properties":
+						{
+							"actors":
+							{
+								"description": "Actors changed.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"hidden":
+							{
+								"type": "boolean"
+							}
+						},
+						"title": "RuntimeEnvironmentHidden",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			}
+		},
+		{
 			"description": "Sets the sky atmosphere's scattering (sky colour and haze). Undoable.\nReturns: The atmosphere after the change. Fails if the level has no sky atmosphere.",
 			"input_schema":
 			{

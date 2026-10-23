@@ -36,3 +36,13 @@ public:
 protected:
 	virtual FString GeneratePrompt(const FString& InitialInstructions) const override;
 };
+
+/** Water, fluids and beaches (FluidNinja LIVE): which tool for which scene, and the gotchas. */
+UCLASS()
+class URuntimeWaterFluidsSkill : public URuntimeAgentSkill
+{
+	GENERATED_BODY()
+
+public:
+	URuntimeWaterFluidsSkill();
+};

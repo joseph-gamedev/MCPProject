@@ -184,6 +184,52 @@ namespace RuntimeTerrain
 				F.At(i, j) = Z;
 			}
 		}
+		// 1b. islands: a drawn coastline at sea level, a beach rising inland, a hill filling the interior, the sea floor
+		// shelving off outside; the outline is roughened with noise into coves and points
+		const TArray<TSharedPtr<FJsonValue>>* Islands = nullptr;
+		if (R->TryGetArrayField(TEXT("islands"), Islands) && Islands->Num() > 0)
+		{
+			const double Sea = Num(R, TEXT("sea_level"), 0.0);
+			TArray<double> Land;
+			Land.Init(-TNumericLimits<double>::Max(), F.NX * F.NY);
+			for (const TSharedPtr<FJsonValue>& V : *Islands)
+			{
+				const TSharedPtr<FJsonObject> J = V->AsObject();
+				TArray<FVector2D> Area;
+				if (!J.IsValid() || !ReadPath(J, TEXT("area"), Area, 3))
+				{
+					OutError = TEXT("islands entries need area:[[x,y],...] (the coastline at sea level, 3+ points)");
+					return false;
+				}
+				const double Top = Num(J, TEXT("height"), 800), Beach = FMath::Max(100.0, Num(J, TEXT("beach"), 1500));
+				const double Dune = Num(J, TEXT("dune"), 150), Depth = Num(J, TEXT("depth"), 900), Shelf = FMath::Max(100.0, Num(J, TEXT("shelf"), 3000));
+				const double Wobble = Num(J, TEXT("wobble"), 600), WobbleSize = FMath::Max(200.0, Num(J, TEXT("wobble_size"), 2500));
+				TArray<double> SDist;
+				SDist.SetNumUninitialized(F.NX * F.NY);
+				double MaxIn = 1.0;
+				for (int32 k = 0; k < F.NX * F.NY; ++k)
+				{
+					const FVector2D P = F.Pos(k % F.NX, k / F.NX);
+					double S = DistToPolygonEdge(Area, P) * (InPolygon(Area, P) ? 1.0 : -1.0);
+					S += Wobble * FMath::PerlinNoise2D(P / WobbleSize + Off * 3.1);
+					SDist[k] = S;
+					MaxIn = FMath::Max(MaxIn, S);
+				}
+				const double Inland = FMath::Max(1.0, MaxIn - Beach);
+				for (int32 k = 0; k < F.NX * F.NY; ++k)
+				{
+					const double S = SDist[k];
+					const double Z = S >= 0 ? Sea + Dune * Smooth(FMath::Min(S / Beach, 1.0)) + (Top - Dune) * Smooth(FMath::Clamp((S - Beach) / Inland, 0.0, 1.0))
+											: Sea - Depth * Smooth(FMath::Min(-S / Shelf, 1.0));
+					Land[k] = FMath::Max(Land[k], Z);
+				}
+			}
+			// the relief noise roughens the land (and a little the sea floor)
+			for (int32 k = 0; k < F.NX * F.NY; ++k)
+			{
+				F.H[k] = Land[k] + F.H[k] * (Land[k] > Sea ? 1.0 : 0.3);
+			}
+		}
 		// 2. extra hills / basins
 		const TArray<TSharedPtr<FJsonValue>>* Hills = nullptr;
 		if (R->TryGetArrayField(TEXT("hills"), Hills))
@@ -655,19 +701,31 @@ namespace RuntimeTerrain
 
 	UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer)
 	{
-		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TerrainMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		// weather-aware variant (puddles, wet ground, mud, snow with Ultra Dynamic Weather) when the project has it
+		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RuntimeWeather/M_RT_Terrain_Weather.M_RT_Terrain_Weather"), nullptr,
+			LOAD_NoWarn | LOAD_Quiet);
+		if (!Base)
+		{
+			Base = LoadObject<UMaterialInterface>(nullptr, TerrainMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		}
 		if (!Base)
 		{
 			return nullptr;
 		}
-		struct FBiome { const TCHAR* Name; FLinearColor GrassA, GrassB, Dirt, Rock, Mud, Snow; float RockSlope, SnowLine; };
+		struct FBiome { const TCHAR* Name; FLinearColor GrassA, GrassB, Dirt, Rock, Mud, Snow; float RockSlope, SnowLine; FLinearColor Sand, WetSand; float Patches; };
 		static const FBiome Biomes[] = {
-			{TEXT("temperate"), {0.10f, 0.16f, 0.045f}, {0.15f, 0.19f, 0.06f}, {0.20f, 0.15f, 0.10f}, {0.30f, 0.29f, 0.27f}, {0.12f, 0.10f, 0.07f}, {0.9f, 0.92f, 0.95f}, 0.45f, 1e9f},
-			{TEXT("tropical"), {0.05f, 0.10f, 0.025f}, {0.08f, 0.13f, 0.035f}, {0.30f, 0.12f, 0.055f}, {0.24f, 0.22f, 0.19f}, {0.16f, 0.11f, 0.065f}, {0.9f, 0.92f, 0.95f}, 0.5f, 1e9f},
-			{TEXT("desert"), {0.55f, 0.42f, 0.27f}, {0.60f, 0.46f, 0.30f}, {0.46f, 0.30f, 0.17f}, {0.42f, 0.30f, 0.21f}, {0.36f, 0.27f, 0.18f}, {0.9f, 0.92f, 0.95f}, 0.4f, 1e9f},
-			{TEXT("savanna"), {0.36f, 0.30f, 0.13f}, {0.28f, 0.27f, 0.11f}, {0.40f, 0.22f, 0.12f}, {0.33f, 0.28f, 0.22f}, {0.20f, 0.14f, 0.09f}, {0.9f, 0.92f, 0.95f}, 0.45f, 1e9f},
-			{TEXT("alpine"), {0.10f, 0.14f, 0.07f}, {0.14f, 0.16f, 0.08f}, {0.18f, 0.15f, 0.12f}, {0.32f, 0.32f, 0.33f}, {0.12f, 0.10f, 0.08f}, {0.9f, 0.92f, 0.95f}, 0.35f, 2500.f},
-			{TEXT("arctic"), {0.80f, 0.83f, 0.88f}, {0.86f, 0.88f, 0.92f}, {0.30f, 0.28f, 0.26f}, {0.30f, 0.30f, 0.32f}, {0.25f, 0.24f, 0.22f}, {0.9f, 0.92f, 0.95f}, 0.5f, -1e9f},
+			{TEXT("temperate"), {0.10f, 0.16f, 0.045f}, {0.15f, 0.19f, 0.06f}, {0.20f, 0.15f, 0.10f}, {0.30f, 0.29f, 0.27f}, {0.12f, 0.10f, 0.07f}, {0.9f, 0.92f, 0.95f}, 0.45f, 1e9f,
+				{0.50f, 0.43f, 0.31f}, {0.27f, 0.22f, 0.15f}, 0.62f},
+			{TEXT("tropical"), {0.06f, 0.13f, 0.025f}, {0.10f, 0.17f, 0.035f}, {0.21f, 0.15f, 0.08f}, {0.26f, 0.24f, 0.21f}, {0.16f, 0.11f, 0.065f}, {0.9f, 0.92f, 0.95f}, 0.5f, 1e9f,
+				{0.60f, 0.51f, 0.36f}, {0.36f, 0.29f, 0.19f}, 0.84f},
+			{TEXT("desert"), {0.55f, 0.42f, 0.27f}, {0.60f, 0.46f, 0.30f}, {0.46f, 0.30f, 0.17f}, {0.42f, 0.30f, 0.21f}, {0.36f, 0.27f, 0.18f}, {0.9f, 0.92f, 0.95f}, 0.4f, 1e9f,
+				{0.66f, 0.52f, 0.34f}, {0.38f, 0.29f, 0.19f}, 0.62f},
+			{TEXT("savanna"), {0.36f, 0.30f, 0.13f}, {0.28f, 0.27f, 0.11f}, {0.40f, 0.22f, 0.12f}, {0.33f, 0.28f, 0.22f}, {0.20f, 0.14f, 0.09f}, {0.9f, 0.92f, 0.95f}, 0.45f, 1e9f,
+				{0.62f, 0.50f, 0.33f}, {0.36f, 0.28f, 0.18f}, 0.62f},
+			{TEXT("alpine"), {0.10f, 0.14f, 0.07f}, {0.14f, 0.16f, 0.08f}, {0.18f, 0.15f, 0.12f}, {0.32f, 0.32f, 0.33f}, {0.12f, 0.10f, 0.08f}, {0.9f, 0.92f, 0.95f}, 0.35f, 2500.f,
+				{0.45f, 0.41f, 0.34f}, {0.24f, 0.22f, 0.18f}, 0.62f},
+			{TEXT("arctic"), {0.80f, 0.83f, 0.88f}, {0.86f, 0.88f, 0.92f}, {0.30f, 0.28f, 0.26f}, {0.30f, 0.30f, 0.32f}, {0.25f, 0.24f, 0.22f}, {0.9f, 0.92f, 0.95f}, 0.5f, -1e9f,
+				{0.48f, 0.45f, 0.40f}, {0.26f, 0.25f, 0.23f}, 0.62f},
 		};
 		FString Name = TEXT("temperate");
 		Recipe->TryGetStringField(TEXT("biome"), Name);
@@ -687,7 +745,21 @@ namespace RuntimeTerrain
 		MID->SetVectorParameterValue(TEXT("Mud"), B->Mud);
 		MID->SetVectorParameterValue(TEXT("Snow"), B->Snow);
 		MID->SetScalarParameterValue(TEXT("RockSlope"), B->RockSlope);
-		MID->SetScalarParameterValue(TEXT("SnowLine"), static_cast<float>(Num(Recipe, TEXT("snow_line"), B->SnowLine)));
+		// heights in the recipe are relative to the terrain; the material compares world z
+		const USceneComponent* At = Cast<USceneComponent>(Outer);
+		const double BaseZ = At ? At->GetComponentLocation().Z : 0.0;
+		MID->SetScalarParameterValue(TEXT("SnowLine"), static_cast<float>(Num(Recipe, TEXT("snow_line"), B->SnowLine) + BaseZ));
+		MID->SetVectorParameterValue(TEXT("Sand"), B->Sand);
+		MID->SetVectorParameterValue(TEXT("WetSand"), B->WetSand);
+		MID->SetScalarParameterValue(TEXT("PatchStart"), B->Patches);
+		if (Recipe->HasField(TEXT("sand_line")))
+		{
+			MID->SetScalarParameterValue(TEXT("SandLine"), static_cast<float>(Num(Recipe, TEXT("sand_line"), 0.0) + BaseZ));
+		}
+		if (Recipe->HasField(TEXT("sea_level")))
+		{
+			MID->SetScalarParameterValue(TEXT("SeaLevel"), static_cast<float>(Num(Recipe, TEXT("sea_level"), 0.0) + BaseZ));
+		}
 		FVector C;
 		if (RuntimeJson::ToVector(Recipe->TryGetField(TEXT("color")), C))  // a colour overrides the ground cover colour
 		{
