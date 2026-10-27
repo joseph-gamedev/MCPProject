@@ -1,0 +1,8 @@
+# binary files: never convert line endings (a PDF stored as text breaks on a Windows checkout)
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.uasset binary
+*.umap binary
+*.zip binary
