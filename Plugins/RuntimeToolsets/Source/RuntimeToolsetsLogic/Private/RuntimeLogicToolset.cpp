@@ -1,4 +1,5 @@
 #include "RuntimeLogicToolset.h"
+#include "RuntimeToolsetExtensions.h"
 #include "LogicJsonHelpers.h"
 #include "LogicRuntime.h"
 #include "LogicTuning.h"
@@ -1697,7 +1698,7 @@ int32 URuntimeLogicToolset::WatchContacts(const FString& Name, const TArray<FStr
 FLogicThirdPersonResult URuntimeCharacterToolset::ThirdPerson(const FVector& Location, float Yaw, const FString& CharacterClass)
 {
 	FLogicThirdPersonResult Out;
-	// the project's third-person character: the one asked for, else FluidNinja LIVE's, else the UE template's
+	// the project's third-person character: the one asked for, else one an extension provides, else the UE template's
 	TArray<FString> Candidates;
 	if (!CharacterClass.IsEmpty())
 	{
@@ -1706,9 +1707,13 @@ FLogicThirdPersonResult URuntimeCharacterToolset::ThirdPerson(const FVector& Loc
 	}
 	else
 	{
-		Candidates = {TEXT("/Game/FluidNinjaLive/Meshes/ThirdPersonCharacter.ThirdPersonCharacter_C"),
-			TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"),
-			TEXT("/Game/ThirdPersonBP/Blueprints/ThirdPersonCharacter.ThirdPersonCharacter_C")};
+		const FString Provided = RuntimeToolsetExtensions::GetAsset(TEXT("class.third_person_character"));
+		if (!Provided.IsEmpty())
+		{
+			Candidates.Add(Provided);
+		}
+		Candidates.Append({TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"),
+			TEXT("/Game/ThirdPersonBP/Blueprints/ThirdPersonCharacter.ThirdPersonCharacter_C")});
 	}
 	UClass* Class = nullptr;
 	for (const FString& C : Candidates)

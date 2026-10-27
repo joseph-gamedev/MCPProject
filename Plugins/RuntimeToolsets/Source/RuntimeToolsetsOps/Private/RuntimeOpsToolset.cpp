@@ -1,4 +1,5 @@
 #include "RuntimeOpsToolset.h"
+#include "RuntimeToolsetExtensions.h"
 #include "OpsTestRunner.h"
 #include "RuntimeCommandHistory.h"
 #include "RuntimeJson.h"
@@ -602,28 +603,33 @@ UOpsToolBatchAsyncResult* URuntimeOpsToolset::RunBatch(const TArray<FOpsToolBatc
 
 // ---- recipes ----------------------------------------------------------------------------------------------------------
 
-// recipes made by Scripts/recipes/make_recipes.py (sea_coast from the FluidNinja LIVE demo harvest)
-#include "Generated/OpsRecipes.gen.inl"
-
+// recipes come from extension plugins (RuntimeToolsetExtensions::RegisterRecipes), e.g. sea_coast from the packs plugin
 namespace
 {
+	/** All registered recipes, parsed once and kept (callers hold pointers into it); re-parsed when an extension adds more. */
 	TSharedPtr<FJsonObject> OpsRecipes()
 	{
-		static TSharedPtr<FJsonObject> Parsed;
-		if (!Parsed.IsValid())
+		static TSharedPtr<FJsonObject> All;
+		static int32 Parsed = -1;
+		const TArray<FString>& Sets = RuntimeToolsetExtensions::GetRecipes();
+		if (!All.IsValid() || Parsed != Sets.Num())
 		{
-			FString Text;
-			for (const TCHAR* Part : GOpsRecipesJsonParts)
+			All = MakeShared<FJsonObject>();
+			for (const FString& Text : Sets)
 			{
-				Text += Part;
+				TSharedPtr<FJsonObject> One;
+				TSharedRef<TJsonReader<>> R = TJsonReaderFactory<>::Create(Text);
+				if (FJsonSerializer::Deserialize(R, One) && One.IsValid())
+				{
+					for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : One->Values)
+					{
+						All->SetField(KV.Key, KV.Value);
+					}
+				}
 			}
-			TSharedRef<TJsonReader<>> R = TJsonReaderFactory<>::Create(Text);
-			if (!FJsonSerializer::Deserialize(R, Parsed) || !Parsed.IsValid())
-			{
-				Parsed = MakeShared<FJsonObject>();
-			}
+			Parsed = Sets.Num();
 		}
-		return Parsed;
+		return All;
 	}
 }
 

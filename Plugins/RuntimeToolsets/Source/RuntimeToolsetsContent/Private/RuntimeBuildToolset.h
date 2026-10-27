@@ -624,7 +624,7 @@ public:
 	 * Places a packaged static mesh asset (a real tree, rock or prop made in Blender) as a scene node. For many copies use
 	 * pcg.scatter with asset items (GPU instances). Undoable. Fails if the asset is not a packaged static mesh.
 	 *
-	 * @param Asset - Static mesh path, e.g. "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets with asset_class StaticMesh lists them).
+	 * @param Asset - Static mesh path, e.g. "/Game/Props/Trees/SM_Oak_01" (level.find_assets with asset_class StaticMesh lists them).
 	 * @param Location - World location cm (relative to the parent when one is given).
 	 * @param Rotation - [pitch,yaw,roll] degrees.
 	 * @param Scale - [x,y,z].
@@ -643,7 +643,7 @@ public:
 	 * one (every window of a type in a street, every railing bay, every block of a wall). One undo step. Fails if the
 	 * asset is not a packaged static mesh or an instance entry is malformed.
 	 *
-	 * @param Asset - Static mesh path, e.g. "/Game/RuntimeArchitecture/Georgian/SM_GT_Second_Brick".
+	 * @param Asset - Static mesh path, e.g. "/Game/Props/Walls/SM_Wall_Brick".
 	 * @param Instances - One entry per copy, relative to Location: [x,y,z], [x,y,z,yaw], [x,y,z,yaw,scale] or [x,y,z,yaw,sx,sy,sz] (cm, degrees).
 	 * @param CustomData - Optional per-copy floats in the same order, e.g. [[seed,r,g,b,r2,g2,b2]], read by the material (scanned architecture materials: 0 = variation seed, 1-3 = paint A colour such as a front door, 4-6 = paint B such as stucco).
 	 * @param Location - World location cm of the group (relative to the parent when one is given).
@@ -680,13 +680,13 @@ public:
 	 * @param Material - Override the ground material (preset or allowed path); default the biome ground.
 	 * @param Color - Override the ground-cover colour [r,g,b] linear 0-1.
 	 * @param SandLine - Beach: sand from the water up to this world z, blending into the ground cover above (rock stays on cliffs).
-	 * @param SeaLevel - World z of the sea: darker, glossy wet sand just above it (use the same z for fluid.add coast_water);
+	 * @param SeaLevel - World z of the sea: darker, glossy wet sand just above it (put any water surface at the same z);
 	 *                   without sand_line the beach reaches 1.5 m above it.
 	 * @param Islands - Coastlines (world x,y) at sea_level: [{area:[[x,y],...], height (peak above the sea, cm, default 800),
 	 *                  beach (width of the gentle beach cm, 1500), dune (beach rise cm, 150), depth (sea floor below the sea cm,
 	 *                  900), shelf (how far out it deepens cm, 3000), wobble (coves and points cm, 600; 0 = exact outline),
 	 *                  wobble_size (cm, 2500)}]. The ground follows them (an island or archipelago from its outline); hills,
-	 *                  pads and channels still apply on top. Use with sea_level and fluid.add coast_water at that z.
+	 *                  pads and channels still apply on top. Use with sea_level and a water surface at that z.
 	 * @return {id, name, path, triangles, min_z, max_z, rivers:[{path:[[x,y,z]...], width}]}.
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Size,Location,Hills,Flatten,Carve,Tags,Color,SandLine,SeaLevel,Islands"), Category = "Build|Create")

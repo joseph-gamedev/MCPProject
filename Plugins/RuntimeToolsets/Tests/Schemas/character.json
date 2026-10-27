@@ -467,7 +467,7 @@
 				{
 					"character_class":
 					{
-						"description": "A Character Blueprint (path or class), default: the project's third-person character (FluidNinja LIVE's or the UE template's).",
+						"description": "A Character Blueprint (path or class), default: the project's third-person character (one an installed extension provides, or the UE template's).",
 						"type": "string"
 					},
 					"location":

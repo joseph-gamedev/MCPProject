@@ -5,6 +5,7 @@
 #include "RuntimeJson.h"
 #include "RuntimeToolsetsCore.h"
 #include "RuntimeToolReflection.h"
+#include "RuntimeToolsetExtensions.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -42,7 +43,15 @@ bool FRuntimeToolsetsSchemaSnapshotTest::RunTest(const FString& Parameters)
 		const FString Name = Item->AsObject()->GetStringField(TEXT("name"));
 		const TSharedPtr<FJsonObject> Described = RuntimeJson::Parse(IRuntimeToolsetsCore::Get().DescribeToolset(Name, true));
 		const FString Current = RuntimeJson::WriteSorted(Described.ToSharedRef()) + TEXT("\n");
-		const FString File = FPaths::Combine(Dir, Name + TEXT(".json"));
+		// a toolset from an extension plugin keeps its snapshot in that plugin
+		FString ToolsetDir = Dir;
+		const FString Module = RuntimeToolReflection::ModuleForToolset(FName(*Name));
+		const FString OwnerDir = Module.IsEmpty() ? FString() : RuntimeToolsetExtensions::PluginDirForModule(Module);
+		if (!OwnerDir.IsEmpty() && OwnerDir != Plugin->GetBaseDir())
+		{
+			ToolsetDir = FPaths::Combine(OwnerDir, TEXT("Tests"), TEXT("Schemas"));
+		}
+		const FString File = FPaths::Combine(ToolsetDir, Name + TEXT(".json"));
 		if (bUpdate)
 		{
 			FFileHelper::SaveStringToFile(Current, *File, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);

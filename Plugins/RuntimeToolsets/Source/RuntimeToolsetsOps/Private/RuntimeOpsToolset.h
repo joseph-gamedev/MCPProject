@@ -330,8 +330,8 @@ public:
 		const FString& Label = TEXT("batch"));
 
 	/**
-	 * Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with
-	 * waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.
+	 * Lists the ready-made scenes and setups (recipes) the installed extensions bring (none in the core plugin): what each
+	 * builds, which parts can be skipped and how many calls it makes.
 	 *
 	 * @return The recipes: name, what they build, parts that can be skipped, number of calls.
 	 */

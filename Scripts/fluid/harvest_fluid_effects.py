@@ -16,7 +16,7 @@ import unreal
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-OUT_INL = os.path.join(ROOT, "Plugins", "RuntimeToolsets", "Source", "RuntimeToolsetsPresentation", "Private", "Generated", "FluidEffects.gen.inl")
+OUT_INL = os.path.join(ROOT, "Plugins", "RuntimeToolsetsPacks", "Source", "RuntimeToolsetsPacks", "Private", "Generated", "FluidEffects.gen.inl")
 OUT_JSON = os.path.join(ROOT, "Saved", "FluidEffects.json")
 FOLDER = "/Game/RuntimeFluid/Presets"
 

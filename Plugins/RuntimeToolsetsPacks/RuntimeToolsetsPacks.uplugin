@@ -1,0 +1,34 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Runtime Toolsets: Content Packs",
+	"Description": "Toolsets for third-party content packs on top of Runtime Toolsets: road (Road Creator Pro), fluid (FluidNinja LIVE), sky (Ultra Dynamic Sky), and the project's nature, architecture and weather assets. Each toolset reports when its pack is missing; the core Runtime Toolsets plugin does not depend on any of them.",
+	"Category": "AI",
+	"CreatedBy": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "RuntimeToolsets",
+			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		}
+	],
+	"Modules": [
+		{
+			"Name": "RuntimeToolsetsPacks",
+			"Type": "Runtime",
+			"LoadingPhase": "PostDefault",
+			"TargetConfigurationDenyList": [
+				"Shipping",
+				"Test"
+			]
+		}
+	]
+}

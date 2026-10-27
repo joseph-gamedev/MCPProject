@@ -13,7 +13,7 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-OUT = os.path.join(ROOT, "Plugins", "RuntimeToolsets", "Source", "RuntimeToolsetsOps", "Private", "Generated", "OpsRecipes.gen.inl")
+OUT = os.path.join(ROOT, "Plugins", "RuntimeToolsetsPacks", "Source", "RuntimeToolsetsPacks", "Private", "Generated", "OpsRecipes.gen.inl")
 SKIP = {"Mobility", "AttachSocketName", "ComponentTags", "AssetUserData", "AssetUserDataEditorOnly", "PrimaryComponentTick", "bIsActive",
         "BodyInstance", "bReplicates", "bReplicateUsingRegisteredSubObjectList", "bEditableWhenInherited", "UpdatedComponent",
         "UpdatedPrimitive", "bIsEditorOnly", "bCanEverAffectNavigation"}
@@ -67,7 +67,8 @@ def sea_coast():
             calls.append(call("actors.attach", "props", child=path.get(m["label"], m["label"]), parent=parent, keep_world=True))
             path[m["label"]] = parent + "/" + m["label"]
     p = s["player"]
-    calls.append(call("character.third_person", "player", location=p["location"], yaw=p["yaw"]))
+    calls.append(call("character.third_person", "player", location=p["location"], yaw=p["yaw"],
+                  character_class="/Game/FluidNinjaLive/Meshes/ThirdPersonCharacter.ThirdPersonCharacter_C"))
     sea = s["niagara"]["sea_surface"]["params"]["ClampingValue"]   # coast effects are placed by their sea level
     for k, label in (("coast_sand", "WetSand"), ("coast_water", "Sea")):
         loc = s["sims"][k]["location"]

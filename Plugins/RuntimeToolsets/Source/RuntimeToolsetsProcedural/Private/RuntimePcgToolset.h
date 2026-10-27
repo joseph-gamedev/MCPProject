@@ -242,7 +242,7 @@ struct FPcgScatterItem
 	UPROPERTY()
 	TObjectPtr<AActor> Template = nullptr;
 
-	/** A packaged static mesh instead of a template, e.g. a real tree "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets lists them). */
+	/** A packaged static mesh instead of a template, e.g. a real tree "/Game/Props/Trees/SM_Oak_01" (level.find_assets lists them). */
 	UPROPERTY()
 	FString Asset;
 

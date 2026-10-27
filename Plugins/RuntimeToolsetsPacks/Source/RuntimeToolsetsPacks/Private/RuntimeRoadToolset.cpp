@@ -1,5 +1,5 @@
 #include "RuntimeRoadToolset.h"
-#include "RuntimeBuildToolset.h"
+#include "RuntimeToolsetsCore.h"
 #include "Math/RandomStream.h"
 #include "Engine/StaticMesh.h"
 #include "RuntimeCommonCommands.h"
@@ -243,7 +243,7 @@ namespace RtRoad
 		}
 		const FString Source = TEXT("mesh:") + M->GetPathName();
 		const FTransform T(FRotator(0.0, Yaw, 0.0), At);
-		auto Spawn = [Source, T, Name](FRuntimeCommandContext& Ctx, FString& Err) { return RuntimeMeshAssets::SpawnFromSource(Ctx.World, Source, T, Name, Err); };
+		auto Spawn = [Source, T, Name](FRuntimeCommandContext& Ctx, FString& Err) { return IRuntimeToolsetsCore::Get().SpawnFromSource(Ctx.World, Source, T, Name, Err); };
 		TUniquePtr<FCreateNodeCommand> Cmd = MakeUnique<FCreateNodeCommand>(TEXT("add ") + Name, Spawn, Name, FString(), ERuntimeNodeKind::Actor, Source,
 			TArray<FName>());
 		FCreateNodeCommand* Raw = Cmd.Get();
@@ -855,7 +855,7 @@ namespace RtRoad
 			const FString Source = TEXT("inst:") + Json;
 			const FString Name = TEXT("Trees_") + KV.Key.RightChop(3);
 			auto Spawn = [Source, Name](FRuntimeCommandContext& Ctx, FString& Err)
-			{ return RuntimeMeshAssets::SpawnInstancesFromSource(Ctx.World, Source, FTransform::Identity, Name, Err); };
+			{ return IRuntimeToolsetsCore::Get().SpawnFromSource(Ctx.World, Source, FTransform::Identity, Name, Err); };
 			if (RuntimeToolCall::RunCommand(MakeUnique<FCreateNodeCommand>(TEXT("add ") + Name, Spawn, Name, FString(), ERuntimeNodeKind::Actor, Source,
 					TArray<FName>())))
 			{

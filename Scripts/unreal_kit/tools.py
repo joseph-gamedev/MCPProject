@@ -1002,7 +1002,7 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
             default 800), beach (width of the gentle beach cm, 1500), dune (beach rise cm, 150), depth (sea floor below
             the sea cm, 900), shelf (how far out it deepens cm, 3000), wobble (coves and points cm, 600; 0 = exact
             outline), wobble_size (cm, 2500)}]. The ground follows them (an island or archipelago from its outline);
-            hills, pads and channels still apply on top. Use with sea_level and fluid.add coast_water at that z.
+            hills, pads and channels still apply on top. Use with sea_level and a water surface at that z.
         location (list[float]): Centre [x,y,z] cm; z is the base level (the lowest valleys sit near it). ([x, y, z]
             (cm))
         material (str): Override the ground material (preset or allowed path); default the biome ground. Default "".
@@ -1014,8 +1014,8 @@ def _build_create_terrain(*, biome=None, carve=None, color=None, edge=None, feat
         roughness (float): Small-scale detail 0..1. Default 0.5.
         sand_line (float): Beach: sand from the water up to this world z, blending into the ground cover above (rock
             stays on cliffs).
-        sea_level (float): World z of the sea: darker, glossy wet sand just above it (use the same z for fluid.add
-            coast_water); without sand_line the beach reaches 1.5 m above it.
+        sea_level (float): World z of the sea: darker, glossy wet sand just above it (put any water surface at the same
+            z); without sand_line the beach reaches 1.5 m above it.
         seed (int): Same seed, same terrain. Default 1.
         size (list[float]): [x, y] extent cm, centred on location, e.g. [40000, 40000] (500-400000).
         snow_line (float): Snow above this world z (alpine; 0 = biome default). Default 0.
@@ -1171,8 +1171,8 @@ def _build_place_mesh(*, asset, collision=None, location=None, name=None, parent
     Returns: {id, name, path, triangles}.
 
     Args:
-        asset (str): Required. Static mesh path, e.g. "/Game/RuntimeFoliage/Trees/SM_Oak_01" (level.find_assets with
-            asset_class StaticMesh lists them).
+        asset (str): Required. Static mesh path, e.g. "/Game/Props/Trees/SM_Oak_01" (level.find_assets with asset_class
+            StaticMesh lists them).
         collision (bool): Block movement and traces. Default true.
         location (list[float]): World location cm (relative to the parent when one is given). ([x, y, z] (cm))
         name (str): Node name (default: the asset name). Default "".
@@ -1601,8 +1601,8 @@ def _character_third_person(*, yaw, character_class=None, location=None):
 
     Args:
         yaw (float): Required. Facing, degrees.
-        character_class (str): A Character Blueprint (path or class), default: the project's third-person character
-            (FluidNinja LIVE's or the UE template's).
+        character_class (str): A Character Blueprint (path or class), default: the project's third-person character (one
+            an installed extension provides, or the UE template's).
         location (list[float]): Feet position (cm), e.g. [0, 0, 0]. ([x, y, z] (cm))
     """
     args = {}
@@ -4721,7 +4721,7 @@ def _ops_get_test_status(*, max_failures=None):
 
 
 def _ops_list_recipes():
-    """Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.
+    """Lists the ready-made scenes and setups (recipes) the installed extensions bring (none in the core plugin): what each builds, which parts can be skipped and how many calls it makes.
     Returns: The recipes: name, what they build, parts that can be skipped, number of calls.
     """
     args = {}

@@ -7,6 +7,7 @@
 #include "RuntimeToolsetDefinition.h"
 #include "RuntimeToolsetsCore.h"
 #include "RuntimeToolsetsLog.h"
+#include "RuntimeToolsetExtensions.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
@@ -508,6 +509,20 @@ namespace RuntimeToolReflection
 		return D ? *D : nullptr;
 	}
 
+	FString ModuleForToolset(FName Toolset)
+	{
+		for (const TWeakObjectPtr<UClass>& C : RegisteredClasses())
+		{
+			if (C.IsValid() && GetDefault<URuntimeToolsetDefinition>(C.Get())->GetToolsetName() == Toolset)
+			{
+				FString Module = C->GetOutermost()->GetName();
+				Module.RemoveFromStart(TEXT("/Script/"));
+				return Module;
+			}
+		}
+		return FString();
+	}
+
 	TSharedRef<IRuntimeToolset> MakeToolset(UClass* ToolsetClass)
 	{
 		check(ToolsetClass && ToolsetClass->IsChildOf(URuntimeToolsetDefinition::StaticClass()));
@@ -561,7 +576,13 @@ namespace RuntimeToolReflection
 				Content += TEXT("\tTEXT(R\"RTD(") + Json.Mid(i, Chunk) + TEXT(")RTD\"),\n");
 			}
 			Content += TEXT("};\n");
-			const FString Path = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Source"), P.Key, TEXT("Private"), TEXT("Generated"), TEXT("ToolDocs.gen.inl"));
+			// the docs go next to the module, in whichever plugin holds it (extension plugins too)
+			FString PluginDir = RuntimeToolsetExtensions::PluginDirForModule(P.Key);
+			if (PluginDir.IsEmpty())
+			{
+				PluginDir = Plugin->GetBaseDir();
+			}
+			const FString Path = FPaths::Combine(PluginDir, TEXT("Source"), P.Key, TEXT("Private"), TEXT("Generated"), TEXT("ToolDocs.gen.inl"));
 			FString Existing;
 			FFileHelper::LoadFileToString(Existing, *Path);
 			Existing.ReplaceInline(TEXT("\r\n"), TEXT("\n"));

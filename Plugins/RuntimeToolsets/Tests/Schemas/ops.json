@@ -197,7 +197,7 @@
 			}
 		},
 		{
-			"description": "Lists the ready-made scenes and setups (recipes) shipped with the game, e.g. sea_coast: FluidNinja's demo beach with waves, whitewater, wet sand and footprints, rocks and wrecks, its own sun and sky, and a third-person character.\nReturns: The recipes: name, what they build, parts that can be skipped, number of calls.",
+			"description": "Lists the ready-made scenes and setups (recipes) the installed extensions bring (none in the core plugin): what each builds, which parts can be skipped and how many calls it makes.\nReturns: The recipes: name, what they build, parts that can be skipped, number of calls.",
 			"input_schema":
 			{
 				"additionalProperties": false,

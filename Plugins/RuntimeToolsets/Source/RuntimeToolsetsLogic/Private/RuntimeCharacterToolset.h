@@ -244,7 +244,7 @@ public:
 	 * @param Location - Feet position (cm), e.g. [0, 0, 0].
 	 * @param Yaw - Facing, degrees.
 	 * @param CharacterClass - A Character Blueprint (path or class), default: the project's third-person character
-	 *                         (FluidNinja LIVE's or the UE template's).
+	 *                         (one an installed extension provides, or the UE template's).
 	 * @return The character. Fails if the project has no third-person character Blueprint or the class is not a Character.
 	 */
 	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld, AutoCreateRefTerm = "Location,CharacterClass"), Category = "Character")

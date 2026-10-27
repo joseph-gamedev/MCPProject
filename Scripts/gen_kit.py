@@ -13,7 +13,8 @@ import textwrap
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCHEMAS = os.path.join(HERE, "..", "Plugins", "RuntimeToolsets", "Tests", "Schemas")
+# every plugin's toolset schemas: the core plugin and extensions (e.g. RuntimeToolsetsPacks)
+SCHEMAS = os.path.join(HERE, "..", "Plugins", "*", "Tests", "Schemas")
 KIT = os.path.join(HERE, "unreal_kit")
 DIST = os.path.join(HERE, "dist")
 
@@ -79,7 +80,7 @@ def main():
            ""]
     namespaces = []
     total = 0
-    for f in sorted(glob.glob(os.path.join(SCHEMAS, "*.json"))):
+    for f in sorted(glob.glob(os.path.join(SCHEMAS, "*.json")), key=os.path.basename):
         data = json.load(open(f, encoding="utf-8"))
         toolset = os.path.splitext(os.path.basename(f))[0]
         tools = data.get("tools", [])

@@ -1,4 +1,5 @@
 #include "PrimitiveMesh.h"
+#include "RuntimeToolsetExtensions.h"
 #include "TerrainMesh.h"
 #include "RuntimeJson.h"
 #include "RuntimeToolsetsSettings.h"
@@ -31,10 +32,9 @@ namespace RuntimePrimitives
 	static const TCHAR* BasicMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	static const TCHAR* PbrMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_PBR.M_RT_PBR");
 	static const TCHAR* GlassMaterialPath = TEXT("/RuntimeToolsets/Materials/M_RT_Glass.M_RT_Glass");
-	// made by Scripts/materials/make_weather_materials.py in projects with Ultra Dynamic Sky
-	static const TCHAR* PbrWeatherMaterialPath = TEXT("/Game/RuntimeWeather/M_RT_PBR_Weather.M_RT_PBR_Weather");
-	/** Scanned-texture master (project content, from Scripts/architecture/import_architecture.py); used when a preset has textures. */
-	static const TCHAR* ScannedMaterialPath = TEXT("/Game/RuntimeArchitecture/Materials/M_RT_Scanned.M_RT_Scanned");
+	// optional variants an extension plugin can provide (RuntimeToolsetExtensions::SetAsset):
+	//   material.pbr - a weather-aware PBR master, material.scanned - a scanned-texture master,
+	//   folder.scanned_surfaces - where <preset>_diff / _nor_gl / _rough textures live
 	static constexpr int32 MaxOps = 64;
 	static constexpr int32 MaxParts = 8192;
 	static constexpr int32 MaxAssemblyTriangles = 1500000;
@@ -1503,8 +1503,9 @@ namespace RuntimePrimitives
 			auto Load = [&Preset](const TCHAR* Suffix)
 			{
 				const FString Name = FString::Printf(TEXT("%s_%s"), *Preset, Suffix);
-				return TWeakObjectPtr<UTexture>(LoadObject<UTexture>(nullptr, *FString::Printf(TEXT("/Game/RuntimeArchitecture/Surfaces/%s.%s"), *Name, *Name),
-					nullptr, LOAD_NoWarn | LOAD_Quiet));
+				const FString Folder = RuntimeToolsetExtensions::GetAsset(TEXT("folder.scanned_surfaces"));
+				return TWeakObjectPtr<UTexture>(Folder.IsEmpty() ? nullptr : LoadObject<UTexture>(nullptr,
+					*FString::Printf(TEXT("%s/%s.%s"), *Folder, *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet));
 			};
 			FScanned S;
 			S.Color = Load(TEXT("diff"));
@@ -1564,7 +1565,9 @@ namespace RuntimePrimitives
 			const FScanned* Scan = !Preset->bGlass && bWantScan ? ScannedFor(ScanKey) : nullptr;
 			const FPreset* ScanPreset = Presets().FindByPredicate([&ScanKey](const FPreset& P) { return P.Name == ScanKey; });
 			const FLinearColor ScanRef = ScanPreset ? ScanPreset->Color : Preset->Color;
-			UMaterialInterface* ScanBase = Scan ? LoadObject<UMaterialInterface>(nullptr, ScannedMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+			const FString ScannedPath = RuntimeToolsetExtensions::GetAsset(TEXT("material.scanned"));
+			UMaterialInterface* ScanBase = Scan && !ScannedPath.IsEmpty() ? LoadObject<UMaterialInterface>(nullptr, *ScannedPath, nullptr, LOAD_NoWarn | LOAD_Quiet)
+																			 : nullptr;
 			if (ScanBase)
 			{
 				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(ScanBase, Outer);
@@ -1595,8 +1598,9 @@ namespace RuntimePrimitives
 				MID->SetScalarParameterValue(TEXT("EmissiveStrength"), static_cast<float>(Num(Recipe, TEXT("emissive_strength"), bEmissiveColor ? 5.0 : Preset->Emissive)));
 				return MID;
 			}
-			// weather-aware variant (wet / snowy / dusty with Ultra Dynamic Weather) when the project has it
-			UMaterialInterface* Base = Preset->bGlass ? nullptr : LoadObject<UMaterialInterface>(nullptr, PbrWeatherMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			// a weather-aware variant when an extension provides one
+			const FString PbrPath = RuntimeToolsetExtensions::GetAsset(TEXT("material.pbr"));
+			UMaterialInterface* Base = Preset->bGlass || PbrPath.IsEmpty() ? nullptr : LoadObject<UMaterialInterface>(nullptr, *PbrPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 			if (!Base)
 			{
 				Base = LoadObject<UMaterialInterface>(nullptr, Preset->bGlass ? GlassMaterialPath : PbrMaterialPath);

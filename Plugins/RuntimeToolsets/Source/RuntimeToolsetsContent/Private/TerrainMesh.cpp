@@ -1,4 +1,5 @@
 #include "TerrainMesh.h"
+#include "RuntimeToolsetExtensions.h"
 #include "RuntimeJson.h"
 #include "UDynamicMesh.h"
 #include "DynamicMesh/DynamicMesh3.h"
@@ -701,9 +702,9 @@ namespace RuntimeTerrain
 
 	UMaterialInterface* MakeMaterial(const TSharedRef<FJsonObject>& Recipe, UObject* Outer)
 	{
-		// weather-aware variant (puddles, wet ground, mud, snow with Ultra Dynamic Weather) when the project has it
-		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RuntimeWeather/M_RT_Terrain_Weather.M_RT_Terrain_Weather"), nullptr,
-			LOAD_NoWarn | LOAD_Quiet);
+		// a weather-aware variant (puddles, mud, snow) when an extension provides one
+		const FString WeatherPath = RuntimeToolsetExtensions::GetAsset(TEXT("material.terrain"));
+		UMaterialInterface* Base = WeatherPath.IsEmpty() ? nullptr : LoadObject<UMaterialInterface>(nullptr, *WeatherPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 		if (!Base)
 		{
 			Base = LoadObject<UMaterialInterface>(nullptr, TerrainMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);

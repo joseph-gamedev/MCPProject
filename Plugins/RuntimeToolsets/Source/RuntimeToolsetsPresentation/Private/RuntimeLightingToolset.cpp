@@ -1,7 +1,7 @@
 #include "RuntimeLightingToolset.h"
 #include "HAL/IConsoleManager.h"
 #include "PresentationToolCall.h"
-#include "RuntimeSkyToolset.h"
+#include "RuntimeToolsetExtensions.h"
 #include "RuntimeCommand.h"
 #include "RuntimeCommonCommands.h"
 #include "RuntimeJson.h"
@@ -668,13 +668,14 @@ namespace RtLight
 
 namespace RtLight
 {
-	/** True (and the call fails with a pointer to the sky tools) when Ultra Dynamic Sky drives this part of the lighting. */
+	/** True (and the call fails with the owner's hint) when a sky system from an extension drives this part of the lighting. */
 	static bool SkyOwns(const TCHAR* What, const TCHAR* Instead)
 	{
-		if (RuntimeSky::ActiveSky(RuntimeToolCall::GetWorld()))
+		FString Who, Use;
+		if (RuntimeToolsetExtensions::FindLightingOwner(RuntimeToolCall::GetWorld(), Who, Use))
 		{
-			RuntimeToolCall::Fail(ERuntimeToolError::WrongState, FString::Printf(TEXT("Ultra Dynamic Sky controls the %s in this level"), What),
-				FString::Printf(TEXT("Use %s (or sky.remove to go back to the level's own lighting)"), Instead));
+			RuntimeToolCall::Fail(ERuntimeToolError::WrongState, FString::Printf(TEXT("%s controls the %s in this level"), *Who, What),
+				Use.IsEmpty() ? FString(Instead) : Use);
 			return true;
 		}
 		return false;

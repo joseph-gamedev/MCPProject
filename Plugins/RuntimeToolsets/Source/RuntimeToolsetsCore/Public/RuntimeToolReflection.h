@@ -70,4 +70,7 @@ namespace RuntimeToolReflection
 	/** Writes Private/Generated/ToolDocs.gen.inl for every module with registered toolset classes (editor only).
 	 *  Returns the number of files changed (or that would change, with bDryRun). */
 	RUNTIMETOOLSETSCORE_API int32 WriteCompiledDocs(FString& OutReport, bool bDryRun = false);
+
+	/** The code module of a UFUNCTION toolset (e.g. "RuntimeToolsetsPresentation"); "" for other toolsets. */
+	RUNTIMETOOLSETSCORE_API FString ModuleForToolset(FName Toolset);
 }
