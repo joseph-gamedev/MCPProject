@@ -7,6 +7,7 @@
 #include "DynamicMesh/MeshNormals.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Engine/Texture.h"
 
 namespace RuntimeTerrain
 {
@@ -746,6 +747,13 @@ namespace RuntimeTerrain
 		MID->SetVectorParameterValue(TEXT("Mud"), B->Mud);
 		MID->SetVectorParameterValue(TEXT("Snow"), B->Snow);
 		MID->SetScalarParameterValue(TEXT("RockSlope"), B->RockSlope);
+		// rippled beach sand when the project provides a ripple texture
+		const FString RipplePath = RuntimeToolsetExtensions::GetAsset(TEXT("texture.sand_ripple"));
+		if (UTexture* Ripple = RipplePath.IsEmpty() ? nullptr : LoadObject<UTexture>(nullptr, *RipplePath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			MID->SetTextureParameterValue(TEXT("SandTex"), Ripple);
+			MID->SetScalarParameterValue(TEXT("SandRipple"), 1.f);
+		}
 		// heights in the recipe are relative to the terrain; the material compares world z
 		const USceneComponent* At = Cast<USceneComponent>(Outer);
 		const double BaseZ = At ? At->GetComponentLocation().Z : 0.0;

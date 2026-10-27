@@ -80,6 +80,8 @@ def build(name=NAME, folder=PATH, weather=None, wet_param=None):
     m = unreal.load_asset(path)   # (the registry may not have scanned plugin content yet)
     if m:
         mel.delete_all_material_expressions(m)
+        for leftover in mel.get_material_expressions(m):   # unconnected ones can survive the call above
+            mel.delete_material_expression(m, leftover)
     else:
         m = tools.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
     m.set_editor_property("used_with_nanite", False)
@@ -112,7 +114,7 @@ def build(name=NAME, folder=PATH, weather=None, wet_param=None):
     # rock: steep slopes, scanned granite when present
     rock_slope = scalar(m, "RockSlope", X + 600, 700, 0.45)
     rmask = smoothstep(m, rock_slope, op(m, unreal.MaterialExpressionAdd, rock_slope, const(m, X + 600, 800, 0.15), X + 800, 760), slope, X + 1000, 700)
-    granite = "/Game/RuntimeArchitecture/Surfaces/granite_diff"
+    granite = "/RuntimeToolsets/Textures/T_RT_Granite"
     rock_col = rock
     if eal.does_asset_exist(granite):
         tex = e(m, unreal.MaterialExpressionTextureObjectParameter, X + 300, 1500, parameter_name="RockTex", texture=unreal.load_asset(granite))
@@ -129,10 +131,11 @@ def build(name=NAME, folder=PATH, weather=None, wet_param=None):
     base = lerp(m, ground, rock_col, rmask, X + 1900, -300)
     # beach: sand below the sand line (not on cliffs), rippled; darker, glossier wet sand in a band above the sea level
     sand, wet_sand = vec(m, "Sand", X + 600, 1800, (0.62, 0.52, 0.36)), vec(m, "WetSand", X + 600, 1950, (0.36, 0.29, 0.2))
-    ripple_tex = "/Game/FluidNinjaLive/Textures/T_sandheight1"
+    # sand ripples: SandTex is set at runtime from the project's texture.sand_ripple slot; SandRipple 0 (default) = off
     sand_col = op(m, unreal.MaterialExpressionMultiply, sand, fine, X + 900, 1800)
-    if eal.does_asset_exist(ripple_tex):
-        rtex = e(m, unreal.MaterialExpressionTextureObjectParameter, X + 300, 2100, parameter_name="SandTex", texture=unreal.load_asset(ripple_tex))
+    if True:
+        rtex = e(m, unreal.MaterialExpressionTextureObjectParameter, X + 300, 2100, parameter_name="SandTex",
+                 texture=unreal.load_asset("/Engine/EngineResources/Black"))
         rsize = scalar(m, "SandTile", X + 300, 2250, 350.0)
         r2 = e(m, unreal.MaterialExpressionAppendVector, X + 450, 2300)
         r3 = e(m, unreal.MaterialExpressionAppendVector, X + 500, 2250)
@@ -144,6 +147,7 @@ def build(name=NAME, folder=PATH, weather=None, wet_param=None):
         rmask_r = e(m, unreal.MaterialExpressionComponentMask, X + 900, 2100, r=True, g=False, b=False, a=False)
         connect(rwa, "XYZ Texture", rmask_r, "")
         ripple = lerp(m, const(m, X + 1000, 2200, 0.82), const(m, X + 1000, 2260, 1.12), rmask_r, X + 1100, 2150)
+        ripple = lerp(m, const(m, X + 1150, 2050, 1.0), ripple, scalar(m, "SandRipple", X + 1000, 2320, 0.0), X + 1150, 2150)
         sand_col = op(m, unreal.MaterialExpressionMultiply, sand_col, ripple, X + 1200, 1850)
     below = sat(m, op(m, unreal.MaterialExpressionDivide, op(m, unreal.MaterialExpressionSubtract, scalar(m, "SandLine", X + 400, 1900, -1e9), wz, X + 600, 2050),
                       const(m, X + 600, 2120, 120.0), X + 800, 2050), X + 1000, 2050)

@@ -58,6 +58,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Capture")
 	int32 CaptureJpegQuality = 80;
 
+	/**
+	 * The project's own assets for optional slots (RuntimeToolsetExtensions::GetAsset), e.g. material.scanned,
+	 * folder.scanned_surfaces, material.terrain, material.pbr, class.third_person_character. An extension plugin can set
+	 * them too; a slot set by code wins.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Assets")
+	TMap<FName, FString> AssetSlots;
+
 	/** Object path prefixes that reflection tools may touch. */
 	UPROPERTY(Config, EditAnywhere, Category = "Reflection")
 	TArray<FString> AllowedObjectRoots;

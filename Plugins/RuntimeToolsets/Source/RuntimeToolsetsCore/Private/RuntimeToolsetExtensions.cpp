@@ -1,5 +1,6 @@
 #include "RuntimeToolsetExtensions.h"
 #include "Interfaces/IPluginManager.h"
+#include "RuntimeToolsetsSettings.h"
 
 namespace
 {
@@ -46,8 +47,12 @@ void RuntimeToolsetExtensions::SetAsset(FName Slot, const FString& Path)
 
 FString RuntimeToolsetExtensions::GetAsset(FName Slot)
 {
-	const FString* P = Assets().Find(Slot);
-	return P ? *P : FString();
+	if (const FString* P = Assets().Find(Slot))
+	{
+		return *P;
+	}
+	const FString* C = URuntimeToolsetsSettings::Get().AssetSlots.Find(Slot);   // the project's config
+	return C ? *C : FString();
 }
 
 void RuntimeToolsetExtensions::RegisterLightingOwner(FName Id, FLightingOwner Owner)
