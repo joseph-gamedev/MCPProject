@@ -1,0 +1,146 @@
+{
+ "calls": [
+  {
+   "tool": "session.ping",
+   "ok": true
+  },
+  {
+   "tool": "session.get_build_info",
+   "ok": true
+  },
+  {
+   "tool": "session.get_capabilities",
+   "ok": true
+  },
+  {
+   "tool": "session.list_toolsets",
+   "ok": true
+  },
+  {
+   "tool": "session.describe_toolset",
+   "ok": true
+  },
+  {
+   "tool": "session.call_tool",
+   "ok": false,
+   "error": "session.call_tool: call_tool cannot call itself"
+  },
+  {
+   "tool": "session.get_usage_report",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "ping": {
+   "ok": true,
+   "pong": true,
+   "frame": 476,
+   "time": 16782623.522
+  },
+  "build_info": {
+   "ok": true,
+   "engine": "5.8.3",
+   "config": "Development",
+   "platform": "Windows",
+   "project": "MCPProject",
+   "editor": false,
+   "plugin_version": "0.14.0",
+   "world": "Sandbox",
+   "net_mode": "standalone",
+   "scripting": {
+    "why": "A script builds hundreds of parts and sends them in a few requests: much faster than single tool calls.",
+    "kit": "<project>/Scripts/dist/unreal_kit.zip",
+    "examples": "<project>/Scripts/dist/kit_examples",
+    "remote": "Game in the cloud (streamed): the kit is on YOUR machine at the path in the UNREAL_KIT environment variable (Connect.bat sets it, with UNREAL_RELAY and UNREAL_TOKEN); uk.connect() then goes through the relay by itself. Do not search the disk.",
+    "fastest": "Cities and streets: uk.district(\"manhattan\" | \"paris\" | \"london\" | ... , blocks=(3, 2)) builds a whole district (streets, styled buildings, trees) in one call in seconds; every run is different. Single buildings: from unreal_kit import buildings as B; B.building(kind, style=...).",
+    "how": "Python: import sys; sys.path.insert(0, r'<kit>'); import unreal_kit as uk. It connects by itself to the game on this machine (uk.connect(url='http://127.0.0.1:<port>/mcp') for another port). uk.tools.<toolset>.<tool>(...) is every tool; uk.parts builds part lists (box, cyl, sphere, beam, extrude, sweep, transform, grid, ring, PALETTE materials); uk.place / uk.place_many / uk.batch send them in big requests; uk.rules builds game rules; uk.ui builds layout UI; uk.look sets light, cameras and takes review images. <examples> has readable example scripts (city, game pieces, combat presets) to copy from. Use the files where they are: do not download code and do not print environment variables. Save good results with scene.save_template. Skill python_kit has the details."
+   }
+  },
+  "toolsets": [
+   "actors",
+   "ai",
+   "build",
+   "camera",
+   "capture",
+   "character",
+   "console",
+   "game",
+   "gas",
+   "gis",
+   "history",
+   "input",
+   "layout",
+   "level",
+   "lighting",
+   "log",
+   "logic",
+   "materials",
+   "ops",
+   "pcg",
+   "physics",
+   "profiling",
+   "reflection",
+   "scene",
+   "session",
+   "skills",
+   "spline",
+   "statetree",
+   "style",
+   "tags",
+   "ui",
+   "vfx"
+  ],
+  "actors_tools": [
+   "actors.add_component",
+   "actors.attach",
+   "actors.destroy_actor",
+   "actors.find_actors",
+   "actors.list_components",
+   "actors.remove_component",
+   "actors.set_transform",
+   "actors.set_visibility",
+   "actors.spawn_actor"
+  ],
+  "usage": {
+   "ok": true,
+   "calls": 13,
+   "errors": 1,
+   "result_bytes_total": 74458,
+   "result_bytes_avg": 5728,
+   "result_bytes_max": 18067,
+   "largest_tool": "session.list_toolsets",
+   "top_tools_by_bytes": [
+    {
+     "tool": "session.call_tool",
+     "bytes": 37271,
+     "calls": 7
+    },
+    {
+     "tool": "session.list_toolsets",
+     "bytes": 18067,
+     "calls": 1
+    },
+    {
+     "tool": "session.describe_toolset",
+     "bytes": 16380,
+     "calls": 1
+    },
+    {
+     "tool": "session.get_build_info",
+     "bytes": 1767,
+     "calls": 1
+    },
+    {
+     "tool": "session.get_capabilities",
+     "bytes": 863,
+     "calls": 1
+    },
+    {
+     "tool": "session.ping",
+     "bytes": 110,
+     "calls": 2
+    }
+   ]
+  }
+ }
+}

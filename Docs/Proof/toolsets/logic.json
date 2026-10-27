@@ -1,0 +1,233 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "logic.get_guide",
+   "ok": true
+  },
+  {
+   "tool": "logic.define_vars",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "logic.tween",
+   "ok": true
+  },
+  {
+   "tool": "logic.define_ui",
+   "ok": true
+  },
+  {
+   "tool": "logic.define_rules",
+   "ok": true
+  },
+  {
+   "tool": "logic.spawn_player",
+   "ok": true
+  },
+  {
+   "tool": "logic.start",
+   "ok": true
+  },
+  {
+   "tool": "logic.set_var",
+   "ok": true
+  },
+  {
+   "tool": "logic.eval",
+   "ok": true
+  },
+  {
+   "tool": "logic.get_state",
+   "ok": true
+  },
+  {
+   "tool": "logic.list_rules",
+   "ok": true
+  },
+  {
+   "tool": "logic.export",
+   "ok": true
+  },
+  {
+   "tool": "logic.stop",
+   "ok": true
+  },
+  {
+   "tool": "logic.remove_player",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "eval": {
+   "ok": true,
+   "value": 8,
+   "type": "number",
+   "returnValue": {
+    "value": 8,
+    "type": "number"
+   }
+  },
+  "state": {
+   "ok": true,
+   "running": true,
+   "time": 0.064,
+   "vars": {
+    "score": 5,
+    "coins": 3
+   },
+   "timers": [],
+   "rules": [
+    "collect (touch)"
+   ],
+   "ui": [
+    "hud"
+   ],
+   "play_objects": 0,
+   "input_mode": "game",
+   "player": {
+    "exists": true,
+    "mode": "side",
+    "controls": "A/D or arrows: run, Shift: sprint, Space/W/Up: jump (hold = higher)",
+    "location": [
+     4.829,
+     0,
+     97.506
+    ],
+    "velocity": [
+     163.25,
+     0,
+     -157.045
+    ],
+    "grounded": false,
+    "frozen": false,
+    "invulnerable": true,
+    "speed": 226.525,
+    "altitude": 187.506,
+    "throttle": 0.6,
+    "boost": false,
+    "dash_ready": true,
+    "lock": "",
+    "checkpoint": [
+     0,
+     0,
+     100
+    ],
+    "controlled": true
+   },
+   "hidden": [],
+   "tweens": 0,
+   "projectiles": 0,
+   "spawners": {},
+   "interact": "",
+   "brains": {},
+   "health": {},
+   "ammo": {},
+   "pools_free": {},
+   "log": [
+    {
+     "seq": 1,
+     "time": 0,
+     "on": "start",
+     "rules": []
+    }
+   ],
+   "returnValue": {
+    "running": true,
+    "time": 0.064,
+    "vars": {
+     "score": 5,
+     "coins": 3
+    },
+    "timers": [],
+    "rules": [
+     "collect (touch)"
+    ],
+    "ui": [
+     "hud"
+    ],
+    "play_objects": 0,
+    "input_mode": "game",
+    "player": {
+     "exists": true,
+     "mode": "side",
+     "controls": "A/D or arrows: run, Shift: sprint, Space/W/Up: jump (hold = higher)",
+     "location": [
+      4.829,
+      0,
+      97.506
+     ],
+     "velocity": [
+      163.25,
+      0,
+      -157.045
+     ],
+     "grounded": false,
+     "frozen": false,
+     "invulnerable": true,
+     "speed": 226.525,
+     "altitude": 187.506,
+     "throttle": 0.6,
+     "boost": false,
+     "dash_ready": true,
+     "lock": "",
+     "checkpoint": [
+      0,
+      0,
+      100
+     ],
+     "controlled": true
+    },
+    "hidden": [],
+    "tweens": 0,
+    "projectiles": 0,
+    "spawners": {},
+    "interact": "",
+    "brains": {},
+    "health": {},
+    "ammo": {},
+    "pools_free": {},
+    "log": [
+     {
+      "seq": 1,
+      "time": 0,
+      "on": "start",
+      "rules": []
+     }
+    ]
+   }
+  },
+  "export_size": 2089
+ }
+}

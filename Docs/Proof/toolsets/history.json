@@ -1,0 +1,122 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "history.checkpoint",
+   "ok": true
+  },
+  {
+   "tool": "history.begin_transaction",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "history.end_transaction",
+   "ok": true
+  },
+  {
+   "tool": "scene.find_nodes",
+   "ok": true
+  },
+  {
+   "tool": "history.undo",
+   "ok": true
+  },
+  {
+   "tool": "scene.find_nodes",
+   "ok": true
+  },
+  {
+   "tool": "history.redo",
+   "ok": true
+  },
+  {
+   "tool": "scene.find_nodes",
+   "ok": true
+  },
+  {
+   "tool": "history.rollback",
+   "ok": true
+  },
+  {
+   "tool": "scene.find_nodes",
+   "ok": true
+  },
+  {
+   "tool": "history.get_history",
+   "ok": true
+  },
+  {
+   "tool": "history.set_history_limit",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "counts_made_undo_redo_rollback": [
+   3,
+   0,
+   3,
+   0
+  ],
+  "history": {
+   "ok": true,
+   "undo": [
+    {
+     "id": 328,
+     "label": "before",
+     "kind": "checkpoint"
+    },
+    {
+     "id": 327,
+     "label": "time of day"
+    },
+    {
+     "id": 326,
+     "label": "build Ground"
+    },
+    {
+     "id": 325,
+     "label": "clear_all"
+    },
+    {
+     "id": 324,
+     "label": "auto/clear_all_035702",
+     "kind": "checkpoint"
+    }
+   ],
+   "undo_count": 199,
+   "redo_count": 1,
+   "limit": 200
+  }
+ }
+}

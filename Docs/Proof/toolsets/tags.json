@@ -1,0 +1,173 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "tags.list_tags",
+   "ok": true
+  },
+  {
+   "tool": "tags.add_actor_tags",
+   "ok": true
+  },
+  {
+   "tool": "tags.get_actor_tags",
+   "ok": true
+  },
+  {
+   "tool": "tags.match_tags",
+   "ok": true
+  },
+  {
+   "tool": "tags.find_actors_with_tags",
+   "ok": true
+  },
+  {
+   "tool": "tags.get_tag_info",
+   "ok": true
+  },
+  {
+   "tool": "tags.remove_actor_tags",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "list": [
+   "Ability",
+   "Ability.Attack",
+   "Ability.Block",
+   "Ability.Dash",
+   "Ability.Fire",
+   "Ability.Heal",
+   "Ability.Interact",
+   "Ability.Jump",
+   "Ability.Reload",
+   "AI",
+   "AI.Attack",
+   "AI.Chase",
+   "AI.Flee",
+   "AI.Guard",
+   "AI.Idle",
+   "AI.Patrol",
+   "AI.Search",
+   "Cue",
+   "Cue.Death",
+   "Cue.Explosion",
+   "Cue.Heal",
+   "Cue.Hit",
+   "Cue.Muzzle",
+   "Cue.Pickup",
+   "Damage",
+   "Damage.Electric",
+   "Damage.Explosive",
+   "Damage.Fall",
+   "Damage.Fire",
+   "Damage.Ice",
+   "Damage.Physical",
+   "Damage.Poison",
+   "EnhancedInput",
+   "EnhancedInput.Modes",
+   "EnhancedInput.Modes.Default",
+   "Event",
+   "Event.Death",
+   "Event.Hit",
+   "Event.Interact",
+   "Event.Lost",
+   "Event.Noise",
+   "Event.Objective",
+   "Event.Pickup",
+   "Event.Spawn",
+   "Event.Spotted",
+   "GameplayCue",
+   "GameplayCue.Test",
+   "Gas",
+   "Gas.Event",
+   "Gas.Event.Hit",
+   "Gas.SetByCaller",
+   "Gas.SetByCaller.Magnitude",
+   "Gas.State",
+   "Gas.State.Dead",
+   "InputUserSettings",
+   "InputUserSettings.FailureReasons",
+   "InputUserSettings.FailureReasons.InvalidMappingName",
+   "InputUserSettings.FailureReasons.NoKeyProfile",
+   "InputUserSettings.FailureReasons.NoMappingRowFound",
+   "InputUserSettings.FailureReasons.NoMatchingMappings",
+   "InputUserSettings.Profiles",
+   "InputUserSettings.Profiles.Default",
+   "Niagara",
+   "Niagara.ScalabilityProfile",
+   "Niagara.ScalabilityProfile.Critical",
+   "Niagara.ScalabilityProfile.High",
+   "Niagara.ScalabilityProfile.Low",
+   "Niagara.ScalabilityProfile.Medium",
+   "Noise",
+   "Noise.Alarm",
+   "Noise.Explosion",
+   "Noise.Footstep",
+   "Noise.Gunshot",
+   "Noise.Voice",
+   "State",
+   "State.Alerted",
+   "State.Armed",
+   "State.Burning",
+   "State.Carrying",
+   "State.Dead",
+   "State.Frozen",
+   "State.Hidden",
+   "State.Invisible",
+   "State.Invulnerable",
+   "State.Poisoned",
+   "State.Searching",
+   "State.Stunned",
+   "Status",
+   "Status.Buff",
+   "Status.Buff.Damage",
+   "Status.Buff.Shield",
+   "Status.Buff.Speed",
+   "Status.Debuff",
+   "Status.Debuff.Blind",
+   "Status.Debuff.Slow",
+   "Status.Debuff.Weak",
+   "Team",
+   "Team.Ally",
+   "Team.Enemy",
+   "Team.Neutral",
+   "Team.Player",
+   "Test",
+   "Test.StateTree",
+   "Test.StateTree.Tag",
+   "Test.StateTree.Tag2",
+   "Test.StateTree.Tag3",
+   "Test.StateTree.Tag4",
+   "Test.StateTree.Tag5",
+   "Test.StateTree.Tag6",
+   "Tests",
+   "Tests.GenericTag",
+   "Tests.GenericTag.One",
+   "Tests.GenericTag.Two"
+  ]
+ }
+}

@@ -238,7 +238,8 @@ public:
 	int32 NextBlock = 1;
 	FGisOrigin Origin;
 	FString VisNode;                      // scene node showing plots and streets
-	TWeakObjectPtr<AActor> Labels;        // id labels
+	TWeakObjectPtr<AActor> Labels;        // id labels (own actor when there is no plot drawing to carry them)
+	TArray<TWeakObjectPtr<USceneComponent>> LabelParts;   // id labels on the plot drawing's node (cleared and undone with it)
 	bool bShowPlots = true;
 	bool bShowLabels = true;
 	bool bShowStreets = true;

@@ -1,0 +1,98 @@
+{
+ "calls": [
+  {
+   "tool": "log.subscribe_log_category",
+   "ok": true
+  },
+  {
+   "tool": "log.tail_log",
+   "ok": true
+  },
+  {
+   "tool": "log.get_stat",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "tail": {
+   "ok": true,
+   "lines": [
+    {
+     "seq": 2109,
+     "category": "LogModelContextProtocol",
+     "verbosity": "Log",
+     "message": "Running tool: 'session_call_tool'"
+    },
+    {
+     "seq": 2110,
+     "category": "LogModelContextProtocol",
+     "verbosity": "Log",
+     "message": "Running tool: 'session_call_tool'"
+    },
+    {
+     "seq": 2111,
+     "category": "LogConsoleManager",
+     "verbosity": "Warning",
+     "message": "Setting the console variable 'r.ScreenPercentage' with 'SetByScalability' was ignored as it is lower priority than the previous 'SetByConsole'. Value remains '100'"
+    },
+    {
+     "seq": 2112,
+     "category": "LogModelContextProtocol",
+     "verbosity": "Log",
+     "message": "Running tool: 'session_call_tool'"
+    },
+    {
+     "seq": 2113,
+     "category": "LogModelContextProtocol",
+     "verbosity": "Log",
+     "message": "Running tool: 'session_call_tool'"
+    }
+   ],
+   "last_seq": 2113,
+   "returnValue": {
+    "lines": [
+     {
+      "seq": 2109,
+      "category": "LogModelContextProtocol",
+      "verbosity": "Log",
+      "message": "Running tool: 'session_call_tool'"
+     },
+     {
+      "seq": 2110,
+      "category": "LogModelContextProtocol",
+      "verbosity": "Log",
+      "message": "Running tool: 'session_call_tool'"
+     },
+     {
+      "seq": 2111,
+      "category": "LogConsoleManager",
+      "verbosity": "Warning",
+      "message": "Setting the console variable 'r.ScreenPercentage' with 'SetByScalability' was ignored as it is lower priority than the previous 'SetByConsole'. Value remains '100'"
+     },
+     {
+      "seq": 2112,
+      "category": "LogModelContextProtocol",
+      "verbosity": "Log",
+      "message": "Running tool: 'session_call_tool'"
+     },
+     {
+      "seq": 2113,
+      "category": "LogModelContextProtocol",
+      "verbosity": "Log",
+      "message": "Running tool: 'session_call_tool'"
+     }
+    ],
+    "last_seq": 2113
+   }
+  },
+  "stats": {
+   "ok": true,
+   "fps": 278.41,
+   "frame_ms": 3.59,
+   "returnValue": {
+    "fps": 278.41,
+    "frame_ms": 3.59
+   }
+  }
+ }
+}

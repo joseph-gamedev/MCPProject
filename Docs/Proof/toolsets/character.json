@@ -1,0 +1,112 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "character.create",
+   "ok": true
+  },
+  {
+   "tool": "input.inject_key",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "character.set_climbable",
+   "ok": true
+  },
+  {
+   "tool": "capture.screenshot",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "character": {
+   "ok": true,
+   "exists": true,
+   "mode": "custom",
+   "controls": "A/D or arrows: run, Shift: sprint, Space/W/Up: jump (hold = higher)",
+   "location": [
+    0,
+    0,
+    102
+   ],
+   "velocity": [
+    0,
+    0,
+    0
+   ],
+   "grounded": false,
+   "frozen": false,
+   "invulnerable": false,
+   "speed": 0,
+   "altitude": 192,
+   "throttle": 0.6,
+   "boost": false,
+   "dash_ready": true,
+   "lock": "",
+   "checkpoint": [
+    0,
+    0,
+    100
+   ],
+   "controlled": true,
+   "returnValue": {
+    "exists": true,
+    "mode": "custom",
+    "controls": "A/D or arrows: run, Shift: sprint, Space/W/Up: jump (hold = higher)",
+    "location": [
+     0,
+     0,
+     102
+    ],
+    "velocity": [
+     0,
+     0,
+     0
+    ],
+    "grounded": false,
+    "frozen": false,
+    "invulnerable": false,
+    "speed": 0,
+    "altitude": 192,
+    "throttle": 0.6,
+    "boost": false,
+    "dash_ready": true,
+    "lock": "",
+    "checkpoint": [
+     0,
+     0,
+     100
+    ],
+    "controlled": true
+   },
+   "history_id": 291
+  }
+ }
+}

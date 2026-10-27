@@ -1,0 +1,95 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "scene.create_group",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "scene.list_tree",
+   "ok": true
+  },
+  {
+   "tool": "scene.get_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.set_node_tags",
+   "ok": true
+  },
+  {
+   "tool": "scene.move_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.rotate_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.save_template",
+   "ok": true
+  },
+  {
+   "tool": "scene.list_templates",
+   "ok": true
+  },
+  {
+   "tool": "scene.place_template",
+   "ok": true
+  },
+  {
+   "tool": "scene.duplicate_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.rename_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.scale_node",
+   "ok": true
+  },
+  {
+   "tool": "scene.find_nodes",
+   "ok": true
+  },
+  {
+   "tool": "scene.export_tree",
+   "ok": true
+  },
+  {
+   "tool": "scene.delete_template",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "find": 3
+ }
+}

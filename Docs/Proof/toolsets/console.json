@@ -1,0 +1,167 @@
+{
+ "calls": [
+  {
+   "tool": "console.get_cvar",
+   "ok": true
+  },
+  {
+   "tool": "console.set_cvar",
+   "ok": true
+  },
+  {
+   "tool": "console.list_cvars",
+   "ok": true
+  },
+  {
+   "tool": "console.exec_command",
+   "ok": true
+  },
+  {
+   "tool": "console.exec_command",
+   "ok": true
+  },
+  {
+   "tool": "console.get_user_settings",
+   "ok": true
+  },
+  {
+   "tool": "console.set_scalability",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "cvar": {
+   "ok": true,
+   "name": "r.ScreenPercentage",
+   "value": "0",
+   "read_only": false,
+   "help": "To render in lower resolution and upscale for better performance (combined up with the blenable post process setting).\n70 is a good value for low aliasing and performance, can be verified with 'show TestImage'\nin percent, >0 and <=100, larger numbers are possible (supersampling) but the downsampling...",
+   "returnValue": {
+    "name": "r.ScreenPercentage",
+    "value": "0",
+    "read_only": false,
+    "help": "To render in lower resolution and upscale for better performance (combined up with the blenable post process setting).\n70 is a good value for low aliasing and performance, can be verified with 'show TestImage'\nin percent, >0 and <=100, larger numbers are possible (supersampling) but the downsampling..."
+   }
+  },
+  "list": {
+   "ok": true,
+   "total": 220,
+   "cvars": [
+    {
+     "name": "r.ShadowQuality",
+     "value": "5",
+     "read_only": false,
+     "help": ""
+    },
+    {
+     "name": "r.Shadow.MaxResolution",
+     "value": "2048",
+     "read_only": false,
+     "help": ""
+    },
+    {
+     "name": "r.Shadow.MaxCSMResolution",
+     "value": "2048",
+     "read_only": false,
+     "help": ""
+    },
+    {
+     "name": "r.Shadow.CSM.TransitionScale",
+     "value": "1",
+     "read_only": false,
+     "help": ""
+    },
+    {
+     "name": "r.Shadow.DistanceScale",
+     "value": "1",
+     "read_only": false,
+     "help": ""
+    }
+   ],
+   "returnValue": {
+    "total": 220,
+    "cvars": [
+     {
+      "name": "r.ShadowQuality",
+      "value": "5",
+      "read_only": false,
+      "help": ""
+     },
+     {
+      "name": "r.Shadow.MaxResolution",
+      "value": "2048",
+      "read_only": false,
+      "help": ""
+     },
+     {
+      "name": "r.Shadow.MaxCSMResolution",
+      "value": "2048",
+      "read_only": false,
+      "help": ""
+     },
+     {
+      "name": "r.Shadow.CSM.TransitionScale",
+      "value": "1",
+      "read_only": false,
+      "help": ""
+     },
+     {
+      "name": "r.Shadow.DistanceScale",
+      "value": "1",
+      "read_only": false,
+      "help": ""
+     }
+    ]
+   }
+  },
+  "settings": {
+   "ok": true,
+   "resolution": [
+    1280,
+    720
+   ],
+   "window_mode": "windowed_fullscreen",
+   "vsync": false,
+   "frame_rate_limit": 0,
+   "dynamic_resolution": false,
+   "scalability": {
+    "resolution_scale": 0,
+    "view_distance": 3,
+    "anti_aliasing": 3,
+    "shadows": 3,
+    "global_illumination": 3,
+    "reflections": 3,
+    "post_process": 3,
+    "textures": 3,
+    "effects": 3,
+    "foliage": 3,
+    "shading": 3,
+    "overall": 3
+   },
+   "returnValue": {
+    "resolution": [
+     1280,
+     720
+    ],
+    "window_mode": "windowed_fullscreen",
+    "vsync": false,
+    "frame_rate_limit": 0,
+    "dynamic_resolution": false,
+    "scalability": {
+     "resolution_scale": 0,
+     "view_distance": 3,
+     "anti_aliasing": 3,
+     "shadows": 3,
+     "global_illumination": 3,
+     "reflections": 3,
+     "post_process": 3,
+     "textures": 3,
+     "effects": 3,
+     "foliage": 3,
+     "shading": 3,
+     "overall": 3
+    }
+   }
+  }
+ }
+}

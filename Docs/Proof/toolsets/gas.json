@@ -1,0 +1,158 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "gas.add_ability_system",
+   "ok": true
+  },
+  {
+   "tool": "gas.define_effect",
+   "ok": true
+  },
+  {
+   "tool": "gas.apply_effect",
+   "ok": true
+  },
+  {
+   "tool": "gas.get_attribute_values",
+   "ok": true
+  },
+  {
+   "tool": "gas.get_active_effects",
+   "ok": true
+  },
+  {
+   "tool": "gas.set_attribute_base",
+   "ok": true
+  },
+  {
+   "tool": "gas.get_active_tags",
+   "ok": true
+  },
+  {
+   "tool": "gas.remove_effect",
+   "ok": true
+  },
+  {
+   "tool": "gas.get_granted_abilities",
+   "ok": true
+  },
+  {
+   "tool": "gas.list_effects",
+   "ok": true
+  },
+  {
+   "tool": "gas.list_ability_classes",
+   "ok": true
+  },
+  {
+   "tool": "gas.find_attribute_set_classes",
+   "ok": true
+  },
+  {
+   "tool": "gas.list_cues",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "attrs": [
+   {
+    "attribute_name": "Damage",
+    "full_name": "RuntimeGenericAttributeSet.Damage",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 0,
+    "current_value": 0
+   },
+   {
+    "attribute_name": "Health",
+    "full_name": "RuntimeGenericAttributeSet.Health",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 180,
+    "current_value": 180
+   },
+   {
+    "attribute_name": "Mana",
+    "full_name": "RuntimeGenericAttributeSet.Mana",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 100,
+    "current_value": 100
+   },
+   {
+    "attribute_name": "MaxHealth",
+    "full_name": "RuntimeGenericAttributeSet.MaxHealth",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 200,
+    "current_value": 200
+   },
+   {
+    "attribute_name": "MaxMana",
+    "full_name": "RuntimeGenericAttributeSet.MaxMana",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 100,
+    "current_value": 100
+   },
+   {
+    "attribute_name": "MaxStamina",
+    "full_name": "RuntimeGenericAttributeSet.MaxStamina",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 100,
+    "current_value": 100
+   },
+   {
+    "attribute_name": "Shield",
+    "full_name": "RuntimeGenericAttributeSet.Shield",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 0,
+    "current_value": 0
+   },
+   {
+    "attribute_name": "Speed",
+    "full_name": "RuntimeGenericAttributeSet.Speed",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 600,
+    "current_value": 600
+   },
+   {
+    "attribute_name": "Stamina",
+    "full_name": "RuntimeGenericAttributeSet.Stamina",
+    "set_class_name": "RuntimeGenericAttributeSet",
+    "base_value": 100,
+    "current_value": 100
+   }
+  ],
+  "effects": [
+   {
+    "effect_name": "Burn",
+    "handle": 1,
+    "stack_count": 1,
+    "total_duration": 5,
+    "remaining_duration": 3.778045654296875,
+    "period": 1,
+    "granted_tags": []
+   }
+  ]
+ }
+}

@@ -3,7 +3,7 @@
 URuntimeToolsetsSettings::URuntimeToolsetsSettings()
 {
 	// Safe defaults so the plugin is locked down even without project config. Projects may replace these lists in DefaultGame.ini.
-	AllowedObjectRoots = {TEXT("/Script/"), TEXT("/Game/"), TEXT("/Engine/"), TEXT("/Temp/")};
+	AllowedObjectRoots = {TEXT("/Script/"), TEXT("/Game/"), TEXT("/Engine/"), TEXT("/Temp/"), TEXT("/RuntimeToolsets/")};   // the plugin's own materials too
 	SpawnClassAllowRoots = {TEXT("/Script/Engine."), TEXT("/Game/")};
 	DeniedClasses = {TEXT("GameEngine"), TEXT("EditorEngine")};
 	DeniedFunctions = {TEXT("QuitGame"), TEXT("ExecuteConsoleCommand"), TEXT("ConsoleCommand"), TEXT("ServerTravel"), TEXT("ClientTravel"),

@@ -1,0 +1,57 @@
+{
+ "calls": [
+  {
+   "tool": "skills.list_skills",
+   "ok": true
+  },
+  {
+   "tool": "skills.get_skills",
+   "ok": true
+  },
+  {
+   "tool": "skills.save_skill",
+   "ok": true
+  },
+  {
+   "tool": "skills.get_skills",
+   "ok": true
+  },
+  {
+   "tool": "skills.delete_skill",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "list": {
+   "ok": true,
+   "ai_navigation_and_perception": "Apply whenever characters or enemies must move around obstacles, see or hear the player, patrol, chase, search or run behavior trees.",
+   "arcade_shooter": "Apply when making a fixed-screen arcade shooter (Galaga, Space Invaders, Galaxian, Centipede): ship at the bottom, enemy formations that swoop and dive, waves, lives, high score.",
+   "art_style": "Apply whenever the user asks for a look or art style (realistic, stylized, low poly, toon, retro, noir, painterly) or says a scene looks wrong.",
+   "builder": "Apply whenever building objects, buildings, landmarks or scenes from parts: real-scale dimensions, generators, materials.",
+   "game_logic": "Apply whenever making a scene playable: variables, rules, events, UI, players, combat, AI, spawners, saves.",
+   "game_ui": "Apply when making any HUD, menu, inventory, shop, scoreboard or dialog: layout UI that looks like a polished web/game UI.",
+   "gameplay_ability_system": "Apply when a task involves stats (health, shield, mana, stamina, speed), buffs and debuffs, damage over time, status tags (stunned, burning), abilities with costs, or a project that already uses Unreal's Gameplay Ability System (GAS).",
+   "outdoor_lighting": "Apply whenever setting up or changing outdoor lighting: sun, sky, clouds, fog, exposure, time of day or weather.",
+   "pcg_graph_generation": "Apply whenever a task involves repeating patterns or rules over space: scattering vegetation or rocks, roads and fences along paths, filling areas, grids of buildings, or spatial computation (distances, subdivision, filtering points). Not for one-off placements.",
+   "python_kit": "Apply when a task needs many objects or many steps (levels, cities, landmarks, games with lots of rules) and you can run Python: use the unreal_kit shipped with the game to generate fast. Includes the full API, so no inspection is needed.",
+   "realistic_scene": "Apply when the scene should look real (cities, streets, houses, interiors, landscapes, product shots): real scale, physical light and exposure, believable materials, detail and wear, eye-level cameras, and a screenshot review loop.",
+   "state_tree": "Apply when a task involves the project's StateTree assets: running a designed behaviour (guard, door, boss phases, quest flow) on an actor, sending it events, or checking which state it is in.",
+   "vfx_placement": "Apply whenever placing or spawning a visual effect: smoke, fire, explosion, sparks, dust, magic, impacts, ambient particles.",
+   "returnValue": {
+    "ai_navigation_and_perception": "Apply whenever characters or enemies must move around obstacles, see or hear the player, patrol, chase, search or run behavior trees.",
+    "arcade_shooter": "Apply when making a fixed-screen arcade shooter (Galaga, Space Invaders, Galaxian, Centipede): ship at the bottom, enemy formations that swoop and dive, waves, lives, high score.",
+    "art_style": "Apply whenever the user asks for a look or art style (realistic, stylized, low poly, toon, retro, noir, painterly) or says a scene looks wrong.",
+    "builder": "Apply whenever building objects, buildings, landmarks or scenes from parts: real-scale dimensions, generators, materials.",
+    "game_logic": "Apply whenever making a scene playable: variables, rules, events, UI, players, combat, AI, spawners, saves.",
+    "game_ui": "Apply when making any HUD, menu, inventory, shop, scoreboard or dialog: layout UI that looks like a polished web/game UI.",
+    "gameplay_ability_system": "Apply when a task involves stats (health, shield, mana, stamina, speed), buffs and debuffs, damage over time, status tags (stunned, burning), abilities with costs, or a project that already uses Unreal's Gameplay Ability System (GAS).",
+    "outdoor_lighting": "Apply whenever setting up or changing outdoor lighting: sun, sky, clouds, fog, exposure, time of day or weather.",
+    "pcg_graph_generation": "Apply whenever a task involves repeating patterns or rules over space: scattering vegetation or rocks, roads and fences along paths, filling areas, grids of buildings, or spatial computation (distances, subdivision, filtering points). Not for one-off placements.",
+    "python_kit": "Apply when a task needs many objects or many steps (levels, cities, landmarks, games with lots of rules) and you can run Python: use the unreal_kit shipped with the game to generate fast. Includes the full API, so no inspection is needed.",
+    "realistic_scene": "Apply when the scene should look real (cities, streets, houses, interiors, landscapes, product shots): real scale, physical light and exposure, believable materials, detail and wear, eye-level cameras, and a screenshot review loop.",
+    "state_tree": "Apply when a task involves the project's StateTree assets: running a designed behaviour (guard, door, boss phases, quest flow) on an actor, sending it events, or checking which state it is in.",
+    "vfx_placement": "Apply whenever placing or spawning a visual effect: smoke, fire, explosion, sparks, dust, magic, impacts, ambient particles."
+   }
+  }
+ }
+}

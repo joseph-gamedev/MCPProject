@@ -1,0 +1,240 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "style.list_presets",
+   "ok": true
+  },
+  {
+   "tool": "style.define_preset",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "style.get",
+   "ok": true
+  },
+  {
+   "tool": "style.apply",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "presets": {
+   "ok": true,
+   "presets": [
+    {
+     "name": "lowpoly",
+     "description": "Low poly: flat-shaded facets, flat colours from a small palette, clean pastel light"
+    },
+    {
+     "name": "noir",
+     "description": "Film noir: black and white, hard contrast, ink edges, heavy vignette and grain"
+    },
+    {
+     "name": "realistic",
+     "description": "Physically based: full surface detail, natural light, filmic bloom and ambient occlusion"
+    },
+    {
+     "name": "retro",
+     "description": "Retro pixel art: chunky pixels, flat facets and outlines"
+    },
+    {
+     "name": "stylized",
+     "description": "Painterly and saturated: soft brush-like shapes, gentle light bands, coloured outlines, warm rim light"
+    },
+    {
+     "name": "toon",
+     "description": "Cel shaded cartoon: hard light bands, bold ink outlines, bright flat colours"
+    }
+   ],
+   "layers": "material: Faceted, Pattern, Steps, Saturation, RimStrength, RimColor, Tint | post: Toon, Bands, ShadowFloor, Outline, OutlineWidth, OutlineColor, DepthSens, NormalSens, Paint, PaintRadius, PaintScale, PixelSize, Levels, Saturation, Contrast, Tint | settings: bloom, vignette, ao, grain, chromatic, exposure_bias, temperature | lighting: mood, sun{}, sky{}, fog{}",
+   "returnValue": {
+    "presets": [
+     {
+      "name": "lowpoly",
+      "description": "Low poly: flat-shaded facets, flat colours from a small palette, clean pastel light"
+     },
+     {
+      "name": "noir",
+      "description": "Film noir: black and white, hard contrast, ink edges, heavy vignette and grain"
+     },
+     {
+      "name": "realistic",
+      "description": "Physically based: full surface detail, natural light, filmic bloom and ambient occlusion"
+     },
+     {
+      "name": "retro",
+      "description": "Retro pixel art: chunky pixels, flat facets and outlines"
+     },
+     {
+      "name": "stylized",
+      "description": "Painterly and saturated: soft brush-like shapes, gentle light bands, coloured outlines, warm rim light"
+     },
+     {
+      "name": "toon",
+      "description": "Cel shaded cartoon: hard light bands, bold ink outlines, bright flat colours"
+     }
+    ],
+    "layers": "material: Faceted, Pattern, Steps, Saturation, RimStrength, RimColor, Tint | post: Toon, Bands, ShadowFloor, Outline, OutlineWidth, OutlineColor, DepthSens, NormalSens, Paint, PaintRadius, PaintScale, PixelSize, Levels, Saturation, Contrast, Tint | settings: bloom, vignette, ao, grain, chromatic, exposure_bias, temperature | lighting: mood, sun{}, sky{}, fog{}"
+   }
+  },
+  "current": {
+   "ok": true,
+   "applied": true,
+   "style": {
+    "description": "Retro pixel art: chunky pixels, flat facets and outlines",
+    "material": {
+     "Weathering": 0,
+     "Faceted": 1,
+     "Pattern": 0,
+     "Steps": 6,
+     "Saturation": 1.2,
+     "RimStrength": 0,
+     "Tint": [
+      1,
+      1,
+      1
+     ]
+    },
+    "post": {
+     "PixelSize": 4,
+     "Levels": 0,
+     "Outline": 0.6,
+     "OutlineWidth": 1,
+     "Toon": 0.6,
+     "Bands": 3,
+     "ShadowFloor": 0.3,
+     "Paint": 0,
+     "Saturation": 1.1,
+     "Contrast": 1.05,
+     "Tint": [
+      1,
+      1,
+      1
+     ]
+    },
+    "settings": {
+     "bloom": 0.2,
+     "vignette": 0.2,
+     "ao": 0.5,
+     "grain": 0,
+     "chromatic": 0,
+     "exposure_bias": 0.2,
+     "temperature": 6500
+    },
+    "lighting": {
+     "mood": "noon",
+     "fog": {
+      "density": 0.01
+     }
+    },
+    "name": "retro"
+   },
+   "lighting_notes": "",
+   "returnValue": {
+    "applied": true,
+    "style": {
+     "description": "Retro pixel art: chunky pixels, flat facets and outlines",
+     "material": {
+      "Weathering": 0,
+      "Faceted": 1,
+      "Pattern": 0,
+      "Steps": 6,
+      "Saturation": 1.2,
+      "RimStrength": 0,
+      "Tint": [
+       1,
+       1,
+       1
+      ]
+     },
+     "post": {
+      "PixelSize": 4,
+      "Levels": 0,
+      "Outline": 0.6,
+      "OutlineWidth": 1,
+      "Toon": 0.6,
+      "Bands": 3,
+      "ShadowFloor": 0.3,
+      "Paint": 0,
+      "Saturation": 1.1,
+      "Contrast": 1.05,
+      "Tint": [
+       1,
+       1,
+       1
+      ]
+     },
+     "settings": {
+      "bloom": 0.2,
+      "vignette": 0.2,
+      "ao": 0.5,
+      "grain": 0,
+      "chromatic": 0,
+      "exposure_bias": 0.2,
+      "temperature": 6500
+     },
+     "lighting": {
+      "mood": "noon",
+      "fog": {
+       "density": 0.01
+      }
+     },
+     "name": "retro"
+    },
+    "lighting_notes": ""
+   }
+  }
+ }
+}

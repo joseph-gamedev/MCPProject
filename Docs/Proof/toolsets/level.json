@@ -1,0 +1,97 @@
+{
+ "calls": [
+  {
+   "tool": "level.get_current_level",
+   "ok": true
+  },
+  {
+   "tool": "level.list_levels",
+   "ok": true
+  },
+  {
+   "tool": "level.find_assets",
+   "ok": true
+  },
+  {
+   "tool": "level.load_level_instance",
+   "ok": true
+  },
+  {
+   "tool": "level.list_levels",
+   "ok": true
+  },
+  {
+   "tool": "level.set_level_visibility",
+   "ok": true
+  },
+  {
+   "tool": "level.unload_level",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "current": "/Game/Maps/Sandbox",
+  "levels": {
+   "ok": true,
+   "persistent": "/Game/Maps/Sandbox",
+   "streaming": [],
+   "data_layers": {},
+   "returnValue": {
+    "persistent": "/Game/Maps/Sandbox",
+    "streaming": [],
+    "data_layers": {}
+   }
+  },
+  "assets": [
+   {
+    "path": "/Game/RuntimeFoliage/Scanned/SM_PH_Boulder01.SM_PH_Boulder01",
+    "package": "/Game/RuntimeFoliage/Scanned/SM_PH_Boulder01",
+    "class": "StaticMesh"
+   },
+   {
+    "path": "/Game/RuntimeFoliage/Scanned/SM_PH_Celandine01.SM_PH_Celandine01",
+    "package": "/Game/RuntimeFoliage/Scanned/SM_PH_Celandine01",
+    "class": "StaticMesh"
+   },
+   {
+    "path": "/Game/RuntimeFoliage/Scanned/SM_PH_Dandelion01.SM_PH_Dandelion01",
+    "package": "/Game/RuntimeFoliage/Scanned/SM_PH_Dandelion01",
+    "class": "StaticMesh"
+   },
+   {
+    "path": "/Game/RuntimeFoliage/Scanned/SM_PH_Fern02.SM_PH_Fern02",
+    "package": "/Game/RuntimeFoliage/Scanned/SM_PH_Fern02",
+    "class": "StaticMesh"
+   },
+   {
+    "path": "/Game/RuntimeFoliage/Scanned/SM_PH_GrassBermuda01.SM_PH_GrassBermuda01",
+    "package": "/Game/RuntimeFoliage/Scanned/SM_PH_GrassBermuda01",
+    "class": "StaticMesh"
+   }
+  ],
+  "instance": {
+   "ok": true,
+   "level": {
+    "name": "SandboxCopy",
+    "package": "/Game/Maps/SandboxCopy",
+    "loaded": true,
+    "visible": true,
+    "should_be_loaded": true,
+    "should_be_visible": true,
+    "instance": true
+   },
+   "returnValue": {
+    "level": {
+     "name": "SandboxCopy",
+     "package": "/Game/Maps/SandboxCopy",
+     "loaded": true,
+     "visible": true,
+     "should_be_loaded": true,
+     "should_be_visible": true,
+     "instance": true
+    }
+   },
+   "history_id": 341
+  }
+ }
+}

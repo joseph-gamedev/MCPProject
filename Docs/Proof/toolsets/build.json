@@ -1,0 +1,232 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_profile_solid",
+   "ok": true
+  },
+  {
+   "tool": "build.create_profile_solid",
+   "ok": true
+  },
+  {
+   "tool": "build.create_assembly",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.array",
+   "ok": true
+  },
+  {
+   "tool": "build.mirror",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.boolean_op",
+   "ok": true
+  },
+  {
+   "tool": "build.set_material",
+   "ok": true
+  },
+  {
+   "tool": "build.measure",
+   "ok": true
+  },
+  {
+   "tool": "build.place_mesh",
+   "ok": true
+  },
+  {
+   "tool": "build.place_instances",
+   "ok": true
+  },
+  {
+   "tool": "build.create_river",
+   "ok": true
+  },
+  {
+   "tool": "build.get_build_stats",
+   "ok": true
+  },
+  {
+   "tool": "build.check_overlaps",
+   "ok": true
+  },
+  {
+   "tool": "build.list_materials",
+   "ok": true
+  },
+  {
+   "tool": "build.get_guide",
+   "ok": true
+  },
+  {
+   "tool": "build.capture_view",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "measure": {
+   "ok": true,
+   "center_distance": 600.52099609375,
+   "center_delta": [
+    600,
+    0,
+    -25
+   ],
+   "gap": 325.68499755859375,
+   "gap_xyz": [
+    325.6848,
+    0,
+    0
+   ],
+   "size_a": [
+    300,
+    300,
+    300
+   ],
+   "size_b": [
+    248.6305,
+    248.6305,
+    250
+   ],
+   "overlapping": false,
+   "returnValue": {
+    "center_distance": 600.52099609375,
+    "center_delta": [
+     600,
+     0,
+     -25
+    ],
+    "gap": 325.68499755859375,
+    "gap_xyz": [
+     325.6848,
+     0,
+     0
+    ],
+    "size_a": [
+     300,
+     300,
+     300
+    ],
+    "size_b": [
+     248.6305,
+     248.6305,
+     250
+    ],
+    "overlapping": false
+   }
+  },
+  "stats": {
+   "ok": true,
+   "nodes": 18,
+   "builder_primitives": 15,
+   "triangles": 152504,
+   "components": 17,
+   "materials": 18,
+   "draw_calls_estimate": 18,
+   "size": [
+    30000,
+    30000,
+    1874.2678
+   ],
+   "returnValue": {
+    "nodes": 18,
+    "builder_primitives": 15,
+    "triangles": 152504,
+    "components": 17,
+    "materials": 18,
+    "draw_calls_estimate": 18,
+    "size": [
+     30000,
+     30000,
+     1874.2678
+    ]
+   }
+  },
+  "materials": [
+   "marble",
+   "sandstone",
+   "limestone",
+   "granite",
+   "stone",
+   "brick",
+   "terracotta",
+   "concrete",
+   "plaster",
+   "wood",
+   "slate_roof",
+   "copper",
+   "verdigris",
+   "bronze",
+   "gold",
+   "steel",
+   "iron",
+   "painted_iron",
+   "glass",
+   "tinted_glass",
+   "water",
+   "grass",
+   "sand",
+   "asphalt",
+   "roof_tile",
+   "cobblestone",
+   "paving",
+   "corrugated",
+   "light",
+   "white",
+   "black",
+   "red",
+   "green",
+   "blue"
+  ]
+ }
+}

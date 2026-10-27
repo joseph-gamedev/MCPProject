@@ -1,0 +1,204 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "ai.build_navigation",
+   "ok": true
+  },
+  {
+   "tool": "ai.get_navigation_status",
+   "ok": true
+  },
+  {
+   "tool": "ai.find_path",
+   "ok": true
+  },
+  {
+   "tool": "ai.project_to_navigation",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "ai.create_agent",
+   "ok": true
+  },
+  {
+   "tool": "ai.list_agents",
+   "ok": true
+  },
+  {
+   "tool": "ai.move_to",
+   "ok": true
+  },
+  {
+   "tool": "ai.get_brain_state",
+   "ok": true
+  },
+  {
+   "tool": "ai.get_perception",
+   "ok": true
+  },
+  {
+   "tool": "ai.report_noise",
+   "ok": true
+  },
+  {
+   "tool": "ai.list_behavior_trees",
+   "ok": true
+  },
+  {
+   "tool": "ai.stop_movement",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "nav": {
+   "ok": true,
+   "has_nav_mesh": true,
+   "building": false,
+   "dynamic": true,
+   "bounds_min": [
+    -4000,
+    -4000,
+    -200
+   ],
+   "bounds_max": [
+    4000,
+    4000,
+    600
+   ],
+   "hint": "",
+   "returnValue": {
+    "has_nav_mesh": true,
+    "building": false,
+    "dynamic": true,
+    "bounds_min": [
+     -4000,
+     -4000,
+     -200
+    ],
+    "bounds_max": [
+     4000,
+     4000,
+     600
+    ],
+    "hint": ""
+   }
+  },
+  "status": {
+   "ok": true,
+   "has_nav_mesh": true,
+   "building": false,
+   "dynamic": true,
+   "bounds_min": [
+    -4000,
+    -4000,
+    -200
+   ],
+   "bounds_max": [
+    4000,
+    4000,
+    600
+   ],
+   "hint": "",
+   "returnValue": {
+    "has_nav_mesh": true,
+    "building": false,
+    "dynamic": true,
+    "bounds_min": [
+     -4000,
+     -4000,
+     -200
+    ],
+    "bounds_max": [
+     4000,
+     4000,
+     600
+    ],
+    "hint": ""
+   }
+  },
+  "path": {
+   "ok": true,
+   "found": true,
+   "partial": false,
+   "length": 3007.6552734375,
+   "points": [
+    [
+     -1500,
+     0,
+     10
+    ],
+    [
+     -323,
+     95,
+     10
+    ],
+    [
+     323,
+     95,
+     10
+    ],
+    [
+     1500,
+     0,
+     10
+    ]
+   ],
+   "returnValue": {
+    "found": true,
+    "partial": false,
+    "length": 3007.6552734375,
+    "points": [
+     [
+      -1500,
+      0,
+      10
+     ],
+     [
+      -323,
+      95,
+      10
+     ],
+     [
+      323,
+      95,
+      10
+     ],
+     [
+      1500,
+      0,
+      10
+     ]
+    ]
+   }
+  },
+  "trees": []
+ }
+}

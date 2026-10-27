@@ -1,0 +1,71 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "materials.list_parameters",
+   "ok": true
+  },
+  {
+   "tool": "materials.set_vector",
+   "ok": true
+  },
+  {
+   "tool": "materials.set_scalar",
+   "ok": true
+  },
+  {
+   "tool": "materials.get_parameter",
+   "ok": true
+  },
+  {
+   "tool": "materials.set_material",
+   "ok": true
+  },
+  {
+   "tool": "materials.set_vector",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "materials.set_texture",
+   "ok": true
+  },
+  {
+   "tool": "materials.list_collection_parameters",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "params": []
+ }
+}

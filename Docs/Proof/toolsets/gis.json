@@ -1,0 +1,80 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "gis.set_origin",
+   "ok": true
+  },
+  {
+   "tool": "gis.get_origin",
+   "ok": true
+  },
+  {
+   "tool": "gis.create_plots",
+   "ok": true
+  },
+  {
+   "tool": "gis.list_plots",
+   "ok": true
+  },
+  {
+   "tool": "gis.get_plot",
+   "ok": true
+  },
+  {
+   "tool": "gis.find_plot",
+   "ok": true
+  },
+  {
+   "tool": "gis.set_plot",
+   "ok": true
+  },
+  {
+   "tool": "gis.subdivide_plot",
+   "ok": true
+  },
+  {
+   "tool": "gis.show_plots",
+   "ok": true
+  },
+  {
+   "tool": "gis.export_geo_json",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "origin": {
+   "ok": true,
+   "set": true,
+   "latitude": 25.2048,
+   "longitude": 55.2708,
+   "axes": "+X east, -Y north, cm",
+   "returnValue": {
+    "set": true,
+    "latitude": 25.2048,
+    "longitude": 55.2708,
+    "axes": "+X east, -Y north, cm"
+   }
+  },
+  "plots": 50
+ }
+}

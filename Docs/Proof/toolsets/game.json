@@ -1,0 +1,85 @@
+{
+ "calls": [
+  {
+   "tool": "game.get_game_state",
+   "ok": true
+  },
+  {
+   "tool": "game.list_players",
+   "ok": true
+  },
+  {
+   "tool": "game.set_time_dilation",
+   "ok": true
+  },
+  {
+   "tool": "game.set_time_dilation",
+   "ok": true
+  },
+  {
+   "tool": "game.set_pause",
+   "ok": true
+  },
+  {
+   "tool": "game.set_pause",
+   "ok": true
+  },
+  {
+   "tool": "game.teleport",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "state": {
+   "ok": true,
+   "map": "Sandbox",
+   "time_seconds": 138.91900634765625,
+   "real_time_seconds": 139.17100524902344,
+   "paused": false,
+   "time_dilation": 1,
+   "game_mode": "RuntimeViewerGameMode",
+   "default_pawn": "RuntimeViewerPawn",
+   "game_state": "GameStateBase",
+   "player_states": 1,
+   "players": 1,
+   "returnValue": {
+    "map": "Sandbox",
+    "time_seconds": 138.91900634765625,
+    "real_time_seconds": 139.17100524902344,
+    "paused": false,
+    "time_dilation": 1,
+    "game_mode": "RuntimeViewerGameMode",
+    "default_pawn": "RuntimeViewerPawn",
+    "game_state": "GameStateBase",
+    "player_states": 1,
+    "players": 1
+   }
+  },
+  "players": [
+   {
+    "controller": {
+     "ref": "actor:PlayerController_0",
+     "name": "PlayerController0",
+     "class": "PlayerController"
+    },
+    "local": true,
+    "name": "DESKTOP-AOBCNN3-C250",
+    "pawn": {
+     "ref": "actor:Character_0",
+     "name": "Character0",
+     "class": "Character"
+    },
+    "location": [
+     0,
+     0,
+     92.15
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ]
+   }
+  ]
+ }
+}

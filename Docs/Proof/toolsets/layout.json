@@ -1,0 +1,167 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "layout.arrange_in_grid",
+   "ok": true
+  },
+  {
+   "tool": "layout.arrange_in_row",
+   "ok": true
+  },
+  {
+   "tool": "layout.drop_to_ground",
+   "ok": true
+  },
+  {
+   "tool": "layout.align_nodes",
+   "ok": true
+  },
+  {
+   "tool": "layout.distribute_nodes",
+   "ok": true
+  },
+  {
+   "tool": "layout.snap_to_grid",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "layout.arrange_in_circle",
+   "ok": true
+  },
+  {
+   "tool": "layout.drop_to_ground",
+   "ok": true
+  },
+  {
+   "tool": "layout.randomize_transform",
+   "ok": true
+  },
+  {
+   "tool": "layout.find_free_space",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "free_space": {
+   "ok": true,
+   "found": true,
+   "center": [
+    0,
+    0,
+    151
+   ],
+   "ground_location": [
+    0,
+    0,
+    1
+   ],
+   "tested": 1,
+   "returnValue": {
+    "found": true,
+    "center": [
+     0,
+     0,
+     151
+    ],
+    "ground_location": [
+     0,
+     0,
+     1
+    ],
+    "tested": 1
+   }
+  }
+ }
+}

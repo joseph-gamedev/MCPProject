@@ -1,0 +1,211 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_simulate",
+   "ok": true
+  },
+  {
+   "tool": "physics.set_body",
+   "ok": true
+  },
+  {
+   "tool": "physics.add_impulse",
+   "ok": true
+  },
+  {
+   "tool": "physics.line_trace",
+   "ok": true
+  },
+  {
+   "tool": "physics.overlap_test",
+   "ok": true
+  },
+  {
+   "tool": "physics.get_collision_channels",
+   "ok": true
+  },
+  {
+   "tool": "physics.get_physics",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "trace": {
+   "ok": true,
+   "hit": true,
+   "hits": [
+    {
+     "actor": "n110",
+     "component": "DynamicMeshComponent",
+     "location": [
+      0,
+      0,
+      724.1012
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ],
+     "distance": 1275.8990478515625
+    }
+   ],
+   "returnValue": {
+    "hit": true,
+    "hits": [
+     {
+      "actor": "n110",
+      "component": "DynamicMeshComponent",
+      "location": [
+       0,
+       0,
+       724.1012
+      ],
+      "normal": [
+       0,
+       0,
+       1
+      ],
+      "distance": 1275.8990478515625
+     }
+    ]
+   }
+  },
+  "overlap": {
+   "ok": true,
+   "total": 5,
+   "truncated": false,
+   "actors": [
+    "n103",
+    "n105",
+    "n106",
+    "n107",
+    "n108"
+   ],
+   "returnValue": {
+    "total": 5,
+    "truncated": false,
+    "actors": [
+     "n103",
+     "n105",
+     "n106",
+     "n107",
+     "n108"
+    ]
+   }
+  },
+  "ball": {
+   "ok": true,
+   "component": "DynamicMeshComponent",
+   "simulating": true,
+   "gravity": true,
+   "collision_profile": "BlockAll",
+   "collision": true,
+   "mobility": "Movable",
+   "mass_kg": 80,
+   "velocity": [
+    -332.602,
+    6.8249,
+    0
+   ],
+   "angular_velocity": [
+    -6.5173,
+    -317.6115,
+    -26.7248
+   ],
+   "bodies": [],
+   "returnValue": {
+    "component": "DynamicMeshComponent",
+    "simulating": true,
+    "gravity": true,
+    "collision_profile": "BlockAll",
+    "collision": true,
+    "mobility": "Movable",
+    "mass_kg": 80,
+    "velocity": [
+     -332.602,
+     6.8249,
+     0
+    ],
+    "angular_velocity": [
+     -6.5173,
+     -317.6115,
+     -26.7248
+    ],
+    "bodies": []
+   }
+  }
+ }
+}

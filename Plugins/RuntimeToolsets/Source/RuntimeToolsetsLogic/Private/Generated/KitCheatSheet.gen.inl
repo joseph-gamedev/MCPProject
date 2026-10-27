@@ -4,7 +4,7 @@ static const FString KitCheatSheet = FString()
 ## API cheat sheet (generated from the code)
 ### unreal_kit (import unreal_kit as uk)
 batch(calls, atomic=False)  # Up to 100 calls [{"tool": ..., "arguments": {...}}] in one request; "$N.id" refers to call N's result.
-call(tool, **arguments)  # Runs one tool by its qualified name, e.g. call("build.create_primitive", shape="box").
+call(tool, /, **arguments)  # Runs one tool by its qualified name, e.g. call("build.create_primitive", shape="box").
 check_parts(parts, where="parts")  # Raises ToolError for unknown materials or shapes before anything is built (no half-built scenes).
 connect(url=None, relay=None, token=None)  # Chooses the connection: url=<local MCP URL>, or relay=<https://.../s/CODE> + token. Default: the game on this
 place(name, parts, at=(0, 0, 0), group=None)  # Builds parts (dicts) as one object (more objects above 500 parts) at a location; returns node ids.
@@ -75,8 +75,8 @@ column(children, gap=6, align=None, **kw)
 define(items, theme=None, replace=False)  # Creates or updates UI items (merged by name). theme: dict or a THEMES key.
 divider()
 grid(children, columns=3, gap=8, cell=None, **kw)  # cell = [width, height] gives every cell the same size.
-hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{expr}")KIT"))
-	+ FString(TEXT(R"KIT()], bars = [(label, value_expr, max_expr, fill)].
+hud(name, stats, corner="top-left", title=None, bars=())  # Corner HUD: stats = [(label, "{exp)KIT"))
+	+ FString(TEXT(R"KIT(r}")], bars = [(label, value_expr, max_expr, fill)].
 inventory(name, list_var, columns=5, visible_if=None, heading="Inventory", slot_text=None)  # Grid of slots, one per element of a list variable; clicking fires button '<name>_slot' with event.data.i.
 menu(name, heading, buttons, visible_if=None, subtitle=None)  # Title screen / pause menu: buttons = [(name, label)] (first is primary).
 panel(name, children, anchor="center", visible_if=None, width=None, padding=16, gap=10, **kw)  # A top-level window/card. Every screen is a panel with a name.
@@ -134,8 +134,8 @@ f_bridge(w, d, n, rng, b, R)  # Two blocks joined high up by a bridge volume, op
 f_campus(w, d, n, rng, b, R)  # Two to four pavilions of different heights, turned against each other, linked by a low glass spine.
 f_cantilever(w, d, n, rng, b, R)  # Stacked boxes shifted against each other: the upper ones cantilever out over the lower.
 f_courtyard(w, d, n, rng, b, R)
-f_curve(w, d, n, rng, b, R)  # A ba)KIT"))
-	+ FString(TEXT(R"KIT(r curving along the street, convex or concave.
+f_curve(w, d, n, rng, b, R)  # A)KIT"))
+	+ FString(TEXT(R"KIT( bar curving along the street, convex or concave.
 f_h(w, d, n, rng, b, R)
 f_l(w, d, n, rng, b, R)
 f_mall(w, d, n, rng, b, R)
@@ -220,8 +220,8 @@ build_all(ids=None, zoning="", limit=300, detail="auto", style="auto", styles=No
 clear(buildings=True)  # Removes all plots (and the buildings standing on them).
 create(size=(40000, 30000), layout="blocks", center=(0, 0, 0), area=None, street_width=1200, block_size=(8000, 5000), lot_width=(1200, 2400), lot_depth=0, zoning=None, center_commercial=True, seed=None, replace=True)  # Random land: streets, blocks and lots (layout blocks | grid | organic | radial). Returns the game's summary.
 export(path=None, lonlat=True)  # The plots as GeoJSON (dict); written to path when given.
-fetch(ids, batch=40)  # Full plot data for many ids in few requests (answers are )KIT"))
-	+ FString(TEXT(R"KIT(capped at 256 KB: batches halve when a batch is too b
+fetch(ids, batch=40)  # Full plot data for many ids in few requests (answers a)KIT"))
+	+ FString(TEXT(R"KIT(re capped at 256 KB: batches halve when a batch is too b
 kind_for(zoning, area_m2)  # A building type that suits the land use and plot size.
 load_geojson(src, replace=True, origin_latlon=None, kind="plot")  # GeoJSON (path, text or dict): Polygon / MultiPolygon features become plots with their properties (WGS84 lon/la
 load_georegions(path, types=("Plot",), sectors=None, communities=None, landuse=None, coords="geo", areas=True, limit=None, replace=True, origin_latlon=None)  # GeoRegions JSON ({mapName, features: [{type: Sector|Community|Plot, name, id, metadata, polygon: [[lon, lat, h
@@ -264,8 +264,8 @@ pool(name, template, size=10)
 score_and_lives(lives=3, title=None, save_slot="game", theme=None)  # score / hi / lives / over variables, a HUD, a game-over panel with a restart button, R to restart,
 show_banner(text_expr, seconds=2.0)
 side_player(at, walk_speed=600, jump=950, camera_distance=2200, camera_height=250, body=None, fixed_screen=None, **movement)  # 2D side view player (plane X/Z). fixed_screen = {"center": [x, y, z], "width": cm} gives one fixed arcade scre
-third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trailin)KIT"))
-	+ FString(TEXT(R"KIT(g at eye height.
+third_person_player(at, walk_speed=500, run_speed=900, camera_distance=450, body=None)  # Behind-the-shoulder style: WASD on world axes, camera trai)KIT"))
+	+ FString(TEXT(R"KIT(ling at eye height.
 topdown_player(at, walk_speed=600, camera_height=1500, camera_back=900, aim_with_mouse=True, body=None, **movement)  # Top-down / twin-stick player: WASD move, faces the mouse (or movement), camera above and behind.
 win(message="YOU WIN!")
 ### examples: combat_presets.py

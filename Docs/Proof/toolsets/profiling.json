@@ -1,0 +1,147 @@
+{
+ "calls": [
+  {
+   "tool": "profiling.frame_timing",
+   "ok": true
+  },
+  {
+   "tool": "profiling.gpu_stats",
+   "ok": true
+  },
+  {
+   "tool": "profiling.memory_report",
+   "ok": true
+  },
+  {
+   "tool": "profiling.find_hitches",
+   "ok": true
+  },
+  {
+   "tool": "profiling.start_trace",
+   "ok": true
+  },
+  {
+   "tool": "profiling.stop_trace",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "timing": {
+   "ok": true,
+   "frames": 179,
+   "avg_ms": 5.6020002365112305,
+   "fps": 178.51400756835938,
+   "min_ms": 0.16500000655651093,
+   "p50_ms": 5.489999771118164,
+   "p95_ms": 6.756999969482422,
+   "p99_ms": 8.413999557495117,
+   "max_ms": 8.520000457763672,
+   "hitches": 0,
+   "last_frame": {
+    "game_ms": 3.434000015258789,
+    "render_ms": 5.5289998054504395,
+    "rhi_ms": 2.8910000324249268,
+    "gpu_ms": 4.329999923706055
+   },
+   "returnValue": {
+    "frames": 179,
+    "avg_ms": 5.6020002365112305,
+    "fps": 178.51400756835938,
+    "min_ms": 0.16500000655651093,
+    "p50_ms": 5.489999771118164,
+    "p95_ms": 6.756999969482422,
+    "p99_ms": 8.413999557495117,
+    "max_ms": 8.520000457763672,
+    "hitches": 0,
+    "last_frame": {
+     "game_ms": 3.434000015258789,
+     "render_ms": 5.5289998054504395,
+     "rhi_ms": 2.8910000324249268,
+     "gpu_ms": 4.329999923706055
+    }
+   }
+  },
+  "gpu": {
+   "ok": true,
+   "rhi": "D3D12",
+   "adapter": "NVIDIA GeForce RTX 4070",
+   "gpu_ms": 3.552000045776367,
+   "viewport": [
+    1280,
+    720
+   ],
+   "screen_percentage": 100,
+   "vsync": false,
+   "returnValue": {
+    "rhi": "D3D12",
+    "adapter": "NVIDIA GeForce RTX 4070",
+    "gpu_ms": 3.552000045776367,
+    "viewport": [
+     1280,
+     720
+    ],
+    "screen_percentage": 100,
+    "vsync": false
+   }
+  },
+  "memory": {
+   "ok": true,
+   "used_physical_mb": 3338.547119140625,
+   "peak_physical_mb": 3354.926025390625,
+   "used_virtual_mb": 4113.31591796875,
+   "available_physical_mb": 46980.625,
+   "uobjects": 61763,
+   "top_classes": [
+    {
+     "class": "Function",
+     "count": 17270
+    },
+    {
+     "class": "Class",
+     "count": 9384
+    },
+    {
+     "class": "ScriptStruct",
+     "count": 8239
+    },
+    {
+     "class": "Enum",
+     "count": 3163
+    },
+    {
+     "class": "DelegateFunction",
+     "count": 1270
+    }
+   ],
+   "returnValue": {
+    "used_physical_mb": 3338.547119140625,
+    "peak_physical_mb": 3354.926025390625,
+    "used_virtual_mb": 4113.31591796875,
+    "available_physical_mb": 46980.625,
+    "uobjects": 61763,
+    "top_classes": [
+     {
+      "class": "Function",
+      "count": 17270
+     },
+     {
+      "class": "Class",
+      "count": 9384
+     },
+     {
+      "class": "ScriptStruct",
+      "count": 8239
+     },
+     {
+      "class": "Enum",
+      "count": 3163
+     },
+     {
+      "class": "DelegateFunction",
+      "count": 1270
+     }
+    ]
+   }
+  }
+ }
+}

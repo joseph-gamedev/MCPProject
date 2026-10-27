@@ -74,6 +74,20 @@ namespace RtLight
 		return 90.0 * FMath::Sin(PI * (Hour - 6.0) / 12.0);
 	}
 
+	// night: a dim, cool moon above the horizon, exposed so the scene reads as night but stays visible (measured)
+	constexpr float NightMoonLux = 0.5f, NightEv = 1.5f, NightMoonElevation = 40.f;
+
+	/** Sun illuminance (lux) for a sun elevation: 100000 overhead, ~9000 at 10 degrees, dusk falling to moonlight (0.6) by -6. */
+	float LuxForElevation(double Elevation)
+	{
+		if (Elevation >= 0.0)
+		{
+			return FMath::Max(400.f, 100000.f * FMath::Pow(static_cast<float>(FMath::Sin(FMath::DegreesToRadians(Elevation))), 1.3f));
+		}
+		const float A = static_cast<float>(FMath::Clamp(-Elevation / 6.0, 0.0, 1.0));
+		return FMath::Pow(2.f, FMath::Lerp(FMath::Log2(400.f), FMath::Log2(0.6f), A));
+	}
+
 	/** Camera exposure (EV100) that renders a scene lit by this much sun correctly (Sunny 16: 100000 lux ~ EV 15). */
 	float EvForLux(float Lux)
 	{
@@ -956,14 +970,39 @@ FRuntimeTimeOfDay URuntimeLightingToolset::SetTimeOfDay(float Hour, const float&
 		return {};
 	}
 	FSunState New = FSunState::Read(Sun);
-	New.Rotation.Pitch = -SunElevation(Hour);
+	const double Elevation = SunElevation(Hour);
+	New.Rotation.Pitch = -Elevation;
 	if (Passed(TEXT("yaw")))
 	{
 		New.Rotation.Yaw = Yaw;
 	}
+	// the sun's brightness and a matching locked exposure follow the hour, so day, dusk and night all read correctly
+	// (moving the sun alone left noon light under the horizon, or moonlight at noon: black or white frames)
+	float Lux = LuxForElevation(Elevation), Ev;
+	if (Elevation >= 0.0)
+	{
+		// sunlit surfaces clip with a straight incident-light meter when the sun is high: up to a stop darker (measured)
+		Ev = EvForLux(Lux) + FMath::Clamp(static_cast<float>(FMath::Sin(FMath::DegreesToRadians(Elevation))) / 0.5f, 0.f, 1.f);
+	}
+	else
+	{
+		// dusk: exposure opens towards night; full night is a dim moon above the horizon (a light under the ground lights nothing)
+		const float A = static_cast<float>(FMath::Clamp(-Elevation / 6.0, 0.0, 1.0));
+		Ev = FMath::Lerp(EvForLux(400.f), NightEv, A);
+		if (A >= 1.f)
+		{
+			New.Rotation.Pitch = -NightMoonElevation;
+			New.Temperature = 9000.f;
+			New.bUseTemperature = true;
+			Lux = NightMoonLux;
+		}
+	}
+	New.Intensity = Lux;
 	TUniquePtr<FCompositeCommand> Cmd = MakeUnique<FCompositeCommand>(TEXT("time of day"));
 	Cmd->Add(MakeStateCommand(TEXT("sun"), Sun, New));
 	AddSkyRecapture(RuntimeToolCall::GetWorld(), *Cmd);
+	bool bCreated = false;
+	AddPostProcess(RuntimeToolCall::GetWorld(), [Ev](FPostProcessSettings& S) { LockExposure(S, Ev); }, *Cmd, bCreated);
 	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
 	{
 		return {};
@@ -1000,12 +1039,12 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 	};
 	// Values: Epic physical light units, Sunny-16 exposure (100000 lux ~ EV 15), photographic ranges per mood.
 	static const TMap<ERuntimeLightingMood, FMood> Moods = {
-		{ERuntimeLightingMood::Noon, {12.0, 6200.f, 0.01f, false, 1.0f, 1.0f, 6500.f, 0.f, 0.f, -2.f, 100000.f, 1.0f, 14.6f}},
-		{ERuntimeLightingMood::Morning, {8.0, 5000.f, 0.02f, false, 1.02f, 1.0f, 6300.f, 0.f, 0.f, -2.f, 40000.f, 1.0f, 13.6f}},
+		{ERuntimeLightingMood::Noon, {12.0, 6200.f, 0.01f, false, 1.0f, 1.0f, 6500.f, 0.f, 0.f, -2.f, 100000.f, 1.0f, 16.3f}},
+		{ERuntimeLightingMood::Morning, {8.0, 5000.f, 0.02f, false, 1.02f, 1.0f, 6300.f, 0.f, 0.f, -2.f, 40000.f, 1.0f, 15.0f}},
 		{ERuntimeLightingMood::Sunset, {17.4, 3400.f, 0.02f, false, 0.98f, 1.02f, 6200.f, 0.f, 0.f, -2.f, 9000.f, 1.0f, 11.8f}},
-		{ERuntimeLightingMood::Night, {0.0, 4100.f, 0.02f, false, 0.8f, 1.0f, 7000.f, 0.f, 0.f, -2.f, 0.6f, 0.4f, 2.5f}},
-		{ERuntimeLightingMood::Overcast, {13.0, 6800.f, 0.04f, false, 0.85f, 0.97f, 6800.f, 0.f, 55.f, 0.6f, 9000.f, 1.6f, 12.2f}},
-		{ERuntimeLightingMood::Foggy, {10.0, 6000.f, 0.2f, true, 0.88f, 0.95f, 6600.f, 0.f, 30.f, -2.f, 25000.f, 1.3f, 13.0f}},
+		{ERuntimeLightingMood::Night, {0.0, 9000.f, 0.02f, false, 0.8f, 1.0f, 7000.f, 0.f, 0.f, -2.f, NightMoonLux, 1.0f, NightEv}},
+		{ERuntimeLightingMood::Overcast, {13.0, 6800.f, 0.04f, false, 0.85f, 0.97f, 6800.f, 0.f, 55.f, 0.6f, 9000.f, 1.6f, 13.0f}},
+		{ERuntimeLightingMood::Foggy, {10.0, 6000.f, 0.2f, true, 0.88f, 0.95f, 6600.f, 0.f, 30.f, -2.f, 25000.f, 1.3f, 14.0f}},
 	};
 	const FMood& M = Moods.FindChecked(Mood);
 	UWorld* World = RuntimeToolCall::GetWorld();
@@ -1015,7 +1054,7 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 	if (ADirectionalLight* Sun = FirstActor<ADirectionalLight>(World))
 	{
 		FSunState S = FSunState::Read(Sun);
-		S.Rotation.Pitch = -SunElevation(M.Hour);
+		S.Rotation.Pitch = Mood == ERuntimeLightingMood::Night ? -NightMoonElevation : -SunElevation(M.Hour);   // night: the moon
 		S.Temperature = M.Temperature;
 		S.bUseTemperature = true;
 		S.SoftSourceAngle = M.SoftAngle;

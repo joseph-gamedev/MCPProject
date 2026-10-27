@@ -1,0 +1,79 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "actors.set_transform",
+   "ok": true
+  },
+  {
+   "tool": "actors.add_component",
+   "ok": true
+  },
+  {
+   "tool": "actors.list_components",
+   "ok": true
+  },
+  {
+   "tool": "actors.attach",
+   "ok": true
+  },
+  {
+   "tool": "actors.find_actors",
+   "ok": true
+  },
+  {
+   "tool": "actors.set_visibility",
+   "ok": true
+  },
+  {
+   "tool": "actors.list_components",
+   "ok": true
+  },
+  {
+   "tool": "actors.remove_component",
+   "ok": true
+  },
+  {
+   "tool": "actors.destroy_actor",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "components": [
+   "StaticMeshComponent0",
+   "Glow"
+  ],
+  "find": 1
+ }
+}

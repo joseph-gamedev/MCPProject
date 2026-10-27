@@ -3231,7 +3231,7 @@ def _lighting_set_sun(*, color=None, intensity=None, rotation=None, soft_source_
 
 
 def _lighting_set_time_of_day(*, hour, target=None, yaw=None):
-    """Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon. Undoable.
+    """Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon, and sets the sun's brightness (lux) and a matching locked exposure for that hour, so any hour renders correctly. Undoable.
     Returns: The hour and the sun after the change. Fails if the hour is outside 0-24 or there is no directional light.
 
     Args:

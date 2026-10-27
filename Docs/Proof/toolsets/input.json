@@ -1,0 +1,23 @@
+{
+ "calls": [
+  {
+   "tool": "input.inject_key",
+   "ok": true
+  },
+  {
+   "tool": "input.inject_key",
+   "ok": true
+  },
+  {
+   "tool": "level.find_assets",
+   "ok": true
+  },
+  {
+   "tool": "level.find_assets",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "contexts": []
+ }
+}

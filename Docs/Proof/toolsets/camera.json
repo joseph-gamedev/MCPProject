@@ -1,0 +1,119 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_camera",
+   "ok": true
+  },
+  {
+   "tool": "camera.get_camera",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_fov",
+   "ok": true
+  },
+  {
+   "tool": "camera.frame_nodes",
+   "ok": true
+  },
+  {
+   "tool": "camera.orbit",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_fly_speed",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_fly_mode",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_view_mode",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_view_mode",
+   "ok": true
+  },
+  {
+   "tool": "camera.reset_camera",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "camera": {
+   "ok": true,
+   "location": [
+    -1000,
+    -1000,
+    600
+   ],
+   "rotation": [
+    -15.7932,
+    45,
+    0
+   ],
+   "fov": 60,
+   "mode": "PlayerPawn",
+   "tool_camera": false,
+   "view_target": "actor:RuntimeViewerPawn_0",
+   "pawn": "actor:RuntimeViewerPawn_0",
+   "center": [
+    0,
+    0,
+    0
+   ],
+   "distance": 0,
+   "controls": "player keeps control: WASD/QE to fly, mouse to look",
+   "returnValue": {
+    "location": [
+     -1000,
+     -1000,
+     600
+    ],
+    "rotation": [
+     -15.7932,
+     45,
+     0
+    ],
+    "fov": 60,
+    "mode": "PlayerPawn",
+    "tool_camera": false,
+    "view_target": "actor:RuntimeViewerPawn_0",
+    "pawn": "actor:RuntimeViewerPawn_0",
+    "center": [
+     0,
+     0,
+     0
+    ],
+    "distance": 0,
+    "controls": "player keeps control: WASD/QE to fly, mouse to look"
+   }
+  }
+ }
+}

@@ -418,6 +418,14 @@ namespace Gis
 			Nested(TEXT("scene.delete_node"), Del);
 			S.VisNode.Reset();
 		}
+		for (const TWeakObjectPtr<USceneComponent>& C : S.LabelParts)
+		{
+			if (C.IsValid())
+			{
+				C->DestroyComponent();
+			}
+		}
+		S.LabelParts.Reset();
 		if (S.Labels.IsValid())
 		{
 			S.Labels->Destroy();
@@ -478,12 +486,20 @@ namespace Gis
 		UWorld* World = RuntimeToolCall::GetWorld();
 		if (S.bShowLabels && World && S.Plots.Num() && S.Plots.Num() <= S.MaxLabels)
 		{
-			FActorSpawnParameters SP;
-			SP.Name = MakeUniqueObjectName(World, AActor::StaticClass(), TEXT("GIS_Labels"));
-			AActor* L = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, SP);
-			USceneComponent* Root = NewObject<USceneComponent>(L, TEXT("Root"));
-			L->SetRootComponent(Root);
-			Root->RegisterComponent();
+			// labels live on the plot drawing's node, so scene.clear_all / delete / undo take them along
+			const FRuntimeSceneNode* Vis = S.VisNode.IsEmpty() ? nullptr : RuntimeToolCall::GetGraph()->Find(S.VisNode);
+			AActor* L = Vis ? Vis->Actor.Get() : nullptr;
+			USceneComponent* Root = L ? L->GetRootComponent() : nullptr;
+			const bool bOwnActor = !Root;
+			if (bOwnActor)
+			{
+				FActorSpawnParameters SP;
+				SP.Name = MakeUniqueObjectName(World, AActor::StaticClass(), TEXT("GIS_Labels"));
+				L = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform::Identity, SP);
+				Root = NewObject<USceneComponent>(L, TEXT("Root"));
+				L->SetRootComponent(Root);
+				Root->RegisterComponent();
+			}
 			for (const FGisPlot& P : S.Plots)
 			{
 				const FVector2D C = Centroid(P.Poly);
@@ -498,8 +514,12 @@ namespace Gis
 				T->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 				T->SetWorldLocationAndRotation(FVector(C.X, C.Y, P.Z + 40), FRotator(90.0, 180.0, 0.0));
 				T->RegisterComponent();
+				S.LabelParts.Add(T);
 			}
-			S.Labels = L;
+			if (bOwnActor)
+			{
+				S.Labels = L;
+			}
 		}
 	}
 

@@ -1,0 +1,93 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "ui.create_hud_text",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "ui.create_label",
+   "ok": true
+  },
+  {
+   "tool": "ui.set_label",
+   "ok": true
+  },
+  {
+   "tool": "ui.list_widgets",
+   "ok": true
+  },
+  {
+   "tool": "ui.find_widget",
+   "ok": true
+  },
+  {
+   "tool": "ui.show_activity",
+   "ok": true
+  },
+  {
+   "tool": "ui.show_activity",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "widgets": {
+   "ok": true,
+   "total": 1,
+   "widgets": [
+    {
+     "target": "widget:Title",
+     "name": "Title",
+     "class": "RuntimeToolsetsHudWidget",
+     "path": "/Engine/Transient.GameEngine_0:GameInstance_0.Title",
+     "parent": "",
+     "child_index": 0,
+     "depth": 0,
+     "panel": false,
+     "visible": true,
+     "text": ""
+    }
+   ],
+   "returnValue": {
+    "total": 1,
+    "widgets": [
+     {
+      "target": "widget:Title",
+      "name": "Title",
+      "class": "RuntimeToolsetsHudWidget",
+      "path": "/Engine/Transient.GameEngine_0:GameInstance_0.Title",
+      "parent": "",
+      "child_index": 0,
+      "depth": 0,
+      "panel": false,
+      "visible": true,
+      "text": ""
+     }
+    ]
+   }
+  }
+ }
+}

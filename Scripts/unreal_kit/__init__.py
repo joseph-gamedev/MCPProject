@@ -99,9 +99,23 @@ class _Local:
         self.url = url
         self.sid = None
         self.n = 0
+        self._initialize()
+
+    def _initialize(self):
+        self.sid = None
         self._rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "unreal_kit", "version": "1"}})
 
-    def _rpc(self, method, params):
+    def _rpc(self, method, params, retry=True):
+        try:
+            return self._rpc_once(method, params)
+        except ToolError as e:
+            # the game restarts its MCP server when a level loads (or the game restarts): start a new session and retry once
+            if retry and method != "initialize" and "Unknown session id" in str(e):
+                self._initialize()
+                return self._rpc_once(method, params)
+            raise
+
+    def _rpc_once(self, method, params):
         self.n += 1
         headers = {"Accept": "application/json, text/event-stream"}
         if self.sid:
@@ -168,8 +182,9 @@ def connect(url=None, relay=None, token=None):
     return _transport
 
 
-def call(tool, **arguments):
-    """Runs one tool by its qualified name, e.g. call("build.create_primitive", shape="box")."""
+def call(tool, /, **arguments):
+    """Runs one tool by its qualified name, e.g. call("build.create_primitive", shape="box").
+    (tool is positional-only, so tools with their own "tool" argument, e.g. build.boolean_op, work too.)"""
     last_images.clear()
     return (_transport or connect())(tool, arguments)
 

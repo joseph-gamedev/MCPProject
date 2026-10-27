@@ -442,7 +442,8 @@ public:
 		const float& Saturation, const float& Contrast, const float& Vignette, const float& WhiteBalance);
 
 	/**
-	 * Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon. Undoable.
+	 * Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon,
+	 * and sets the sun's brightness (lux) and a matching locked exposure for that hour, so any hour renders correctly. Undoable.
 	 *
 	 * @param Hour - 0-24, e.g. 9.5.
 	 * @param Yaw - Sun heading in degrees (default: keep), e.g. 120.

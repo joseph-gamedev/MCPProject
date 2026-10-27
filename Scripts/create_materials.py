@@ -263,17 +263,22 @@ def style_collection():
     mpc = unreal.load_asset(f"{FOLDER}/{name}.{name}")
     if not mpc:
         mpc = tools.create_asset(name, FOLDER, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
-    scalars, vectors = [], []
+    # keep the parameters already there (materials reference them by id; new ids would break every built material)
+    scalars = list(mpc.get_editor_property("scalar_parameters"))
+    vectors = list(mpc.get_editor_property("vector_parameters"))
+    have = {str(p.get_editor_property("parameter_name")) for p in scalars + vectors}
     for n, v in STYLE_SCALARS:
-        p = unreal.CollectionScalarParameter()
-        p.set_editor_property("parameter_name", n)
-        p.set_editor_property("default_value", v)
-        scalars.append(p)
+        if n not in have:
+            p = unreal.CollectionScalarParameter()
+            p.set_editor_property("parameter_name", n)
+            p.set_editor_property("default_value", v)
+            scalars.append(p)
     for n, v in STYLE_VECTORS:
-        p = unreal.CollectionVectorParameter()
-        p.set_editor_property("parameter_name", n)
-        p.set_editor_property("default_value", unreal.LinearColor(*v))
-        vectors.append(p)
+        if n not in have:
+            p = unreal.CollectionVectorParameter()
+            p.set_editor_property("parameter_name", n)
+            p.set_editor_property("default_value", unreal.LinearColor(*v))
+            vectors.append(p)
     mpc.set_editor_property("scalar_parameters", scalars)
     mpc.set_editor_property("vector_parameters", vectors)
     unreal.EditorAssetLibrary.save_loaded_asset(mpc)
@@ -407,14 +412,10 @@ struct PPS
 };
 PPS F;
 float2 UV = GetDefaultSceneTextureUV(Parameters, PPI_PostProcessInput0);
-float2 T = GetSceneTextureBufferSize(PPI_PostProcessInput0).zw;
-if (PixelSize > 1.5)
-{
-    float2 cell = T * PixelSize;
-    UV = (floor(UV / cell) + 0.5) * cell;
-}
-float3 col = F.Col(UV);
-float depth = F.Depth(UV);
+float2 T = View.BufferSizeAndInvSize.zw;   // one pixel in UV
+// the pixel itself comes from the scene texture inputs (ST0-ST3), already sampled at the pixelated UV by the graph
+float3 col = ST0.rgb;
+float depth = ST1.r;
 bool sky = depth > 2000000.0;
 
 // Painterly: Kuwahara filter (keeps edges, flattens detail into brush-like patches).
@@ -451,7 +452,7 @@ if (Paint > 0.01 && !sky)
 // Toon: quantize the lighting into bands while keeping the surface colour.
 if (Toon > 0.01 && !sky)
 {
-    float3 base = SceneTextureLookup(UV, PPI_BaseColor, false).rgb;
+    float3 base = ST3.rgb;
     float3 light = col / max(base, 0.02);
     float L = F.Lum(light);
     float q = max(floor(L * Bands + 0.5) / Bands, ShadowFloor);
@@ -463,7 +464,7 @@ if (Toon > 0.01 && !sky)
 if (Outline > 0.01)
 {
     float2 o = T * OutlineWidth;
-    float3 n0 = F.Nrm(UV);
+    float3 n0 = ST2.rgb;
     float dsum = 0.0;
     float nsum = 0.0;
     float2 offs[4] = { float2(o.x, 0), float2(-o.x, 0), float2(0, o.y), float2(0, -o.y) };
@@ -512,10 +513,36 @@ def build_post():
         sources[n] = scalar(mat, n, v, -1100, -600 + i * 90)
     for i, (n, v) in enumerate(PP_VECTORS):
         sources[n] = vector(mat, n, v, -1100, 800 + i * 150)
-    # Scene texture nodes make the lookups available to the custom code.
+    # Pixel art: snap the screen UV to PixelSize-pixel cells in the graph (cell 1 = unchanged) and sample the scene there.
+    uv = lib.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1700, 1300)
+    vs = lib.create_material_expression(mat, unreal.MaterialExpressionViewSize, -1700, 1400)
+    one = lib.create_material_expression(mat, unreal.MaterialExpressionConstant, -1700, 1500)
+    one.set_editor_property("r", 1.0)
+    cell = lib.create_material_expression(mat, unreal.MaterialExpressionMax, -1500, 1500)
+    lib.connect_material_expressions(sources["PixelSize"], "", cell, "A")
+    lib.connect_material_expressions(one, "", cell, "B")
+    px = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -1500, 1300)
+    lib.connect_material_expressions(uv, "", px, "A")
+    lib.connect_material_expressions(vs, "", px, "B")
+    div = lib.create_material_expression(mat, unreal.MaterialExpressionDivide, -1350, 1300)
+    lib.connect_material_expressions(px, "", div, "A")
+    lib.connect_material_expressions(cell, "", div, "B")
+    fl = lib.create_material_expression(mat, unreal.MaterialExpressionFloor, -1250, 1300)
+    lib.connect_material_expressions(div, "", fl, "")
+    half = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, -1150, 1300)
+    half.set_editor_property("const_b", 0.5)
+    lib.connect_material_expressions(fl, "", half, "A")
+    back = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -1050, 1300)
+    lib.connect_material_expressions(half, "", back, "A")
+    lib.connect_material_expressions(cell, "", back, "B")
+    snapped = lib.create_material_expression(mat, unreal.MaterialExpressionDivide, -950, 1300)
+    lib.connect_material_expressions(back, "", snapped, "A")
+    lib.connect_material_expressions(vs, "", snapped, "B")
+    # Scene texture nodes: the pixel at the (snapped) UV, and the lookups available to the custom code.
     for i, tid in enumerate(["PPI_POST_PROCESS_INPUT0", "PPI_SCENE_DEPTH", "PPI_WORLD_NORMAL", "PPI_BASE_COLOR"]):
         st = lib.create_material_expression(mat, unreal.MaterialExpressionSceneTexture, -800, 900 + i * 120)
         st.set_editor_property("scene_texture_id", getattr(unreal.SceneTextureId, tid))
+        lib.connect_material_expressions(snapped, "", st, "UVs")
         sources["ST%d" % i] = st
     inputs = []
     for name in sources:

@@ -1,0 +1,150 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "level.find_assets",
+   "ok": true
+  },
+  {
+   "tool": "vfx.spawn_system",
+   "ok": true
+  },
+  {
+   "tool": "vfx.spawn_system",
+   "ok": true
+  },
+  {
+   "tool": "vfx.spawn_system",
+   "ok": true
+  },
+  {
+   "tool": "vfx.spawn_one_shot",
+   "ok": true
+  },
+  {
+   "tool": "vfx.list_active",
+   "ok": true
+  },
+  {
+   "tool": "vfx.get_summary",
+   "ok": true
+  },
+  {
+   "tool": "vfx.get_user_variables",
+   "ok": true
+  },
+  {
+   "tool": "vfx.deactivate",
+   "ok": true
+  },
+  {
+   "tool": "vfx.activate",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "systems": 10,
+  "active": {
+   "ok": true,
+   "total": 4,
+   "active": [
+    {
+     "target": "actor:WorldSettings_1",
+     "system": "DirectionalBurst",
+     "location": [
+      0,
+      400,
+      100
+     ]
+    },
+    {
+     "target": "n80",
+     "system": "DirectionalBurst",
+     "location": [
+      -500,
+      0,
+      100
+     ]
+    },
+    {
+     "target": "n81",
+     "system": "DirectionalBurstLightweight",
+     "location": [
+      0,
+      0,
+      100
+     ]
+    },
+    {
+     "target": "n82",
+     "system": "FountainLightweight",
+     "location": [
+      500,
+      0,
+      100
+     ]
+    }
+   ],
+   "returnValue": {
+    "total": 4,
+    "active": [
+     {
+      "target": "actor:WorldSettings_1",
+      "system": "DirectionalBurst",
+      "location": [
+       0,
+       400,
+       100
+      ]
+     },
+     {
+      "target": "n80",
+      "system": "DirectionalBurst",
+      "location": [
+       -500,
+       0,
+       100
+      ]
+     },
+     {
+      "target": "n81",
+      "system": "DirectionalBurstLightweight",
+      "location": [
+       0,
+       0,
+       100
+      ]
+     },
+     {
+      "target": "n82",
+      "system": "FountainLightweight",
+      "location": [
+       500,
+       0,
+       100
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

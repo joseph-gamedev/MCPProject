@@ -1,0 +1,90 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "actors.spawn_actor",
+   "ok": true
+  },
+  {
+   "tool": "reflection.list_properties",
+   "ok": true
+  },
+  {
+   "tool": "reflection.get_property",
+   "ok": true
+  },
+  {
+   "tool": "reflection.set_property",
+   "ok": true
+  },
+  {
+   "tool": "reflection.get_property",
+   "ok": true
+  },
+  {
+   "tool": "reflection.set_properties",
+   "ok": true
+  },
+  {
+   "tool": "reflection.get_properties",
+   "ok": true
+  },
+  {
+   "tool": "reflection.list_functions",
+   "ok": true
+  },
+  {
+   "tool": "reflection.call_function",
+   "ok": true
+  },
+  {
+   "tool": "reflection.reset_properties",
+   "ok": true
+  },
+  {
+   "tool": "reflection.find_class",
+   "ok": true
+  },
+  {
+   "tool": "reflection.describe_enum",
+   "ok": true
+  },
+  {
+   "tool": "reflection.get_subsystem",
+   "ok": true
+  }
+ ],
+ "proof": {
+  "props": 40,
+  "after": {
+   "ok": true,
+   "path": "PointLightComponent.Intensity",
+   "type": "float",
+   "value": 12345,
+   "returnValue": {
+    "path": "PointLightComponent.Intensity",
+    "type": "float",
+    "value": 12345
+   }
+  }
+ }
+}

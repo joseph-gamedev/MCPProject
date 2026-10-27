@@ -1,0 +1,41 @@
+{
+ "calls": [
+  {
+   "tool": "style.apply",
+   "ok": true
+  },
+  {
+   "tool": "lighting.apply_mood",
+   "ok": true
+  },
+  {
+   "tool": "scene.clear_all",
+   "ok": true
+  },
+  {
+   "tool": "build.create_terrain",
+   "ok": true
+  },
+  {
+   "tool": "lighting.set_time_of_day",
+   "ok": true
+  },
+  {
+   "tool": "build.create_primitive",
+   "ok": true
+  },
+  {
+   "tool": "capture.scene_capture",
+   "ok": true
+  },
+  {
+   "tool": "camera.set_camera",
+   "ok": true
+  },
+  {
+   "tool": "capture.screenshot",
+   "ok": true
+  }
+ ],
+ "proof": {}
+}

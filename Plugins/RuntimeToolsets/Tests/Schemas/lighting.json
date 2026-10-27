@@ -1142,7 +1142,7 @@
 			"undoable": true
 		},
 		{
-			"description": "Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon. Undoable.\nReturns: The hour and the sun after the change. Fails if the hour is outside 0-24 or there is no directional light.",
+			"description": "Places the sun for a clock hour on a sinusoidal day: 6 sunrise, 12 noon (overhead), 18 sunset, night below the horizon, and sets the sun's brightness (lux) and a matching locked exposure for that hour, so any hour renders correctly. Undoable.\nReturns: The hour and the sun after the change. Fails if the hour is outside 0-24 or there is no directional light.",
 			"input_schema":
 			{
 				"additionalProperties": false,
