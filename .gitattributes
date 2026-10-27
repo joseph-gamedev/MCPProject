@@ -6,3 +6,5 @@
 *.uasset binary
 *.umap binary
 *.zip binary
+Content/RuntimeFoliage/** filter=lfs diff=lfs merge=lfs -text
+Content/RuntimeArchitecture/** filter=lfs diff=lfs merge=lfs -text

@@ -81,13 +81,34 @@ def scanned_master():
         F.connect(node, "", mask, "")
         return mask
     tint = rgb(e(m, unreal.MaterialExpressionVectorParameter, -1000, 200, parameter_name="ScanTint", default_value=unreal.LinearColor(1, 1, 1, 1)), -850, 200)
+    # vertex colours (assemblies): colour as sRGB bytes, roughness in alpha; UseVertexColor 1 takes them instead of the
+    # part parameters, so parts that differ only in colour share one material section
+    tc1 = e(m, unreal.MaterialExpressionTextureCoordinate, -1400, 1600, coordinate_index=1)
+    tc2 = e(m, unreal.MaterialExpressionTextureCoordinate, -1400, 1700, coordinate_index=2)
+    use_vc = e(m, unreal.MaterialExpressionScalarParameter, -1300, 1800, parameter_name="UseVertexColor", default_value=0.0)
+    tc2_b = e(m, unreal.MaterialExpressionComponentMask, -1250, 1700, r=True, g=False, b=False, a=False)
+    F.connect(tc2, "", tc2_b, "")
+    vc_rgb = F.math2(m, unreal.MaterialExpressionAppendVector, tc1, tc2_b, -1100, 1600)
+    vc_rough = e(m, unreal.MaterialExpressionComponentMask, -1250, 1850, r=False, g=True, b=False, a=False)
+    F.connect(tc2, "", vc_rough, "")
+    scan_ref = rgb(e(m, unreal.MaterialExpressionVectorParameter, -1150, 1750, parameter_name="ScanRef", default_value=unreal.LinearColor(1, 1, 1, 1)), -1000, 1750)
+    vc_tint = F.math2(m, unreal.MaterialExpressionDivide, vc_rgb, scan_ref, -850, 1650)
+
+    def by_vertex(param, vertex, x, y):
+        mix = e(m, unreal.MaterialExpressionLinearInterpolate, x, y)
+        F.connect(param, "", mix, "A")
+        F.connect(vertex, "", mix, "B")
+        F.connect(use_vc, "", mix, "Alpha")
+        return mix
+    tint = by_vertex(tint, vc_tint, -760, 200)
     scan = F.math2(m, unreal.MaterialExpressionMultiply, F.math2(m, unreal.MaterialExpressionMultiply, col, tint, -700, 50, a_out="XYZ Texture"),
                    jitter, -500, 0)
     # stylized looks (MPC_RT_Style Pattern 0) use the flat colour; Tint from the style always applies
     style = unreal.load_asset("/RuntimeToolsets/Materials/MPC_RT_Style.MPC_RT_Style")
     pattern = e(m, unreal.MaterialExpressionCollectionParameter, -700, -150, collection=style, parameter_name="Pattern")
     style_tint = rgb(e(m, unreal.MaterialExpressionCollectionParameter, -850, -250, collection=style, parameter_name="Tint"), -700, -250)
-    flat = rgb(e(m, unreal.MaterialExpressionVectorParameter, -850, 300, parameter_name="Color", default_value=unreal.LinearColor(0.8, 0.8, 0.8, 1)), -700, 300)
+    flat = by_vertex(rgb(e(m, unreal.MaterialExpressionVectorParameter, -850, 300, parameter_name="Color", default_value=unreal.LinearColor(0.8, 0.8, 0.8, 1)), -700, 300),
+                     vc_rgb, -620, 300)
     base = e(m, unreal.MaterialExpressionLinearInterpolate, -350, 0)
     F.connect(flat, "", base, "A")
     F.connect(scan, "", base, "B")
@@ -107,7 +128,9 @@ def scanned_master():
     mel.connect_material_property(nor, "XYZ Texture", unreal.MaterialProperty.MP_NORMAL)
     rmask = e(m, unreal.MaterialExpressionComponentMask, -800, 900, r=True, g=False, b=False, a=False)
     F.connect(rou, "XYZ Texture", rmask, "")
-    rscale = e(m, unreal.MaterialExpressionScalarParameter, -800, 1000, parameter_name="RoughnessScale", default_value=1.0)
+    vc_rs = F.math2(m, unreal.MaterialExpressionDivide, vc_rough, e(m, unreal.MaterialExpressionScalarParameter, -1000, 1950, parameter_name="RoughRef", default_value=0.6),
+                    -850, 1900)
+    rscale = by_vertex(e(m, unreal.MaterialExpressionScalarParameter, -800, 1000, parameter_name="RoughnessScale", default_value=1.0), vc_rs, -700, 1000)
     rs = e(m, unreal.MaterialExpressionSaturate, -450, 900)
     F.connect(F.math2(m, unreal.MaterialExpressionMultiply, rmask, rscale, -600, 900), "", rs, "")
     mel.connect_material_property(rs, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -309,6 +332,114 @@ def georgian():
     unreal.log(f"ARCH georgian imported: {count}")
 
 
+# Facade-kit styles (make_style.py): semantic slot S_<slot> -> (scanned surface or None, colour, roughness, metallic,
+# tile cm, extra parameters). PaintA (custom data 1-3) colours doors / shutters, PaintB (4-6) the walls.
+_SHARED = {
+    "frame": (None, (0.86, 0.86, 0.84), 0.35, 0.0, 100, {}),
+    "glass": (None, (0.16, 0.18, 0.2), 0.03, 0.85, 100, {}),
+    "metal": (None, (0.03, 0.03, 0.032), 0.4, 0.4, 100, {}),
+    "brass": (None, (0.75, 0.55, 0.22), 0.3, 1.0, 100, {}),
+    "door": (None, (1.0, 1.0, 1.0), 0.3, 0.0, 100, {"UsePaintA": 1.0}),
+    "shutter": (None, (1.0, 1.0, 1.0), 0.45, 0.0, 100, {"UsePaintA": 1.0}),
+    "shop": (None, (1.0, 1.0, 1.0), 0.25, 0.0, 100, {"UsePaintA": 1.0}),
+    "awning": (None, (0.55, 0.1, 0.08), 0.9, 0.0, 100, {"Variation": 0.5}),
+    "soil": (None, (0.05, 0.045, 0.03), 1.0, 0.0, 100, {"Variation": 0.2}),
+    "road": ("asphalt", (1.1, 1.1, 1.1), 1.0, 0.0, 400, {"Variation": 0.05}),
+    "kerb": (None, (0.6, 0.6, 0.58), 0.85, 0.0, 100, {}),
+}
+STYLE_KINDS = {
+    "paris": dict(_SHARED, **{
+        "wall": (None, (0.92, 0.82, 0.64), 0.85, 0.0, 100, {"Variation": 0.05}),      # Lutetian limestone, cleaned
+        "trim": (None, (0.95, 0.86, 0.68), 0.8, 0.0, 100, {"Variation": 0.03}),
+        "roof": (None, (0.45, 0.48, 0.52), 0.45, 0.6, 100, {"Variation": 0.05}),     # zinc
+        "accent": (None, (0.62, 0.3, 0.18), 0.85, 0.0, 100, {"Variation": 0.2}),     # terracotta chimney pots
+        "paving": ("asphalt", (1.6, 1.6, 1.6), 0.9, 0.0, 300, {"Variation": 0.04}), # pale Paris pavement asphalt
+    }),
+    "mediterranean": dict(_SHARED, **{
+        "wall": (None, (1.0, 1.0, 1.0), 0.9, 0.0, 100, {"Variation": 0.06, "UsePaintB": 1.0}),  # painted render
+        "trim": (None, (0.94, 0.92, 0.87), 0.85, 0.0, 100, {"Variation": 0.03}),
+        "roof": ("roof_tile", (1.15, 1.0, 0.92), 0.9, 0.0, 200, {"Variation": 0.12}),
+        "accent": (None, (0.62, 0.3, 0.17), 0.85, 0.0, 100, {"Variation": 0.15}),
+        "paving": ("cobblestone", (1.1, 1.08, 1.05), 0.95, 0.0, 160, {"Variation": 0.05}),
+        "road": ("cobblestone", (1.0, 0.98, 0.95), 0.95, 0.0, 200, {"Variation": 0.05}),
+        "kerb": (None, (0.85, 0.83, 0.78), 0.85, 0.0, 100, {}),
+    }),
+    "modern": dict(_SHARED, **{
+        "cglass": (None, (1.0, 1.0, 1.0), 0.03, 0.9, 100, {"UsePaintA": 1.0}),                 # tinted per building (paint A)
+        "rglass": (None, (0.32, 0.4, 0.42), 0.05, 0.6, 100, {}),
+        "alu": (None, (0.68, 0.7, 0.72), 0.32, 0.9, 100, {}),
+        "spandrel": (None, (0.035, 0.04, 0.045), 0.3, 0.3, 100, {}),
+        "concrete": (None, (0.8, 0.79, 0.76), 0.8, 0.0, 100, {"Variation": 0.04}),
+        "panel": (None, (1.0, 1.0, 1.0), 0.45, 0.25, 100, {"UsePaintB": 1.0}),                  # cladding colour per building
+        "wall": (None, (1.0, 1.0, 1.0), 0.45, 0.25, 100, {"UsePaintB": 1.0}),
+        "shop": (None, (1.0, 1.0, 1.0), 0.4, 0.1, 100, {"UsePaintB": 1.0}),
+        "roof": (None, (0.36, 0.37, 0.38), 0.9, 0.0, 100, {"Variation": 0.1}),
+        "paving": ("paving", (1.35, 1.38, 1.42), 0.9, 0.0, 150, {"Variation": 0.04}),
+        "kerb": (None, (0.72, 0.72, 0.7), 0.8, 0.0, 100, {}),
+        "marking": (None, (0.85, 0.85, 0.83), 0.6, 0.0, 100, {}),
+        "marking_y": (None, (0.85, 0.6, 0.06), 0.6, 0.0, 100, {}),
+    }),
+}
+
+
+def make_mi(name, kinds_entry, scanned):
+    surface, color, rough, metal, tile, extra = kinds_entry
+    path = f"{MAT}/{name}"
+    mi = unreal.load_asset(path) if eal.does_asset_exist(path) else tools.create_asset(name, MAT, unreal.MaterialInstanceConstant,
+                                                                                     unreal.MaterialInstanceConstantFactoryNew())
+    mel.set_material_instance_parent(mi, scanned)
+    for param, suffix in (("ScanColor", "diff"), ("ScanNormal", "nor_gl"), ("ScanRough", "rough"), ("ScanAO", "ao")):
+        tex = f"{SURF}/{surface}_{suffix}" if surface else None
+        if tex and eal.does_asset_exist(tex):
+            mel.set_material_instance_texture_parameter_value(mi, param, unreal.load_asset(tex))
+        else:
+            mel.set_material_instance_texture_parameter_value(mi, param, F.FLAT if param == "ScanNormal" else F.WHITE)
+    lc = unreal.LinearColor(color[0], color[1], color[2], 1)
+    mel.set_material_instance_vector_parameter_value(mi, "Color", lc)
+    mel.set_material_instance_vector_parameter_value(mi, "ScanTint", lc)
+    mel.set_material_instance_scalar_parameter_value(mi, "ScanTile", float(tile))
+    mel.set_material_instance_scalar_parameter_value(mi, "RoughnessScale", rough)
+    mel.set_material_instance_scalar_parameter_value(mi, "Metallic", metal)
+    for k in ("Variation", "UsePaintA", "UsePaintB"):
+        mel.set_material_instance_scalar_parameter_value(mi, k, float(extra.get(k, 0.0)))
+    eal.save_loaded_asset(mi)
+    return mi
+
+
+def import_style(style, meshes=True):
+    """Materials MI_<PFX>_<slot> and pieces Saved/Architecture/<Style>/SM_*.fbx -> /Game/RuntimeArchitecture/<Style>."""
+    scanned = unreal.load_asset(MAT + "/M_RT_Scanned")
+    pfx = style[:2].upper()
+    mats = {slot: make_mi(f"MI_{pfx}_{slot}", entry, scanned) for slot, entry in STYLE_KINDS[style].items()}
+    if not meshes:
+        return
+    src = os.path.join(SAVED, "Architecture", style.title())
+    dst = f"{ROOT}/{style.title()}"
+    current = {os.path.splitext(os.path.basename(f))[0] for f in glob.glob(os.path.join(src, "SM_*.fbx"))}
+    for path in eal.list_assets(dst, recursive=False, include_folder=False) if eal.does_directory_exist(dst) else []:
+        if path.rsplit("/", 1)[-1].split(".")[0] not in current:
+            eal.delete_asset(path)
+    count = 0
+    for fbx in sorted(glob.glob(os.path.join(src, "SM_*.fbx"))):
+        mesh = F.import_file(fbx, dst, F.mesh_options())
+        if not mesh:
+            unreal.log_error(f"ARCH {style} import failed: {fbx}")
+            continue
+        for i, slot in enumerate(mesh.get_editor_property("static_materials")):
+            name = str(slot.get_editor_property("material_slot_name"))[len("S_"):]
+            if name in mats:
+                mesh.set_material(i, mats[name])
+            else:
+                unreal.log_warning(f"ARCH {style}: no material for slot {name} in {fbx}")
+        F.finish_mesh(mesh, foliage=False)
+        count += 1
+    unreal.log(f"ARCH {style} imported: {count}")
+
+
+if os.environ.get("ARCH_STYLES"):
+    for st in os.environ["ARCH_STYLES"].split(","):
+        import_style(st.strip(), meshes=not os.environ.get("ARCH_MATERIALS_ONLY"))
+    raise SystemExit
 if os.environ.get("ARCH_GT_MATERIALS_ONLY"):
     georgian_materials()
     raise SystemExit
