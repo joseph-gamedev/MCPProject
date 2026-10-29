@@ -61,15 +61,4 @@ public:
 	/** Show the AI code and the connection state in a corner of the screen. */
 	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
 	bool bShowConnectOverlay = true;
-
-	/**
-	 * Length of the AI code. 10 (default): the code itself is the agent's credential, no shared token needed. 6: older
-	 * relays that need the shared agent token (Connect.bat).
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Remote agents", meta = (ClampMin = "6", ClampMax = "16"))
-	int32 CodeLength = 10;
-
-	/** Address players open to connect (shown in the game), e.g. "https://play.example.com". Empty = RelayUrl. */
-	UPROPERTY(Config, EditAnywhere, Category = "Remote agents")
-	FString RelayPublicUrl;
 };

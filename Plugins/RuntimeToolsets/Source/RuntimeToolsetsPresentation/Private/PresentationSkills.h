@@ -37,3 +37,13 @@ protected:
 	virtual FString GeneratePrompt(const FString& InitialInstructions) const override;
 };
 
+
+/** Rebuilding anything from a reference image: a generic analyse, block out, compare and fix loop, time-boxed. */
+UCLASS()
+class URuntimeBuildFromImageSkill : public URuntimeAgentSkill
+{
+	GENERATED_BODY()
+
+public:
+	URuntimeBuildFromImageSkill();
+};

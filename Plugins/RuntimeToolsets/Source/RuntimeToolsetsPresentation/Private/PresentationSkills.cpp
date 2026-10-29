@@ -156,3 +156,61 @@ geometry? Too many live effects cost frame time: vfx.list_active shows what is r
 )SKILL");
 }
 
+
+URuntimeBuildFromImageSkill::URuntimeBuildFromImageSkill()
+{
+	Description = TEXT("Apply whenever the player gives a reference image or photo (any subject: building, ruin, vehicle, prop, landscape) to rebuild in the game.");
+	Toolsets = {TEXT("build"), TEXT("capture"), TEXT("scene"), TEXT("ops")};
+	Instructions = TEXT(R"SKILL(# Build from a reference image
+
+The method works for any subject. Accuracy comes from the loop (look, build, render from the same angle, compare, fix),
+not from detail. Be quick: the fastest result that matches wins. Aim for 6-10 tool calls; 5 minutes is the hard ceiling
+(stop there and report what still differs). Skip a compare round when the render already matches.
+
+## 1. Read the image (write it down before building, a few short lines)
+- Subject and its main volumes, largest first (body, wings, towers, roof, base / chassis, cabin, wheels ...).
+- Proportions: width : depth : height of the whole, and of each volume relative to it. Repeats: how many floors, bays,
+  columns, windows, steps, wheels per side. Count twice.
+- Scale: use the player's number if given; else a known size in the picture (door 2.2 m, person 1.8 m, floor 3-3.5 m,
+  car 4.5 m, step 17 cm). Everything else follows from the proportions.
+- Shapes per volume: flat or pitched roof, dome, arch, cylinder, taper, curved profile (revolve / extrude / sweep).
+- Colours and materials of 3-6 areas, sampled from the image (linear 0-1), and which builder material preset fits each.
+- The camera: which side is seen (front, three-quarter), eye height (street level about 1.6 m, aerial), lens (phone
+  photo about 65 degrees horizontal). Hidden sides: continue what is visible, simply; do not invent features.
+
+## Small calls, batched (speed)
+Never write one giant call: a long tool call takes minutes to write and nothing appears meanwhile. Keep every create call
+small (one volume or one repeated feature, under about 40 parts), and send several of them together in one ops.run_batch.
+Let generator shapes make the repeats from a few numbers instead of listing parts: openings (a wall with a grid of
+windows: rows, cols, margin), column, steps, tiers, roof, arch, dome, lattice; build.array copies a part in a row, ring
+or grid. Something visible should exist after the first batch, within a minute.
+
+## 2. Mass (one batch)
+One ops.run_batch of small creates: every main volume at its true size and position, simple shapes, rough colours.
+Then look twice:
+- capture.scene_capture from the pose that matches the photo (location + look_at + fov, same aspect). Reuse the exact
+  same pose every round so the comparison is fair.
+- build.capture_view once (front / right / top): checks proportions the photo angle hides.
+
+## 3. Compare and fix (at most 2 rounds)
+Put the render next to the reference in your mind and list the 3 biggest differences, silhouette and proportion first
+(too wide, roof too low, tower in the wrong place, wrong number of floors), never small details. Fix all 3 in one call
+batch (scene.delete_node and rebuild the volume, or scene.move_node / scene.scale_node), render the same pose, repeat once.
+Do not add detail while the silhouette is still wrong.
+
+## 4. Detail (one or two batches)
+Add what makes it recognisable, as small creates in ops.run_batch: openings (windows, doors, arches) as generator grids
+matching the counted repeats, frames and bands, columns (one column + build.array), railings, trim, the signature
+feature (spire, clock, dome lantern, spoiler). Recount the repeats on the render.
+
+## 5. Finish
+Set the sampled colours and materials (build.set_material), render the matched pose once more and show it. Report in a
+few lines: what matches and what still differs (and what one more round would fix).
+
+## Rules
+- Geometry first, detail last; same camera pose every round.
+- Many small calls in a batch, never one huge call and never one part per call.
+- The image stays with you: tools never need it. Do not change the level's lighting or the player's camera to compare
+  (scene_capture renders any pose without moving the player).
+)SKILL");
+}

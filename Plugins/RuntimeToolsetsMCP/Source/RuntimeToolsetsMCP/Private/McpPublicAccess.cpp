@@ -28,7 +28,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogMcpRelay, Log, All);
 namespace McpPublicAccessPrivate
 {
 	FString Relay;      // https://unreal-mcp-relay.<account>.workers.dev
-	FString PublicUrl;  // what players open (RelayPublicUrl, else Relay)
 	FString HostToken;
 	FString SessionCode; // shown in the game (10 characters: the agent's credential)
 	FString Instance;   // this launch, so another game cannot take the code over
@@ -45,38 +44,16 @@ namespace McpPublicAccessPrivate
 	TSharedPtr<SWidget> Overlay;
 	TWeakObjectPtr<UGameViewportClient> OverlayViewport;
 
-	/** A code from the OS random generator (FGuid): 5 bits per character from a 32-letter alphabet, no bias. */
+	/** A 4-digit code (1000-9999) the player says to Claude Code: "connect to game 4821". */
 	FString MakeCode()
 	{
-		static const TCHAR* Alphabet = TEXT("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
-		const int32 Len = FMath::Clamp(GetDefault<URuntimeToolsetsMCPSettings>()->CodeLength, 6, 16);
-		FString C;
-		while (C.Len() < Len)
-		{
-			const FGuid G = FGuid::NewGuid();
-			for (const uint32 Word : {G.A, G.B, G.C, G.D})
-			{
-				for (int32 k = 0; k < 4 && C.Len() < Len; ++k)
-				{
-					C.AppendChar(Alphabet[(Word >> (k * 8)) & 31]);
-				}
-			}
-		}
-		return C;
+		const FGuid G = FGuid::NewGuid();
+		return FString::FromInt(1000 + int32((G.A ^ G.B ^ G.C ^ G.D) % 9000u));
 	}
 
-	/** K7M2Q-X9PAB: easier to read and type from a video. */
 	FString ShownCode()
 	{
-		return SessionCode.Len() == 10 ? SessionCode.Left(5) + TEXT("-") + SessionCode.Mid(5) : SessionCode;
-	}
-
-	FString ShownUrl()
-	{
-		FString U = PublicUrl;
-		U.RemoveFromStart(TEXT("https://"));
-		U.RemoveFromStart(TEXT("http://"));
-		return U + TEXT("/") + ShownCode();
+		return SessionCode;
 	}
 
 	/** The tool an MCP request runs (tools/call, or session_call_tool's inner name), for the overlay. */
@@ -286,11 +263,11 @@ namespace McpPublicAccessPrivate
 						{
 							if (!bOnline)
 							{
-								return FText::FromString(FString::Printf(TEXT("AI code %s  (connecting...)"), *ShownCode()));
+								return FText::FromString(FString::Printf(TEXT("Game code %s  (connecting...)"), *ShownCode()));
 							}
 							if (!bAgentSeen)
 							{
-								return FText::FromString(FString::Printf(TEXT("Connect Claude Code: %s"), *ShownUrl()));
+								return FText::FromString(FString::Printf(TEXT("Game code %s"), *ShownCode()));
 							}
 							return FText::FromString(Working() && !LastTool.IsEmpty() ? FString::Printf(TEXT("Claude working: %s"), *LastTool)
 								: FString::Printf(TEXT("Claude connected  -  %s"), *ShownCode()));
@@ -302,7 +279,7 @@ namespace McpPublicAccessPrivate
 						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 11))
 						.ColorAndOpacity(FSlateColor(FLinearColor(0.78f, 0.8f, 0.84f)))
 						.Visibility_Lambda([]() { return bOnline && !bAgentSeen ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
-						.Text(FText::FromString(TEXT("Open that address in a browser: it shows one command to paste, then start claude.")))
+						.Text_Lambda([]() { return FText::FromString(FString::Printf(TEXT("In Claude Code say: connect to game %s"), *ShownCode())); })
 					]
 				]
 			];
@@ -349,14 +326,12 @@ void McpPublicAccess::Start(int32 Port, const FString& Path)
 	FParse::Value(FCommandLine::Get(), TEXT("RuntimeToolsetsCode="), SessionCode);
 	SessionCode = SessionCode.IsEmpty() ? MakeCode() : SessionCode.ToUpper().Replace(TEXT("-"), TEXT(""));
 	Instance = FGuid::NewGuid().ToString(EGuidFormats::Digits);
-	PublicUrl = S.RelayPublicUrl.IsEmpty() ? Relay : S.RelayPublicUrl;
-	PublicUrl.RemoveFromEnd(TEXT("/"));
 	LocalUrl = FString::Printf(TEXT("http://127.0.0.1:%d%s"), Port, *Path);
 	bRunning = true;
 	// session_get_build_info reports this, so agents find the Python client on their first call.
 	FPlatformMisc::SetEnvironmentVar(TEXT("RUNTIMETOOLSETS_SCRIPT_CLIENT"), *FString::Printf(TEXT("%s/s/%s/client.py"), *Relay, *SessionCode));
 	FFileHelper::SaveStringToFile(SessionCode + LINE_TERMINATOR, *(FPaths::ProjectSavedDir() / TEXT("RuntimeToolsets/code.txt")));
-	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, AI code %s (players open %s)"), *Relay, *ShownCode(), *ShownUrl());
+	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, game code %s (players say: connect to game %s)"), *Relay, *ShownCode(), *ShownCode());
 	Poll();
 	if (S.bShowConnectOverlay)
 	{
