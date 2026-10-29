@@ -66,6 +66,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Assets")
 	TMap<FName, FString> AssetSlots;
 
+	/**
+	 * Keep the level as designed: lighting, camera and style tools refuse to change it, and tools may not move, hide or
+	 * edit actors they did not create. Agents can still add their own objects and look with capture.scene_capture.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Safety")
+	bool bProtectLevel = false;
+
 	/** Object path prefixes that reflection tools may touch. */
 	UPROPERTY(Config, EditAnywhere, Category = "Reflection")
 	TArray<FString> AllowedObjectRoots;

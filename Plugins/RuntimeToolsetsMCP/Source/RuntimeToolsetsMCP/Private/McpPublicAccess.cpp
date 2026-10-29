@@ -9,7 +9,7 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "Math/RandomStream.h"
+#include "Misc/Guid.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Compression.h"
@@ -28,26 +28,92 @@ DEFINE_LOG_CATEGORY_STATIC(LogMcpRelay, Log, All);
 namespace McpPublicAccessPrivate
 {
 	FString Relay;      // https://unreal-mcp-relay.<account>.workers.dev
+	FString PublicUrl;  // what players open (RelayPublicUrl, else Relay)
 	FString HostToken;
-	FString SessionCode; // 6 characters shown in the game
+	FString SessionCode; // shown in the game (10 characters: the agent's credential)
+	FString Instance;   // this launch, so another game cannot take the code over
 	FString LocalUrl;   // http://127.0.0.1:8018/mcp
 	bool bRunning = false;
 	bool bOnline = false;
 	int32 Failures = 0;
+	// what the connected agent is doing (inferred from the relayed requests)
+	bool bAgentSeen = false;
+	int32 InFlight = 0;
+	double LastJob = 0.0;
+	FString LastTool;
 	FTSTicker::FDelegateHandle OverlayTick;
 	TSharedPtr<SWidget> Overlay;
 	TWeakObjectPtr<UGameViewportClient> OverlayViewport;
 
+	/** A code from the OS random generator (FGuid): 5 bits per character from a 32-letter alphabet, no bias. */
 	FString MakeCode()
 	{
 		static const TCHAR* Alphabet = TEXT("ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
-		FRandomStream R(static_cast<int32>(FPlatformTime::Cycles64() ^ FPlatformProcess::GetCurrentProcessId()));
+		const int32 Len = FMath::Clamp(GetDefault<URuntimeToolsetsMCPSettings>()->CodeLength, 6, 16);
 		FString C;
-		for (int32 i = 0; i < 6; ++i)
+		while (C.Len() < Len)
 		{
-			C.AppendChar(Alphabet[R.RandRange(0, 31)]);
+			const FGuid G = FGuid::NewGuid();
+			for (const uint32 Word : {G.A, G.B, G.C, G.D})
+			{
+				for (int32 k = 0; k < 4 && C.Len() < Len; ++k)
+				{
+					C.AppendChar(Alphabet[(Word >> (k * 8)) & 31]);
+				}
+			}
 		}
 		return C;
+	}
+
+	/** K7M2Q-X9PAB: easier to read and type from a video. */
+	FString ShownCode()
+	{
+		return SessionCode.Len() == 10 ? SessionCode.Left(5) + TEXT("-") + SessionCode.Mid(5) : SessionCode;
+	}
+
+	FString ShownUrl()
+	{
+		FString U = PublicUrl;
+		U.RemoveFromStart(TEXT("https://"));
+		U.RemoveFromStart(TEXT("http://"));
+		return U + TEXT("/") + ShownCode();
+	}
+
+	/** The tool an MCP request runs (tools/call, or session_call_tool's inner name), for the overlay. */
+	void NoteRequest(const FString& Body)
+	{
+		if (Body.Len() > 65536)
+		{
+			return;
+		}
+		if (Body.Contains(TEXT("\"initialize\"")))
+		{
+			bAgentSeen = true;
+		}
+		TSharedPtr<FJsonObject> Msg;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Body), Msg) || !Msg.IsValid())
+		{
+			return;
+		}
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString Name;
+		if (Msg->GetStringField(TEXT("method")) == TEXT("tools/call") && Msg->TryGetObjectField(TEXT("params"), Params) &&
+			(*Params)->TryGetStringField(TEXT("name"), Name))
+		{
+			const TSharedPtr<FJsonObject>* Args = nullptr;
+			FString Inner;
+			if (Name.EndsWith(TEXT("call_tool")) && (*Params)->TryGetObjectField(TEXT("arguments"), Args) && (*Args)->TryGetStringField(TEXT("name"), Inner))
+			{
+				Name = Inner;
+			}
+			int32 Us = INDEX_NONE;
+			if (!Name.Contains(TEXT(".")) && Name.FindChar(TEXT('_'), Us))
+			{
+				Name[Us] = TEXT('.');   // MCP names are toolset_tool
+			}
+			LastTool = Name;
+			bAgentSeen = true;
+		}
 	}
 
 	void Poll();
@@ -103,11 +169,17 @@ namespace McpPublicAccessPrivate
 		}
 		else
 		{
-			Req->SetContentAsString(Job->GetStringField(TEXT("body")));
+			const FString Body = Job->GetStringField(TEXT("body"));
+			NoteRequest(Body);
+			Req->SetContentAsString(Body);
 		}
 		Req->SetTimeout(115.f);
+		++InFlight;
+		LastJob = FPlatformTime::Seconds();
 		Req->OnProcessRequestComplete().BindLambda([Id](FHttpRequestPtr, FHttpResponsePtr Resp, bool bOk)
 		{
+			InFlight = FMath::Max(0, InFlight - 1);
+			LastJob = FPlatformTime::Seconds();
 			TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
 			if (!bOk || !Resp.IsValid())
 			{
@@ -138,6 +210,7 @@ namespace McpPublicAccessPrivate
 		Req->SetURL(FString::Printf(TEXT("%s/host/%s/poll?gz=1"), *Relay, *SessionCode));
 		Req->SetVerb(TEXT("GET"));
 		Req->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + HostToken);
+		Req->SetHeader(TEXT("X-Host-Instance"), Instance);
 		Req->SetTimeout(40.f);
 		Req->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr, FHttpResponsePtr Resp, bool bOk)
 		{
@@ -163,6 +236,15 @@ namespace McpPublicAccessPrivate
 				return;
 			}
 			bOnline = false;
+			if (Status == 409)
+			{
+				// another running game owns this code (a copied code or a restarted relay session): take a fresh one
+				SessionCode = MakeCode();
+				bAgentSeen = false;
+				UE_LOG(LogMcpRelay, Display, TEXT("AI code was in use by another game; new AI code %s"), *ShownCode());
+				Poll();
+				return;
+			}
 			if (++Failures == 1 || Failures % 20 == 0)
 			{
 				UE_LOG(LogMcpRelay, Warning, TEXT("Relay poll failed (%d, try %d): %s"), Status, Failures, Status == 401 ? TEXT("wrong RelayHostToken") : TEXT("relay unreachable?"));
@@ -172,26 +254,56 @@ namespace McpPublicAccessPrivate
 		Req->ProcessRequest();
 	}
 
+	/** The corner panel: connection state, and while no agent is connected, where to connect. */
 	void ShowOverlay()
 	{
 		if (Overlay.IsValid() || !GEngine || !GEngine->GameViewport || !FSlateApplication::IsInitialized())
 		{
 			return;
 		}
-		static const FSlateRoundedBoxBrush Brush(FLinearColor(0.02f, 0.03f, 0.05f, 0.7f), 6.f);
+		static const FSlateRoundedBoxBrush Brush(FLinearColor(0.02f, 0.03f, 0.05f, 0.72f), 6.f);
+		auto Working = []() { return InFlight > 0 || FPlatformTime::Seconds() - LastJob < 2.0; };
 		TSharedRef<SWidget> W = SNew(SVerticalBox)
 			+ SVerticalBox::Slot().FillHeight(1.f)[SNullWidget::NullWidget]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(FMargin(14.f, 0.f, 0.f, 12.f))
 			[
 				SNew(SBorder)
 				.BorderImage(&Brush)
-				.Padding(FMargin(10.f, 5.f))
+				.Padding(FMargin(10.f, 6.f))
 				.Visibility(EVisibility::HitTestInvisible)
 				[
-					SNew(STextBlock)
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", 18))
-					.ColorAndOpacity_Lambda([]() { return FSlateColor(bOnline ? FLinearColor(0.55f, 0.9f, 1.f) : FLinearColor(1.f, 0.6f, 0.4f)); })
-					.Text_Lambda([]() { return FText::FromString(FString::Printf(TEXT("AI code: %s%s"), *SessionCode, bOnline ? TEXT("") : TEXT("  (connecting...)"))); })
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot().AutoHeight()
+					[
+						SNew(STextBlock)
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", 17))
+						.ColorAndOpacity_Lambda([Working]()
+						{
+							return FSlateColor(!bOnline ? FLinearColor(1.f, 0.62f, 0.38f) : !bAgentSeen ? FLinearColor(0.55f, 0.9f, 1.f)
+								: Working() ? FLinearColor(1.f, 0.86f, 0.4f) : FLinearColor(0.45f, 0.92f, 0.55f));
+						})
+						.Text_Lambda([Working]()
+						{
+							if (!bOnline)
+							{
+								return FText::FromString(FString::Printf(TEXT("AI code %s  (connecting...)"), *ShownCode()));
+							}
+							if (!bAgentSeen)
+							{
+								return FText::FromString(FString::Printf(TEXT("Connect Claude Code: %s"), *ShownUrl()));
+							}
+							return FText::FromString(Working() && !LastTool.IsEmpty() ? FString::Printf(TEXT("Claude working: %s"), *LastTool)
+								: FString::Printf(TEXT("Claude connected  -  %s"), *ShownCode()));
+						})
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(0.f, 2.f, 0.f, 0.f))
+					[
+						SNew(STextBlock)
+						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 11))
+						.ColorAndOpacity(FSlateColor(FLinearColor(0.78f, 0.8f, 0.84f)))
+						.Visibility_Lambda([]() { return bOnline && !bAgentSeen ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+						.Text(FText::FromString(TEXT("Open that address in a browser: it shows one command to paste, then start claude.")))
+					]
 				]
 			];
 		GEngine->GameViewport->AddViewportWidgetContent(W, 1000);
@@ -235,13 +347,16 @@ void McpPublicAccess::Start(int32 Port, const FString& Path)
 	HostToken = S.RelayHostToken;
 	FParse::Value(FCommandLine::Get(), TEXT("RuntimeToolsetsHostToken="), HostToken);
 	FParse::Value(FCommandLine::Get(), TEXT("RuntimeToolsetsCode="), SessionCode);
-	SessionCode = SessionCode.IsEmpty() ? MakeCode() : SessionCode.ToUpper();
+	SessionCode = SessionCode.IsEmpty() ? MakeCode() : SessionCode.ToUpper().Replace(TEXT("-"), TEXT(""));
+	Instance = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	PublicUrl = S.RelayPublicUrl.IsEmpty() ? Relay : S.RelayPublicUrl;
+	PublicUrl.RemoveFromEnd(TEXT("/"));
 	LocalUrl = FString::Printf(TEXT("http://127.0.0.1:%d%s"), Port, *Path);
 	bRunning = true;
 	// session_get_build_info reports this, so agents find the Python client on their first call.
 	FPlatformMisc::SetEnvironmentVar(TEXT("RUNTIMETOOLSETS_SCRIPT_CLIENT"), *FString::Printf(TEXT("%s/s/%s/client.py"), *Relay, *SessionCode));
 	FFileHelper::SaveStringToFile(SessionCode + LINE_TERMINATOR, *(FPaths::ProjectSavedDir() / TEXT("RuntimeToolsets/code.txt")));
-	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, AI code %s"), *Relay, *SessionCode);
+	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, AI code %s (players open %s)"), *Relay, *ShownCode(), *ShownUrl());
 	Poll();
 	if (S.bShowConnectOverlay)
 	{

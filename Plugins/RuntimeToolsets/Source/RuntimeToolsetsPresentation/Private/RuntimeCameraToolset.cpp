@@ -1,4 +1,5 @@
 #include "RuntimeCameraToolset.h"
+#include "RuntimeToolsetsSettings.h"
 #include "PresentationToolCall.h"
 #include "RuntimeCommand.h"
 #include "RuntimeToolHelpers.h"
@@ -504,9 +505,25 @@ FRuntimeCameraView URuntimeCameraToolset::GetCamera()
 	return PC ? MakeView(PC, CurrentPose(PC)) : FRuntimeCameraView();
 }
 
+/** bProtectLevel: the player's view stays the level's own (look with capture.scene_capture instead). */
+static bool CameraProtected()
+{
+	if (URuntimeToolsetsSettings::Get().bProtectLevel)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotAllowed, TEXT("this level's camera is protected: the player's view stays as designed"),
+			TEXT("Look with capture.scene_capture, which never moves the player's camera (bProtectLevel in the project settings)"));
+		return true;
+	}
+	return false;
+}
+
 FRuntimeCameraView URuntimeCameraToolset::SetCamera(const FVector& Location, const FRotator& Rotation, const FVector& LookAt, const float& Fov, float BlendTime)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
@@ -545,6 +562,10 @@ FRuntimeCameraView URuntimeCameraToolset::SetCamera(const FVector& Location, con
 FRuntimeCameraView URuntimeCameraToolset::SetFov(float Fov, float BlendTime)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	APlayerController* PC = RequirePlayer();
 	if (!PC || !CheckFov(Fov))
 	{
@@ -558,6 +579,10 @@ FRuntimeCameraView URuntimeCameraToolset::SetFov(float Fov, float BlendTime)
 FRuntimeCameraView URuntimeCameraToolset::FrameNodes(const TArray<AActor*>& Targets, const FVector& Direction, const float& Fov, float Padding, float BlendTime)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
@@ -611,6 +636,10 @@ FRuntimeCameraView URuntimeCameraToolset::FrameNodes(const TArray<AActor*>& Targ
 FRuntimeCameraView URuntimeCameraToolset::Orbit(const FVector& Center, const float& Distance, AActor* Target, float Yaw, float Pitch, float BlendTime)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	APlayerController* PC = RequirePlayer();
 	if (!PC)
 	{
@@ -708,6 +737,10 @@ FRuntimeCameraView URuntimeCameraToolset::ResetCamera(float BlendTime)
 FRuntimeFlyModeInfo URuntimeCameraToolset::SetFlyMode(bool bEnabled)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	FRuntimeFlyModeInfo Out;
 	APlayerController* PC = RequirePlayer();
 	if (!PC)
@@ -780,6 +813,10 @@ FRuntimeFlySpeedInfo URuntimeCameraToolset::SetFlySpeed(const float& Speed, cons
 FRuntimePossessInfo URuntimeCameraToolset::Possess(AActor* Target)
 {
 	using namespace RtCam;
+	if (CameraProtected())
+	{
+		return {};
+	}
 	FRuntimePossessInfo Out;
 	APlayerController* PC = RequirePlayer();
 	if (!PC)

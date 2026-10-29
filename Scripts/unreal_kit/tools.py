@@ -3061,6 +3061,14 @@ def _lighting_hide_environment(*, hidden=None):
     return call('lighting.hide_environment', **args)
 
 
+def _lighting_restore_level():
+    """Puts the level's own lighting back exactly as it was designed: the sun, sky light, fog, atmosphere and clouds as they were before the first lighting change, and the tools' post process cleared (the level's own post process volume is never edited: tool changes sit on top of it). One undo step. camera.reset_camera gives the view back.
+    Returns: What was put back (nothing when the lighting was never changed).
+    """
+    args = {}
+    return call('lighting.restore_level', **args)
+
+
 def _lighting_set_atmosphere(*, mie_anisotropy=None, mie_scattering_scale=None, multi_scattering_factor=None, rayleigh_scattering=None, rayleigh_scattering_scale=None):
     """Sets the sky atmosphere's scattering (sky colour and haze). Undoable.
     Returns: The atmosphere after the change. Fails if the level has no sky atmosphere.
@@ -3250,7 +3258,7 @@ def _lighting_set_time_of_day(*, hour, target=None, yaw=None):
     return call('lighting.set_time_of_day', **args)
 
 
-lighting = SimpleNamespace(apply_mood=_lighting_apply_mood, get_environment=_lighting_get_environment, hide_environment=_lighting_hide_environment, set_atmosphere=_lighting_set_atmosphere, set_clouds=_lighting_set_clouds, set_fog=_lighting_set_fog, set_post_process=_lighting_set_post_process, set_sky=_lighting_set_sky, set_sun=_lighting_set_sun, set_time_of_day=_lighting_set_time_of_day)
+lighting = SimpleNamespace(apply_mood=_lighting_apply_mood, get_environment=_lighting_get_environment, hide_environment=_lighting_hide_environment, restore_level=_lighting_restore_level, set_atmosphere=_lighting_set_atmosphere, set_clouds=_lighting_set_clouds, set_fog=_lighting_set_fog, set_post_process=_lighting_set_post_process, set_sky=_lighting_set_sky, set_sun=_lighting_set_sun, set_time_of_day=_lighting_set_time_of_day)
 lighting.__doc__ = 'Outdoor lighting at runtime: sun (directional light), sky light, sky atmosphere, volumetric clouds, height fog and the'
 
 

@@ -473,6 +473,48 @@
 			}
 		},
 		{
+			"description": "Puts the level's own lighting back exactly as it was designed: the sun, sky light, fog, atmosphere and clouds as they were before the first lighting change, and the tools' post process cleared (the level's own post process volume is never edited: tool changes sit on top of it). One undo step. camera.reset_camera gives the view back.\nReturns: What was put back (nothing when the lighting was never changed).",
+			"input_schema":
+			{
+				"additionalProperties": false,
+				"properties":
+				{
+				},
+				"type": "object"
+			},
+			"mutating": true,
+			"name": "lighting.restore_level",
+			"output_schema":
+			{
+				"properties":
+				{
+					"returnValue":
+					{
+						"description": "What was put back (nothing when the lighting was never changed).",
+						"properties":
+						{
+							"restored":
+							{
+								"description": "Parts put back: sun, sky_light, fog, atmosphere, clouds, post_process.",
+								"items":
+								{
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"title": "RuntimeLevelRestore",
+						"type": "object"
+					}
+				},
+				"required": [
+					"returnValue"
+				],
+				"type": "object"
+			},
+			"undoable": true
+		},
+		{
 			"description": "Sets the sky atmosphere's scattering (sky colour and haze). Undoable.\nReturns: The atmosphere after the change. Fails if the level has no sky atmosphere.",
 			"input_schema":
 			{

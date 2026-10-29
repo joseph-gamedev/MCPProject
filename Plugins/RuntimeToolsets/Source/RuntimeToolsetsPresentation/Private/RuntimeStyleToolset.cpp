@@ -1,4 +1,5 @@
 #include "RuntimeStyleToolset.h"
+#include "RuntimeToolsetsSettings.h"
 #include "PresentationToolCall.h"
 #include "RuntimeCommand.h"
 #include "RuntimeJson.h"
@@ -333,6 +334,12 @@ FRuntimeStyleInfo URuntimeStyleToolset::Apply(const FRuntimeToolJson& Material, 
 	const FString& Preset, bool bLightingEnabled)
 {
 	using namespace RtStyle;
+	if (URuntimeToolsetsSettings::Get().bProtectLevel)
+	{
+		RuntimeToolCall::Fail(ERuntimeToolError::NotAllowed, TEXT("this level is protected: its look (lighting, grading, materials) stays as designed"),
+			TEXT("Style only the objects you add (build.set_material) (bProtectLevel in the project settings)"));
+		return {};
+	}
 	FRuntimeStyleInfo Out;
 	UWorld* W = RuntimeToolCall::GetWorld();
 	TSharedRef<FJsonObject> Style = MakeShared<FJsonObject>();

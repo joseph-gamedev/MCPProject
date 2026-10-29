@@ -43,7 +43,8 @@ _conns = threading.local()  # one kept-alive connection per thread and host: no 
 
 def _http(url, body, headers, timeout=300, compress=False):
     data = json.dumps(body, separators=(",", ":")).encode()
-    hdrs = {"Content-Type": "application/json", "User-Agent": USER_AGENT, **headers}
+    # gzip answers: smaller, and the relay delivers delayed answers reliably only to clients that accept them
+    hdrs = {"Content-Type": "application/json", "User-Agent": USER_AGENT, "Accept-Encoding": "gzip", **headers}
     if compress and len(data) > 32768:  # the relay unpacks it: big part lists shrink about 8x
         data = gzip.compress(data, 5)
         hdrs["Content-Encoding"] = "gzip"
@@ -61,7 +62,10 @@ def _http(url, body, headers, timeout=300, compress=False):
         try:
             conn.request("POST", path, body=data, headers=hdrs)
             r = conn.getresponse()
-            text = r.read().decode(errors="replace")
+            raw = r.read()
+            if (r.getheader("Content-Encoding") or "").lower() == "gzip":
+                raw = gzip.decompress(raw)
+            text = raw.decode(errors="replace")
             if r.getheader("Connection", "").lower() == "close":
                 conn.close()
                 pool.pop(key, None)

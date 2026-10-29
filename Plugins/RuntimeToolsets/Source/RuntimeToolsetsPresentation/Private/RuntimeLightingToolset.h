@@ -306,6 +306,21 @@ struct FRuntimeMoodResult
 	TArray<FString> Changed;
 };
 
+/** Result of restore_level. */
+USTRUCT()
+struct FRuntimeLevelRestore
+{
+	GENERATED_BODY()
+
+	/** False when nothing had been changed (the level already looks as designed). */
+	UPROPERTY()
+	bool bRestored = false;
+
+	/** Parts put back: sun, sky_light, fog, atmosphere, clouds, post_process. */
+	UPROPERTY()
+	TArray<FString> Restored;
+};
+
 /** Result of set_time_of_day. */
 USTRUCT()
 struct FRuntimeTimeOfDay
@@ -473,4 +488,14 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable, RequiresWorld), Category = "Lighting")
 	static FRuntimeEnvironmentHidden HideEnvironment(bool bHidden = true);
+
+	/**
+	 * Puts the level's own lighting back exactly as it was designed: the sun, sky light, fog, atmosphere and clouds as
+	 * they were before the first lighting change, and the tools' post process cleared (the level's own post process
+	 * volume is never edited: tool changes sit on top of it). One undo step. camera.reset_camera gives the view back.
+	 *
+	 * @return What was put back (nothing when the lighting was never changed).
+	 */
+	UFUNCTION(meta = (AICallable, Undoable, RequiresWorld), Category = "Lighting")
+	static FRuntimeLevelRestore RestoreLevel();
 };

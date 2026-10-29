@@ -7,6 +7,12 @@ URuntimeOutdoorLightingSkill::URuntimeOutdoorLightingSkill()
 	Toolsets = {TEXT("lighting"), TEXT("reflection"), TEXT("capture"), TEXT("style")};
 	Instructions = TEXT(R"SKILL(# Outdoor lighting
 
+## An existing level (it came with its own lighting and camera)
+Leave the level's lighting and the player's camera alone unless the player asks to change them: build into the scene as it is.
+Look with capture.scene_capture (it never moves the player's view). If the look was changed, lighting.restore_level puts the
+designed lighting back exactly (one undo step) and camera.reset_camera gives the view back. Projects can lock both
+(bProtectLevel): then lighting, camera and style tools refuse, and only your own objects can be added and changed.
+
 Unreal's outdoor light is a system of six parts. The **Directional Light (sun)** drives all of them: change it first.
 
 | Part | Role |

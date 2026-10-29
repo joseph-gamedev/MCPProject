@@ -2,6 +2,8 @@
 #include "HAL/IConsoleManager.h"
 #include "PresentationToolCall.h"
 #include "RuntimeToolsetExtensions.h"
+#include "RuntimeSceneGraph.h"
+#include "RuntimeToolsetsSettings.h"
 #include "RuntimeCommand.h"
 #include "RuntimeCommonCommands.h"
 #include "RuntimeJson.h"
@@ -54,6 +56,24 @@ namespace RtLight
 		return nullptr;
 	}
 
+	/** The unbound post process volume the tools made (a scene node), never the level's own. */
+	APostProcessVolume* FindToolVolume(UWorld* World)
+	{
+		FRuntimeSceneGraph* Graph = RuntimeToolCall::GetGraph();
+		APostProcessVolume* Best = nullptr;
+		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+		{
+			const FRuntimeSceneNode* Node = Graph ? Graph->FindByActor(*It) : nullptr;
+			if (It->bUnbound && Node && !Node->bSoftDeleted && !It->Tags.Contains(FName(TEXT("RuntimeToolsetsStyle"))) &&
+				(!Best || It->Priority > Best->Priority))
+			{
+				Best = *It;
+			}
+		}
+		return Best;
+	}
+
+	/** The volume that decides the look (highest priority): for reading the current post process. */
 	APostProcessVolume* FindUnboundVolume(UWorld* World)
 	{
 		// Volumes are always hidden in game, so visibility is not a filter. Highest priority wins; the style volume is the style toolset's.
@@ -615,7 +635,8 @@ namespace RtLight
 	/** Sets an unbound post-process volume's settings; spawns one (as a scene node) when the level has none. */
 	void AddPostProcess(UWorld* World, TFunctionRef<void(FPostProcessSettings&)> Edit, FCompositeCommand& Out, bool& bOutCreated)
 	{
-		APostProcessVolume* Volume = FindUnboundVolume(World);
+		// the tools' own volume, on top of the level's (whose settings stay as designed and show through where not overridden)
+		APostProcessVolume* Volume = FindToolVolume(World);
 		TSharedRef<TWeakObjectPtr<APostProcessVolume>> Target = MakeShared<TWeakObjectPtr<APostProcessVolume>>(Volume);
 		FPostProcessSettings New = Volume ? Volume->Settings : FPostProcessSettings();
 		Edit(New);
@@ -630,7 +651,7 @@ namespace RtLight
 				if (V)
 				{
 					V->bUnbound = true;
-					V->Priority = 10.f;
+					V->Priority = 100.f;
 				}
 				*Target = V;
 				return V;
@@ -639,6 +660,7 @@ namespace RtLight
 				TEXT("class:/Script/Engine.PostProcessVolume"), TArray<FName>()));
 		}
 		const FPostProcessSettings Old = Volume ? Volume->Settings : FPostProcessSettings();
+		const bool bWasEnabled = !Volume || Volume->bEnabled;
 		Out.Add(MakeUnique<FLambdaCommand>(TEXT("post process"),
 			[Target, New](FRuntimeCommandContext&, FString& Err)
 			{
@@ -648,13 +670,15 @@ namespace RtLight
 					return false;
 				}
 				(*Target)->Settings = New;
+				(*Target)->bEnabled = true;   // switched off by restore_level: on again
 				return true;
 			},
-			[Target, Old](FRuntimeCommandContext&)
+			[Target, Old, bWasEnabled](FRuntimeCommandContext&)
 			{
 				if (Target->IsValid())
 				{
 					(*Target)->Settings = Old;
+					(*Target)->bEnabled = bWasEnabled;
 				}
 				return true;
 			}));
@@ -683,8 +707,81 @@ namespace RtLight
 namespace RtLight
 {
 	/** True (and the call fails with the owner's hint) when a sky system from an extension drives this part of the lighting. */
+	/** The level's own lighting as designed, recorded before the first change: what restore_level puts back. */
+	struct FLevelLook
+	{
+		TWeakObjectPtr<ADirectionalLight> Sun;
+		TOptional<FSunState> SunState;
+		TWeakObjectPtr<ASkyLight> Sky;
+		TOptional<FSkyState> SkyState;
+		TWeakObjectPtr<AExponentialHeightFog> Fog;
+		TOptional<FFogState> FogState;
+		TWeakObjectPtr<USkyAtmosphereComponent> Atmosphere;
+		TOptional<FAtmosphereState> AtmosphereState;
+		TWeakObjectPtr<UVolumetricCloudComponent> Clouds;
+		TSharedPtr<FCloudState> CloudState;
+	};
+
+	TMap<TWeakObjectPtr<UWorld>, TSharedPtr<FLevelLook>>& Looks()
+	{
+		static TMap<TWeakObjectPtr<UWorld>, TSharedPtr<FLevelLook>> M;
+		return M;
+	}
+
+	void EnsureSnapshot(UWorld* World)
+	{
+		if (!World || Looks().Contains(World))
+		{
+			return;
+		}
+		TSharedPtr<FLevelLook> L = MakeShared<FLevelLook>();
+		if (ADirectionalLight* S = FirstActor<ADirectionalLight>(World))
+		{
+			L->Sun = S;
+			L->SunState = FSunState::Read(S);
+		}
+		if (ASkyLight* K = FirstActor<ASkyLight>(World))
+		{
+			L->Sky = K;
+			L->SkyState = FSkyState::Read(K);
+		}
+		if (AExponentialHeightFog* F = FirstActor<AExponentialHeightFog>(World))
+		{
+			L->Fog = F;
+			L->FogState = FFogState::Read(F);
+		}
+		if (USkyAtmosphereComponent* A = FirstComponent<USkyAtmosphereComponent>(World))
+		{
+			L->Atmosphere = A;
+			L->AtmosphereState = FAtmosphereState::Read(A);
+		}
+		if (UVolumetricCloudComponent* C = FirstComponent<UVolumetricCloudComponent>(World))
+		{
+			L->Clouds = C;
+			L->CloudState = MakeShared<FCloudState>(FCloudState::Read(C));
+		}
+		Looks().Add(World, L);
+	}
+
+	/** bProtectLevel: the level's lighting stays as designed. */
+	bool LevelProtected(const TCHAR* What)
+	{
+		if (URuntimeToolsetsSettings::Get().bProtectLevel)
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("this level's lighting is protected: the %s stays as designed"), What),
+				TEXT("Add your own lights and objects instead; look with capture.scene_capture (bProtectLevel in the project settings)"));
+			return true;
+		}
+		return false;
+	}
+
 	static bool SkyOwns(const TCHAR* What, const TCHAR* Instead)
 	{
+		if (LevelProtected(What))
+		{
+			return true;
+		}
+		EnsureSnapshot(RuntimeToolCall::GetWorld());   // the designed look, before this first change
 		FString Who, Use;
 		if (RuntimeToolsetExtensions::FindLightingOwner(RuntimeToolCall::GetWorld(), Who, Use))
 		{
@@ -913,6 +1010,10 @@ FRuntimePostProcessInfo URuntimeLightingToolset::SetPostProcess(const float& Exp
 	const float& Saturation, const float& Contrast, const float& Vignette, const float& WhiteBalance)
 {
 	using namespace RtLight;
+	if (LevelProtected(TEXT("post process")))
+	{
+		return {};
+	}
 	if ((Passed(TEXT("exposure_bias")) || Passed(TEXT("exposure_min")) || Passed(TEXT("exposure_max"))) &&
 		SkyOwns(TEXT("exposure"), TEXT("sky.set_sky brightness (bloom, saturation, contrast, vignette and white balance still work here)")))
 	{
@@ -1124,6 +1225,10 @@ FRuntimeMoodResult URuntimeLightingToolset::ApplyMood(ERuntimeLightingMood Mood)
 FRuntimeEnvironmentHidden URuntimeLightingToolset::HideEnvironment(bool bHidden)
 {
 	FRuntimeEnvironmentHidden Out;
+	if (RtLight::LevelProtected(TEXT("environment")))
+	{
+		return Out;
+	}
 	Out.bHidden = bHidden;
 	UWorld* World = RuntimeToolCall::GetWorld();
 	for (TActorIterator<AActor> It(World); It; ++It)
@@ -1157,5 +1262,84 @@ FRuntimeEnvironmentHidden URuntimeLightingToolset::HideEnvironment(bool bHidden)
 			Out.Actors.Add(A->GetName());
 		}
 	}
+	return Out;
+}
+
+FRuntimeLevelRestore URuntimeLightingToolset::RestoreLevel()
+{
+	using namespace RtLight;
+	FRuntimeLevelRestore Out;
+	UWorld* World = RuntimeToolCall::GetWorld();
+	const TSharedPtr<FLevelLook>* Found = Looks().Find(World);
+	APostProcessVolume* Tool = FindToolVolume(World);
+	if (!Found && !Tool)
+	{
+		return Out;   // never changed
+	}
+	TUniquePtr<FCompositeCommand> Cmd = MakeUnique<FCompositeCommand>(TEXT("restore level lighting"));
+	if (Found)
+	{
+		const FLevelLook& L = **Found;
+		if (L.Sun.IsValid() && L.SunState.IsSet())
+		{
+			Cmd->Add(MakeStateCommand(TEXT("sun"), L.Sun.Get(), L.SunState.GetValue()));
+			Out.Restored.Add(TEXT("sun"));
+		}
+		if (L.Sky.IsValid() && L.SkyState.IsSet())
+		{
+			Cmd->Add(MakeStateCommand(TEXT("sky light"), L.Sky.Get(), L.SkyState.GetValue()));
+			Out.Restored.Add(TEXT("sky_light"));
+		}
+		if (L.Fog.IsValid() && L.FogState.IsSet())
+		{
+			Cmd->Add(MakeStateCommand(TEXT("fog"), L.Fog.Get(), L.FogState.GetValue()));
+			Out.Restored.Add(TEXT("fog"));
+		}
+		if (L.Atmosphere.IsValid() && L.AtmosphereState.IsSet())
+		{
+			Cmd->Add(MakeStateCommand(TEXT("atmosphere"), L.Atmosphere.Get(), L.AtmosphereState.GetValue()));
+			Out.Restored.Add(TEXT("atmosphere"));
+		}
+		if (L.Clouds.IsValid() && L.CloudState.IsValid())
+		{
+			Cmd->Add(MakeCloudCommand(L.Clouds.Get(), *L.CloudState, false));   // the original material and values
+			Out.Restored.Add(TEXT("clouds"));
+		}
+	}
+	if (Tool)
+	{
+		// the tools' layer: cleared, so the level's own post process decides the look again
+		TWeakObjectPtr<APostProcessVolume> Weak = Tool;
+		const FPostProcessSettings Old = Tool->Settings;
+		const bool bWasEnabled = Tool->bEnabled;
+		Cmd->Add(MakeUnique<FLambdaCommand>(TEXT("clear tool post process"),
+			[Weak](FRuntimeCommandContext&, FString& Err)
+			{
+				if (!Weak.IsValid())
+				{
+					Err = TEXT("post process volume missing");
+					return false;
+				}
+				Weak->Settings = FPostProcessSettings();
+				Weak->bEnabled = false;
+				return true;
+			},
+			[Weak, Old, bWasEnabled](FRuntimeCommandContext&)
+			{
+				if (Weak.IsValid())
+				{
+					Weak->Settings = Old;
+					Weak->bEnabled = bWasEnabled;
+				}
+				return Weak.IsValid();
+			}));
+		Out.Restored.Add(TEXT("post_process"));
+	}
+	AddSkyRecapture(World, *Cmd);
+	if (!RuntimeToolCall::RunCommand(MoveTemp(Cmd)))
+	{
+		return {};
+	}
+	Out.bRestored = true;
 	return Out;
 }
