@@ -1261,8 +1261,8 @@ def _camera_frame_nodes(*, targets, blend_time=None, direction=None, fov=None, p
     Args:
         targets (list[str]): Required. Nodes or actors to frame, e.g. ["n3", "n7"].
         blend_time (float): Seconds to blend (tool camera only). Default 0.
-        direction (list[float]): View direction [x, y, z] (default: the current one), e.g. [1, 0.5, -0.3]. ([x, y, z]
-            (cm))
+        direction (list[float]): View direction [x, y, z] (default: the current heading, looking 30 degrees down), e.g.
+            [1, 0.5, -0.3]. The camera never goes below eye height over the targets' base. ([x, y, z] (cm))
         fov (float): Field of view in degrees for the framing (default: current).
         padding (float): Margin factor (1 = tight, 1.15 default). Default 1.149999976158142.
     """

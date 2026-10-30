@@ -17,7 +17,7 @@
 					},
 					"direction":
 					{
-						"description": "View direction [x, y, z] (default: the current one), e.g. [1, 0.5, -0.3]. ([x, y, z] (cm))",
+						"description": "View direction [x, y, z] (default: the current heading, looking 30 degrees down), e.g. [1, 0.5, -0.3]. The camera never goes below eye height over the targets' base. ([x, y, z] (cm))",
 						"items":
 						{
 							"type": "number"

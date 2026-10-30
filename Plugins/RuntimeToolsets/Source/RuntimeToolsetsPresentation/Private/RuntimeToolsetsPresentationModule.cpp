@@ -1,3 +1,4 @@
+#include "DebugLayer/RuntimeDebugLayer.h"
 #include "RuntimeCameraToolset.h"
 #include "RuntimeLightingToolset.h"
 #include "RuntimeMaterialsToolset.h"
@@ -30,12 +31,14 @@ public:
 		if (!IsRunningCommandlet())
 		{
 			FRuntimeToolsetsActivity::Get().Startup();
+			FRuntimeDebugLayer::Get().Startup();
 		}
 	}
 
 	virtual void ShutdownModule() override
 	{
 		FRuntimeToolsetsActivity::Get().Shutdown();
+		FRuntimeDebugLayer::Get().Shutdown();
 		if (IRuntimeToolsetsCore::IsAvailable())
 		{
 			for (const TSharedRef<IRuntimeToolset>& Toolset : Registered)

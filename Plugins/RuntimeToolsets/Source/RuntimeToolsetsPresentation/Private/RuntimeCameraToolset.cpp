@@ -619,14 +619,17 @@ FRuntimeCameraView URuntimeCameraToolset::FrameNodes(const TArray<AActor*>& Targ
 	FVector Dir = Passed(TEXT("direction")) ? Direction : FVector::ZeroVector;
 	if (Dir.IsNearlyZero())
 	{
-		Dir = Pose.Rotation.Vector();
+		// the current heading, looking 30 degrees down: a three-quarter view from above, never along the ground
+		Dir = FRotator(-30.f, Pose.Rotation.Yaw, 0.f).Vector();
 	}
 	Dir.Normalize();
 	const double Radius = FMath::Max(Box.GetExtent().Size(), 10.0) * FMath::Clamp(Padding, 0.5f, 5.f);
 	const double HalfFov = FMath::DegreesToRadians(FMath::Clamp(Pose.Fov, 5.f, 170.f) * 0.5);
 	const double Distance = Radius / FMath::Sin(HalfFov);
 	Pose.Location = Box.GetCenter() - Dir * Distance;
-	Pose.Rotation = Dir.Rotation();
+	// never below eye height over the targets' base (a level view of a floor or a building sat under or inside it)
+	Pose.Location.Z = FMath::Max(Pose.Location.Z, Box.Min.Z + 170.0);
+	Pose.Rotation = (Box.GetCenter() - Pose.Location).Rotation();
 	FRuntimeCameraView View = RunPose(PC, Pose, bFov, BlendTime, TEXT("frame nodes"));
 	View.Center = Box.GetCenter();
 	View.Distance = RuntimeJson::Round(Distance);

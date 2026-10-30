@@ -36,6 +36,21 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnRuntimeToolEvent, const FString& /*Sessi
 /** A tool call started (bStarted) or finished (bOk, Seconds). Game thread. Used for on-screen activity. */
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnRuntimeToolActivity, const FString& /*Tool*/, bool /*bStarted*/, bool /*bOk*/, double /*Seconds*/);
 
+/** One tool call starting or finishing, with its arguments and result: for debug views. Game thread. */
+struct FRuntimeToolTrace
+{
+	FString Tool;
+	FString SessionId;
+	/** 0 = called by a client; 1+ = run by another tool (session_call_tool, ops.run_batch). */
+	int32 Depth = 0;
+	bool bStarted = true;
+	TSharedPtr<FJsonObject> Args;
+	/** Set when finished. */
+	const FToolResult* Result = nullptr;
+	double Seconds = 0.0;
+};
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnRuntimeToolTrace, const FRuntimeToolTrace& /*Trace*/);
+
 /**
  * Public entry point of RuntimeToolsets. A connector (or the MCP adapter) needs only this interface:
  * arguments and results are plain JSON.
@@ -92,6 +107,8 @@ public:
 
 	virtual FOnRuntimeToolEvent& OnEvent() = 0;
 	virtual FOnRuntimeToolActivity& OnActivity() = 0;
+	/** Every call with its arguments and result (debug layer). */
+	virtual FOnRuntimeToolTrace& OnTrace() = 0;
 	virtual FSimpleMulticastDelegate& OnToolsetsChanged() = 0;
 
 	virtual void RegisterToolset(const TSharedRef<IRuntimeToolset>& Toolset) = 0;

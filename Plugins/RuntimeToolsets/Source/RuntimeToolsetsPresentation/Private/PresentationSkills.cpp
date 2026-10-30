@@ -186,6 +186,8 @@ windows: rows, cols, margin), column, steps, tiers, roof, arch, dome, lattice; b
 or grid. Something visible should exist after the first batch, within a minute.
 
 ## 2. Mass (one batch)
+If the scene is empty, the first call of the batch is a floor (box about 1.5x the footprint, 20 cm thick, neutral) and
+the last is camera.frame_nodes on it, so the player sees work appear at once.
 One ops.run_batch of small creates: every main volume at its true size and position, simple shapes, rough colours.
 Then look twice:
 - capture.scene_capture from the pose that matches the photo (location + look_at + fov, same aspect). Reuse the exact

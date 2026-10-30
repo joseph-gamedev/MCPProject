@@ -9,7 +9,7 @@ public class RuntimeToolsetsPresentation : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"RuntimeToolsetsCore", "Core", "CoreUObject", "Engine", "Json", "JsonUtilities", "RenderCore",
-			"UMG", "Slate", "SlateCore", "Niagara", "AssetRegistry"
+			"UMG", "Slate", "SlateCore", "InputCore", "Niagara", "AssetRegistry"
 		});
 		RuntimeToolsetsBuildGuard.Check(this);
 	}

@@ -215,7 +215,8 @@ public:
 	 * Points the view so all targets fit on screen. Undoable.
 	 *
 	 * @param Targets - Nodes or actors to frame, e.g. ["n3", "n7"].
-	 * @param Direction - View direction [x, y, z] (default: the current one), e.g. [1, 0.5, -0.3].
+	 * @param Direction - View direction [x, y, z] (default: the current heading, looking 30 degrees down), e.g. [1, 0.5, -0.3].
+	 *                    The camera never goes below eye height over the targets' base.
 	 * @param Padding - Margin factor (1 = tight, 1.15 default).
 	 * @param Fov - Field of view in degrees for the framing (default: current).
 	 * @param BlendTime - Seconds to blend (tool camera only).

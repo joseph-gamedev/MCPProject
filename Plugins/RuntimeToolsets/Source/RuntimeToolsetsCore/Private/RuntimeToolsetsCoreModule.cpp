@@ -311,12 +311,14 @@ public:
 				TEXT("Call it directly instead of through call_tool"));
 		}
 		const double Start = FPlatformTime::Seconds();
+		Trace(Tool, Caller.SessionId, Depth, Args, nullptr, 0.0);
 		Inv->GetTool().Handler(*Inv);
 		if (!Inv->IsComplete())
 		{
 			Inv->Fail(ERuntimeToolError::Internal, TEXT("tool returned without a result"));
 		}
 		const FToolResult& Result = Inv->GetResult();
+		Trace(Tool, Caller.SessionId, Depth, Args, &Result, FPlatformTime::Seconds() - Start);
 		RecordUsage(Tool, Result, FPlatformTime::Seconds() - Start);
 		return FlattenReturnValue(Result);
 	}
@@ -344,9 +346,13 @@ public:
 	{
 		check(IsInGameThread());
 		ActivityDelegate.Broadcast(Tool, true, true, 0.0);
+		Trace(Tool, Caller.SessionId, Depth, Arguments, nullptr, 0.0);
 		if (Depth > MaxCallDepth)
 		{
-			OnDone(FToolResult::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("call depth limit (%d) reached"), MaxCallDepth)));
+			const FToolResult Fail = FToolResult::Fail(ERuntimeToolError::NotAllowed, FString::Printf(TEXT("call depth limit (%d) reached"), MaxCallDepth));
+			Trace(Tool, Caller.SessionId, Depth, Arguments, &Fail, 0.0);
+			ActivityDelegate.Broadcast(Tool, false, false, 0.0);
+			OnDone(Fail);
 			return []() {};
 		}
 		TSharedPtr<FJsonObject> Args = Arguments.IsValid() ? MakeShared<FJsonObject>(*Arguments) : MakeShared<FJsonObject>();
@@ -354,12 +360,15 @@ public:
 		TSharedPtr<FToolInvocation> Inv = Prepare(Tool, Args, Caller, Depth, PrepareError);
 		if (!Inv.IsValid())
 		{
+			Trace(Tool, Caller.SessionId, Depth, Args, &PrepareError, 0.0);
+			ActivityDelegate.Broadcast(Tool, false, false, 0.0);
 			OnDone(PrepareError);
 			return []() {};
 		}
 		const double Start = FPlatformTime::Seconds();
-		Inv->OnFinished = [this, Tool, Start, OnDone](const FToolResult& Result)
+		Inv->OnFinished = [this, Tool, Start, OnDone, Args, Session = Caller.SessionId, Depth](const FToolResult& Result)
 		{
+			Trace(Tool, Session, Depth, Args, &Result, FPlatformTime::Seconds() - Start);
 			RecordUsage(Tool, Result, FPlatformTime::Seconds() - Start);
 			OnDone(FlattenReturnValue(Result));
 		};
@@ -427,6 +436,23 @@ public:
 
 	virtual FOnRuntimeToolEvent& OnEvent() override { return EventDelegate; }
 	virtual FOnRuntimeToolActivity& OnActivity() override { return ActivityDelegate; }
+	virtual FOnRuntimeToolTrace& OnTrace() override { return TraceDelegate; }
+
+	void Trace(const FString& Tool, const FString& Session, int32 Depth, const TSharedPtr<FJsonObject>& Args, const FToolResult* Result, double Seconds)
+	{
+		if (TraceDelegate.IsBound())
+		{
+			FRuntimeToolTrace T;
+			T.Tool = Tool;
+			T.SessionId = Session;
+			T.Depth = Depth;
+			T.bStarted = Result == nullptr;
+			T.Args = Args;
+			T.Result = Result;
+			T.Seconds = Seconds;
+			TraceDelegate.Broadcast(T);
+		}
+	}
 	virtual FSimpleMulticastDelegate& OnToolsetsChanged() override { return ToolsetsChangedDelegate; }
 
 	virtual void EndSession(const FString& SessionId) override
@@ -642,6 +668,7 @@ private:
 			return;
 		}
 		FToolResult Result = InResult;
+		Trace(Call->Tool, Call->Caller.SessionId, 0, Call->Args, &Result, Call->StartTime > 0 ? FPlatformTime::Seconds() - Call->StartTime : 0.0);
 		const int32 Bytes = RecordUsage(Call->Tool, Result, Call->StartTime > 0 ? FPlatformTime::Seconds() - Call->StartTime : 0.0);
 		const int32 MaxBytes = URuntimeToolsetsSettings::Get().MaxResultBytes;
 		if (Result.IsOk() && MaxBytes > 0 && Bytes > MaxBytes)
@@ -716,6 +743,7 @@ private:
 	{
 		Call->StartTime = FPlatformTime::Seconds();
 		ActivityDelegate.Broadcast(Call->Tool, true, true, 0.0);
+		Trace(Call->Tool, Call->Caller.SessionId, 0, Call->Args, nullptr, 0.0);
 		if (Call->bCancelRequested)
 		{
 			CompleteNow(Call, FToolResult::Fail(ERuntimeToolError::Cancelled, TEXT("cancelled before start")));
@@ -880,6 +908,7 @@ private:
 
 	FOnRuntimeToolEvent EventDelegate;
 	FOnRuntimeToolActivity ActivityDelegate;
+	FOnRuntimeToolTrace TraceDelegate;
 	FSimpleMulticastDelegate ToolsetsChangedDelegate;
 
 	FTSTicker::FDelegateHandle TickHandle;

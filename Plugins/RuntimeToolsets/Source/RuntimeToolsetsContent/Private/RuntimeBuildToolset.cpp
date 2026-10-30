@@ -367,6 +367,10 @@ MATERIALS sell realism. Presets carry PBR values AND a procedural surface (world
   build.list_materials lists every preset and style.
 
 WORKFLOW:
+0. Something visible first: the player watches the game, not your plan. If the scene is empty (scene.list_tree shows
+   no ground under the build site), create a floor first (build.create_primitive box, about 1.5x the build's footprint,
+   20 cm thick, neutral material) and point the view at it (camera.frame_nodes). After each batch, frame the new work so
+   the player sees it appear.
 1. Plan: list the defining features and their real measurements (silhouette first, then secondary forms, then detail).
 2. Build site + massing in one batch; check build.capture_view (front/right/top/perspective). Fix proportions.
 3. Add detail layers (structure, openings, ornament, railings) in batches; group with scene.create_group + parent.
