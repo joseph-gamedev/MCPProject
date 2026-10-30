@@ -27,7 +27,7 @@ struct FGisPlotSummary
 {
 	GENERATED_BODY()
 
-	/** Plot id, e.g. "P12": pass it to get_plot, set_plot or the kit's uk.gis.build("P12", ...). */
+	/** Plot id, e.g. "P12": pass it to get_plot or set_plot. */
 	UPROPERTY()
 	FString Id;
 
@@ -250,8 +250,8 @@ public:
 
 /**
  * GIS: land plots (parcels) of any polygon shape. Generate random street blocks and lots, add your own polygons or real
- * GIS data (the Python kit's uk.gis loads GeoJSON and GeoRegions files and projects them here), see
- * them with zoning colours and id labels, query them, and put buildings on them (uk.gis.build("P12", style=...)).
+ * GIS data, see them with zoning colours and id labels, query them, and put buildings on them (get_plot gives the
+ * polygon: build.create_assembly with an extrude of it per plot, many plots per ops.run_batch).
  * World axes: +X east, -Y north, cm. Plots are data: scene.clear_all keeps them (gis.delete_plots all=true clears).
  */
 UCLASS()
@@ -387,7 +387,7 @@ public:
 	static FGisPlotList ShowPlots(bool bPlots = true, bool bLabels = true, bool bStreets = true, int32 MaxLabels = 2000);
 
 	/**
-	 * Sets the real-world position of world (0,0) for geographic data (the kit's uk.gis loaders set it for you).
+	 * Sets the real-world position of world (0,0) for geographic data (set it before adding plots in lon/lat).
 	 *
 	 * @param Latitude - Degrees.
 	 * @param Longitude - Degrees.
@@ -408,7 +408,7 @@ public:
 	 * Exports the plots as a GeoJSON FeatureCollection (longitude/latitude when an origin is set, else metres).
 	 *
 	 * @param bLonLat - Geographic coordinates (needs an origin); false = local metres (+X east, +Y north).
-	 * @param Limit - Features per call (answers are size-capped: page big exports; the kit's uk.gis.export joins them).
+	 * @param Limit - Features per call (answers are size-capped: page big exports with offset).
 	 * @param Offset - Skip this many plots.
 	 * @return The FeatureCollection (plus "total": all plots).
 	 */

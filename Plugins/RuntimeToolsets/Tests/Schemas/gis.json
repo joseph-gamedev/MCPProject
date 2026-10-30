@@ -1,5 +1,5 @@
 {
-	"description": "GIS: land plots (parcels) of any polygon shape. Generate random street blocks and lots, add your own polygons or real\nGIS data (the Python kit's uk.gis loads GeoJSON and GeoRegions files and projects them here), see\nthem with zoning colours and id labels, query them, and put buildings on them (uk.gis.build(\"P12\", style=...)).\nWorld axes: +X east, -Y north, cm. Plots are data: scene.clear_all keeps them (gis.delete_plots all=true clears).",
+	"description": "GIS: land plots (parcels) of any polygon shape. Generate random street blocks and lots, add your own polygons or real\nGIS data, see them with zoning colours and id labels, query them, and put buildings on them (get_plot gives the\npolygon: build.create_assembly with an extrude of it per plot, many plots per ops.run_batch).\nWorld axes: +X east, -Y north, cm. Plots are data: scene.clear_all keeps them (gis.delete_plots all=true clears).",
 	"name": "gis",
 	"tools": [
 		{
@@ -253,7 +253,7 @@
 										},
 										"id":
 										{
-											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot or set_plot.",
 											"type": "string"
 										},
 										"street_edges":
@@ -361,7 +361,7 @@
 					"limit":
 					{
 						"default": 300,
-						"description": "Features per call (answers are size-capped: page big exports; the kit's uk.gis.export joins them).",
+						"description": "Features per call (answers are size-capped: page big exports with offset).",
 						"type": "integer"
 					},
 					"lon_lat":
@@ -896,7 +896,7 @@
 										},
 										"id":
 										{
-											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot or set_plot.",
 											"type": "string"
 										},
 										"street_edges":
@@ -987,7 +987,7 @@
 			}
 		},
 		{
-			"description": "Sets the real-world position of world (0,0) for geographic data (the kit's uk.gis loaders set it for you).\nReturns: The origin.",
+			"description": "Sets the real-world position of world (0,0) for geographic data (set it before adding plots in lon/lat).\nReturns: The origin.",
 			"input_schema":
 			{
 				"additionalProperties": false,
@@ -1128,7 +1128,7 @@
 							},
 							"id":
 							{
-								"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+								"description": "Plot id, e.g. \"P12\": pass it to get_plot or set_plot.",
 								"type": "string"
 							},
 							"street_edges":
@@ -1235,7 +1235,7 @@
 										},
 										"id":
 										{
-											"description": "Plot id, e.g. \"P12\": pass it to get_plot, set_plot or the kit's uk.gis.build(\"P12\", ...).",
+											"description": "Plot id, e.g. \"P12\": pass it to get_plot or set_plot.",
 											"type": "string"
 										},
 										"street_edges":

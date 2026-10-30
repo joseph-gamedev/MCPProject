@@ -2295,8 +2295,7 @@ def _gis_export_geo_json(*, limit=None, lon_lat=None, offset=None):
     Returns: The FeatureCollection (plus "total": all plots).
 
     Args:
-        limit (int): Features per call (answers are size-capped: page big exports; the kit's uk.gis.export joins them).
-            Default 300.
+        limit (int): Features per call (answers are size-capped: page big exports with offset). Default 300.
         lon_lat (bool): Geographic coordinates (needs an origin); false = local metres (+X east, +Y north). Default
             true.
         offset (int): Skip this many plots. Default 0.
@@ -2384,7 +2383,7 @@ def _gis_merge_plots(*, ids):
 
 
 def _gis_set_origin(*, latitude, longitude):
-    """Sets the real-world position of world (0,0) for geographic data (the kit's uk.gis loaders set it for you).
+    """Sets the real-world position of world (0,0) for geographic data (set it before adding plots in lon/lat).
     Returns: The origin.
 
     Args:
@@ -6039,7 +6038,7 @@ def _session_get_capabilities():
 
 
 def _session_list_toolsets():
-    """List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with ops.run_batch (up to 100 calls per request), one logic.import per game, or Python scripts (session_get_build_info -> scripting). If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it.
+    """List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with many small calls in ops.run_batch (up to 100 calls per request) and one logic.import per game; no Python or installs are needed. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it.
     """
     args = {}
     return call('session.list_toolsets', **args)
@@ -6066,12 +6065,12 @@ def _session_describe_toolset(*, name, include_schemas=None, tools=None):
 def _session_call_tool(*, name, arguments=None):
     """Call any tool by name (toolset.tool or toolset_tool) with its arguments.
     NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.
-    RULE: more than ~20 parts, or anything repeated (windows, seats, trees, track, buildings), is ONE Python script, never hand-written JSON parts (writing JSON by hand is 10-50x slower). Template:
-      import os, sys; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<session.get_build_info scripting.kit>")
-      import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform
-      P = [box([200, 200, 300], [i * 400, 0, 0], m="concrete") for i in range(50)]   # loops, math, real sizes
-      uk.place("Name", P, at=(0, 0, 0))   # or uk.place_many([(name, parts, at), ...]); uk.district("paris") for cities
-    Run it with Bash (python script.py); it reaches the game by itself. Loops make detail cheap: a landmark is 500-3000 parts (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.
+    BUILD FAST WITH TOOLS ONLY (no Python, nothing to install): many SMALL calls sent together.
+      - Each create call is one volume or one repeated feature (under ~40 parts): quick to write. Send several in one ops.run_batch (up to 100 calls; "$N.id" uses call N's result). Never one giant call (minutes to write, nothing appears meanwhile), never one part per call.
+      - Repeats come from a few numbers, not listed parts: generator shapes openings (wall with a window grid: rows, cols, arched), column, steps, tiers, lattice, roof; build.array (row, ring, grid copies), build.mirror, scene.duplicate_node, layout.arrange_in_grid; pcg.scatter for trees and props (real packaged meshes: level.find_assets path /Game/RuntimeFoliage).
+      - Something visible after the first batch: in an empty scene a floor first, then camera.frame_nodes on the work. capture.screenshot is called directly (waiting tools cannot run inside ops.run_batch).
+      - Detail matters: a landmark is hundreds of parts in a few batches (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.
+      - Optional: if this machine already has Python and the kit (session.get_build_info -> scripting.kit), a script may do very large procedural jobs (skill python_kit). Never install, download or search for it.
     QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):
       build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}
       build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object
@@ -6080,8 +6079,8 @@ def _session_call_tool(*, name, arguments=None):
       scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}
       lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)
       ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request
-      gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - random land plots; gis.list_plots / get_plot {id}; GeoJSON / GeoRegions files and buildings on plots: Python uk.gis.load_geojson | load_georegions, uk.gis.build("P12", style=...), uk.gis.build_all(...)
-    Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district("paris") builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} first (small), then only the tool you need.
+      gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - land plots with streets; gis.list_plots / get_plot {id} gives each plot's polygon
+    Cities, streets, many buildings: gis.create_plots, then per block one ops.run_batch with one build.create_assembly per plot (an extrude of the plot polygon for the mass, openings walls for windows, a roof), then pcg.scatter trees along the streets. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} first (small), then only the tool you need.
 
     Args:
         name (str): Required. Qualified tool name, e.g. actors.spawn_actor

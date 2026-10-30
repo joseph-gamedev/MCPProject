@@ -39,7 +39,8 @@ static void GetBuildInfo(FToolInvocation& Inv)
 	}
 	TSharedRef<FJsonObject> Scripting = Obj();
 	// Python kit shipped in the build folder (packaged) or the repo (editor): used in place, nothing downloaded or installed.
-	Scripting->SetStringField(TEXT("why"), TEXT("A script builds hundreds of parts and sends them in a few requests: much faster than single tool calls."));
+	Scripting->SetStringField(TEXT("why"), TEXT("Optional. The tools alone build everything (small calls in ops.run_batch). Only when this machine already has "
+		"Python and the kit below may a script do very large procedural jobs. Never install, download or search for it."));
 	for (const FString& Dir : {FPaths::RootDir(), FPaths::ProjectDir() / TEXT("Scripts/dist")})
 	{
 		if (FPaths::FileExists(Dir / TEXT("unreal_kit.zip")))
@@ -49,11 +50,7 @@ static void GetBuildInfo(FToolInvocation& Inv)
 			break;
 		}
 	}
-	Scripting->SetStringField(TEXT("remote"), TEXT("Game in the cloud (streamed): the kit is on YOUR machine at the path in the UNREAL_KIT environment "
-		"variable (Connect.bat sets it, with UNREAL_RELAY and UNREAL_TOKEN); uk.connect() then goes through the relay by itself. Do not search the disk."));
-	Scripting->SetStringField(TEXT("fastest"), TEXT("Cities and streets: uk.district(\"manhattan\" | \"paris\" | \"london\" | ... , blocks=(3, 2)) builds "
-		"a whole district (streets, styled buildings, trees) in one call in seconds; every run is different. Single buildings: "
-		"from unreal_kit import buildings as B; B.building(kind, style=...)."));
+	Scripting->SetStringField(TEXT("remote"), TEXT("Game streamed from the cloud: the kit path above is on the cloud machine, not yours: use the tools."));
 	Scripting->SetStringField(TEXT("how"), TEXT("Python: import sys; sys.path.insert(0, r'<kit>'); import unreal_kit as uk. It connects by itself to the "
 		"game on this machine (uk.connect(url='http://127.0.0.1:<port>/mcp') for another port). uk.tools.<toolset>.<tool>(...) is every tool; "
 		"uk.parts builds part lists (box, cyl, sphere, beam, extrude, sweep, transform, grid, ring, PALETTE materials); uk.place / "
@@ -209,7 +206,7 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("get_capabilities"), TEXT("Enabled toolsets, limits, policies, target syntax and units."))
 		.Handle(&GetCapabilities);
 
-	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with ops.run_batch (up to 100 calls per request), one logic.import per game, or Python scripts (session_get_build_info -> scripting). If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it."))
+	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with many small calls in ops.run_batch (up to 100 calls per request) and one logic.import per game; no Python or installs are needed. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it."))
 		.Handle(&ListToolsets);
 
 	B.Tool(TEXT("describe_toolset"), TEXT("Tools of one toolset with input schemas. Big toolsets are long: pass tools:[...] for just the ones "
@@ -224,12 +221,12 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	// list_toolsets / describe_toolset round trips (each costs the agent several seconds).
 	B.Tool(TEXT("call_tool"), TEXT("Call any tool by name (toolset.tool or toolset_tool) with its arguments.\n"
 		"NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.\n"
-		"RULE: more than ~20 parts, or anything repeated (windows, seats, trees, track, buildings), is ONE Python script, never hand-written JSON parts (writing JSON by hand is 10-50x slower). Template:\n"
-		"  import os, sys; sys.path.insert(0, os.environ.get(\"UNREAL_KIT\") or r\"<session.get_build_info scripting.kit>\")\n"
-		"  import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform\n"
-		"  P = [box([200, 200, 300], [i * 400, 0, 0], m=\"concrete\") for i in range(50)]   # loops, math, real sizes\n"
-		"  uk.place(\"Name\", P, at=(0, 0, 0))   # or uk.place_many([(name, parts, at), ...]); uk.district(\"paris\") for cities\n"
-		"Run it with Bash (python script.py); it reaches the game by itself. Loops make detail cheap: a landmark is 500-3000 parts (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.\n"
+		"BUILD FAST WITH TOOLS ONLY (no Python, nothing to install): many SMALL calls sent together.\n"
+		"  - Each create call is one volume or one repeated feature (under ~40 parts): quick to write. Send several in one ops.run_batch (up to 100 calls; \"$N.id\" uses call N's result). Never one giant call (minutes to write, nothing appears meanwhile), never one part per call.\n"
+		"  - Repeats come from a few numbers, not listed parts: generator shapes openings (wall with a window grid: rows, cols, arched), column, steps, tiers, lattice, roof; build.array (row, ring, grid copies), build.mirror, scene.duplicate_node, layout.arrange_in_grid; pcg.scatter for trees and props (real packaged meshes: level.find_assets path /Game/RuntimeFoliage).\n"
+		"  - Something visible after the first batch: in an empty scene a floor first, then camera.frame_nodes on the work. capture.screenshot is called directly (waiting tools cannot run inside ops.run_batch).\n"
+		"  - Detail matters: a landmark is hundreds of parts in a few batches (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.\n"
+		"  - Optional: if this machine already has Python and the kit (session.get_build_info -> scripting.kit), a script may do very large procedural jobs (skill python_kit). Never install, download or search for it.\n"
 		"QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):\n"
 		"  build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}\n"
 		"  build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object\n"
@@ -238,10 +235,9 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 		"  scene.find_nodes {pattern?}   camera.set_camera {location, look_at}   camera.frame_nodes {targets:[id]}\n"
 		"  lighting.apply_mood {mood: Morning|Noon|Sunset|Night|Overcast}   capture.screenshot {} (one is enough to check)\n"
 		"  ops.run_batch {calls:[{tool, arguments}...]} - up to 100 calls in one request\n"
-		"  gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - random land plots; gis.list_plots / get_plot {id}; GeoJSON / GeoRegions files and buildings on plots: Python uk.gis.load_geojson | load_georegions, uk.gis.build(\"P12\", style=...), uk.gis.build_all(...)\n"
-		"Cities, streets, many buildings: use Python with the kit (session.get_build_info -> scripting.fastest): uk.district(\"paris\") "
-		"builds a whole district in one call. Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} "
-		"first (small), then only the tool you need."))
+		"  gis.create_plots {size:[x,y], layout: blocks|grid|organic|radial} - land plots with streets; gis.list_plots / get_plot {id} gives each plot's polygon\n"
+		"Cities, streets, many buildings: gis.create_plots, then per block one ops.run_batch with one build.create_assembly per plot (an extrude of the plot polygon for the mass, openings walls for windows, a roof), then pcg.scatter trees along the streets. "
+		"Games: skills.list_skills. Other tools: session.describe_toolset {name, include_schemas:false} first (small), then only the tool you need."))
 		.Args(FToolSchema()
 			.Add(TEXT("name"), FToolParam::String(TEXT("Qualified tool name, e.g. actors.spawn_actor"), 128).Required())
 			.Add(TEXT("arguments"), FToolParam::Object(TEXT("Tool arguments"))))

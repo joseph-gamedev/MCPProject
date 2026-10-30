@@ -149,29 +149,19 @@ pure colours, perfectly sharp edges, perfectly clean surfaces, empty ground, a c
 
 ## Specific, not generic
 A named place or thing must be recognisable: list its signature features first (layout, building types, materials,
-roofs, landmarks, street life) and build those; a generic city with a new name is a failure. See skill python_kit.
+roofs, landmarks, street life) and build those; a generic city with a new name is a failure.
 
-## Fastest path: one call
-Cities, towns, streets: uk.district(preset or styles=...) builds a styled district in one call (skill python_kit, FASTEST).
-Then add what makes the place unique (landmarks, water, parks) with uk.parts and uk.buildings.
-For a custom generator, the example script kit_examples/city.py already
-follows every rule below (buildings with recessed windows, cornices, rooftop clutter, streets with curbs and props,
-whole districts): copy and adapt it instead of starting from zero.
-For close-up, detailed buildings use uk.buildings (from unreal_kit import buildings as B): B.building(kind, seed=,
-width=, floors=) gives a finished building with real windows (reveals, sashes, sills, heads, shutters, glass with rooms
-behind), railings, balconies, doors and shopfronts; kinds apartment, townhouse, shophouse, villa, office, loft.
-shape="L" makes a corner building (corner=square|chamfer|tower|balconies); wing A runs +X facing -Y, wing B +Y facing -X.
-Rect buildings: origin = front centre at ground, front faces -Y. Place many with uk.place_many([(name, parts, (x,y,z)), ...]);
-rotate with uk.parts.transform(parts, (0,0,0), yaw). Change seeds per lot so neighbours differ.
-Massing (the building's overall form) first: B.building(kind, seed=, massing="auto" | podium_tower | twin_towers |
-setback | terraced | slab | courtyard | U | L | T | H | stacked | notched | stepped, width=lot width, depth=lot depth,
-party=("-x","+x") for row buildings, street=("-y",) or ("-y","-x") on corners). Volumes share one storey grid; every
-visible face gets a facade, step-backs become terraces with railings. Mix massings along a street for a real skyline.
-Style is what makes buildings differ up close: B.building(kind, seed=, style="auto" | haussmann | warehouse | brutalist |
-modernist | glass | art_deco | mediterranean | nordic | contemporary | victorian | straits). Each style sets materials, window
-system (punched, ribbon, curtain wall, pier-and-spandrel frame, inset loggias), cladding, base (shops, arcade, pilotis,
-glass lobby), crown and roof (mansard with dormers, steep gable, sawtooth, overhang, roof-terrace pergola). Keep one or two
-styles per street (a real place has a character) and vary seeds and widths within it; party=("-x","+x") for terraces. Then save finished pieces with
+## Fastest path: small calls, batched (tools only)
+Build with many small create calls sent together in ops.run_batch: one volume or one repeated feature per call
+(under ~40 parts), several calls per batch. Repeats come from generator shapes (openings = a wall with a window grid,
+column, steps, tiers, roof) and build.array / build.mirror, not from listing parts.
+Cities, towns, streets: gis.create_plots {layout} gives blocks, streets and plot polygons (gis.get_plot); per block one
+ops.run_batch with one build.create_assembly per plot (extrude of the plot outline for the mass, openings walls,
+a roof, a ground-floor shop band), varying height, width, colour and window type between neighbours. Then
+pcg.scatter street trees and props along the streets. Then add what makes the place unique (landmarks, water, parks).
+Rect buildings: origin = front centre at ground, front faces -Y; storeys 300-330, ground floor 400-450.
+Optional: with Python and the kit already on this machine, skill python_kit has district and building generators.
+Save finished pieces with
 scene.save_template so later scenes reuse them (scene.place_template).
 )SKILL")) + FString(TEXT(R"SKILL(
 ## Effort levels (ask or pick by the request)
@@ -210,7 +200,8 @@ Outdoor scenes start with build.create_terrain {size:[x,y], height (relief cm), 
 (temperate|tropical|desert|savanna|alpine|arctic), flatten:[{at,radius}] pads for villages and fields, carve:[{path,
 width, depth}] rivers (always downhill; the result's rivers[] gives the water surface) or {kind:"road"}}. Its collision
 is the exact surface, so pcg.scatter, snap_to_ground and characters follow the slopes. Areas for scatter are polygons
-with straight edges (uk.assets.forest does this); a closed exclusion spline keeps its whole inside clear.
+with straight edges; use real packaged meshes (level.find_assets path /Game/RuntimeFoliage), never plants made of
+spheres; a closed exclusion spline keeps its whole inside clear.
 
 ## 5 Camera
 People see the world from 160-170 cm with a 60-75 degree FOV. Shoot hero images at eye level, slightly
@@ -218,29 +209,29 @@ off-axis, with something in the foreground. High aerials show layout but look li
 Do not put the camera inside geometry (look at the image: a wall filling the frame means move it).
 
 ## 6 Review loop (mandatory)
-After each big step capture: overview, two eye-level views, one detail (look.review or capture.scene_capture).
+After each big step capture: overview, two eye-level views, one detail (capture.scene_capture).
 Look for: floating/intersecting parts, wrong scale next to a door or car, flat or blown-out light, pure colours,
 empty ground, repeated buildings, missing roofs or backs, gaps at corners. Fix, capture again. Report what you
 checked and what you fixed; do not say "done" from code alone.
 
 ## 7 Budget
 A district of 6 blocks is about 50000 parts / 2.3M triangles and builds in about 30 s. Use detail "low" on small
-round parts, one assembly per building (not one actor per part), and ops.run_batch / unreal_kit.place_many.
+round parts, one assembly per building (not one actor per part), and ops.run_batch.
 )SKILL"));
 }
 
 URuntimePythonKitSkill::URuntimePythonKitSkill()
 {
-	Description = TEXT("Apply when a task needs many objects or many steps (levels, cities, landmarks, games with lots of rules) and you can run "
-		"Python: use the unreal_kit shipped with the game to generate fast. Includes the full API, so no inspection is needed.");
+	Description = TEXT("Optional extra, only when this machine ALREADY has Python and the unreal_kit (session_get_build_info scripting.kit; "
+		"never install, download or search for it): generators for districts and detailed buildings. Without it use the tools (small calls in ops.run_batch).");
 	Toolsets = {TEXT("session"), TEXT("ops"), TEXT("build"), TEXT("scene")};
 	Instructions = FString(TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
-## FASTEST (answer in under a minute: do this first, read the rest only if you need more)
-RULE: anything over ~20 parts or repeated is ONE Python script run with Bash, never hand-written JSON parts.
+## Optional: only when Python and the kit are already on this machine
+The tools alone build everything (small creates in ops.run_batch); this kit is a shortcut for very large procedural jobs.
+Use it only when session_get_build_info shows scripting.kit and Python is available. Never install, download or search
+for it; a game streamed from the cloud has no kit on your machine: use the tools.
 NEVER save memories or notes about how to use this game: this guidance changes with every build and wins over them.
-Kit: game on this machine -> session_get_build_info scripting.kit; game in the cloud (stream) -> the path in the
-UNREAL_KIT environment variable (Connect.bat sets it). Never search the disk.
     import sys, os; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<scripting.kit>"); import unreal_kit as uk
     uk.district("manhattan")            # whole district in one call (~10-30 s); presets: manhattan paris london downtown
                                         # mediterranean scandinavian singapore soviet industrial; blocks=(3, 2); seed=None
@@ -253,8 +244,7 @@ Every run is new (random seed, printed); pass seed=N to repeat one. Big scenes: 
 Write one script with real detail (loops: a landmark is 500-3000 parts, not 20 boxes), run it, look at one screenshot, fix what looks wrong, answer. Do not read example files for a city.
 
 Why scripts: one short script builds thousands of parts with loops and sends them in a few requests.
-It connects by itself (this machine, or the relay from UNREAL_RELAY + UNREAL_TOKEN). Do not download code; do not print
-environment variables.
+It connects by itself to the game on this machine. Do not download code; do not print environment variables.
 Nature (trees, palms, bushes, grass): uk.assets uses real packaged meshes - never build plants from spheres.
 Everything you need is in the cheat sheet below: do not inspect modules or read example files unless you must.
 

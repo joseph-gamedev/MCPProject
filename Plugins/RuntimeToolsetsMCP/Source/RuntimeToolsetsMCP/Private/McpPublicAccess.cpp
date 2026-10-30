@@ -328,8 +328,6 @@ void McpPublicAccess::Start(int32 Port, const FString& Path)
 	Instance = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	LocalUrl = FString::Printf(TEXT("http://127.0.0.1:%d%s"), Port, *Path);
 	bRunning = true;
-	// session_get_build_info reports this, so agents find the Python client on their first call.
-	FPlatformMisc::SetEnvironmentVar(TEXT("RUNTIMETOOLSETS_SCRIPT_CLIENT"), *FString::Printf(TEXT("%s/s/%s/client.py"), *Relay, *SessionCode));
 	FFileHelper::SaveStringToFile(SessionCode + LINE_TERMINATOR, *(FPaths::ProjectSavedDir() / TEXT("RuntimeToolsets/code.txt")));
 	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, game code %s (players say: connect to game %s)"), *Relay, *ShownCode(), *ShownCode());
 	Poll();

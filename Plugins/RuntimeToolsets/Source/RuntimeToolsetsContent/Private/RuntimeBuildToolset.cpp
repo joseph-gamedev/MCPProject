@@ -337,14 +337,15 @@ QUALITY BAR: a recognisable, realistic recreation at TRUE SCALE. Hero landmarks 
 Units: cm, Z up, rotations [pitch,yaw,roll]. Use real dimensions (Eiffel Tower 33000 tall, base 12500 square;
 Great Pyramid base 23040, height 13860; Taj Mahal dome top 7300).
 
-FASTEST - ALWAYS a Python script for anything over ~20 parts (hand-written JSON parts are 10-50x slower to write):
-  import os, sys; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<session_get_build_info scripting.kit>")
-  import unreal_kit as uk; from unreal_kit.parts import box, cyl, sphere, sweep, extrude, M, transform
-  P = [...loops over real dimensions...]; uk.place("Landmark", P, at=(0, 0, 0)); uk.district("paris") for whole cities.
-  Run it with Bash; it reaches the game by itself (this machine or the relay). Skill python_kit has the API.
-  uk.parts builds part dicts with loops (window bays, colonnades, truss bracing, railings, stairs, whole streets),
-  uk.place_many sends many objects per request. Example scripts (a realistic city, game pieces) show the patterns.
-  Otherwise call build.create_assembly directly with up to 8192 parts per call (one object, one undo step; a whole building fits).
+FASTEST - many SMALL calls sent together (tools only: no Python, nothing to install):
+  Each create call is one volume or one repeated feature (under ~40 parts, quick to write); send several in one
+  ops.run_batch (up to 100 calls, "$N.id" references). Never one giant call (minutes to write, nothing appears
+  meanwhile) and never one part per call. Group the pieces of one building with scene.create_group + parent.
+  Repeats from a few numbers: openings (window grid: rows, cols, arched), column, steps, tiers, lattice, roof;
+  build.array (row/ring/grid), build.mirror, scene.duplicate_node; pcg.scatter for trees and props (packaged meshes,
+  level.find_assets path /Game/RuntimeFoliage). capture.screenshot is called directly, not inside run_batch.
+  Optional: when this machine already has Python and the kit (session_get_build_info scripting.kit), a script may do
+  very large procedural jobs (skill python_kit). Never install, download or search for it.
 REUSE - scene.save_template {target, name, description} keeps anything you built; scene.place_template places copies
   in later sessions; scene.list_templates shows what exists. Check it before building something again.
 

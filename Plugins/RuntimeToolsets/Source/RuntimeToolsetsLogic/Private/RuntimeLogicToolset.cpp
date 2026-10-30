@@ -156,8 +156,8 @@ BUILD FAST (every call is a round trip; a whole game should take tens of calls, 
    - One ops.run_batch per level: up to 100 calls [{tool, arguments}] in one request ("$N.id" uses call N's result).
    - One logic.import {logic:{vars, rules, ui, ...}} for the whole game definition instead of many define_* calls
      (same shapes as logic.export returns; character.create and pools/weapons can follow in one more batch).
-   - Many objects or loops: a Python script with the kit shipped with the game (skill python_kit): uk.rules builds
-     rules, uk.ui builds screens, uk.parts builds level geometry; scene.place_template reuses saved objects.
+   - Many objects: small create calls batched in ops.run_batch, repeats with build.array / generator shapes and
+     scene.duplicate_node; scene.place_template reuses saved objects. No Python needed.
    - Check results once at the end (logic.get_state errors + one screenshot), fix with a second batch.
 WORKFLOW: skills.list_skills first. If a skill matches, follow it. If none does, build from these blocks, verify by
    playing (input.inject_key, logic.step, logic.get_state, capture.screenshot), then ALWAYS skills.save_skill the
