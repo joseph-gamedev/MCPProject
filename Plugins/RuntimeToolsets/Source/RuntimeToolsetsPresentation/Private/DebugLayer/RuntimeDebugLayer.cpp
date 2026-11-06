@@ -28,8 +28,8 @@ namespace RtDebug
 {
 	constexpr int32 MaxEntries = 400;
 	constexpr int32 RowsShown = 32;
-	constexpr double ThinkingFor = 120.0; // after a call, "agent thinking" this long before "idle"
-	constexpr double NewBuildAfter = 60.0; // a call after this long a pause starts a new build (timer)
+	constexpr double ThinkingFor = 300.0; // after a call, "agent thinking" this long before "idle"
+	constexpr double NewBuildAfter = 300.0; // a pause this long starts a new build (writing a big script takes minutes)
 
 	FString Short(const FString& S, int32 Max)
 	{

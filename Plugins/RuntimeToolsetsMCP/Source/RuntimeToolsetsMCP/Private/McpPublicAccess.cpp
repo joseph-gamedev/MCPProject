@@ -1,4 +1,5 @@
 #include "McpPublicAccess.h"
+#include "McpScriptRoutes.h"
 #include "RuntimeToolsetsMCPSettings.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Containers/Ticker.h"
@@ -218,6 +219,7 @@ namespace McpPublicAccessPrivate
 				// another running game owns this code (a copied code or a restarted relay session): take a fresh one
 				SessionCode = MakeCode();
 				bAgentSeen = false;
+				McpScriptRoutes::SetScriptUrl(Relay + TEXT("/s/") + SessionCode);
 				UE_LOG(LogMcpRelay, Display, TEXT("AI code was in use by another game; new AI code %s"), *ShownCode());
 				Poll();
 				return;
@@ -328,6 +330,8 @@ void McpPublicAccess::Start(int32 Port, const FString& Path)
 	Instance = FGuid::NewGuid().ToString(EGuidFormats::Digits);
 	LocalUrl = FString::Printf(TEXT("http://127.0.0.1:%d%s"), Port, *Path);
 	bRunning = true;
+	// scripts on the player's machine reach a streamed game through the relay (same /call and /batch as locally)
+	McpScriptRoutes::SetScriptUrl(Relay + TEXT("/s/") + SessionCode);
 	FFileHelper::SaveStringToFile(SessionCode + LINE_TERMINATOR, *(FPaths::ProjectSavedDir() / TEXT("RuntimeToolsets/code.txt")));
 	UE_LOG(LogMcpRelay, Display, TEXT("Agent relay %s, game code %s (players say: connect to game %s)"), *Relay, *ShownCode(), *ShownCode());
 	Poll();

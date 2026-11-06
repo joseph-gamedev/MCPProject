@@ -39,8 +39,9 @@ static void GetBuildInfo(FToolInvocation& Inv)
 	}
 	TSharedRef<FJsonObject> Scripting = Obj();
 	// Python kit shipped in the build folder (packaged) or the repo (editor): used in place, nothing downloaded or installed.
-	Scripting->SetStringField(TEXT("why"), TEXT("Optional. The tools alone build everything (small calls in ops.run_batch). Only when this machine already has "
-		"Python and the kit below may a script do very large procedural jobs. Never install, download or search for it."));
+	Scripting->SetStringField(TEXT("why"), TEXT("If Python is available (python --version): one short script per build stage with loops sends hundreds "
+		"of detailed parts to <endpoint>; set ui.show_activity status before each stage. No packages needed (plain urllib); never install or "
+		"download anything. The kit below is an optional extra only when it is on this machine."));
 	for (const FString& Dir : {FPaths::RootDir(), FPaths::ProjectDir() / TEXT("Scripts/dist")})
 	{
 		if (FPaths::FileExists(Dir / TEXT("unreal_kit.zip")))
@@ -58,6 +59,16 @@ static void GetBuildInfo(FToolInvocation& Inv)
 		"cameras and takes review images. <examples> has readable example scripts (city, game pieces, combat presets) to copy from. "
 		"Use the files where they are: do not download code and do not print environment variables. Save good results with "
 		"scene.save_template. Skill python_kit has the details."));
+	// Plain HTTP for scripts the agent writes (no packages, nothing to download): the game's own address, or the relay's
+	// when the game is streamed, so the same script works on the player's machine.
+	const FString ScriptUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("RUNTIMETOOLSETS_SCRIPT_URL"));
+	if (!ScriptUrl.IsEmpty())
+	{
+		Scripting->SetStringField(TEXT("endpoint"), ScriptUrl);
+		Scripting->SetStringField(TEXT("use"), TEXT("POST <endpoint>/call {\"tool\": \"build.create_assembly\", \"arguments\": {...}} -> the result JSON; "
+			"POST <endpoint>/batch {\"calls\": [{\"tool\", \"arguments\"}, ...]} -> ops.run_batch. Plain urllib with a User-Agent header "
+			"(the relay blocks Python's default one); HTTP 400 carries the error JSON. Same undo history as your tool calls."));
+	}
 	Out->SetObjectField(TEXT("scripting"), Scripting);
 	Inv.Succeed(Out);
 }
@@ -206,7 +217,7 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	B.Tool(TEXT("get_capabilities"), TEXT("Enabled toolsets, limits, policies, target syntax and units."))
 		.Handle(&GetCapabilities);
 
-	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with many small calls in ops.run_batch (up to 100 calls per request) and one logic.import per game; no Python or installs are needed. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it."))
+	B.Tool(TEXT("list_toolsets"), TEXT("List toolsets with tool counts. To build objects or buildings skip this: session_call_tool's description has everything. For games and other features start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build in stages with ui.show_activity status lines (the player sees progress); short Python scripts per stage when Python is available (session_get_build_info -> scripting.endpoint), else small calls in ops.run_batch; one logic.import per game. Nothing to install. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it."))
 		.Handle(&ListToolsets);
 
 	B.Tool(TEXT("describe_toolset"), TEXT("Tools of one toolset with input schemas. Big toolsets are long: pass tools:[...] for just the ones "
@@ -221,12 +232,29 @@ void FSessionToolset::RegisterTools(FRuntimeToolsetBuilder& B)
 	// list_toolsets / describe_toolset round trips (each costs the agent several seconds).
 	B.Tool(TEXT("call_tool"), TEXT("Call any tool by name (toolset.tool or toolset_tool) with its arguments.\n"
 		"NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.\n"
-		"BUILD FAST WITH TOOLS ONLY (no Python, nothing to install): many SMALL calls sent together.\n"
-		"  - Each create call is one volume or one repeated feature (under ~40 parts): quick to write. Send several in one ops.run_batch (up to 100 calls; \"$N.id\" uses call N's result). Never one giant call (minutes to write, nothing appears meanwhile), never one part per call.\n"
-		"  - Repeats come from a few numbers, not listed parts: generator shapes openings (wall with a window grid: rows, cols, arched), column, steps, tiers, lattice, roof; build.array (row, ring, grid copies), build.mirror, scene.duplicate_node, layout.arrange_in_grid; pcg.scatter for trees and props (real packaged meshes: level.find_assets path /Game/RuntimeFoliage).\n"
-		"  - Something visible after the first batch: in an empty scene a floor first, then camera.frame_nodes on the work. capture.screenshot is called directly (waiting tools cannot run inside ops.run_batch).\n"
-		"  - Detail matters: a landmark is hundreds of parts in a few batches (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.\n"
-		"  - Optional: if this machine already has Python and the kit (session.get_build_info -> scripting.kit), a script may do very large procedural jobs (skill python_kit). Never install, download or search for it.\n"
+		"BUILDING: this description is all you need: do not list toolsets, load skills or describe the build toolset first (each costs minutes).\n"
+		"QUALITY IN STAGES, PROGRESS ON SCREEN (the player watches a progress panel):\n"
+		"  1. Plan 3-5 stages, one line each (e.g. masses; facades and windows; signature features; roof and details).\n"
+		"  2. Before writing each stage call ui.show_activity {status: \"Stage 2 of 4: facades and windows\"} (instant): the player sees what is coming and a progress bar while you write.\n"
+		"  3. Write and run that stage, then the next. Stage 1 (ground + every main mass at true size + camera.frame_nodes) is short, so the building appears quickly. Never the whole building in one script or call.\n"
+		"  4. At the end ui.show_activity {status: \"Done: <what you built>\"}.\n"
+		"SCRIPTS when Python is available (python --version): a short script per stage with loops sends hundreds of detailed parts; no packages, nothing to install. session.get_build_info -> scripting.endpoint is the address (the relay's when the game is streamed). Keep call() in a small helper file you import:\n"
+		"      import json, urllib.request\n"
+		"      E = \"<scripting.endpoint>\"\n"
+		"      def call(tool, **a):\n"
+		"          r = urllib.request.Request(E + \"/call\", json.dumps({\"tool\": tool, \"arguments\": a}).encode(), {\"Content-Type\": \"application/json\", \"User-Agent\": \"agent\"})\n"
+		"          return json.loads(urllib.request.urlopen(r, timeout=180).read())\n"
+		"  Without Python: per stage a few ops.run_batch calls of small creates (one volume or repeated feature each, under ~40 part lines).\n"
+		"PLACEMENT (never test shapes): every shape stands on its location at its bottom centre (pivot:\"center\" centres it); size is the full [x,y,z]; round shapes take their diameter from x (y stretches them), height z; dome: flat base, radius x/2, height z; sphere: bottom at the location; revolve profile [[r,z]] spins around the vertical axis through the location; extrude profile [[x,y]] + height rises from the location, profile [[x,y,z]] + direction is pushed along direction; rotation [pitch,yaw,roll] turns around the location; part locations are relative to the assembly location.\n"
+		"CHEAT SHEET (no need to look anything up):\n"
+		"  materials: marble sandstone limestone granite stone brick terracotta concrete plaster wood slate_roof roof_tile copper verdigris bronze gold steel iron painted_iron glass tinted_glass water grass sand asphalt cobblestone paving corrugated light white black red green blue; any part also takes color [r,g,b] linear 0-1, roughness, metallic, tile, relief, bevel, emissive [r,g,b] + emissive_strength.\n"
+		"  part: {shape, size [x,y,z], location, rotation [pitch,yaw,roll], material, color, ops, repeat, ring}; shapes box sphere cylinder cone(top_ratio) pyramid torus wedge capsule plane dome tube(thickness) arch roof(gable, ridge along y) column steps(count) tiers(count,taper) lattice(levels,taper,beam,bracing) openings(rows,cols,opening [w,h],arched,margin: a cutter for ops) revolve(profile [[r,z]],segments) extrude(profile [[x,y]],height | profile [[x,y,z]],direction) sweep(profile [[x,y]],path [[x,y,z]]) loft raw.\n"
+		"  ELEMENTS (generic, one line each; length along x, front faces -y): wall {size [length,thickness,height], openings {rows,cols,size [w,h],arched,glass,sill}, top {kind teeth|ledge|parapet, width,height,gap}}; tower {size [diameter,diameter,height], sides 0=round|N, openings {rows,cols,size,start}, cap {kind cone|dome|flat|teeth, height, overhang, material}}; railing {size [length,post,height], spacing, rails, infill bars|panel|none}; arcade {size [length,depth,height], count, pier, opening_height, top {...}}. Combine and vary them: they are parts, not finished buildings.\n"
+		"  ground, hills, valleys, moats, rivers, roads, coasts: build.create_terrain {size [x,y], height, hills [{at,radius,height}], flatten [{at,radius}], carve [{path [[x,y]..], kind river|road, width, depth}], islands, sea_level, biome}: one call, real slopes and collision; never hand-built ground meshes.\n"
+		"FEW LINES, MANY PARTS: part fields repeat {count:[nx,ny,nz], step:[dx,dy,dz], skip:[[i,j,k]]} make a whole window grid from ONE line; ring {count, radius, start, angle, face} makes colonnades, spokes and seats; generator shapes openings (wall with window grid), column, steps, tiers, lattice, roof; build.array / build.mirror; pcg.scatter for trees and props (packaged meshes: level.find_assets path /Game/RuntimeFoliage). Name assemblies (\"Hotel_Facade_N\") so a stage can replace one.\n"
+		"BUILD WHAT WAS ASKED: the requested object plus a simple ground under it; neighbouring buildings, streets, cars and props only when asked (offer them at the end). Do NOT change the lighting, time of day, mood or art style unless the player asks: the level keeps its own light.\n"
+		"DESIGN IT YOURSELF: your own massing, proportions, style and details, different every time (no templates). Detail matters: windows, structure, materials, real proportions.\n"
+		"FINISH: one screenshot (capture.screenshot is called directly, not inside ops.run_batch), at most one fix round, then answer and offer more detail.\n"
 		"QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):\n"
 		"  build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}\n"
 		"  build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object\n"

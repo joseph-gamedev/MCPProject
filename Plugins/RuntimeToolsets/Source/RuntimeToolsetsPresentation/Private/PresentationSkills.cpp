@@ -178,17 +178,16 @@ not from detail. Be quick: the fastest result that matches wins. Aim for 6-10 to
 - The camera: which side is seen (front, three-quarter), eye height (street level about 1.6 m, aerial), lens (phone
   photo about 65 degrees horizontal). Hidden sides: continue what is visible, simply; do not invent features.
 
-## Small calls, batched (speed)
-Never write one giant call: a long tool call takes minutes to write and nothing appears meanwhile. Keep every create call
-small (one volume or one repeated feature, under about 40 parts), and send several of them together in one ops.run_batch.
-Let generator shapes make the repeats from a few numbers instead of listing parts: openings (a wall with a grid of
-windows: rows, cols, margin), column, steps, tiers, roof, arch, dome, lattice; build.array copies a part in a row, ring
-or grid. Something visible should exist after the first batch, within a minute.
+## Stages with progress (speed and quality)
+Build in stages (mass, facades, features, materials); before each, ui.show_activity {status:"Stage 2 of 4: facades"}
+so the player sees progress while you write. Per stage a short script with loops when Python is available
+(session_get_build_info scripting.endpoint), else a few small calls. Part fields repeat {count, step} and ring
+{count, radius} make a window grid or colonnade from one line. Never the whole thing in one script or call.
 
-## 2. Mass (one batch)
+## 2. Mass (first call within ~15 seconds)
 If the scene is empty, the first call of the batch is a floor (box about 1.5x the footprint, 20 cm thick, neutral) and
 the last is camera.frame_nodes on it, so the player sees work appear at once.
-One ops.run_batch of small creates: every main volume at its true size and position, simple shapes, rough colours.
+Rough masses of every main volume at true size and position, simple shapes, rough colours, in one or two small calls.
 Then look twice:
 - capture.scene_capture from the pose that matches the photo (location + look_at + fov, same aspect). Reuse the exact
   same pose every round so the comparison is fair.
@@ -200,8 +199,8 @@ Put the render next to the reference in your mind and list the 3 biggest differe
 batch (scene.delete_node and rebuild the volume, or scene.move_node / scene.scale_node), render the same pose, repeat once.
 Do not add detail while the silhouette is still wrong.
 
-## 4. Detail (one or two batches)
-Add what makes it recognisable, as small creates in ops.run_batch: openings (windows, doors, arches) as generator grids
+## 4. Detail (one small call per feature)
+Add what makes it recognisable, one feature per call: openings (windows, doors, arches) as generator grids
 matching the counted repeats, frames and bands, columns (one column + build.array), railings, trim, the signature
 feature (spire, clock, dome lantern, spoiler). Recount the repeats on the render.
 
@@ -211,7 +210,7 @@ few lines: what matches and what still differs (and what one more round would fi
 
 ## Rules
 - Geometry first, detail last; same camera pose every round.
-- Many small calls in a batch, never one huge call and never one part per call.
+- One small call per visible step; never one huge call or a long script.
 - The image stays with you: tools never need it. Do not change the level's lighting or the player's camera to compare
   (scene_capture renders any pose without moving the player).
 )SKILL");

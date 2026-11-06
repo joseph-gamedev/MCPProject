@@ -97,11 +97,17 @@ public:
 		FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
 		FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
 
-		// Fail everything still pending.
+		// Drop everything still pending without calling back: the modules that own the callbacks (MCP server, HTTP
+		// routes) may already be unloaded at exit, and calling into them crashed the game on close.
 		TSharedPtr<FToolCall> Call;
 		while (Queue.Dequeue(Call))
 		{
-			CompleteNow(Call.ToSharedRef(), FToolResult::Fail(ERuntimeToolError::Cancelled, TEXT("shutting down")));
+			Call->OnComplete.Unbind();
+			Call->bDone = true;
+		}
+		if (ActiveCall.IsValid())
+		{
+			ActiveCall->OnComplete.Unbind();
 		}
 		if (ActiveInvocation.IsValid())
 		{
@@ -377,6 +383,29 @@ public:
 		{
 			Inv->Fail(ERuntimeToolError::Internal, TEXT("tool returned without a result"));
 		}
+		if (!Inv->IsComplete())
+		{
+			// Only the top-level call is watched by the queue: watch this nested one too, or a wait that never ends (a
+			// screenshot without a rendered frame) holds the wrapper and every call behind it for minutes.
+			const double Timeout = Inv->GetTimeoutOverride().Get(Caller.TimeoutSeconds.Get(URuntimeToolsetsSettings::Get().DefaultTimeoutSeconds));
+			TWeakPtr<FToolInvocation> Weak = Inv;
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak, Start, Timeout, Tool](float)
+			{
+				TSharedPtr<FToolInvocation> I = Weak.Pin();
+				if (!I.IsValid() || I->IsComplete())
+				{
+					return false;
+				}
+				if (FPlatformTime::Seconds() - Start > Timeout)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("RuntimeToolsets: %s timed out after %.0f s (nested)"), *Tool, Timeout);
+					I->NotifyCancelled();
+					I->Fail(ERuntimeToolError::Timeout, FString::Printf(TEXT("timed out after %.0f s"), Timeout));
+					return false;
+				}
+				return true;
+			}), 0.25f);
+		}
 		// The returned function keeps the nested invocation alive while it is pending.
 		return [Inv]()
 		{
@@ -440,6 +469,16 @@ public:
 
 	void Trace(const FString& Tool, const FString& Session, int32 Depth, const TSharedPtr<FJsonObject>& Args, const FToolResult* Result, double Seconds)
 	{
+		// one line per call: a hang or slow step in a log names the tool
+		if (Result)
+		{
+			UE_LOG(LogTemp, Display, TEXT("ToolCall done %s%s %.0f ms%s"), *FString::ChrN(Depth * 2, TEXT(' ')), *Tool, Seconds * 1000.0,
+				Result->IsOk() ? TEXT("") : *(TEXT(" FAILED: ") + Result->Message.Left(160)));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("ToolCall start %s%s"), *FString::ChrN(Depth * 2, TEXT(' ')), *Tool);
+		}
 		if (TraceDelegate.IsBound())
 		{
 			FRuntimeToolTrace T;

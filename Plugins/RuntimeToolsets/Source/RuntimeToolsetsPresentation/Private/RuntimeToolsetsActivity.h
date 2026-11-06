@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Containers/Ticker.h"
+#include "Feedback/BuildPlaceholder.h"
 
 class SWidget;
 class UGameViewportClient;
@@ -47,6 +48,9 @@ private:
 	FText HeadlineText() const;
 	FText StatusText() const;
 	FText FeedText() const;
+	/** 0..1: finished stages plus a creeping estimate for the stage being written ("Stage 2 of 4" in the status). */
+	TOptional<float> Progress() const;
+	bool IsActive() const;
 	FSlateColor DotColor() const;
 	float PanelOpacity() const;
 
@@ -58,7 +62,14 @@ private:
 	FFlySpeed Fly;
 	double CurrentSpeed = 0.0;
 
-	bool bPanelEnabled = false; // off unless the agent is asked to show it (ui.show_activity)
+	bool bPanelEnabled = true; // shows while an agent builds; ui.show_activity {enabled:false} hides it
+	double StatusSince = 0.0;   // when the current stage status was set
+	bool bStageLanded = false;  // a build call finished since the status was set
+	bool bBuiltThisRun = false; // something was built: the design placeholder goes away
+	bool bCameraMovedThisRun = false; // the agent placed the view itself
+	double FrameAt = -1.0;            // when to show the first built piece (agent did not frame it)
+	void FrameBuild();
+	FBuildPlaceholder Placeholder;
 	FString Status;
 	FString CurrentTool;
 	int32 InFlight = 0;

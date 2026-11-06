@@ -1,5 +1,9 @@
 #include "RuntimeToolsetsActivity.h"
 #include "RuntimeToolsetsCore.h"
+#include "RuntimeSceneGraph.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/Pawn.h"
+#include "RuntimeToolHelpers.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -10,11 +14,13 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Notifications/SProgressBar.h"
 #include "Styling/CoreStyle.h"
 
 namespace
 {
-	constexpr double IdleAfter = 2.5;   // seconds without calls before the run counts as done
+	constexpr double IdleAfter = 2.5;   // seconds without calls before "designing the next stage" shows
+	constexpr double DesignFor = 300.0; // an agent that has been quiet this long is done
 	constexpr double DoneShownFor = 5.0; // "Done" stays on screen this long
 	constexpr int32 FeedSize = 5;
 
@@ -51,6 +57,7 @@ void FRuntimeToolsetsActivity::Startup()
 void FRuntimeToolsetsActivity::Shutdown()
 {
 	FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+	Placeholder.Clear();
 	if (IRuntimeToolsetsCore::IsAvailable())
 	{
 		IRuntimeToolsetsCore::Get().OnActivity().Remove(ActivityHandle);
@@ -65,17 +72,60 @@ void FRuntimeToolsetsActivity::Shutdown()
 
 void FRuntimeToolsetsActivity::SetStatus(const FString& Text)
 {
+	if (Text != Status)
+	{
+		StatusSince = Now;
+		bStageLanded = false;
+	}
 	Status = Text.Left(160);
 	LastActivity = Now;
+}
+
+bool FRuntimeToolsetsActivity::IsActive() const
+{
+	return InFlight > 0 || (Now - LastActivity < DesignFor && !Status.StartsWith(TEXT("Done")));
+}
+
+TOptional<float> FRuntimeToolsetsActivity::Progress() const
+{
+	if (Status.StartsWith(TEXT("Done")))
+	{
+		return 1.f;
+	}
+	// "Stage 2 of 4": two stages' worth of the bar, the current one creeping while it is written
+	int32 Stage = 0, Stages = 0;
+	FString Lower = Status.ToLower();
+	int32 Of = Lower.Find(TEXT(" of "));
+	if (Of != INDEX_NONE)
+	{
+		int32 i = Of - 1;
+		while (i >= 0 && FChar::IsDigit(Lower[i])) --i;
+		Stage = FCString::Atoi(*Lower.Mid(i + 1, Of - i - 1));
+		Stages = FCString::Atoi(*Lower.Mid(Of + 4));
+	}
+	const double Since = FMath::Max(0.0, Now - StatusSince);
+	const float Stage01 = bStageLanded ? 1.f : static_cast<float>(0.92 * (1.0 - FMath::Exp(-Since / 45.0)));
+	if (Stages > 0 && Stage >= 1 && Stage <= Stages)
+	{
+		return FMath::Clamp((Stage - 1 + Stage01) / Stages, 0.f, 1.f);
+	}
+	return Status.IsEmpty() && Steps == 0 ? TOptional<float>() : TOptional<float>(Stage01);
 }
 
 void FRuntimeToolsetsActivity::OnActivity(const FString& Tool, bool bStarted, bool bOk, double Seconds)
 {
 	// Meta tools wrap the real call; the nested call reports itself.
 	const bool bMeta = Tool.EndsWith(TEXT("call_tool")) || Tool.EndsWith(TEXT("run_batch"));
-	if (Now - LastActivity > IdleAfter && InFlight == 0)
+	if ((Now - LastActivity > DesignFor || Status.StartsWith(TEXT("Done"))) && InFlight == 0 && bStarted)
 	{
 		// New run.
+		bBuiltThisRun = false;
+		bCameraMovedThisRun = false;
+		UE_LOG(LogTemp, Display, TEXT("BuildTiming: run started (%s)"), *Tool);
+		if (Status.StartsWith(TEXT("Done")))
+		{
+			Status.Reset();
+		}
 		RunStart = Now;
 		Steps = 0;
 		Errors = 0;
@@ -98,6 +148,28 @@ void FRuntimeToolsetsActivity::OnActivity(const FString& Tool, bool bStarted, bo
 	}
 	++Steps;
 	Errors += bOk ? 0 : 1;
+	if (bOk && Tool.StartsWith(TEXT("camera.")))
+	{
+		bCameraMovedThisRun = true;
+		FrameAt = -1.0;
+	}
+	if (bOk && (Tool.StartsWith(TEXT("build")) || Tool.StartsWith(TEXT("scene")) || Tool.EndsWith(TEXT("run_batch"))) && !Status.IsEmpty())
+	{
+		bStageLanded = true;
+	}
+	if (bOk && (Tool.StartsWith(TEXT("build.create")) || Tool.StartsWith(TEXT("build.place")) || Tool.StartsWith(TEXT("scene.place_template")) ||
+		Tool.StartsWith(TEXT("scene.import_tree")) || Tool.StartsWith(TEXT("actors.spawn"))))
+	{
+		if (!bBuiltThisRun)
+		{
+			UE_LOG(LogTemp, Display, TEXT("BuildTiming: first piece built after %.1f s (%s)"), Now - RunStart, *Tool);
+			if (!bCameraMovedThisRun)
+			{
+				FrameAt = Now + 0.2; // the player sees it even if the agent does not move the view
+			}
+		}
+		bBuiltThisRun = true; // the first real piece is on screen
+	}
 	Feed.Insert(FString::Printf(TEXT("%s %s  %.0f ms"), bOk ? TEXT("✓") : TEXT("✗"), *Friendly(Tool), Seconds * 1000.0), 0);
 	if (Feed.Num() > FeedSize)
 	{
@@ -110,6 +182,24 @@ bool FRuntimeToolsetsActivity::Tick(float DeltaTime)
 	Now = FPlatformTime::Seconds();
 	EnsureOverlay();
 	TickFlySpeed(DeltaTime);
+	if (FrameAt > 0.0 && Now >= FrameAt)
+	{
+		FrameAt = -1.0;
+		FrameBuild();
+	}
+	// in the scene: a blueprint grid only while an agent works on an EMPTY scene (never over something already built,
+	// e.g. the screenshots an agent takes after "Done")
+	bool bSceneEmpty = true;
+	if (IRuntimeToolsetsCore::IsAvailable())
+	{
+		IRuntimeToolsetsCore& Core = IRuntimeToolsetsCore::Get();
+		if (UWorld* World = Core.FindWorld())
+		{
+			const FRuntimeSceneGraph* Graph = Core.GetSceneGraph(World);
+			bSceneEmpty = !Graph || Graph->NumLiveNodes() == 0;
+		}
+	}
+	Placeholder.Update(bPanelEnabled && Steps > 0 && IsActive() && !bBuiltThisRun && bSceneEmpty, Now - RunStart, Now);
 	return true;
 }
 
@@ -121,19 +211,19 @@ void FRuntimeToolsetsActivity::EnsureOverlay()
 		return;
 	}
 	OverlayViewport = VP;
-	const FSlateFontInfo Big = FCoreStyle::GetDefaultFontStyle("Bold", 15);
-	const FSlateFontInfo Small = FCoreStyle::GetDefaultFontStyle("Regular", 11);
+	const FSlateFontInfo Big = FCoreStyle::GetDefaultFontStyle("Bold", 11);
+	const FSlateFontInfo Small = FCoreStyle::GetDefaultFontStyle("Regular", 9);
 	Overlay = SNew(SBox)
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(16.f, 16.f))
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Bottom)
+		.Padding(FMargin(16.f, 0.f, 16.f, 18.f))
 		.Visibility(EVisibility::HitTestInvisible)
 		[
 			SNew(SBorder)
 			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 			.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.55f))
 			.ColorAndOpacity_Lambda([this]() { return FLinearColor(1.f, 1.f, 1.f, PanelOpacity()); })
-			.Padding(FMargin(12.f, 8.f))
+			.Padding(FMargin(10.f, 5.f))
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
@@ -154,6 +244,16 @@ void FRuntimeToolsetsActivity::EnsureOverlay()
 					.Text_Lambda([this]() { return StatusText(); })
 					.Visibility_Lambda([this]() { return Status.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 2)
+				[
+					SNew(SBox).WidthOverride(300.f).HeightOverride(4.f)
+					.Visibility_Lambda([this]() { return Progress().IsSet() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+					[
+						SNew(SProgressBar)
+						.Percent_Lambda([this]() { return Progress(); })
+						.FillColorAndOpacity(FLinearColor(0.35f, 0.75f, 1.f))
+					]
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
 				[
 					SNew(STextBlock).Font(Small).ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.8f)).Text_Lambda([this]() { return FeedText(); })
@@ -169,22 +269,23 @@ float FRuntimeToolsetsActivity::PanelOpacity() const
 	{
 		return 0.f;
 	}
-	const double Idle = Now - LastActivity;
-	if (InFlight > 0 || Idle < IdleAfter + DoneShownFor)
+	if (IsActive())
 	{
 		return 1.f;
 	}
-	return static_cast<float>(FMath::Clamp(1.0 - (Idle - IdleAfter - DoneShownFor), 0.0, 1.0));
+	// done: stays a few seconds, then fades
+	const double Since = Now - LastActivity;
+	return static_cast<float>(FMath::Clamp(1.0 - (Since - DoneShownFor) / 2.0, 0.0, 1.0));
 }
 
 FText FRuntimeToolsetsActivity::DotText() const
 {
-	return FText::FromString(InFlight > 0 || Now - LastActivity < IdleAfter ? TEXT("●") : TEXT("✓"));
+	return FText::FromString(IsActive() ? TEXT("●") : TEXT("✓"));
 }
 
 FSlateColor FRuntimeToolsetsActivity::DotColor() const
 {
-	if (InFlight > 0 || Now - LastActivity < IdleAfter)
+	if (IsActive())
 	{
 		const float Pulse = 0.5f + 0.5f * FMath::Sin(static_cast<float>(Now) * 6.f);
 		return FLinearColor(0.2f, 0.8f + 0.2f * Pulse, 1.f, 0.4f + 0.6f * Pulse);
@@ -194,13 +295,17 @@ FSlateColor FRuntimeToolsetsActivity::DotColor() const
 
 FText FRuntimeToolsetsActivity::HeadlineText() const
 {
-	const bool bWorking = InFlight > 0 || Now - LastActivity < IdleAfter;
 	const FString Err = Errors > 0 ? FString::Printf(TEXT(", %d failed"), Errors) : FString();
-	if (bWorking)
+	if (InFlight > 0 || Now - LastActivity < IdleAfter)
 	{
-		return FText::FromString(FString::Printf(TEXT("AI working — %s   (step %d%s, %s)"), *CurrentTool, Steps + 1, *Err, *Clock(Now - RunStart)));
+		return FText::FromString(FString::Printf(TEXT("Building — %s   (%s)"), *CurrentTool, *Clock(Now - RunStart)));
 	}
-	return FText::FromString(FString::Printf(TEXT("AI done — %d steps%s in %s"), Steps, *Err, *Clock(LastActivity - RunStart)));
+	if (IsActive())
+	{
+		// between calls the agent is writing the next stage: say so, with a live timer
+		return FText::FromString(FString::Printf(TEXT("Claude is designing the next stage…  %s   (total %s)"), *Clock(Now - LastActivity), *Clock(Now - RunStart)));
+	}
+	return FText::FromString(FString::Printf(TEXT("Done — %d steps%s in %s"), Steps, *Err, *Clock(LastActivity - RunStart)));
 }
 
 FText FRuntimeToolsetsActivity::StatusText() const
@@ -247,4 +352,41 @@ void FRuntimeToolsetsActivity::TickFlySpeed(float DeltaTime)
 	Move->MaxSpeed = static_cast<float>(CurrentSpeed);
 	Move->Acceleration = static_cast<float>(CurrentSpeed * 4.0);
 	Move->Deceleration = static_cast<float>(CurrentSpeed * 8.0);
+}
+
+void FRuntimeToolsetsActivity::FrameBuild()
+{
+	// Everything tools have built, seen from above at 30 degrees along the player's heading (the player keeps control).
+	IRuntimeToolsetsCore& Core = IRuntimeToolsetsCore::Get();
+	UWorld* World = Core.FindWorld();
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	const FRuntimeSceneGraph* Graph = World ? Core.GetSceneGraph(World) : nullptr;
+	if (!PC || !Graph)
+	{
+		return;
+	}
+	FBox Box(ForceInit);
+	for (const TPair<FString, FRuntimeSceneNode>& N : Graph->GetNodes())
+	{
+		if (!N.Value.bSoftDeleted && N.Value.Actor.IsValid())
+		{
+			Box += RuntimeTools::ActorBox(N.Value.Actor.Get());
+		}
+	}
+	if (!Box.IsValid)
+	{
+		return;
+	}
+	const double Fov = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 90.0;
+	const double Radius = FMath::Max(Box.GetExtent().Size(), 200.0);
+	const double Distance = Radius / FMath::Sin(FMath::DegreesToRadians(FMath::Clamp(Fov, 30.0, 120.0) * 0.5)) * 0.85;
+	const FVector Dir = FRotator(-30.0, PC->GetControlRotation().Yaw, 0.0).Vector();
+	FVector Eye = Box.GetCenter() - Dir * Distance;
+	Eye.Z = FMath::Max(Eye.Z, Box.Max.Z * 0.5 + Box.Min.Z * 0.5 + 300.0);
+	if (APawn* Pawn = PC->GetPawn())
+	{
+		Pawn->SetActorLocation(Eye, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	PC->SetControlRotation((Box.GetCenter() - Eye).Rotation());
+	UE_LOG(LogTemp, Display, TEXT("BuildTiming: view moved to show the build"));
 }

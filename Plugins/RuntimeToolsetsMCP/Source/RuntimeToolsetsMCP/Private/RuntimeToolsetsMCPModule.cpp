@@ -1,5 +1,6 @@
 #include "IModelContextProtocolModule.h"
 #include "McpPublicAccess.h"
+#include "McpScriptRoutes.h"
 #include "McpToolAdapter.h"
 #include "ModelContextProtocolServer.h"
 #include "RuntimeToolsetsCore.h"
@@ -48,6 +49,7 @@ public:
 		{
 			UE_LOG(LogRuntimeToolsetsMCP, Display, TEXT("MCP server: http://127.0.0.1:%u%s (%d tools, %s mode)"), Server->GetServerPort(), *ServerPath,
 				Registered.Num(), Settings.ExposureMode == ERuntimeToolsetsMCPExposure::Meta ? TEXT("meta") : TEXT("eager"));
+			McpScriptRoutes::Start(static_cast<int32>(Server->GetServerPort()), Settings.SessionId);
 			McpPublicAccess::Start(static_cast<int32>(Server->GetServerPort()), ServerPath);
 		}
 		else
@@ -59,6 +61,7 @@ public:
 	virtual void ShutdownModule() override
 	{
 		McpPublicAccess::Stop();
+		McpScriptRoutes::Stop();
 		IModelContextProtocolModule* Mcp = IModelContextProtocolModule::Get();
 		if (IRuntimeToolsetsCore::IsAvailable())
 		{

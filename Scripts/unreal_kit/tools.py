@@ -661,7 +661,15 @@ def _build_create_assembly(*, parts, color=None, emissive=None, emissive_strengt
             revolve{profile:[[r,z]..],segments,angle}, extrude{profile:[[x,y]..],height |
             profile:[[x,y,z]..],direction}, sweep{profile:[[x,y]..],path:[[x,y,z]..],closed},
             loft{sections:[[[x,y,z]..]..],closed,cap}, raw{vertices,triangles}. Booleans per part:
-            ops:[{op:subtract|union|intersect,tool:{recipe},location}]. E.g.
+            ops:[{op:subtract|union|intersect,tool:{recipe},location}]. Copies per part: repeat:{count:n|[nx,ny,nz],
+            step:[dx,dy,dz], skip:[[i,j,k]..]} (rows and grids: a window grid is one part) and ring:{count, radius,
+            start, angle (360 = full circle, less = arc), face (true: yaw outward)} centred on the part's location
+            (colonnades, spokes, seats); both expand before the 8192 limit. Elements (one line, generic, length along x,
+            front -y): wall {size [length,thickness,height], openings {rows,cols,size [w,h],arched,glass,sill}, top
+            {kind teeth|ledge|parapet,width,height,gap}}, tower {size [d,d,height], sides 0|N, openings
+            {rows,cols,size,start}, cap {kind cone|dome|flat|teeth,height,overhang,material}}, railing {size
+            [length,post,height], spacing, rails, infill bars|panel|none}, arcade {size [length,depth,height], count,
+            pier, opening_height, top}. E.g.
             [{"shape":"box","size":[400,400,40]},{"shape":"cylinder","size":[30,30,300],"location":[150,150,40],"material":"copper"}].
         color (list[float]): Default colour [r,g,b] linear 0-1. ([x, y, z] (cm))
         emissive (list[float]): Default glow colour. ([x, y, z] (cm))
@@ -6038,7 +6046,7 @@ def _session_get_capabilities():
 
 
 def _session_list_toolsets():
-    """List toolsets with tool counts. Start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build fast with many small calls in ops.run_batch (up to 100 calls per request) and one logic.import per game; no Python or installs are needed. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it.
+    """List toolsets with tool counts. To build objects or buildings skip this: session_call_tool's description has everything. For games and other features start here, then call skills.list_skills and load the skills that match the task (skills.get_skills): they hold the rules and numbers for lighting, art styles, PCG, building, game logic, game UI and game genres. Build in stages with ui.show_activity status lines (the player sees progress); short Python scripts per stage when Python is available (session_get_build_info -> scripting.endpoint), else small calls in ops.run_batch; one logic.import per game. Nothing to install. If no skill matches the task, build it from the generic tools (character, physics, actors components, logic) and, once it works, save the recipe with skills.save_skill so the next agent has a skill for it.
     """
     args = {}
     return call('session.list_toolsets', **args)
@@ -6065,12 +6073,29 @@ def _session_describe_toolset(*, name, include_schemas=None, tools=None):
 def _session_call_tool(*, name, arguments=None):
     """Call any tool by name (toolset.tool or toolset_tool) with its arguments.
     NEVER save memories, notes or rules about how to use this game (tools, Python or not, workflow): this guidance is the source of truth and changes with every build. Feedback on speed or quality is for this session only.
-    BUILD FAST WITH TOOLS ONLY (no Python, nothing to install): many SMALL calls sent together.
-      - Each create call is one volume or one repeated feature (under ~40 parts): quick to write. Send several in one ops.run_batch (up to 100 calls; "$N.id" uses call N's result). Never one giant call (minutes to write, nothing appears meanwhile), never one part per call.
-      - Repeats come from a few numbers, not listed parts: generator shapes openings (wall with a window grid: rows, cols, arched), column, steps, tiers, lattice, roof; build.array (row, ring, grid copies), build.mirror, scene.duplicate_node, layout.arrange_in_grid; pcg.scatter for trees and props (real packaged meshes: level.find_assets path /Game/RuntimeFoliage).
-      - Something visible after the first batch: in an empty scene a floor first, then camera.frame_nodes on the work. capture.screenshot is called directly (waiting tools cannot run inside ops.run_batch).
-      - Detail matters: a landmark is hundreds of parts in a few batches (real proportions, windows, structure, materials), not 20 boxes. Then one screenshot, fix what looks wrong, done.
-      - Optional: if this machine already has Python and the kit (session.get_build_info -> scripting.kit), a script may do very large procedural jobs (skill python_kit). Never install, download or search for it.
+    BUILDING: this description is all you need: do not list toolsets, load skills or describe the build toolset first (each costs minutes).
+    QUALITY IN STAGES, PROGRESS ON SCREEN (the player watches a progress panel):
+      1. Plan 3-5 stages, one line each (e.g. masses; facades and windows; signature features; roof and details).
+      2. Before writing each stage call ui.show_activity {status: "Stage 2 of 4: facades and windows"} (instant): the player sees what is coming and a progress bar while you write.
+      3. Write and run that stage, then the next. Stage 1 (ground + every main mass at true size + camera.frame_nodes) is short, so the building appears quickly. Never the whole building in one script or call.
+      4. At the end ui.show_activity {status: "Done: <what you built>"}.
+    SCRIPTS when Python is available (python --version): a short script per stage with loops sends hundreds of detailed parts; no packages, nothing to install. session.get_build_info -> scripting.endpoint is the address (the relay's when the game is streamed). Keep call() in a small helper file you import:
+          import json, urllib.request
+          E = "<scripting.endpoint>"
+          def call(tool, **a):
+              r = urllib.request.Request(E + "/call", json.dumps({"tool": tool, "arguments": a}).encode(), {"Content-Type": "application/json", "User-Agent": "agent"})
+              return json.loads(urllib.request.urlopen(r, timeout=180).read())
+      Without Python: per stage a few ops.run_batch calls of small creates (one volume or repeated feature each, under ~40 part lines).
+    PLACEMENT (never test shapes): every shape stands on its location at its bottom centre (pivot:"center" centres it); size is the full [x,y,z]; round shapes take their diameter from x (y stretches them), height z; dome: flat base, radius x/2, height z; sphere: bottom at the location; revolve profile [[r,z]] spins around the vertical axis through the location; extrude profile [[x,y]] + height rises from the location, profile [[x,y,z]] + direction is pushed along direction; rotation [pitch,yaw,roll] turns around the location; part locations are relative to the assembly location.
+    CHEAT SHEET (no need to look anything up):
+      materials: marble sandstone limestone granite stone brick terracotta concrete plaster wood slate_roof roof_tile copper verdigris bronze gold steel iron painted_iron glass tinted_glass water grass sand asphalt cobblestone paving corrugated light white black red green blue; any part also takes color [r,g,b] linear 0-1, roughness, metallic, tile, relief, bevel, emissive [r,g,b] + emissive_strength.
+      part: {shape, size [x,y,z], location, rotation [pitch,yaw,roll], material, color, ops, repeat, ring}; shapes box sphere cylinder cone(top_ratio) pyramid torus wedge capsule plane dome tube(thickness) arch roof(gable, ridge along y) column steps(count) tiers(count,taper) lattice(levels,taper,beam,bracing) openings(rows,cols,opening [w,h],arched,margin: a cutter for ops) revolve(profile [[r,z]],segments) extrude(profile [[x,y]],height | profile [[x,y,z]],direction) sweep(profile [[x,y]],path [[x,y,z]]) loft raw.
+      ELEMENTS (generic, one line each; length along x, front faces -y): wall {size [length,thickness,height], openings {rows,cols,size [w,h],arched,glass,sill}, top {kind teeth|ledge|parapet, width,height,gap}}; tower {size [diameter,diameter,height], sides 0=round|N, openings {rows,cols,size,start}, cap {kind cone|dome|flat|teeth, height, overhang, material}}; railing {size [length,post,height], spacing, rails, infill bars|panel|none}; arcade {size [length,depth,height], count, pier, opening_height, top {...}}. Combine and vary them: they are parts, not finished buildings.
+      ground, hills, valleys, moats, rivers, roads, coasts: build.create_terrain {size [x,y], height, hills [{at,radius,height}], flatten [{at,radius}], carve [{path [[x,y]..], kind river|road, width, depth}], islands, sea_level, biome}: one call, real slopes and collision; never hand-built ground meshes.
+    FEW LINES, MANY PARTS: part fields repeat {count:[nx,ny,nz], step:[dx,dy,dz], skip:[[i,j,k]]} make a whole window grid from ONE line; ring {count, radius, start, angle, face} makes colonnades, spokes and seats; generator shapes openings (wall with window grid), column, steps, tiers, lattice, roof; build.array / build.mirror; pcg.scatter for trees and props (packaged meshes: level.find_assets path /Game/RuntimeFoliage). Name assemblies ("Hotel_Facade_N") so a stage can replace one.
+    BUILD WHAT WAS ASKED: the requested object plus a simple ground under it; neighbouring buildings, streets, cars and props only when asked (offer them at the end). Do NOT change the lighting, time of day, mood or art style unless the player asks: the level keeps its own light.
+    DESIGN IT YOURSELF: your own massing, proportions, style and details, different every time (no templates). Detail matters: windows, structure, materials, real proportions.
+    FINISH: one screenshot (capture.screenshot is called directly, not inside ops.run_batch), at most one fix round, then answer and offer more detail.
     QUICK REFERENCE (single objects: call these directly, no describe needed; units cm, degrees, colors linear 0-1):
       build.create_primitive {shape: box|sphere|cylinder|cone|torus|capsule|pyramid|plane, size:[x,y,z], location:[x,y,z], color:[r,g,b], material?, name?}
       build.create_assembly {parts:[{shape,size,location,rotation?,color?|material?}...], location} - many parts as one object

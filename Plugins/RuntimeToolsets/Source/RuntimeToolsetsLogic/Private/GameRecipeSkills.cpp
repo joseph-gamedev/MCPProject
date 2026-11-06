@@ -160,7 +160,8 @@ ops.run_batch with one build.create_assembly per plot (extrude of the plot outli
 a roof, a ground-floor shop band), varying height, width, colour and window type between neighbours. Then
 pcg.scatter street trees and props along the streets. Then add what makes the place unique (landmarks, water, parks).
 Rect buildings: origin = front centre at ground, front faces -Y; storeys 300-330, ground floor 400-450.
-Optional: with Python and the kit already on this machine, skill python_kit has district and building generators.
+With Python, short scripts with loops send the parts (session_get_build_info scripting.endpoint); design each
+building yourself so no two are the same.
 Save finished pieces with
 scene.save_template so later scenes reuse them (scene.place_template).
 )SKILL")) + FString(TEXT(R"SKILL(
@@ -175,10 +176,10 @@ person 170 | counter/table 75-90 | chair seat 45 | stair step 17 x 28 | railing 
 lane 300-350 | sidewalk 200-400 | street lamp 600-900, every 2500 | street tree 600-1100 | car 450 x 180 x 145
 Check with build.measure; a wrong door or storey height ruins everything else.
 
-## 2 Light (lighting.apply_mood sets all of this; do not fight it)
+## 2 Light (only when the player asks for a mood or time of day: keep the level's own lighting otherwise)
 Noon 100000 lux sun (EV 14.6) | Morning 40000 | Sunset 9000, low warm sun | Overcast 9000 soft | Night 0.6 + lamps.
 Exposure is locked to the mood. Change brightness only with apply_mood / set_sun intensity, NEVER exposure_bias
-and never 90000 lux with auto exposure (white image). Low sun angles (morning/sunset) show form best.
+and never 90000 lux with auto exposure (white image). Never change the light on your own initiative.
 
 ## 3 Materials (sRGB colour of the real thing; never pure white or black)
 white paint 220-230 | concrete 150-170 | asphalt 50-60 | red brick 140,87,70 | limestone 200,190,168 | grass 88,104,54
@@ -192,7 +193,8 @@ style.apply material {Weathering: 0.2-0.4}: dirt at the wall base, rain streaks,
 - Facades: plinth at the base, string course between floors, cornice at the top, downspouts at corners.
 - Roofs: parapet + rooftop units / stair head / water tank, or a pitched roof with overhang.
 - Nothing floats, nothing intersects visibly (build.check_overlaps), everything sits on the ground.
-- Ground is never empty: curbs, markings, lamps, trees with pits, benches, bins, bollards, parked cars, grass edges.
+- For a scene or street the ground is never empty: curbs, markings, lamps, trees with pits, benches, bins, bollards,
+  parked cars, grass edges. For one requested building: its own plot only, and offer the street afterwards.
 - Repetition kills realism: vary width, height, colour, window type and roof between neighbours.
 
 ## 4a Ground: real terrain, not a flat floor
@@ -228,9 +230,10 @@ URuntimePythonKitSkill::URuntimePythonKitSkill()
 	Instructions = FString(TEXT(R"SKILL(# unreal_kit: fast generation with Python
 
 ## Optional: only when Python and the kit are already on this machine
-The tools alone build everything (small creates in ops.run_batch); this kit is a shortcut for very large procedural jobs.
-Use it only when session_get_build_info shows scripting.kit and Python is available. Never install, download or search
-for it; a game streamed from the cloud has no kit on your machine: use the tools.
+With Python but no kit (always the case for a game streamed from the cloud): write plain scripts that POST parts to
+session_get_build_info scripting.endpoint (see session.call_tool). This kit adds ready helpers when it is on this
+machine (session_get_build_info shows scripting.kit). Never install, download or search for it. Design every
+building yourself; the kit's generators are a starting point, never the answer to "build X".
 NEVER save memories or notes about how to use this game: this guidance changes with every build and wins over them.
     import sys, os; sys.path.insert(0, os.environ.get("UNREAL_KIT") or r"<scripting.kit>"); import unreal_kit as uk
     uk.district("manhattan")            # whole district in one call (~10-30 s); presets: manhattan paris london downtown

@@ -337,15 +337,22 @@ QUALITY BAR: a recognisable, realistic recreation at TRUE SCALE. Hero landmarks 
 Units: cm, Z up, rotations [pitch,yaw,roll]. Use real dimensions (Eiffel Tower 33000 tall, base 12500 square;
 Great Pyramid base 23040, height 13860; Taj Mahal dome top 7300).
 
-FASTEST - many SMALL calls sent together (tools only: no Python, nothing to install):
-  Each create call is one volume or one repeated feature (under ~40 parts, quick to write); send several in one
-  ops.run_batch (up to 100 calls, "$N.id" references). Never one giant call (minutes to write, nothing appears
-  meanwhile) and never one part per call. Group the pieces of one building with scene.create_group + parent.
-  Repeats from a few numbers: openings (window grid: rows, cols, arched), column, steps, tiers, lattice, roof;
-  build.array (row/ring/grid), build.mirror, scene.duplicate_node; pcg.scatter for trees and props (packaged meshes,
-  level.find_assets path /Game/RuntimeFoliage). capture.screenshot is called directly, not inside run_batch.
-  Optional: when this machine already has Python and the kit (session_get_build_info scripting.kit), a script may do
-  very large procedural jobs (skill python_kit). Never install, download or search for it.
+QUALITY IN STAGES, PROGRESS ON SCREEN (the player watches a progress panel):
+  1. Plan 3-5 stages (masses; facades and windows; signature features; roof and details).
+  2. Before each stage ui.show_activity {status:"Stage 2 of 4: facades"} (instant: progress bar while you write).
+  3. Write and run the stage: a short script with loops when Python is available (session_get_build_info ->
+     scripting.endpoint, plain urllib), else a few ops.run_batch calls. Stage 1 (ground + main masses +
+     camera.frame_nodes) is short. Never the whole building in one script or call.
+  4. ui.show_activity {status:"Done: ..."}; one screenshot, at most one fix round, answer and offer more.
+ELEMENTS (generic, one part line each): wall (openings grid, top {kind teeth|ledge|parapet}), tower (round or N sides,
+  window rows, cap {kind cone|dome|flat|teeth}), railing (posts, rails, bars or glass), arcade (arches between piers). Combine them.
+GROUND: hills, moats, rivers, roads and coasts with build.create_terrain (flatten pads, carve channels), never hand-built.
+FEW LINES, MANY PARTS: part fields repeat {count:[nx,ny,nz], step:[dx,dy,dz], skip:[[i,j,k]]} (a window grid is ONE
+  line) and ring {count, radius, start, angle, face} (colonnades, spokes, seats); generator shapes openings, column,
+  steps, tiers, lattice, roof; build.array / mirror; pcg.scatter for trees and props (packaged meshes,
+  level.find_assets path /Game/RuntimeFoliage). Group a building's pieces with scene.create_group.
+BUILD WHAT WAS ASKED: the object plus a simple ground; neighbours, streets, cars and props only when asked.
+DESIGN IT YOURSELF: every building gets its own massing, proportions, style and details (no templates, no clones).
 REUSE - scene.save_template {target, name, description} keeps anything you built; scene.place_template places copies
   in later sessions; scene.list_templates shows what exists. Check it before building something again.
 
@@ -377,7 +384,7 @@ WORKFLOW:
 3. Add detail layers (structure, openings, ornament, railings) in batches; group with scene.create_group + parent.
 4. Context: a ground much larger than the view (sand/grass/asphalt), paths, trees, plinths. Nothing floats
    (snap_to_ground on create tools, layout.drop_to_ground for existing objects).
-5. Light: lighting.apply_mood, then lighting.set_sun so the sun is behind/beside the camera (not backlit).
+5. Light: leave the level's lighting, time of day and style alone unless the player asks for them (then lighting.apply_mood).
 6. Verify with capture.screenshot from a wide and a close view; compare with the real landmark and refine at least twice.
 7. Frame with camera.set_camera or camera.frame_nodes; the player keeps WASD/mouse fly control.
 Only if the user asks to see progress: ui.show_activity {enabled:true, status:"..."}.
@@ -476,6 +483,531 @@ FBuildToolNodeResult URuntimeBuildToolset::CreateProfileSolid(EBuildToolSolidKin
 	return ToNodeResult(Out);
 }
 
+namespace
+{
+	TSharedPtr<FJsonValue> Vec3(double X, double Y, double Z)
+	{
+		return MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(X), MakeShared<FJsonValueNumber>(Y), MakeShared<FJsonValueNumber>(Z)});
+	}
+
+	bool ReadVec3(const TSharedPtr<FJsonObject>& O, const TCHAR* Field, FVector& Out)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+		if (!O->TryGetArrayField(Field, A) || A->Num() < 3)
+		{
+			return false;
+		}
+		Out = FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber());
+		return true;
+	}
+
+	/**
+	 * Expands parts with "ring" (copies around a circle centred on the part's location, facing outward) and "repeat"
+	 * (a row or grid of copies, offsets in assembly space) into plain parts.
+	 */
+	bool ExpandPartCopies(const TArray<TSharedPtr<FJsonValue>>& In, int32 MaxParts, TArray<TSharedPtr<FJsonValue>>& Out, FString& Error)
+	{
+		for (int32 PartIndex = 0; PartIndex < In.Num(); ++PartIndex)
+		{
+			const TSharedPtr<FJsonObject> Part = In[PartIndex]->AsObject();
+			if (!Part.IsValid() || (!Part->HasField(TEXT("repeat")) && !Part->HasField(TEXT("ring"))))
+			{
+				Out.Add(In[PartIndex]);
+				continue;
+			}
+			FVector Base = FVector::ZeroVector, Rot = FVector::ZeroVector; // rotation as [pitch, yaw, roll]
+			ReadVec3(Part, TEXT("location"), Base);
+			ReadVec3(Part, TEXT("rotation"), Rot);
+			// ring: positions (relative to the part's location) and extra yaw
+			TArray<TPair<FVector, double>> Ring{TPair<FVector, double>(FVector::ZeroVector, 0.0)};
+			const TSharedPtr<FJsonObject>* RingObj = nullptr;
+			if (Part->TryGetObjectField(TEXT("ring"), RingObj))
+			{
+				const int32 Count = FMath::Clamp(static_cast<int32>((*RingObj)->GetNumberField(TEXT("count"))), 1, MaxParts);
+				const double Radius = (*RingObj)->HasField(TEXT("radius")) ? (*RingObj)->GetNumberField(TEXT("radius")) : 0.0;
+				const double Start = (*RingObj)->HasField(TEXT("start")) ? (*RingObj)->GetNumberField(TEXT("start")) : 0.0;
+				const double Sweep = (*RingObj)->HasField(TEXT("angle")) ? (*RingObj)->GetNumberField(TEXT("angle")) : 360.0;
+				bool bFace = true;
+				(*RingObj)->TryGetBoolField(TEXT("face"), bFace);
+				// a full circle spaces copies count ways; an arc puts the first and last copy on its ends
+				const double StepDeg = FMath::Abs(Sweep) >= 359.999 ? Sweep / Count : (Count > 1 ? Sweep / (Count - 1) : 0.0);
+				Ring.Reset();
+				for (int32 i = 0; i < Count; ++i)
+				{
+					const double A = Start + StepDeg * i;
+					const double R = FMath::DegreesToRadians(A);
+					Ring.Add(TPair<FVector, double>(FVector(Radius * FMath::Cos(R), Radius * FMath::Sin(R), 0.0), bFace ? A : 0.0));
+				}
+			}
+			// repeat: grid offsets
+			TArray<FVector> Grid{FVector::ZeroVector};
+			const TSharedPtr<FJsonObject>* RepObj = nullptr;
+			if (Part->TryGetObjectField(TEXT("repeat"), RepObj))
+			{
+				FIntVector N(1, 1, 1);
+				FVector Step = FVector::ZeroVector;
+				const TArray<TSharedPtr<FJsonValue>>* CountArr = nullptr;
+				const bool bGrid = (*RepObj)->TryGetArrayField(TEXT("count"), CountArr);
+				if (bGrid)
+				{
+					for (int32 k = 0; k < 3 && k < CountArr->Num(); ++k)
+					{
+						N[k] = FMath::Max(1, static_cast<int32>((*CountArr)[k]->AsNumber()));
+					}
+				}
+				else
+				{
+					N.X = FMath::Max(1, static_cast<int32>((*RepObj)->GetNumberField(TEXT("count"))));
+				}
+				ReadVec3(*RepObj, TEXT("step"), Step);
+				TSet<FIntVector> Skip;
+				const TArray<TSharedPtr<FJsonValue>>* SkipArr = nullptr;
+				if ((*RepObj)->TryGetArrayField(TEXT("skip"), SkipArr))
+				{
+					for (const TSharedPtr<FJsonValue>& S : *SkipArr)
+					{
+						const TArray<TSharedPtr<FJsonValue>>* Idx = nullptr;
+						FIntVector I(0, 0, 0);
+						if (S->TryGetArray(Idx))
+						{
+							for (int32 k = 0; k < 3 && k < Idx->Num(); ++k)
+							{
+								I[k] = static_cast<int32>((*Idx)[k]->AsNumber());
+							}
+						}
+						else
+						{
+							I.X = static_cast<int32>(S->AsNumber());
+						}
+						Skip.Add(I);
+					}
+				}
+				if (static_cast<int64>(N.X) * N.Y * N.Z > MaxParts)
+				{
+					Error = FString::Printf(TEXT("part %d: repeat makes %lld copies (max %d)"), PartIndex, static_cast<int64>(N.X) * N.Y * N.Z, MaxParts);
+					return false;
+				}
+				Grid.Reset();
+				for (int32 z = 0; z < N.Z; ++z)
+				{
+					for (int32 y = 0; y < N.Y; ++y)
+					{
+						for (int32 x = 0; x < N.X; ++x)
+						{
+							if (!Skip.Contains(FIntVector(x, y, z)))
+							{
+								// one count with a step vector: copies along that vector
+								Grid.Add(bGrid ? FVector(Step.X * x, Step.Y * y, Step.Z * z) : Step * x);
+							}
+						}
+					}
+				}
+			}
+			if (Out.Num() + static_cast<int64>(Ring.Num()) * Grid.Num() > MaxParts)
+			{
+				Error = FString::Printf(TEXT("part %d: repeat/ring copies make more than %d parts; split into several assemblies"), PartIndex, MaxParts);
+				return false;
+			}
+			for (const TPair<FVector, double>& R : Ring)
+			{
+				for (const FVector& G : Grid)
+				{
+					TSharedRef<FJsonObject> Copy = MakeShared<FJsonObject>(*Part);
+					Copy->RemoveField(TEXT("repeat"));
+					Copy->RemoveField(TEXT("ring"));
+					const FVector L = Base + R.Key + G;
+					Copy->SetField(TEXT("location"), Vec3(L.X, L.Y, L.Z));
+					if (R.Value != 0.0 || Part->HasField(TEXT("rotation")))
+					{
+						Copy->SetField(TEXT("rotation"), Vec3(Rot.X, Rot.Y + R.Value, Rot.Z));
+					}
+					Out.Add(MakeShared<FJsonValueObject>(Copy));
+				}
+			}
+		}
+		if (Out.Num() == 0 || Out.Num() > MaxParts)
+		{
+			Error = FString::Printf(TEXT("parts needs 1-%d entries after repeat/ring (got %d)"), MaxParts, Out.Num());
+			return false;
+		}
+		return true;
+	}
+
+	// ---- generic elements: one part line expands into the parts of a wall, tower, railing or arcade ----------------
+
+	double Field(const TSharedPtr<FJsonObject>& O, const TCHAR* Name, double Default)
+	{
+		double V = Default;
+		return O.IsValid() && O->TryGetNumberField(Name, V) ? V : Default;
+	}
+
+	const TCHAR* const InheritedFields[] = {TEXT("material"), TEXT("color"), TEXT("roughness"), TEXT("metallic"), TEXT("style"), TEXT("tile"),
+		TEXT("relief"), TEXT("variation"), TEXT("bevel"), TEXT("detail"), TEXT("emissive"), TEXT("emissive_strength"), TEXT("opacity")};
+
+	/** Emits the parts of one element in the element's own space (length along X, front facing -Y, base at the location). */
+	struct FElementBuilder
+	{
+		TSharedPtr<FJsonObject> Src;
+		FVector Origin = FVector::ZeroVector;
+		FQuat Rot = FQuat::Identity;
+		TArray<TSharedPtr<FJsonValue>>* Out = nullptr;
+
+		/** Material: nullptr = the element's own; "glass" etc = that preset; an object {material, color, ...} = those fields. */
+		TSharedRef<FJsonObject> Add(const TCHAR* Shape, const FVector& Size, const FVector& Local, const FRotator& LocalRot = FRotator::ZeroRotator,
+			const TCHAR* Preset = nullptr, const TSharedPtr<FJsonObject>& Fields = nullptr)
+		{
+			TSharedRef<FJsonObject> P = MakeShared<FJsonObject>();
+			if (!Preset)
+			{
+				for (const TCHAR* F : InheritedFields)
+				{
+					if (TSharedPtr<FJsonValue> V = Src->TryGetField(F))
+					{
+						P->SetField(F, V);
+					}
+				}
+			}
+			else
+			{
+				P->SetStringField(TEXT("material"), Preset);
+			}
+			if (Fields.IsValid())
+			{
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& F : Fields->Values)
+				{
+					P->SetField(F.Key, F.Value);
+				}
+			}
+			P->SetStringField(TEXT("shape"), Shape);
+			P->SetField(TEXT("size"), Vec3(Size.X, Size.Y, Size.Z));
+			const FVector W = Origin + Rot.RotateVector(Local);
+			P->SetField(TEXT("location"), Vec3(W.X, W.Y, W.Z));
+			const FRotator R = (Rot * LocalRot.Quaternion()).Rotator();
+			P->SetField(TEXT("rotation"), Vec3(R.Pitch, R.Yaw, R.Roll));
+			Out->Add(MakeShared<FJsonValueObject>(P));
+			return P;
+		}
+
+		/** Material fields given for a sub-part, e.g. "cap": {"material": "copper"} or "frame_material": "bronze". */
+		TSharedPtr<FJsonObject> SubFields(const TSharedPtr<FJsonObject>& Sub) const
+		{
+			if (!Sub.IsValid())
+			{
+				return nullptr;
+			}
+			TSharedPtr<FJsonObject> F = MakeShared<FJsonObject>();
+			for (const TCHAR* Name : InheritedFields)
+			{
+				if (TSharedPtr<FJsonValue> V = Sub->TryGetField(Name))
+				{
+					F->SetField(Name, V);
+				}
+			}
+			return F->Values.Num() ? F : nullptr;
+		}
+
+		/** Teeth, a ledge (cornice) or a parapet along the top of a straight element. */
+		void Top(const TSharedPtr<FJsonObject>& T, double L, double Th, double H)
+		{
+			if (!T.IsValid())
+			{
+				return;
+			}
+			FString Style = TEXT("teeth");
+			T->TryGetStringField(TEXT("kind"), Style);
+			const TSharedPtr<FJsonObject> F = SubFields(T);
+			if (Style == TEXT("ledge"))
+			{
+				const double D = Field(T, TEXT("depth"), 15.0), Hh = Field(T, TEXT("height"), 25.0);
+				Add(TEXT("box"), FVector(L + 2 * D, Th + 2 * D, Hh), FVector(0, 0, H), FRotator::ZeroRotator, nullptr, F);
+			}
+			else if (Style == TEXT("parapet"))
+			{
+				Add(TEXT("box"), FVector(L, FMath::Max(10.0, Th * 0.5), Field(T, TEXT("height"), 100.0)), FVector(0, 0, H), FRotator::ZeroRotator, nullptr, F);
+			}
+			else
+			{
+				const double W = Field(T, TEXT("width"), FMath::Max(40.0, Th * 1.5)), Hh = Field(T, TEXT("height"), FMath::Max(50.0, Th * 1.5));
+				const double Gap = Field(T, TEXT("gap"), W);
+				const int32 N = FMath::Max(1, FMath::FloorToInt((L + Gap) / (W + Gap)));
+				const double Span = N * W + (N - 1) * Gap;
+				for (int32 i = 0; i < N; ++i)
+				{
+					Add(TEXT("box"), FVector(W, Th, Hh), FVector(-Span / 2 + W / 2 + i * (W + Gap), 0, H), FRotator::ZeroRotator, nullptr, F);
+				}
+			}
+		}
+	};
+
+	/** A grid of openings as a boolean cutter (the "openings" generator) for a face L long, H high, Th thick. */
+	TSharedPtr<FJsonValue> OpeningsCut(double L, double Th, double H, int32 Rows, int32 Cols, const FVector2D& Opening, bool bArched, double Margin, double Z)
+	{
+		TSharedRef<FJsonObject> Tool = MakeShared<FJsonObject>();
+		Tool->SetStringField(TEXT("shape"), TEXT("openings"));
+		Tool->SetField(TEXT("size"), Vec3(L, Th + 40.0, H));
+		Tool->SetNumberField(TEXT("rows"), Rows);
+		Tool->SetNumberField(TEXT("cols"), Cols);
+		Tool->SetArrayField(TEXT("opening"), {MakeShared<FJsonValueNumber>(Opening.X), MakeShared<FJsonValueNumber>(Opening.Y)});
+		Tool->SetBoolField(TEXT("arched"), bArched);
+		Tool->SetNumberField(TEXT("margin"), Margin);
+		TSharedRef<FJsonObject> Op = MakeShared<FJsonObject>();
+		Op->SetStringField(TEXT("op"), TEXT("subtract"));
+		Op->SetObjectField(TEXT("tool"), Tool);
+		Op->SetField(TEXT("location"), Vec3(0, 0, Z));
+		return MakeShared<FJsonValueObject>(Op);
+	}
+
+	bool ExpandElement(const TSharedPtr<FJsonObject>& Part, const FString& Shape, TArray<TSharedPtr<FJsonValue>>& Out, FString& Error)
+	{
+		FElementBuilder B;
+		B.Src = Part;
+		B.Out = &Out;
+		FVector Rot3 = FVector::ZeroVector;
+		ReadVec3(Part, TEXT("location"), B.Origin);
+		if (ReadVec3(Part, TEXT("rotation"), Rot3))
+		{
+			B.Rot = FRotator(Rot3.X, Rot3.Y, Rot3.Z).Quaternion();
+		}
+		FVector S;
+		const TSharedPtr<FJsonObject>* OpenObj = nullptr;
+		const TSharedPtr<FJsonObject> Open = Part->TryGetObjectField(TEXT("openings"), OpenObj) ? *OpenObj : nullptr;
+		const TSharedPtr<FJsonObject>* TopObj = nullptr;
+		const TSharedPtr<FJsonObject> TopSpec = Part->TryGetObjectField(TEXT("top"), TopObj) ? *TopObj : nullptr;
+		FString GlassPreset = TEXT("glass");
+		Part->TryGetStringField(TEXT("glass_material"), GlassPreset);
+
+		if (Shape == TEXT("wall"))
+		{
+			S = FVector(400, 30, 300);
+			ReadVec3(Part, TEXT("size"), S);
+			TSharedRef<FJsonObject> Body = B.Add(TEXT("box"), S, FVector::ZeroVector);
+			if (Open.IsValid())
+			{
+				const int32 Rows = FMath::Clamp(static_cast<int32>(Field(Open, TEXT("rows"), 3)), 1, 100);
+				const int32 Cols = FMath::Clamp(static_cast<int32>(Field(Open, TEXT("cols"), 5)), 1, 200);
+				const double Margin = Field(Open, TEXT("margin"), FMath::Min(S.X, S.Z) * 0.08);
+				const double CellW = (S.X - 2 * Margin) / Cols, CellH = (S.Z - 2 * Margin) / Rows;
+				FVector2D Op(CellW * 0.55, CellH * 0.6);
+				const TArray<TSharedPtr<FJsonValue>>* OpSize = nullptr;
+				if (Open->TryGetArrayField(TEXT("size"), OpSize) && OpSize->Num() >= 2)
+				{
+					Op = FVector2D((*OpSize)[0]->AsNumber(), (*OpSize)[1]->AsNumber());
+				}
+				bool bArched = false, bGlass = true, bSill = true;
+				Open->TryGetBoolField(TEXT("arched"), bArched);
+				Open->TryGetBoolField(TEXT("glass"), bGlass);
+				Open->TryGetBoolField(TEXT("sill"), bSill);
+				Body->SetArrayField(TEXT("ops"), {OpeningsCut(S.X, S.Y, S.Z, Rows, Cols, Op, bArched, Margin, 0.0)});
+				for (int32 R = 0; R < Rows; ++R)
+				{
+					for (int32 C = 0; C < Cols; ++C)
+					{
+						const double X = -S.X / 2 + Margin + CellW * (C + 0.5);
+						const double Z = Margin + CellH * R + (CellH - Op.Y) / 2;
+						const double RectH = bArched ? Op.Y - Op.X / 2 : Op.Y;
+						if (bGlass)
+						{
+							B.Add(TEXT("box"), FVector(Op.X, 3, RectH), FVector(X, 0, Z), FRotator::ZeroRotator, *GlassPreset);
+							if (bArched)
+							{
+								B.Add(TEXT("cylinder"), FVector(Op.X, Op.X, 3), FVector(X, 1.5, Z + RectH), FRotator(0, 0, 90), *GlassPreset)
+									->SetStringField(TEXT("pivot"), TEXT("center"));
+							}
+						}
+						if (bSill)
+						{
+							const double Depth = S.Y * 0.5 + 10.0;
+							B.Add(TEXT("box"), FVector(Op.X + 16, Depth, 6), FVector(X, -S.Y / 2 - 10.0 + Depth / 2, Z - 6), FRotator::ZeroRotator, nullptr,
+								B.SubFields(Open));
+						}
+					}
+				}
+			}
+			B.Top(TopSpec, S.X, S.Y, S.Z);
+			return true;
+		}
+		if (Shape == TEXT("arcade"))
+		{
+			S = FVector(1600, 60, 500);
+			ReadVec3(Part, TEXT("size"), S);
+			const int32 Count = FMath::Clamp(static_cast<int32>(Field(Part, TEXT("count"), FMath::Max(1.0, FMath::RoundToDouble(S.X / (S.Z * 0.8))))), 1, 200);
+			const double Cell = S.X / Count;
+			const double Pier = FMath::Clamp(Field(Part, TEXT("pier"), Cell * 0.22), 5.0, Cell - 10.0);
+			const double Span = Cell - Pier;
+			const double OpenH = FMath::Clamp(Field(Part, TEXT("opening_height"), S.Z * 0.75), Span / 2 + 10.0, S.Z - 5.0);
+			// each bay is its exact outline (half piers, round arch, top band) pushed through the depth: no booleans
+			const double Spring = OpenH - Span / 2;
+			const int32 Steps = 16;
+			for (int32 i = 0; i < Count; ++i)
+			{
+				const double Cx = -S.X / 2 + Cell * (i + 0.5);
+				TArray<FVector> Outline = {{-Cell / 2, 0, 0}, {-Span / 2, 0, 0}, {-Span / 2, 0, Spring}};
+				for (int32 k = 1; k < Steps; ++k)
+				{
+					const double A = PI - PI * k / Steps;
+					Outline.Add(FVector(Span / 2 * FMath::Cos(A), 0, Spring + Span / 2 * FMath::Sin(A)));
+				}
+				Outline.Append({{Span / 2, 0, Spring}, {Span / 2, 0, 0}, {Cell / 2, 0, 0}, {Cell / 2, 0, S.Z}, {-Cell / 2, 0, S.Z}});
+				TArray<TSharedPtr<FJsonValue>> Profile;
+				for (const FVector& V : Outline)
+				{
+					Profile.Add(Vec3(V.X, V.Y, V.Z));
+				}
+				TSharedRef<FJsonObject> Bay = B.Add(TEXT("extrude"), FVector(Cell, S.Y, S.Z), FVector(Cx, -S.Y / 2, 0));
+				Bay->SetArrayField(TEXT("profile"), Profile);
+				Bay->SetField(TEXT("direction"), Vec3(0, S.Y, 0));
+			}
+			B.Top(TopSpec, S.X, S.Y, S.Z);
+			return true;
+		}
+		if (Shape == TEXT("railing"))
+		{
+			S = FVector(400, 8, 100);
+			ReadVec3(Part, TEXT("size"), S);
+			const double T = FMath::Max(2.0, S.Y);
+			const int32 Posts = FMath::Clamp(FMath::CeilToInt(S.X / FMath::Max(20.0, Field(Part, TEXT("spacing"), 150.0))) + 1, 2, 400);
+			for (int32 i = 0; i < Posts; ++i)
+			{
+				B.Add(TEXT("box"), FVector(T, T, S.Z), FVector(-S.X / 2 + S.X * i / (Posts - 1), 0, 0));
+			}
+			B.Add(TEXT("box"), FVector(S.X, T * 1.4, T * 0.7), FVector(0, 0, S.Z - T * 0.7));
+			const int32 Rails = FMath::Clamp(static_cast<int32>(Field(Part, TEXT("rails"), 1)), 0, 10);
+			for (int32 k = 1; k <= Rails; ++k)
+			{
+				B.Add(TEXT("box"), FVector(S.X, T * 0.6, T * 0.5), FVector(0, 0, S.Z * k / (Rails + 1)));
+			}
+			FString Infill = TEXT("bars");
+			Part->TryGetStringField(TEXT("infill"), Infill);
+			if (Infill == TEXT("panel"))
+			{
+				B.Add(TEXT("box"), FVector(S.X - T, 2, S.Z * 0.75), FVector(0, 0, S.Z * 0.1), FRotator::ZeroRotator, *GlassPreset);
+			}
+			else if (Infill == TEXT("bars"))
+			{
+				const double Gap = FMath::Max(5.0, Field(Part, TEXT("bar_spacing"), 12.0));
+				const int32 Bars = FMath::Clamp(FMath::FloorToInt(S.X / Gap), 1, 2000);
+				for (int32 i = 1; i < Bars; ++i)
+				{
+					B.Add(TEXT("box"), FVector(2.5, 2.5, S.Z - T * 1.2), FVector(-S.X / 2 + Gap * i, 0, T * 0.5));
+				}
+			}
+			return true;
+		}
+		if (Shape == TEXT("tower"))
+		{
+			S = FVector(600, 600, 1500);
+			ReadVec3(Part, TEXT("size"), S);
+			const double D = S.X, R = D / 2;
+			const int32 Sides = static_cast<int32>(Field(Part, TEXT("sides"), 0));
+			if (Sides >= 3)
+			{
+				TSharedRef<FJsonObject> Body = B.Add(TEXT("extrude"), S, FVector::ZeroVector);
+				TArray<TSharedPtr<FJsonValue>> Profile;
+				for (int32 i = 0; i < Sides; ++i)
+				{
+					const double A = 2 * PI * i / Sides + PI / Sides;
+					Profile.Add(MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(R * FMath::Cos(A)),
+						MakeShared<FJsonValueNumber>(R * FMath::Sin(A))}));
+				}
+				Body->SetArrayField(TEXT("profile"), Profile);
+				Body->SetNumberField(TEXT("height"), S.Z);
+			}
+			else
+			{
+				B.Add(TEXT("cylinder"), S, FVector::ZeroVector);
+			}
+			if (Open.IsValid())
+			{
+				// windows set into the surface, facing out
+				const int32 Rows = FMath::Clamp(static_cast<int32>(Field(Open, TEXT("rows"), 3)), 1, 100);
+				const int32 Cols = FMath::Clamp(static_cast<int32>(Field(Open, TEXT("cols"), 4)), 1, 64);
+				FVector2D Op(FMath::Min(120.0, D * 0.2), 180.0);
+				const TArray<TSharedPtr<FJsonValue>>* OpSize = nullptr;
+				if (Open->TryGetArrayField(TEXT("size"), OpSize) && OpSize->Num() >= 2)
+				{
+					Op = FVector2D((*OpSize)[0]->AsNumber(), (*OpSize)[1]->AsNumber());
+				}
+				const double Z0 = Field(Open, TEXT("start"), S.Z * 0.15);
+				const double Step = (S.Z - Z0 - Op.Y) / FMath::Max(1, Rows - 1);
+				for (int32 Rw = 0; Rw < Rows; ++Rw)
+				{
+					for (int32 C = 0; C < Cols; ++C)
+					{
+						const double A = 360.0 * C / Cols;
+						const double Rad = FMath::DegreesToRadians(A);
+						B.Add(TEXT("box"), FVector(Op.X, 6, Op.Y), FVector((R + 1) * FMath::Cos(Rad), (R + 1) * FMath::Sin(Rad), Z0 + Step * Rw),
+							FRotator(0, A + 90.0, 0), *GlassPreset);
+					}
+				}
+			}
+			const TSharedPtr<FJsonObject>* CapObj = nullptr;
+			if (Part->TryGetObjectField(TEXT("cap"), CapObj))
+			{
+				const TSharedPtr<FJsonObject> Cap = *CapObj;
+				FString Style = TEXT("cone");
+				Cap->TryGetStringField(TEXT("kind"), Style);
+				const TSharedPtr<FJsonObject> F = B.SubFields(Cap);
+				const double Over = Field(Cap, TEXT("overhang"), Style == TEXT("cone") ? D * 0.12 : (Style == TEXT("flat") ? 20.0 : 0.0));
+				const double CapD = D + 2 * Over;
+				if (Style == TEXT("cone"))
+				{
+					B.Add(TEXT("cone"), FVector(CapD, CapD, Field(Cap, TEXT("height"), D * 0.9)), FVector(0, 0, S.Z), FRotator::ZeroRotator, nullptr, F);
+				}
+				else if (Style == TEXT("dome"))
+				{
+					B.Add(TEXT("dome"), FVector(CapD, CapD, Field(Cap, TEXT("height"), D * 0.5)), FVector(0, 0, S.Z), FRotator::ZeroRotator, nullptr, F);
+				}
+				else if (Style == TEXT("flat"))
+				{
+					B.Add(TEXT("cylinder"), FVector(CapD, CapD, Field(Cap, TEXT("height"), 30.0)), FVector(0, 0, S.Z), FRotator::ZeroRotator, nullptr, F);
+				}
+				else if (Style == TEXT("teeth"))
+				{
+					const double Th = FMath::Max(30.0, D * 0.08);
+					B.Add(TEXT("cylinder"), FVector(CapD, CapD, 20.0), FVector(0, 0, S.Z), FRotator::ZeroRotator, nullptr, F);
+					const double W = Field(Cap, TEXT("width"), FMath::Max(40.0, Th * 1.5)), Hh = Field(Cap, TEXT("height"), FMath::Max(60.0, Th * 1.6));
+					const int32 N = FMath::Clamp(FMath::RoundToInt(PI * D / (2 * W)), 4, 128);
+					for (int32 i = 0; i < N; ++i)
+					{
+						const double A = 360.0 * i / N, Rad = FMath::DegreesToRadians(A), Rr = R + Over - Th / 2;
+						B.Add(TEXT("box"), FVector(W, Th, Hh), FVector(Rr * FMath::Cos(Rad), Rr * FMath::Sin(Rad), S.Z + 20.0), FRotator(0, A + 90.0, 0), nullptr, F);
+					}
+				}
+			}
+			return true;
+		}
+		Error = FString::Printf(TEXT("unknown element %s"), *Shape);
+		return false;
+	}
+
+	/** Expands element parts (wall, tower, railing, arcade) into plain parts. */
+	bool ExpandElements(const TArray<TSharedPtr<FJsonValue>>& In, int32 MaxParts, TArray<TSharedPtr<FJsonValue>>& Out, FString& Error)
+	{
+		static const TSet<FString> Elements = {TEXT("wall"), TEXT("tower"), TEXT("railing"), TEXT("arcade")};
+		for (int32 i = 0; i < In.Num(); ++i)
+		{
+			const TSharedPtr<FJsonObject> Part = In[i]->AsObject();
+			FString Shape;
+			if (!Part.IsValid() || !Part->TryGetStringField(TEXT("shape"), Shape) || !Elements.Contains(Shape.ToLower()))
+			{
+				Out.Add(In[i]);
+				continue;
+			}
+			if (!ExpandElement(Part, Shape.ToLower(), Out, Error))
+			{
+				Error = FString::Printf(TEXT("part %d: %s"), i, *Error);
+				return false;
+			}
+			if (Out.Num() > MaxParts)
+			{
+				Error = FString::Printf(TEXT("part %d: elements make more than %d parts; split into several assemblies"), i, MaxParts);
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 FBuildToolAssemblyResult URuntimeBuildToolset::CreateAssembly(const TArray<FRuntimeToolJson>& Parts, const FVector& Location, const FRotator& Rotation,
 	const FVector& Scale, const TArray<FString>& Tags, const FVector& Color, const FVector& Emissive, const FString& Name, AActor* Parent,
 	const FString& Material, float Roughness, float Metallic, float EmissiveStrength, float Opacity, float Variation, const FString& Style, float Tile,
@@ -499,6 +1031,21 @@ FBuildToolAssemblyResult URuntimeBuildToolset::CreateAssembly(const TArray<FRunt
 	TSharedRef<FJsonObject> Recipe = Obj();
 	Recipe->SetStringField(TEXT("shape"), TEXT("assembly"));
 	BuildCopyArg(Recipe, TEXT("parts"));
+	{
+		// "repeat" / "ring" on a part: one line becomes a window grid or a colonnade
+		const TArray<TSharedPtr<FJsonValue>>* Raw = nullptr;
+		TArray<TSharedPtr<FJsonValue>> Expanded;
+		FString Error;
+		TArray<TSharedPtr<FJsonValue>> Built;
+		if (Recipe->TryGetArrayField(TEXT("parts"), Raw) &&
+			(!ExpandPartCopies(*Raw, BuildMaxParts, Expanded, Error) || !ExpandElements(Expanded, BuildMaxParts, Built, Error)))
+		{
+			RuntimeToolCall::Fail(ERuntimeToolError::InvalidArguments, Error,
+				TEXT("repeat: {count: n | [nx,ny,nz], step: [dx,dy,dz], skip}; ring: {count, radius, start, angle, face}; elements: wall, tower, railing, arcade"));
+			return Out;
+		}
+		Recipe->SetArrayField(TEXT("parts"), Built);
+	}
 	BuildCopyMaterialArgs(Recipe, Material, Roughness, Metallic, EmissiveStrength, Opacity, Variation, Style, Tile, Relief);
 	if (!bRepairCoplanar)
 	{
